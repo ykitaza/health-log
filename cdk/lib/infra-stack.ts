@@ -21,7 +21,7 @@ const MEALS_URL_PARAM = `${PARAM_PREFIX}/meals/url`;
 const COGNITO_CLIENT_ID_PARAM = `${PARAM_PREFIX}/authorization/cognito-client-id`;
 const SIGNING_KEY_PARAM = `${PARAM_PREFIX}/authorization/signing-key`; // 認可APIが初回起動時に作る（SecureString）
 const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 同上。セッション Cookie の署名用
-// スマホアプリ（トレログ）が使う値。どれも秘密ではない
+// スマホアプリ（hlog）が使う値。どれも秘密ではない
 const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
 const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
 const APP_COGNITO_DOMAIN_PARAM = `${PARAM_PREFIX}/app/cognito-domain`;
@@ -277,7 +277,7 @@ export class InfraStack extends cdk.Stack {
       useCognitoProvidedValues: true,
     });
 
-    // ---- スマホアプリ（トレログ）のログイン ----
+    // ---- スマホアプリ（hlog）のログイン ----
 
     // アプリ用の API の scope。ルートごとに必須にし、ID トークンや認可API 用のクライアントのトークンを断る
     const mealsRead = new cognito.ResourceServerScope({ scopeName: 'meals.read', scopeDescription: '食事の記録を読む' });
