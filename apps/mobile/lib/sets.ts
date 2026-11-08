@@ -64,6 +64,15 @@ export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: We
     }));
 }
 
+/** 「上のセットをコピー」で写すセット：重量か回数が入っている最後のセット（なければ null） */
+export function lastFilledSet(drafts: SetDraft[]): SetDraft | null {
+  for (let i = drafts.length - 1; i >= 0; i--) {
+    const d = drafts[i];
+    if (d.weight.trim() !== '' || d.reps.trim() !== '') return d;
+  }
+  return null;
+}
+
 /** 上のセットを写す（メモと完了は写さない） */
 export function copyOf(d: SetDraft, key: string): SetDraft {
   return { key, weight: d.weight, weightKg: d.weightKg, reps: d.reps, memo: '', done: false };

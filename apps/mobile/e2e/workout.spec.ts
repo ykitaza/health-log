@@ -144,6 +144,33 @@ test('上のセットをコピー、セットの追加と削除と「元に戻�
   await expect(page.getByLabel('セット3のメモ')).toHaveValue('限界');
 });
 
+test('上のセットをコピーは、重量か回数が入っている最後のセットを写す。入っていなければ押せない', async ({ page }) => {
+  await openApp(page);
+  await openToday(page);
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'ベンチプレス');
+  // 初期の3セットがすべて空なら押せない（メモだけでも押せない）
+  await expect(button(page, '上のセットをコピー')).toBeDisabled();
+  await fillSets(page, [{ memo: 'メモだけ' }]);
+  await expect(button(page, '上のセットをコピー')).toBeDisabled();
+
+  // 1セット目だけ入れて押すと、空の3セット目ではなく1セット目を写す
+  await fillSets(page, [{ weight: '60', reps: '10' }]);
+  await expect(button(page, '上のセットをコピー')).toBeEnabled();
+  await button(page, '上のセットをコピー').click();
+  await expect(page.getByLabel(/^セット\d+の回数$/)).toHaveCount(4);
+  await expect(page.getByLabel('セット4の重量')).toHaveValue('60');
+  await expect(page.getByLabel('セット4の回数')).toHaveValue('10');
+  await expect(page.getByLabel('セット4のメモ')).toHaveValue('');
+
+  // 回数だけ入れたセットも写す
+  await fillSets(page, [{}, { reps: '8' }]);
+  await button(page, 'セット4を削除').click();
+  await button(page, '上のセットをコピー').click();
+  await expect(page.getByLabel('セット4の重量')).toHaveValue('');
+  await expect(page.getByLabel('セット4の回数')).toHaveValue('8');
+});
+
 test.describe('重量と回数の入力の確かめ', () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);

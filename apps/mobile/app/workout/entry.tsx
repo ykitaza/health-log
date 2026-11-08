@@ -11,7 +11,7 @@ import type { Entry } from '@/db/repositories/workouts';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
-import { copyOf, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
+import { copyOf, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -78,6 +78,8 @@ export default function EntryScreen() {
   const { exercise, entry, previous, best, settings } = loaded;
   const unit = settings.weightUnit;
   const weighted = exercise.recordType === 'weight_reps';
+  // 写すのは、重量か回数が入っている最後のセット。入っているセットがなければ押せない
+  const copySource = lastFilledSet(drafts);
 
   const update = (key: string, patch: Partial<SetDraft>) => {
     setDrafts((ds) => ds.map((d) => (d.key === key ? { ...d, ...patch } : d)));
@@ -247,8 +249,11 @@ export default function EntryScreen() {
             variant="secondary"
             small
             style={{ flex: 1 }}
-            disabled={drafts.length === 0}
-            onPress={() => setDrafts((ds) => (ds.length ? [...ds, copyOf(ds[ds.length - 1], newKey())] : ds))}
+            disabled={copySource == null}
+            onPress={() => setDrafts((ds) => {
+              const src = lastFilledSet(ds);
+              return src ? [...ds, copyOf(src, newKey())] : ds;
+            })}
           />
         </View>
       </Card>

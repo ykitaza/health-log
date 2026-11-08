@@ -1,5 +1,5 @@
 import { toCsv } from '../csv';
-import { copyOf, SetDraft, toSetInputs, validateSets } from '../sets';
+import { copyOf, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '../units';
 
 test('数の読み取り', () => {
@@ -55,6 +55,13 @@ describe('セットの入力の確認', () => {
     expect(toSetInputs([copyOf(draft, 'b')], 'weight_reps', 'lb')[0].weightKg).toBe(80);
     // 変えたら、入れた値から換算する
     expect(toSetInputs([{ ...draft, weight: '180' }], 'weight_reps', 'lb')[0].weightKg).toBeCloseTo(81.647, 3);
+  });
+  test('写すのは、重量か回数が入っている最後のセット。なければ null', () => {
+    expect(lastFilledSet([d('a', '80', '8'), d('b', '', ''), d('c', ' ', '')])?.key).toBe('a');
+    expect(lastFilledSet([d('a', '80', '8'), d('b', '', '6'), d('c', '', '', 'メモだけ')])?.key).toBe('b');
+    expect(lastFilledSet([d('a', '70', ''), d('b', '', '')])?.key).toBe('a');
+    expect(lastFilledSet([d('a', '', ''), d('b', '', '', 'メモだけ')])).toBeNull();
+    expect(lastFilledSet([])).toBeNull();
   });
   test('上のセットを写す', () => {
     expect(copyOf({ ...d('a', '80', '8', 'メモ'), done: true, id: 'x' }, 'b')).toEqual(d('b', '80', '8'));
