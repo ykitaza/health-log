@@ -9,9 +9,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from infrastructure.cimd_client_directory import CimdClientDirectory
 from infrastructure.settings import Settings, load_settings
-from infrastructure.stores import DynamoDBStore, MemoryStore, Store
+from infrastructure.stores import DynamoDBStore, MemoryStore
 from oauth.resource_indicators import ResourceServer
 from oauth.server import AuthorizationServer
+from oauth.store import Store
 from presentation.routes import LoginGateway, create_blueprint
 
 # MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）

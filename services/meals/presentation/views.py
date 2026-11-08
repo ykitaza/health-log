@@ -6,7 +6,7 @@ from domain.body_weight import GoalProgress
 from domain.goal_suggestion import BodyProfile
 from domain.meal import Meal
 from domain.meal_template import MealTemplate
-from domain.nutrition_goal import NutritionGoal
+from domain.nutrition_goal import DailyTarget, NutritionGoal
 from domain.summary import DailySummary, WeeklyReview
 from domain.nutrition_goal import Target
 from domain.values import DayType, Nutrition, NutritionGap
@@ -57,6 +57,25 @@ def goal(g: NutritionGoal) -> dict:
         "eating_style": g.eating_style.value if g.eating_style else None,
         "target_weight_kg": g.target_weight_kg,
     }
+
+
+def goal_fields(g: NutritionGoal) -> dict:
+    """アプリ用の API の目標の形（docs/api/app-api.yaml の NutritionGoalFields）。アプリはそのまま同期で送れる。
+
+    MCP の goal（日の種類ごとの目標。たんぱく質を含む）とは別の形。
+    """
+    both = g.training_day is not None and g.rest_day is not None
+    return {
+        "policy": g.policy.value, "body_weight_kg": g.body_weight_kg, "protein_per_kg": g.protein_per_kg,
+        "targets": {"training_day": _daily_target(g.training_day), "rest_day": _daily_target(g.rest_day)}
+        if both else None,
+        "eating_style": g.eating_style.value if g.eating_style else None,
+        "target_weight_kg": g.target_weight_kg,
+    }
+
+
+def _daily_target(t: DailyTarget | None) -> dict | None:
+    return None if t is None else {"kcal": t.kcal, "fat_g": t.fat_g, "carbs_g": t.carbs_g}
 
 
 def daily(s: DailySummary) -> dict:

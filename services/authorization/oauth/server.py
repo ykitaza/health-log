@@ -21,7 +21,6 @@ from joserfc import jwt
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet, RSAKey
 
-from infrastructure.stores import Store
 from oauth.models import (
     AuthorizationCode,
     Client,
@@ -32,6 +31,7 @@ from oauth.models import (
     parse_refresh_token,
 )
 from oauth.resource_indicators import ResourceIndicators, ResourceServer, check_token_resource
+from oauth.store import Store
 
 KEY_ID = "authz-key-1"
 # 5分：取り消し（ログアウト）しても、発行済みのアクセストークンは期限まで使えてしまうため短くする

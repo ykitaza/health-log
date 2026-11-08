@@ -1,21 +1,10 @@
-"""認可の途中の状態とリフレッシュトークンの系列の置き場所。種類（request / code / refresh）とキーで、dict を出し入れする。
+"""認可の途中の状態とリフレッシュトークンの系列の置き場所（oauth/store.py の Store の実装）。
 
 PC ではメモリー、Lambda では DynamoDB に置く（Lambda は呼ばれるたびに別の実行環境になることがあるため）。
 """
 
 import json
 import time
-from typing import Protocol
-
-
-class Store(Protocol):
-    def put(self, kind: str, key: str, data: dict, ttl_seconds: int) -> None: ...
-
-    def get(self, kind: str, key: str) -> dict | None: ...
-
-    def pop(self, kind: str, key: str) -> dict | None:
-        """取り出すと同時に消す（認可コードを2回使わせないため）。"""
-        ...
 
 
 class MemoryStore:

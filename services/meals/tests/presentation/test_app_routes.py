@@ -15,6 +15,7 @@ from infrastructure import sync_repositories as synced
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from infrastructure.sync_entities import template_id
 from presentation.app_routes import meal_routes
+from sync.model import Change
 from sync.presentation.http_api import SyncHttpApi
 from tests.sync.conftest import REGISTRY, memory_engine
 
@@ -132,6 +133,22 @@ def test_目標の案を計算する_保存はしない(api, engine):
     assert status == 200 and result["goal"]["targets"]["rest_day"]["kcal"] == 2200
     assert result["used"]["age"] == 30
     assert engine.head("alice") == 0
+
+
+def test_目標の案の形は_同期の目標の項目と同じ(api):
+    # アプリは、案をそのまま nutrition_goal の fields として送れる（docs/api/app-api.yaml の NutritionGoalFields）
+    _, result, _ = api("POST", "/v1/meals/goal-suggestions", {"policy": "maintain", "eating_style": "eating_out"})
+    assert result["goal"] == {"policy": "maintain", "body_weight_kg": None, "protein_per_kg": None, "targets": None,
+                              "eating_style": "eating_out", "target_weight_kg": None}
+    body = {"policy": "cut", "pace_kg_per_week": 0.5, "sex": "female", "age": 40, "height_cm": 160,
+            "weight_kg": 60, "daily_activity": "moderate", "training_minutes": 30, "target_weight_kg": 55}
+    goal = api("POST", "/v1/meals/goal-suggestions", body)[1]["goal"]
+    assert set(goal) == {"policy", "body_weight_kg", "protein_per_kg", "targets", "eating_style", "target_weight_kg"}
+    assert set(goal["targets"]) == {"training_day", "rest_day"}
+    assert set(goal["targets"]["rest_day"]) == {"kcal", "fat_g", "carbs_g"}
+    fields = {"change_id": "0b8f0c39-5f8e-4b0a-9a39-2a0c3f0e7a11", "entity_type": "nutrition_goal",
+              "entity_id": "current", "op": "create", "fields": goal, "changed_at": "2026-10-12T00:00:00Z"}
+    assert isinstance(REGISTRY.parse_change(fields, set(REGISTRY.specs), None), Change)
 
 
 @pytest.mark.parametrize("body,status", [
