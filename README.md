@@ -45,7 +45,8 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 ![構成図](docs/architecture.drawio.svg)
 
-- 入口は API Gateway の HTTP API だけで、どちらにも流量の制限（1秒1回・瞬間5回）を付けています
+- 入口は API Gateway の HTTP API だけで、どれにも流量の制限を付けています（認可API と MCP は1秒1回・瞬間5回、スマホアプリ用の API は1秒10回・瞬間20回）
+- スマホアプリ（トレログ）とは、変更の記録を送り合って同期します。MCP からの変更も同じ記録を通るので、アプリにも届きます（[同期の設計](docs/sync-design.md)、[アプリ用の API](docs/api/app-api.yaml)）
 - 認可API が Cognito でログインさせ、同意を得てから、食事記録だけに使えるアクセストークンを出します
 - 怪しいアクセスや異常（4xx・5xx・429 の急増、ルートや MFA なしのログイン、IAM・Cognito の変更など）を検知してメールで知らせます（[監視](docs/monitoring.md)）
 - ログインからツールの呼び出しまでの流れは [シーケンス図](docs/sequence.md)、設計の考え方は [全体の設計](docs/design.md) と [食事記録の設計](docs/meals-design.md) にあります
@@ -64,6 +65,8 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 ```
 
 パスワードは `services/authorization/.test1-password` に保存されます（画面には出しません）。
+
+すでにデプロイしてあって、同期の仕組みを入れる前の記録があるときは、**デプロイの前に**移行のスクリプトを動かします（[今あるデータの移行](docs/sync-design.md#今あるデータの移行)）。
 
 監視のスタック（`CognitoStudyMonitoring`、us-east-1 の `CognitoStudyMonitoringGlobal`）も一緒にデプロイされます。
 初回は us-east-1 の bootstrap と、通知のメールの購読が要ります（[監視](docs/monitoring.md)）。

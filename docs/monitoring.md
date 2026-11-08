@@ -15,6 +15,7 @@
 ### API と Lambda（CloudWatch のアラーム）
 
 しきい値は、2026-11-08 までの30日のアクセスログ（2つの API の合計）をもとに、本人1人の利用ではありえない量にしています。
+スマホアプリ用の API（`AppApi`）のアクセスログも、同じメトリクスに合わせて数えます。アプリは開くたびに同期で数回から十数回送るので、使い始めたら `Requests` のしきい値を見直します。
 どの API の数も、ディメンションのない1つのメトリクス（名前空間 `CognitoStudy/Monitoring`）に足し込みます。API ごとにアラームを作ると、アラームの無料枠（10個）を超えるためです。どの API で起きたかは、下の Logs Insights で見ます。
 
 | アラーム | 数えるもの | しきい値 | 根拠 |
@@ -55,7 +56,7 @@
 
 | 通知 | 見るもの |
 |---|---|
-| API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...` |
+| API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
 | ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...` |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail の操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |

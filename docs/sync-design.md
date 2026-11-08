@@ -31,8 +31,8 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
-- 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` はあとから変えられません
-- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(いつものの名前空間, 名前)`）。名前を変えるときは、古い名前のものを消して、新しい名前で作ります
+- 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
+- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(いつものの名前空間, 名前)`。`infrastructure/sync_repositories.py` の `template_id`）。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
 - 体重は、体組成（`body_record`）に一本化するまで、今の MCP と同じ扱い（同期しない）にします
 
@@ -60,10 +60,10 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 1. **手入力か**：`app`・`mcp`・`migration` は、`import`（取り込み）より強い。取り込み直しで手入力の値を上書きしないため
 2. **時刻**：`min(changed_at, received_at)` が新しい方。端末の時計が進んでいても、未来の時刻で勝ち続けないように、受け付けた時刻で切ります
-3. **同じ時刻のとき**：`change_id` を文字列として比べ、大きい方
+3. **同じ時刻のとき**：あとに受け付けた方（`seq` の大きい方）。MCP は同じミリ秒の中で「記録 → 修正」と続けて書くことがあり、修正の方を残すためです
 
-この比べ方は、変更の届いた順番によりません（どの順で当てはめても、項目ごとに最大のものが残る）。同じ変更を2回当てはめても結果は同じです。
-そのため、端末が順番を入れ替えて送っても、MCP とアプリが同時に変えても、最後はどの端末も同じ状態になります。
+時刻が違う変更どうしは、届いた順番によらず同じ結果になります（項目ごとに最大のものが残る）。同じ変更（同じ `change_id`）は2回目から当てはめません。
+当てはめるのはサーバーだけで、端末はサーバーが返した状態で上書きするので、時刻が同じときも、どの端末も同じ状態になります。
 
 - **新しく足す**：ID が違うので、両方残ります
 - **同じ記録の違う項目**：項目ごとに当てはめるので、両方が残ります
@@ -80,7 +80,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 合わない変更は、その変更だけを断ります（`rejected`、理由つき）。同じ送信の中のほかの変更は受け付けます。断った変更は、変更の記録に残しません。
 
 - 知らない項目、型の違い、範囲の外（例：量が0以下、栄養が負）
-- `parent_id` が要る種類で、ないとき。品目の `parent_id` を変えようとしたとき
+- `parent_id` が要る種類で、ないとき。要らない種類にあるとき
 - 送った人の scope で扱えない種類（例：`meals.write` だけで `workout_set`）
 - `origin` に `mcp`・`migration` を入れたとき
 
@@ -132,24 +132,35 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 - `save(meal)`：今の状態と比べ、違う項目だけを `update`（新しい食事は `create`）にします。品目は、足したもの・変えたもの・消したものを、それぞれ `meal_item` の変更にします
 - `delete(meal)`：`meal` の `delete` にします（品目は食事と一緒に見えなくなる）
-- `changed_at` と `received_at` はサーバーの時刻、`origin` は `mcp` です
-- MCP のツールの入力と出力、今のテストは変えません
+- 消えたいつもの・目標・日の種類を MCP が保存し直すときは、`restore` してから書きます
+- `changed_at` と `received_at` はサーバーの時刻、`origin` は `mcp` です。食事の時刻は `HH:MM`（秒は持たない。MCP の出力も `HH:MM`）
+- 1回のトランザクションに入れる変更は30件までで、それより多いとき（写真をまとめて記録したとき）は分けて書きます
+- MCP のツールの入力と出力、今のテストは変えません。今のテスト（リポジトリ・サービス・MCP のツール）は、同期の実装でも同じものを流しています（`tests/sync/test_existing_suites.py`）
 
 ## 今あるデータの移行
 
-今の食事・いつもの・目標・日の種類（`MEAL#`・`TEMPLATE#`・`GOAL`・`DAYTYPE#`）には、変更の記録がありません。移行のスクリプトで、1件ずつ `create` の変更に変えて書きます。
+今の食事・いつもの・目標・日の種類（`MEAL#`・`TEMPLATE#`・`GOAL`・`DAYTYPE#`）には、変更の記録がありません。
+移行のスクリプト（`services/meals/scripts/migrate_to_sync.py`）で、1件ずつ `create` の変更に変えて書きます。Lambda には載せません。
 
 - `origin` は `migration`、`changed_at` はスクリプトを動かした時刻です
-- `change_id` は `uuid5(移行の名前空間, pk + sk + 中身のハッシュ)` にします。何度動かしても同じ変更は `duplicate` になり、動かすまでに中身が変わったものだけが新しい変更になります
+- `change_id` は `uuid5(移行の名前空間, pk + sk + 中身のハッシュ + 何番目か)` にします。何度動かしても、中身が同じものは `duplicate` になります
 - 古い項目は消しません（もとに戻すときのため）。読む側は `SYNC#STATE#` だけを読みます
-- 体重（`WEIGHT#`）は移行しません
+- 体重（`WEIGHT#`）は移しません
+- 画面に出すのは件数だけです（利用者の ID や記録の中身は出さない）
 
-手順：
+手順（**デプロイの前に**移します。デプロイのあとに古いコードは動かないので、古い項目はもう変わりません）：
 
-1. デプロイの前に、スクリプトを読み取りだけ（`--dry-run`）で動かし、件数を確かめる
-2. スクリプトを動かして書く
+1. 読み取りだけで動かし、件数を確かめる
+   ```sh
+   cd services/meals
+   AWS_PROFILE=yuki AWS_REGION=ap-northeast-1 PYTHONPATH=. uv run python scripts/migrate_to_sync.py --table <MealsTable の名前>
+   ```
+2. 同じコマンドに `--apply` を付けて書く。ここからデプロイが終わるまで、MCP（Claude・ChatGPT）で食事を記録・修正しない（古いコードで変えたものは、新しいコードから見えないため）。変えてしまったら、デプロイの前にもう一度 `--apply` で動かす
 3. デプロイする（MCP が今の状態を読むようになる）
-4. もう一度スクリプトを動かす（1からデプロイまでの間に MCP で変えたものを拾う）。この間に MCP で消したものは拾えないので、その間は MCP を使わない
+4. 確かめるために、もう一度 `--apply` で動かす。全部 `duplicate` になれば、移し残しはない
+
+`MealsTable` の名前は、`aws cloudformation describe-stack-resources --stack-name CognitoStudy --logical-resource-id MealsTableCAABDBC9` で調べます。
+スクリプトはテーブルの全体を読む（`Scan`）ので、管理者の資格情報で動かします（Lambda には `Scan` を与えていません）。
 
 ## API と認可
 
@@ -164,15 +175,18 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 - 種類ごとの scope は、Lambda がもう一度確かめます（上の表のどれか1つで通るため）
 - 利用者は、オーソライザーを通ったあとに API Gateway が渡すクレームの `sub` だけで決めます。本文や URL に利用者の ID は入れません
+  - アプリ用の Lambda（`AppApiFunction`、`app_api_main.handler`）は、Lambda Web Adapter を通さず、API Gateway のイベント（`requestContext.authorizer.jwt.claims`）からクレームを読みます。利用者が送るヘッダーは読みません
+  - Lambda でも、`token_use` が `access`、`client_id` がアプリのクライアントであることを、もう一度確かめます
+  - スナップショットの `page_token` には sk の位置しか入れません。どの pk を読むかはクレームで決まるので、ほかの人の `page_token` を使っても自分の分しか読めません
+- Lambda の権限は、食事のテーブル（とその LSI）の `GetItem`・`BatchGetItem`・`Query`・`PutItem`・`ConditionCheckItem` だけです。変更の記録は追記だけなので、`DeleteItem`・`UpdateItem`・`Scan` は与えません
 - MCP の認可API のアクセストークンの `sub` は、Cognito の ID トークンの `sub` そのものです（`services/authorization/infrastructure/cognito_login.py`）。アプリのアクセストークンの `sub` も同じ Cognito のユーザーの `sub` なので、同じ人は同じ pk になります
 - 流量の制限は、1秒10回・瞬間20回です。アプリを開いたときに、送信と受け取りのページ送りが続けて数回から十数回届くためです（MCP は1秒1回・瞬間5回のまま）
 - アクセスログは30日残します
 
-## 決めること（実装の前に）
+## 決めたこと（2026-11-08、本人と合意）
 
-1. **保存先のテーブル**
-   - 案A：今の食事のテーブル（`MealsTable`）に足す。pk は今の `EATER#<sub>`。LSI `by_day` をそのまま使え、テーブルの変更（置き換え）はない。筋トレの記録も「MealsTable」という名前のテーブルに入る（論理 ID は変えられない）
-   - 案B：新しいテーブルを作る（pk は `USER#<sub>`）。食事と筋トレの置き場所がきれいに分かれ、今のテーブルは体重と移行前の記録だけになる。食事の期間の検索のため、作るときに LSI を付ける。MCP の Lambda は両方のテーブルを読み書きする
-   - どちらも、既存のリソースの置き換えはありません。おすすめは案A（足すものが少なく、移行がテーブルの中で済む）
-2. **目標の計算**：アプリ用に `POST /v1/meals/goal-suggestions`（計算だけ、保存しない。MCP の `suggest_goals` と同じ）を置き、保存は同期（`nutrition_goal` の `update`）で行う案にしています。サーバーが計算して保存まで行う形にするかは要相談
-3. **同期のコードの置き場所**：`services/meals/` の中（`sync/`）に置き、筋トレの対象も同じ Lambda で扱う案にしています。`services/training/` ができたら、共通の部分を分けるか決めます
+1. **保存先のテーブル**：今の食事のテーブル（`MealsTable`）に `SYNC#…` の項目を足す。pk は今の `EATER#<sub>`。今の LSI `by_day` をそのまま使い、テーブルは変えない（置き換えなし）。筋トレの記録も、名前は「MealsTable」のテーブルに入る（論理 ID は変えられない）
+2. **目標の計算**：`POST /v1/meals/goal-suggestions` は計算だけ（MCP の `suggest_goals` と同じ）。保存は同期（`nutrition_goal` の `update`）で行う
+3. **日の種類**：本人が決めた日だけを保存する。のちに筋トレの記録から求める結果より、本人が決めたものを優先する
+4. **同期のコードの置き場所**：`services/meals/sync/`。筋トレの対象も同じ Lambda で扱う。`services/training/` ができたら、共通の部分を分けるか決める
+5. **アプリのリフレッシュトークンの猶予**：10秒

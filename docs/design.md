@@ -55,8 +55,8 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 | フォルダ | 中身 |
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
-| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個） |
-| `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 2つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
+| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個）。スマホアプリ用の API の入口（`presentation/app_api.py`、`app_api_main.py`）と、同期の仕組み（`sync/`）、移行のスクリプト（`scripts/`） |
+| `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
 | `tools/inspector/` | MCP Inspector 用の CIMD の文書（PC で食事記録を試すとき） |
 | `docs/` | 設計書と図 |
 
@@ -65,7 +65,8 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 本人だけで使うので、次のように絞っています。
 
 - 入口は API Gateway の HTTP API だけにしています（Lambda の関数 URL は使いません）
-- 流量の制限は 1秒1回・瞬間5回です。超えた分は 429 で断るので、叩かれ続けても月の費用に上限がかかります
+- 流量の制限は、認可API と MCP が 1秒1回・瞬間5回、スマホアプリ用の API が 1秒10回・瞬間20回です。超えた分は 429 で断るので、叩かれ続けても月の費用に上限がかかります
+- スマホアプリ用の API は、Cognito のアプリのクライアントのアクセストークンだけを受け付けます（下の「スマホアプリ用の API」）
 - Cognito のログイン画面からの新規登録はできません。ユーザーは管理者の操作（`setup-local.sh`）でだけ作ります
 - ユーザープールと DynamoDB のテーブルは、削除の保護を有効にし、`cdk destroy` でも消えない（RETAIN）ようにしています。ユーザーが消えると `sub`（食べた人の ID）が変わり、記録がたどれなくなるためです
 
@@ -123,7 +124,27 @@ CDK の `AuthFlow` の資料も、パスキーを有効にしたら `authFlows: 
 | アクセストークン・ID トークン | 15分 | 盗まれたときの被害を小さくする |
 | リフレッシュトークン | 30日。使うたびに新しくする（古いものは10秒だけ使える） | 10秒は、通信が切れて取り直すとき用 |
 | 失効・ユーザーの有無 | 失効を有効、ユーザーの有無をエラーから知られないようにする | |
-| scope | `openid`、`torelog-api/meals.read`、`torelog-api/meals.write` | アプリ用の API のルートで必須にし、ID トークンや認可API 用のクライアントのトークンを断る |
+| scope | `openid`、`torelog-api/meals.read`・`meals.write`・`training.read`・`training.write` | アプリ用の API のルートで必須にし、ID トークンや認可API 用のクライアントのトークンを断る |
 
-scope はリソースサーバー `torelog-api` に置き、名前は「対象.操作」にしています。筋トレは同じ形で `training.read`・`training.write` を足します（MCP の認可API の scope `meals:read` とは別の名前空間です）。
-アプリが使う値（issuer、クライアント ID、Cognito のドメイン）は、`cdk deploy` の出力と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
+scope はリソースサーバー `torelog-api` に置き、名前は「対象.操作」にして、食事（`meals.*`）と筋トレ（`training.*`）を分けています（MCP の認可API の scope `meals:read` とは別の名前空間です）。
+アプリが使う値（issuer、クライアント ID、Cognito のドメイン、API の URL）は、`cdk deploy` の出力（`CognitoIssuer`・`AppClientId`・`CognitoDomain`・`AppApiUrl`）と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
+
+## スマホアプリ用の API
+
+アプリは端末の SQLite に先に保存し、つながったときに変更の記録を送り合って同期します。仕組みは [sync-design.md](sync-design.md)、API の仕様は [api/app-api.yaml](api/app-api.yaml) にあります。
+
+```
+アプリ ──アクセストークン（Cognito）──► HTTP API（JWT のオーソライザー）──► AppApiFunction ─┐
+                                                                                            ├─► MealsTable（変更の記録と今の状態）
+Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API ──► MealsFunction（MCP）───────────┘
+```
+
+| 項目 | 中身 |
+|---|---|
+| ルート | `POST /v1/sync/changes`（送る）、`GET /v1/sync/changes`（受け取る）、`GET /v1/sync/snapshot`（初回の全件）、`POST /v1/meals/goal-suggestions`（目標の案） |
+| オーソライザー | issuer は Cognito、audience はアプリのクライアント ID だけ。ルートごとに scope を必須にする |
+| 利用者 | オーソライザーが確かめたクレームの `sub`。MCP のアクセストークンの `sub` も Cognito の `sub` そのものなので、同じ人は同じデータになる |
+| Lambda | MCP と別の関数。Lambda Web Adapter を通さない。権限は食事のテーブルの読み取りと追記だけ |
+| 流量の制限・ログ | 1秒10回・瞬間20回。アクセスログは30日（監視のスタックも読む） |
+
+体重は、体組成に一本化するまで同期しません（MCP の `record_weight` のまま）。
