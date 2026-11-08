@@ -89,6 +89,10 @@ describe('パスキー', () => {
     expect(rp.ExplicitAuthFlows).toEqual(['ALLOW_USER_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']);
     expect(rp.GenerateSecret).toBe(true);
   });
+
+  test('認可API 用のクライアントも、ユーザーの有無をエラーから知られないようにする', () => {
+    expect(clientNamed('authz-api').PreventUserExistenceErrors).toBe('ENABLED');
+  });
 });
 
 describe('スマホアプリ用のクライアント', () => {

@@ -255,6 +255,7 @@ export class InfraStack extends cdk.Stack {
         // logout_uri：ログアウトのあとの画面と、「別のアカウントで入り直す」のあとにログイン画面へ戻る入口
         logoutUrls: [LOCAL_AUTHZ_ORIGIN, authzUrl].flatMap((origin) => [`${origin}/logged-out`, `${origin}/relogin`]),
       },
+      preventUserExistenceErrors: true, // ユーザーがいるかどうかを、ログイン画面のエラーの違いから知られないようにする
     });
     new ssm.StringParameter(this, 'CognitoClientIdParam', {
       parameterName: COGNITO_CLIENT_ID_PARAM, stringValue: client.userPoolClientId,
