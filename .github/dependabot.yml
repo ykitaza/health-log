@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Python（uv）：認可API と食事記録
+  - package-ecosystem: uv
+    directories:
+      - /services/authorization
+      - /services/meals
+    schedule:
+      interval: weekly
+    # minor と patch は1つの PR にまとめる。major は依存ごとに別の PR にする
+    groups:
+      uv-minor-and-patch:
+        update-types: [minor, patch]
+
+  # CDK
+  - package-ecosystem: npm
+    directory: /cdk
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # ワークフローのアクション（SHA で固定したものも、版のコメントごと更新される）
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]
