@@ -135,6 +135,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - `save(meal)`：今の状態と比べ、違う項目だけを `update`（新しい食事は `create`）にします。品目は、足したもの・変えたもの・消したものを、それぞれ `meal_item` の変更にします
 - `delete(meal)`：`meal` の `delete` にします（品目は食事と一緒に見えなくなる）
 - 消えたいつもの・目標・日の種類を MCP が保存し直すときは、`restore` してから書きます
+- 初期の種目（同期にまだないものも含む）を MCP が変えるとき（`update_exercise`）は、初期の値に同期の値を重ねたものと比べ、違う項目だけを `update` にします（変えていない項目で、アプリのまだ届いていない変更を負かさないため）
 - `changed_at` と `received_at` はサーバーの時刻、`origin` は `mcp` です。食事の時刻は `HH:MM`（秒は持たない。MCP の出力も `HH:MM`）
 - 1回のトランザクションに入れる変更は30件までで、それより多いとき（写真をまとめて記録したとき）は分けて書きます
 - MCP のツールの入力と出力、今のテストは変えません。今のテスト（リポジトリ・サービス・MCP のツール）は、同期の実装でも同じものを流しています（`services/meals/tests/sync/test_existing_suites.py`）

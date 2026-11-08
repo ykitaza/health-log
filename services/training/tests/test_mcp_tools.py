@@ -65,8 +65,8 @@ def test_ツールの一覧():
     mcp_tools.register_training_tools(mcp, None, None, today=lambda: TODAY)
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"record_workout", "get_workout", "list_workouts", "exercise_history", "weekly_training_review",
-                     "list_exercises", "update_workout", "delete_workout", "add_exercise", "record_body",
-                     "body_progress"}
+                     "list_exercises", "update_workout", "delete_workout", "add_exercise", "update_exercise",
+                     "record_body", "body_progress"}
 
 
 def test_記録すると_その日の記録と計算と最後の同期の時刻を返す(call):
@@ -192,6 +192,87 @@ def test_種目を足して記録に使える_同じ部位に同じ名前は作�
     assert names[-1] == "ケトルベルスイング"
 
 
+def test_種目の名前を変えると_過去の記録と推移も新しい名前で出る(call):
+    call("record_workout", exercises=[bench((80, 8))], day="2026-11-01")
+    renamed = call("update_exercise", exercise=BENCH, name="バーベルベンチプレス")
+    assert (renamed["name"], renamed["body_part"], renamed["hidden"]) == ("バーベルベンチプレス", "胸", False)
+    assert call("get_workout", day="2026-11-01")["entries"][0]["exercise"] == "バーベルベンチプレス"
+    assert call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"][0]["exercises"] == ["バーベルベンチプレス"]
+    history = call("exercise_history", exercise="バーベルベンチプレス")
+    assert [d["date"] for d in history["days"]] == ["2026-11-01"]
+    with pytest.raises(ToolError, match="という名前の種目はありません"):
+        call("exercise_history", exercise="ベンチプレス")  # 古い名前では選ばない
+    # 同じ種目（ID）に記録が続く
+    entry = call("record_workout", exercises=[{"exercise": renamed["exercise_id"], "sets": [{"weight_kg": 85, "reps": 5}]}])
+    assert entry["entries"][0]["new_personal_best"] is not None
+
+
+def test_種目の部位を変えると_新しい部位の最後に並び_週のふり返りの部位も変わる(call):
+    call("record_workout", exercises=[{"exercise": "懸垂", "sets": [{"reps": 10}]}, bench((80, 8))])
+    moved = call("update_exercise", exercise=BENCH, body_part="肩")
+    assert moved["body_part"] == "肩"
+    shoulders = next(p for p in call("list_exercises")["body_parts"] if p["body_part"] == "肩")
+    assert shoulders["exercises"][-1]["name"] == BENCH
+    parts = {p["body_part"]: p["volume"] for p in call("weekly_training_review")["by_body_part"]}
+    assert (parts["肩"], parts["胸"]) == (640, 0)
+
+
+def test_種目の名前の変更は_同じ部位に同じ名前があれば断る_ほかの部位ならよい(call, engine):
+    with pytest.raises(ToolError, match="胸にはもう「ダンベルフライ」があります"):
+        call("update_exercise", exercise=BENCH, name="ダンベル フライ")
+    with pytest.raises(ToolError, match="背中にはもう「デッドリフト」があります"):
+        call("update_exercise", exercise="ルーマニアンデッドリフト", name="デッドリフト", body_part="背中")
+    call("update_exercise", exercise="ダンベルフライ", hidden=True)
+    with pytest.raises(ToolError, match="隠している種目です.*update_exercise で表示に戻せます"):
+        call("update_exercise", exercise=BENCH, name="ダンベルフライ")
+    head = engine.head("alice")
+    # 自分と同じ名前（大文字と小文字や空白だけ変える）はよい。ほかの部位に同じ名前があってもよい
+    assert call("update_exercise", exercise="スクワット", name="スクワット ")["name"] == "スクワット"
+    assert engine.head("alice") == head  # 何も変わらなければ書かない
+    assert call("update_exercise", exercise="スクワット", name="デッドリフト")["body_part"] == "脚"
+    with pytest.raises(ToolError, match="変える内容"):
+        call("update_exercise", exercise=BENCH)
+    with pytest.raises(ToolError, match="という部位はありません"):
+        call("update_exercise", exercise=BENCH, body_part="首")
+    with pytest.raises(ToolError, match="名前を入れてください"):
+        call("update_exercise", exercise=BENCH, name="  ")
+    with pytest.raises(ToolError, match="40文字以内"):
+        call("update_exercise", exercise=BENCH, name="ア" * 41)
+
+
+def test_種目を隠すと一覧から消え_記録には使え_表示に戻せる(call):
+    hidden = call("update_exercise", exercise=BENCH, hidden=True)
+    assert hidden["hidden"] is True
+    chest = lambda listed: next(p for p in listed["body_parts"] if p["body_part"] == "胸")["exercises"]
+    assert BENCH not in [e["name"] for e in chest(call("list_exercises"))]
+    assert {"exercise_id": hidden["exercise_id"], "name": BENCH, "record_type": "weight_reps", "hidden": True} in \
+        chest(call("list_exercises", include_hidden=True))
+    call("record_workout", exercises=[bench((80, 8))])  # 隠した種目も記録に使える
+    shown = call("update_exercise", exercise=hidden["exercise_id"], hidden=False)
+    assert shown["hidden"] is False and BENCH in [e["name"] for e in chest(call("list_exercises"))]
+
+
+def test_初期の種目を変えるときは_変えた項目だけを同期に送る(call, engine):
+    call("update_exercise", exercise=BENCH, name="バーベルベンチプレス")
+    call("update_exercise", exercise="スクワット", hidden=True)
+    entries, _, _ = engine.pull("alice", 0, 100, set(REGISTRY.specs))
+    assert [(e.change.op, e.change.fields) for e in entries] == [
+        ("update", {"name": "バーベルベンチプレス"}), ("update", {"hidden": True})]
+    # 同期に記録のある種目も、違う項目だけ
+    call("update_exercise", exercise="バーベルベンチプレス", name="ベンチプレス", hidden=True)
+    entries, _, _ = engine.pull("alice", 2, 100, set(REGISTRY.specs))
+    assert [(e.change.op, e.change.fields) for e in entries] == [("update", {"name": "ベンチプレス", "hidden": True})]
+
+
+def test_アプリが同期で送った種目の変更と_MCP_の変更は項目ごとに合わさる(call, engine):
+    exercise_id = call("update_exercise", exercise=BENCH, name="バーベルベンチプレス")["exercise_id"]
+    engine.append("alice", [Change(str(uuid.uuid4()), "exercise", exercise_id, None, "update", {"hidden": True},
+                                   "2026-11-08T00:00:00.000Z", "app")])  # 先に端末で隠していた（名前より古い）
+    listed = call("list_exercises", include_hidden=True)
+    found = [e for p in listed["body_parts"] for e in p["exercises"] if e["exercise_id"] == exercise_id]
+    assert found == [{"exercise_id": exercise_id, "name": "バーベルベンチプレス", "record_type": "weight_reps", "hidden": True}]
+
+
 def test_体組成を記録し_同じ日は渡した項目だけ書き換える(call):
     first = call("record_body", weight_kg=70.2, body_fat_pct=15)
     assert first["recorded"]["weight_kg"] == 70.2 and first["recorded"]["fat_mass_kg"] == 10.5
@@ -234,6 +315,7 @@ def test_ほかの人の記録は見えず_直せない(call):
     ("update_workout", {"day": "2026-11-08", "remove_set_ids": ["x"]}, "training:write"),
     ("delete_workout", {"day": "2026-11-08"}, "training:write"),
     ("add_exercise", {"name": "x", "body_part": "胸"}, "training:write"),
+    ("update_exercise", {"exercise": BENCH, "hidden": True}, "training:write"),
     ("record_body", {"weight_kg": 70}, "training:write"),
 ])
 def test_筋トレの_scope_がなければ断る(call, engine, tool, arguments, scope):
@@ -252,6 +334,8 @@ def test_書いた変更は_アプリから届く変更と同じ確かめ方を�
     call("update_workout", day="2026-11-08", change_sets=[{"set_id": workout["entries"][0]["sets"][0]["set_id"],
                                                            "weight_kg": 82.5}])
     call("add_exercise", name="ケトルベルスイング", body_part="脚")
+    call("update_exercise", exercise="ケトルベルスイング", name="ケトルベル・スイング", body_part="背中", hidden=True)
+    call("update_exercise", exercise=BENCH, name="バーベルベンチプレス")
     call("record_body", weight_kg=70, memo="朝")
     call("delete_workout", day="2026-11-08", entry_ids=[workout["entries"][1]["entry_id"]])
     entries, _, _ = engine.pull("alice", 0, 100, set(REGISTRY.specs))

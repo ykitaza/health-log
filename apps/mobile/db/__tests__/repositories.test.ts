@@ -133,6 +133,42 @@ describe('種目と部位', () => {
     await expect(r.catalog.createBodyPart('エ'.repeat(41))).rejects.toThrow('部位の名前は40文字以内で入れてください（今は41文字）');
   });
 
+  test('種目の名前と部位を変える。同じ部位に同じ名前は断る。部位を変えたらその部位の最後', async () => {
+    const { r } = await setup();
+    const SHOULDER = SEED_BODY_PARTS.find((p) => p.name === '肩')!.id;
+    await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: BENCH, sets: [{ weightKg: 80, reps: 8, memo: '', done: true }] });
+    await r.catalog.updateExercise(BENCH, { name: ' バーベルベンチプレス ', bodyPartId: CHEST });
+    expect(await r.catalog.getExercise(BENCH)).toMatchObject({ name: 'バーベルベンチプレス', bodyPartName: '胸', sortOrder: 0 });
+    // 過去の記録も新しい名前で出る（記録は ID でつながる）
+    expect((await r.workouts.getDay('2026-11-01'))[0].exerciseName).toBe('バーベルベンチプレス');
+
+    await expect(r.catalog.updateExercise(BENCH, { name: 'ダンベルフライ', bodyPartId: CHEST })).rejects.toThrow('同じ部位に同じ名前の種目があります');
+    await r.catalog.setExerciseHidden(SEED_EXERCISES.find((e) => e.name === 'ケーブルフライ')!.id, true);
+    await expect(r.catalog.updateExercise(BENCH, { name: 'ケーブルフライ', bodyPartId: CHEST })).rejects.toThrow('非表示の種目があります');
+    await expect(r.catalog.updateExercise(BENCH, { name: ' ', bodyPartId: CHEST })).rejects.toThrow('種目の名前を入れてください');
+    await expect(r.catalog.updateExercise(BENCH, { name: 'イ'.repeat(41), bodyPartId: CHEST })).rejects.toThrow('40文字以内');
+
+    // ほかの部位なら同じ名前でもよい。並びはその部位の最後
+    await r.catalog.updateExercise(BENCH, { name: 'ダンベルフライ', bodyPartId: SHOULDER });
+    const shoulders = (await r.catalog.listExercises()).filter((e) => e.bodyPartId === SHOULDER);
+    expect(shoulders.at(-1)).toMatchObject({ id: BENCH, name: 'ダンベルフライ', bodyPartName: '肩' });
+    expect((await r.workouts.getDay('2026-11-01'))[0]).toMatchObject({ exerciseName: 'ダンベルフライ', bodyPartName: '肩' });
+  });
+
+  test('部位の名前を変える。同じ名前の部位は断る', async () => {
+    const { r } = await setup();
+    await r.catalog.renameBodyPart(CHEST, ' 大胸筋 ');
+    expect((await r.catalog.listBodyParts())[0]).toMatchObject({ id: CHEST, name: '大胸筋' });
+    expect((await r.catalog.getExercise(BENCH))?.bodyPartName).toBe('大胸筋');
+    await r.catalog.renameBodyPart(CHEST, '大胸筋'); // 同じ名前のままはよい
+    await expect(r.catalog.renameBodyPart(CHEST, '背中')).rejects.toThrow('同じ名前の部位があります');
+    const ABS = SEED_BODY_PARTS.find((p) => p.name === '腹筋')!.id;
+    await r.catalog.setBodyPartHidden(ABS, true);
+    await expect(r.catalog.renameBodyPart(CHEST, '腹筋')).rejects.toThrow('同じ名前の非表示の部位があります');
+    await expect(r.catalog.renameBodyPart(CHEST, '')).rejects.toThrow('部位の名前を入れてください');
+    await expect(r.catalog.renameBodyPart(CHEST, 'エ'.repeat(41))).rejects.toThrow('部位の名前は40文字以内');
+  });
+
   test('非表示の部位・種目と同じ名前を足そうとすると、その ID を添えて知らせる（足さない）', async () => {
     const { r } = await setup();
     const ABS = SEED_BODY_PARTS.find((p) => p.name === '腹筋')!.id;

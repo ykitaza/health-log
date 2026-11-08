@@ -16,6 +16,21 @@ async function openManage(page: Page) {
 }
 
 const row = (page: Page, name: string) => page.getByRole('button', { name: new RegExp(`^${name} `) }).filter({ visible: true });
+
+/** 管理の画面で種目を押して、編集の画面を開く */
+async function openEdit(page: Page, name: string) {
+  await row(page, name).click();
+  await expect(see(page, '種目を編集', { exact: true })).toBeVisible();
+}
+const shownSwitch = (page: Page) => page.getByRole('switch', { name: '種目の選択に表示する' }).filter({ visible: true });
+
+/** 管理の画面から、種目の表示・非表示を切り替えて保存し、管理の画面に戻る */
+async function toggleShown(page: Page, name: string) {
+  await openEdit(page, name);
+  await shownSwitch(page).click();
+  await button(page, '変更を保存').click();
+  await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
+}
 const search = (page: Page) => page.getByPlaceholder('種目を検索');
 
 test('種目の検索と部位のチップ。一致がなければ空の状態', async ({ page }) => {
@@ -137,7 +152,7 @@ test('非表示にした種目と部位は選択から消え、過去の記録�
   await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }, { exercise: 'クランチ', sets: [{ reps: '20' }] }]);
 
   await openManage(page);
-  await row(page, 'ベンチプレス').click();
+  await toggleShown(page, 'ベンチプレス');
   await expect(row(page, 'ベンチプレス')).toContainText('非表示');
   await expect(see(page, '5種目・非表示 1')).toBeVisible();
   // 腹筋の部位ごと非表示にする
@@ -175,7 +190,7 @@ test('非表示にした種目と部位は選択から消え、過去の記録�
   // 表示に戻すと、選択にも戻る
   await tab(page, 'ホーム').click();
   await openManage(page);
-  await row(page, 'ベンチプレス').click();
+  await toggleShown(page, 'ベンチプレス');
   await expect(row(page, 'ベンチプレス')).toContainText('表示中');
   await button(page, '部位を表示').click();
   await button(page, '戻る').click();
@@ -194,7 +209,7 @@ test('非表示にした種目は、新しく足せないが、すでにある�
   await addEntry(page, 'ベンチプレス', [{ weight: '80', reps: '8' }]);
   await button(page, '戻る').click();
   await openManage(page);
-  await row(page, 'ベンチプレス').click();
+  await toggleShown(page, 'ベンチプレス');
   await button(page, '戻る').click();
   await button(page, '戻る').click();
   await button(page, '本日のトレーニングを追加').click();
@@ -261,7 +276,7 @@ test('非表示の部位・種目と同じ名前を足そうとすると、表�
   await expect(button(page, '部位を追加')).toBeVisible();
 
   // 種目も同じ（同じ部位の非表示の種目）
-  await row(page, 'ベンチプレス').click();
+  await toggleShown(page, 'ベンチプレス');
   await expect(row(page, 'ベンチプレス')).toContainText('非表示');
   await button(page, '種目を追加').click();
   await page.getByPlaceholder('例：インクラインベンチプレス').fill('ベンチプレス');
@@ -272,4 +287,152 @@ test('非表示の部位・種目と同じ名前を足そうとすると、表�
   await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
   await expect(row(page, 'ベンチプレス')).toHaveCount(1);
   await expect(row(page, 'ベンチプレス')).toContainText('表示中');
+});
+
+test('種目の名前を変えると、過去の記録・履歴・選択に新しい名前で出る', async ({ page }) => {
+  await openApp(page);
+  await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
+  await openManage(page);
+  await openEdit(page, 'ベンチプレス');
+  const name = page.getByLabel('種目の名前', { exact: true }).filter({ visible: true });
+  await expect(name).toHaveValue('ベンチプレス');
+  await expect(button(page, '胸')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, '重量 × 回数', { exact: true })).toBeVisible();
+  await expect(shownSwitch(page)).toHaveAttribute('aria-checked', 'true');
+
+  // 変えずに戻るときは確かめない
+  await button(page, '戻る').click();
+  await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // 変えて戻ると確かめる
+  await openEdit(page, 'ベンチプレス');
+  await name.fill('バーベルベンチプレス');
+  await button(page, '戻る').click();
+  await expect(page.getByRole('dialog')).toContainText('変更は保存されません。');
+  await button(page.getByRole('dialog'), 'キャンセル').click();
+
+  // 空の名前と長い名前は断る
+  await name.fill('  ');
+  await button(page, '変更を保存').click();
+  await expect(see(page, '種目の名前を入れてください')).toBeVisible();
+  await name.fill('ア'.repeat(41));
+  await button(page, '変更を保存').click();
+  await expect(see(page, '種目の名前は40文字以内で入れてください（今は41文字）')).toBeVisible();
+
+  await name.fill(' バーベルベンチプレス ');
+  await button(page, '変更を保存').click();
+  await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
+  await expect(row(page, 'バーベルベンチプレス')).toBeVisible();
+  await expect(row(page, 'ベンチプレス')).toHaveCount(0);
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  // ホームの今日の記録と履歴に、新しい名前で出る
+  await expect(see(page, 'バーベルベンチプレス', { exact: true })).toBeVisible();
+  await tab(page, '履歴／分析').click();
+  await expect(button(page, 'バーベルベンチプレス')).toBeVisible();
+  await expect(see(page, '11月8日（日） バーベルベンチプレス')).toBeVisible();
+  await tab(page, 'ホーム').click();
+
+  // 選択の画面にも新しい名前で出て、選ぶと今日の記録が開く（同じ種目）
+  await openSelect(page);
+  await chooseExercise(page, 'バーベルベンチプレス');
+  await expect(page.getByLabel('セット1の重量')).toHaveValue('80');
+});
+
+test('種目の部位を変えると、新しい部位の最後に並ぶ。同じ部位に同じ名前は断る', async ({ page }) => {
+  await openApp(page);
+  await openManage(page);
+  await openEdit(page, 'ベンチプレス');
+  const name = page.getByLabel('種目の名前', { exact: true }).filter({ visible: true });
+
+  // 同じ部位に同じ名前
+  await name.fill('ダンベルフライ');
+  await button(page, '変更を保存').click();
+  await expect(see(page, '同じ部位に同じ名前の種目があります')).toBeVisible();
+  await name.fill('ショルダープレス');
+  await button(page, '肩').click();
+  await button(page, '変更を保存').click();
+  await expect(see(page, '同じ部位に同じ名前の種目があります')).toBeVisible();
+
+  // ほかの部位なら同じ名前でもよい
+  await name.fill('ダンベルフライ');
+  await button(page, '変更を保存').click();
+  await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
+  const part = (n: string) => see(page, n, { exact: true }).locator('../..');
+  await expect(part('胸')).toContainText('4種目'); // 5から4に
+  await expect(part('肩')).toContainText('4種目'); // 3から4に
+  await expect(part('胸').getByRole('button', { name: /^ベンチプレス / })).toHaveCount(0);
+  // 胸にも元の「ダンベルフライ」は残る。肩では最後に並ぶ
+  await expect(part('胸').getByRole('button', { name: /^ダンベルフライ / })).toHaveCount(1);
+  await expect(part('肩').getByRole('button', { name: / (重量×回数|回数だけ) / }).last()).toHaveAccessibleName(/^ダンベルフライ /);
+
+  // 選択の画面では、肩の最後に出る
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await openSelect(page);
+  await button(page, '肩').click();
+  await expect(row(page, 'ダンベルフライ')).toHaveCount(1);
+  await expect(row(page, 'ベンチプレス')).toHaveCount(0);
+});
+
+test('部位の名前を変える。同じ名前は断る。種目の部位の名前も変わる', async ({ page }) => {
+  await openApp(page);
+  await openManage(page);
+  await button(page, '胸の名前を変える').click();
+  const input = page.getByLabel('部位の名前', { exact: true }).filter({ visible: true });
+  await expect(input).toHaveValue('胸');
+  await input.fill('背中');
+  await button(page, '名前を保存').click();
+  await expect(see(page, '同じ名前の部位があります')).toBeVisible();
+  await input.fill('');
+  await button(page, '名前を保存').click();
+  await expect(see(page, '部位の名前を入れてください')).toBeVisible();
+  // キャンセルすると元の名前のまま
+  await button(page, 'キャンセル').click();
+  await expect(see(page, '胸', { exact: true })).toBeVisible();
+
+  await button(page, '胸の名前を変える').click();
+  await input.fill(' 大胸筋 ');
+  await button(page, '名前を保存').click();
+  await expect(see(page, '大胸筋', { exact: true })).toBeVisible();
+  await expect(see(page, '胸', { exact: true })).toHaveCount(0);
+
+  // 種目の編集と選択の画面にも新しい名前で出る
+  await openEdit(page, 'ベンチプレス');
+  await expect(button(page, '大胸筋')).toHaveAttribute('aria-selected', 'true');
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await openSelect(page);
+  await expect(button(page, '大胸筋')).toBeVisible();
+});
+
+test('種目の編集の画面で非表示にすると、選択から消える。表示に戻せる', async ({ page }) => {
+  await openApp(page);
+  await openManage(page);
+  await openEdit(page, 'スクワット');
+  await shownSwitch(page).click();
+  await expect(shownSwitch(page)).toHaveAttribute('aria-checked', 'false');
+  // 切り替えただけで戻るときも確かめる（保存していない）
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await expect(row(page, 'スクワット')).toContainText('表示中');
+
+  await toggleShown(page, 'スクワット');
+  await expect(row(page, 'スクワット')).toContainText('非表示');
+  await openEdit(page, 'スクワット');
+  await expect(shownSwitch(page)).toHaveAttribute('aria-checked', 'false');
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await openSelect(page);
+  await expect(row(page, 'スクワット')).toHaveCount(0);
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  await openManage(page);
+  await toggleShown(page, 'スクワット');
+  await expect(row(page, 'スクワット')).toContainText('表示中');
 });

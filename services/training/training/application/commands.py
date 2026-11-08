@@ -68,6 +68,14 @@ def _exercise_of(catalog: Catalog, entry: WorkoutEntry) -> Exercise:
     return Exercise(entry.exercise_id, "", "この種目", kind, 0, True)
 
 
+def _check_duplicate(part_name: str, name: str, same_part: list[Exercise]) -> None:
+    """同じ部位に同じ名前（比べる形 normalize で同じ）の種目があれば断る。"""
+    dup = next((e for e in same_part if normalize(e.name) == normalize(name)), None)
+    if dup:
+        hidden = "（隠している種目です。そのまま記録に使え、update_exercise で表示に戻せます）" if dup.hidden else ""
+        raise TrainingError(f"{part_name}にはもう「{dup.name}」があります{hidden}")
+
+
 class TrainingCommands:
     def __init__(self, repository: TrainingRepository, now: Callable[[], datetime],
                  new_id: Callable[[], str] = lambda: str(uuid.uuid4())):
@@ -181,14 +189,34 @@ class TrainingCommands:
         part = catalog.find_body_part(body_part)
         name = rules.check_name("種目", name)
         same_part = [e for e in catalog.exercises if e.body_part_id == part.id]
-        dup = next((e for e in same_part if normalize(e.name) == normalize(name)), None)
-        if dup:
-            hidden = "（アプリで隠している種目です。そのまま記録に使えます）" if dup.hidden else ""
-            raise TrainingError(f"{part.name}にはもう「{dup.name}」があります{hidden}")
+        _check_duplicate(part.name, name, same_part)
         exercise = Exercise(self.new_id(), part.id, name, record_type,
                             max((e.sort_order for e in same_part), default=-1) + 1, False)
         await self.repository.save_exercise(trainee, exercise)
         return exercise
+
+    async def update_exercise(self, subject: str, exercise: str, name: str | None = None,
+                              body_part: str | None = None, hidden: bool | None = None) -> Exercise:
+        """種目の名前・部位・非表示を変える（None は変えない）。記録は種目の ID でつながっているので、
+        過去の記録もそのまま新しい名前と部位で出る。同じ部位に同じ名前は作らない（add_exercise と同じ）。
+        部位を変えたときの並びは、新しい部位の最後。消すことはしない（過去の記録を残すため、代わりに隠す）。"""
+        if name is None and body_part is None and hidden is None:
+            raise TrainingError("変える内容（name・body_part・hidden）を1つ以上入れてください")
+        trainee = TraineeId(subject)
+        catalog = await self.repository.catalog(trainee)
+        current = catalog.find_exercise(exercise)
+        part = catalog.find_body_part(body_part) if body_part is not None else catalog.body_part(current.body_part_id)
+        if part is None:
+            raise NotFound(f"{current.name}の部位が見つかりません。body_part で部位を指定してください")
+        new_name = rules.check_name("種目", name) if name is not None else current.name
+        same_part = [e for e in catalog.exercises if e.body_part_id == part.id and e.id != current.id]
+        _check_duplicate(part.name, new_name, same_part)
+        sort_order = current.sort_order if part.id == current.body_part_id else \
+            max((e.sort_order for e in same_part), default=-1) + 1
+        updated = replace(current, name=new_name, body_part_id=part.id, sort_order=sort_order,
+                          hidden=current.hidden if hidden is None else hidden)
+        await self.repository.save_exercise(trainee, updated)
+        return updated
 
     async def record_body(self, subject: str, day: str, values: dict[str, float | None], memo: str | None) -> None:
         """体組成を手入力で記録する。アプリ（db/repositories/body.ts の saveManual）と同じく、その日の手入力の記録が

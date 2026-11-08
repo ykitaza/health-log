@@ -188,9 +188,19 @@ class SyncTrainingRepository:
 
     def _save_exercise(self, user: str, exercise: Exercise) -> None:
         state = self._states(user, {("exercise", exercise.id)}).get(("exercise", exercise.id))
-        self._write(user, self._upsert("exercise", exercise.id, state, {
-            "body_part_id": exercise.body_part_id, "name": exercise.name, "record_type": exercise.record_type.value,
-            "sort_order": exercise.sort_order, "hidden": exercise.hidden}))
+        desired = {"body_part_id": exercise.body_part_id, "name": exercise.name,
+                   "record_type": exercise.record_type.value, "sort_order": exercise.sort_order,
+                   "hidden": exercise.hidden}
+        seed = next((s for s in SEED_EXERCISES if s.id == exercise.id), None)
+        if seed is None:
+            self._write(user, self._upsert("exercise", exercise.id, state, desired))
+            return
+        # 初期の種目は、同期にまだ全部の項目がなくても、初期の値に同期の値を重ねたものと比べ、違う項目だけを送る。
+        # 変えていない項目に今の時刻の値を書くと、アプリがまだ送っていない変更（例：隠した）より新しくなり、
+        # 項目ごとの当てはめで負かしてしまうため
+        current = {**_seed_values(seed), **(state.values if state else {})}
+        diff = {k: v for k, v in desired.items() if current.get(k, _MISSING) != v}
+        self._write(user, [self._change("exercise", exercise.id, "update", diff)] if diff else [])
 
     async def save_exercise(self, trainee: TraineeId, exercise: Exercise) -> None:
         await self._run(self._save_exercise, trainee.value, exercise)
