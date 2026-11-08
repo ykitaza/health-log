@@ -135,7 +135,7 @@ CDK の `AuthFlow` の資料も、パスキーを有効にしたら `authFlows: 
 
 ### パスキーを作る手順
 
-初めてのときと、パスキーをなくしたときに行います。パスワードを使うのは、パスキーを作るこの手順の中だけです。管理者の操作は、AWS の個人のアカウントで行います。パスワードは画面に出さず、ファイルにも残しません。
+初めてのときと、パスキーを足すときに行います（なくしたときは、下の「パスキーをなくしたとき」を先に行います）。パスワードを使うのは、この手順と、下の「パスキーをなくしたとき」の中だけです。管理者の操作は、AWS の個人のアカウントで行います。パスワードは画面に出さず、ファイルにも残しません。
 
 0. 初めてのときだけ、**管理者**が本人のユーザーを作る（招待のメールは送らない）
    ```sh
@@ -165,6 +165,45 @@ CDK の `AuthFlow` の資料も、パスキーを有効にしたら `authFlows: 
 5. **本人**が、Claude か ChatGPT のコネクタをつなぎ直し、ログイン画面で「パスキーでサインイン」を選んで、パスワードなしで入れることを確かめる
 
 スマホアプリのログイン（第2段階）も、同じユーザーのパスキーで入ります。
+
+### パスキーをなくしたとき
+
+端末をなくしたり、盗まれたりして、パスキーが他人の手にあるかもしれないときの手順です。ユーザーは消さずに残します（消すと `sub` が変わり、記録がたどれなくなるため）。
+Cognito には、管理者がパスキーを消す API（Admin の付くもの）がありません。パスキーを消す `DeleteWebAuthnCredential` は、本人のアクセストークン（scope `aws.cognito.signin.user.admin`）でだけ呼べます。
+
+1. **管理者**が、Cognito のトークンをすべて失効させる
+   ```sh
+   aws cognito-idp admin-user-global-sign-out --user-pool-id <UserPoolId> --username <メールアドレス>
+   ```
+   - Cognito が出した ID トークン・アクセストークン・リフレッシュトークンが失効します（スマホアプリのログインも切れます）
+   - マネージドログインのセッションの Cookie は消えません。なくした端末のブラウザで、Cookie が切れるまではログイン画面を通らずに入れることがあります
+   - 認可API が Claude・ChatGPT に出したトークンは、Cognito のものではないので、これでは失効しません（手順5）
+2. **管理者**が、一時的なパスワードを設定する（[パスキーを作る手順](#パスキーを作る手順)の手順1と同じ。値は本人に渡し、手順4で捨てる）
+3. **本人**が、残っているパスキー（なければ手順2のパスワード）でログインし、なくした方のパスキーを消す。**どの方法で消すかは、まだ決めていません（判断待ち）**。今の2つの OAuth のクライアント（`authz-api`・`torelog-app`）は、マネージドログインのトークンに `aws.cognito.signin.user.admin` の scope を出さないので、次のどれかが要ります
+   - **案 A：API の `USER_AUTH` でログインする**。`InitiateAuth`（認証フロー `USER_AUTH`）で返るアクセストークンには、`aws.cognito.signin.user.admin` の scope が付きます。シークレットのない `torelog-app` のクライアントなら、管理者の端末から CLI で呼べます（`ALLOW_USER_AUTH` はすでに付いている）。CLI ではパスキーで答えにくいので、手順2のパスワードで入ります（このコマンドはまだ試していません）
+     ```sh
+     aws cognito-idp initiate-auth --auth-flow USER_AUTH --client-id <AppClientId> \
+       --auth-parameters USERNAME=<メールアドレス>,PREFERRED_CHALLENGE=PASSWORD,PASSWORD="$PW"
+     aws cognito-idp list-web-authn-credentials --access-token <アクセストークン>
+     aws cognito-idp delete-web-authn-credential --access-token <アクセストークン> --credential-id <消すパスキーの CredentialId>
+     ```
+   - **案 B：クライアントに一時的に scope を足す**。`aws.cognito.signin.user.admin` を、どちらかのクライアントの許す scope に足してデプロイし、マネージドログインで（残っているパスキーで）入って、そのアクセストークンで上の `list-web-authn-credentials`・`delete-web-authn-credential` を呼ぶ。終わったら scope を外してデプロイし直す。scope を足している間は、そのクライアントのトークンでユーザーの属性の変更なども呼べるので、開ける時間を短くする
+   - **案 C：パスキーを消すための、開発用のクライアントを別に作る**。案 B の scope を、普段は使わないクライアントにだけ付けておく（開発用のクライアントを分ける話と合わせて決める）
+4. **管理者**が、パスワードを別のランダムな値に変えて捨てる（[パスキーを作る手順](#パスキーを作る手順)の手順4）。パスキーが残っていなければ、手順4の前に、パスキーを作る手順の手順2・3で新しいパスキーを作る
+5. **本人**が、Claude・ChatGPT のコネクタの連携を解除する。連携の解除だけでは認可API に取り消しが届くとは限らないので、**管理者**が、認可API のリフレッシュトークンの系列も消す
+   - 系列は StateTable に、`pk` が `refresh#<系列 ID>` の項目として入っています（`services/authorization/oauth/server.py` の `save_token`、`infrastructure/stores.py`）。項目の `data`（JSON）に、本人の `sub`（`subject.id`）が入っています
+   - 項目を消すと、その系列のリフレッシュトークンは使えなくなります。アクセストークン（JWT）は MCP が署名だけで確かめるので、期限（5分）までは使えます
+   ```sh
+   TABLE=<StateTable のテーブル名>   # CognitoStudy-StateTable...
+   aws dynamodb scan --table-name "$TABLE" --projection-expression pk \
+     --filter-expression 'begins_with(pk, :p) AND contains(#d, :sub)' --expression-attribute-names '{"#d":"data"}' \
+     --expression-attribute-values '{":p":{"S":"refresh#"},":sub":{"S":"<sub>"}}' --query 'Items[].pk.S' --output text \
+     | tr '\t' '\n' | while read -r pk; do
+         aws dynamodb delete-item --table-name "$TABLE" --key "{\"pk\":{\"S\":\"$pk\"}}"
+       done
+   ```
+   - 使うのは本人だけなので、`:sub` の条件を外して、`refresh#` の項目をすべて消してもかまいません
+   - 消したあと、コネクタをつなぎ直します（新しい系列ができます）
 
 ## スマホアプリ（トレログ）のログイン
 
