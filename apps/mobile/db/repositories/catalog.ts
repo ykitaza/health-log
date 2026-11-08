@@ -1,4 +1,5 @@
 import type { RecordType } from '@/lib/sets';
+import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
 export type BodyPart = { id: string; name: string; sortOrder: number; hidden: boolean };
@@ -29,7 +30,7 @@ const EXERCISE_SELECT = `
 
 /** 部位と種目。使わなくなったものは消さずに非表示にする（これまでの記録は残る） */
 export function catalogRepository(db: Db, deps: Deps) {
-  return {
+  return serializeWrites(db, {
     async listBodyParts(opts: { includeHidden?: boolean } = {}): Promise<BodyPart[]> {
       const rows = await db.getAllAsync<{ id: string; name: string; sort_order: number; hidden: number }>(
         `SELECT id, name, sort_order, hidden FROM body_parts
@@ -99,5 +100,5 @@ export function catalogRepository(db: Db, deps: Deps) {
       await db.runAsync('UPDATE body_parts SET hidden = ?, updated_at = ? WHERE id = ?',
         [hidden ? 1 : 0, deps.now().toISOString(), id]);
     },
-  };
+  }, ['createExercise', 'createBodyPart', 'setExerciseHidden', 'setBodyPartHidden']);
 }

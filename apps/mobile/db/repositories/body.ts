@@ -1,5 +1,6 @@
 import { BodyRecordLike, BodyValues, DailyBody, dailyBodyValues } from '@/lib/body';
 import type { DateKey } from '@/lib/date';
+import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
 type Row = {
@@ -26,7 +27,7 @@ export type BodyPatch = Partial<BodyValues & { memo: string }>;
  * 第1段階は手入力だけ。手入力は1日1件（その日の手入力の行）を書き換える。
  */
 export function bodyRepository(db: Db, deps: Deps) {
-  return {
+  return serializeWrites(db, {
     /** 日ごとの値（古い順） */
     async listDaily(): Promise<DailyBody[]> {
       const rows = await db.getAllAsync<Row>(`${SELECT} ORDER BY date`, []);
@@ -68,5 +69,5 @@ export function bodyRepository(db: Db, deps: Deps) {
         [deps.newId(), date, measuredAt, p.weightKg, p.bodyFatPct, p.musclePct, p.waistCm, p.memo ?? '', nowIso, nowIso],
       );
     },
-  };
+  }, ['saveManual']);
 }
