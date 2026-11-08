@@ -7,7 +7,8 @@ import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
 // （test-utils/fakeSyncServer.ts。当てはめの決まりはサーバーと同じことを jest と pytest で確かめている）が返す。
-// MCP で記録したものは、サーバーの pytest が作った受け取りのページ（testdata/sync/mcp_pull.json）を、偽のサーバーに入れて作る
+// MCP で記録したものは、サーバーの pytest が作った受け取りのページ（testdata/sync/mcp_pull.json）を、偽のサーバーに入れて作る。
+// ここは画面の流れ（ログイン → 同期 → 表示、記録 → 送信、件数とエラーの表示）だけを確かめる。衝突の決まり・分け方・やり直しなどは jest
 
 const MCP_PULL = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', 'testdata', 'sync', 'mcp_pull.json'), 'utf8'));
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
@@ -114,7 +115,7 @@ test('つながらないときは、送っていない件数とエラーを出�
   expect(server.states('workout_set').map((s) => [s.fields.weight_kg, s.fields.reps])).toEqual([[60, 10]]);
 });
 
-test('サーバーに断られた変更は、件数を出して飛ばし、ほかの変更は送る', async ({ page, context }) => {
+test('サーバーに断られた変更の件数と説明を出す（飛ばしてほかを送る決まりは jest の db/__tests__/sync.test.ts）', async ({ page, context }) => {
   const server = createFakeSyncServer();
   await signIn(page, context);
   await routeSyncServer(context, server);
@@ -138,10 +139,4 @@ test('サーバーに断られた変更は、件数を出して飛ばし、ほ�
   await expect(status(page, 'sync-rejected')).toHaveText('1件');
   await expect(see(page, 'サーバーが受け付けなかった変更です。', { exact: false })).toBeVisible();
   await expect(status(page, 'sync-pending')).toHaveText('0件');
-
-  // ほかの変更は届く
-  await button(page, '戻る').click();
-  await button(page, '戻る').click();
-  await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '60', reps: '10' }] }]);
-  await expect.poll(() => server.states('workout_set').length, { timeout: 15_000 }).toBe(1);
 });
