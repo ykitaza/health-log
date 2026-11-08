@@ -14,6 +14,11 @@ const CDK_QUALIFIER = 'hnb659fds';
 export interface CiCdStackProps extends cdk.StackProps {
   /** `owner/name` の形 */
   readonly repository: string;
+  /**
+   * OIDC のトークンの sub の先頭。このリポジトリは immutable subject（名前を変えても変わらない ID を含む形）なので、
+   * `repo:<owner>@<owner_id>/<name>@<repo_id>` になる。`gh api repos/<owner>/<name>/actions/oidc/customization/sub` の sub_claim_prefix で確かめる
+   */
+  readonly subjectPrefix: string;
   /** 差分用のロールを使えるブランチ */
   readonly diffBranch: string;
   /** デプロイ用のロールを使える GitHub の environment（承認が必要なもの） */
@@ -45,7 +50,7 @@ export class CiCdStack extends cdk.Stack {
     const diffRole = new iam.Role(this, 'DiffRole', {
       roleName: 'health-log-github-diff',
       description: `Read-only role for cdk diff from GitHub Actions (${props.repository}, branch ${props.diffBranch})`,  // IAM の説明は ASCII だけ
-      assumedBy: principalFor(`repo:${props.repository}:ref:refs/heads/${props.diffBranch}`),
+      assumedBy: principalFor(`${props.subjectPrefix}:ref:refs/heads/${props.diffBranch}`),
       maxSessionDuration: cdk.Duration.hours(1),
     });
     diffRole.addToPolicy(new iam.PolicyStatement({
@@ -61,7 +66,7 @@ export class CiCdStack extends cdk.Stack {
     const deployRole = new iam.Role(this, 'DeployRole', {
       roleName: 'health-log-github-deploy',
       description: `Role for cdk deploy from GitHub Actions (${props.repository}, environment ${props.deployEnvironment})`,
-      assumedBy: principalFor(`repo:${props.repository}:environment:${props.deployEnvironment}`),
+      assumedBy: principalFor(`${props.subjectPrefix}:environment:${props.deployEnvironment}`),
       maxSessionDuration: cdk.Duration.hours(1),
     });
     deployRole.addToPolicy(new iam.PolicyStatement({

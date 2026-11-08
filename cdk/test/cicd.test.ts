@@ -16,6 +16,7 @@ const template = (() => {
   const stack = new CiCdStack(app, 'CognitoStudyCiCd', {
     env: { account: ACCOUNT, region: 'ap-northeast-1' },
     repository: 'ykitaza/health-log',
+    subjectPrefix: 'repo:ykitaza@104138874/health-log@1416443559',
     diffBranch: 'main',
     deployEnvironment: 'aws-prod',
     targetStacks: [tokyo, global],
@@ -55,8 +56,8 @@ test('ロールは差分用とデプロイ用の2つだけ', () => {
 });
 
 describe.each([
-  ['health-log-github-diff', 'repo:ykitaza/health-log:ref:refs/heads/main'],
-  ['health-log-github-deploy', 'repo:ykitaza/health-log:environment:aws-prod'],
+  ['health-log-github-diff', 'repo:ykitaza@104138874/health-log@1416443559:ref:refs/heads/main'],
+  ['health-log-github-deploy', 'repo:ykitaza@104138874/health-log@1416443559:environment:aws-prod'],
 ])('%s の信頼ポリシー', (name, sub) => {
   const statements = roleNamed(name).AssumeRolePolicyDocument.Statement;
 

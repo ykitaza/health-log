@@ -18,8 +18,10 @@ ID プロバイダーとロールは、スタック `CognitoStudyCiCd`（`cdk/li
 
 | ロール | 使えるところ（トークンの `sub`） | できること |
 |---|---|---|
-| `health-log-github-diff` | `repo:ykitaza/health-log:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 3つのスタックのテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
-| `health-log-github-deploy` | `repo:ykitaza/health-log:environment:aws-prod`（承認のある environment のジョブ） | CDK のブートストラップの `deploy-role` と `file-publishing-role` を引き受けることだけ（東京と us-east-1） |
+| `health-log-github-diff` | `repo:ykitaza@104138874/health-log@1416443559:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 3つのスタックのテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
+| `health-log-github-deploy` | `repo:ykitaza@104138874/health-log@1416443559:environment:aws-prod`（承認のある environment のジョブ） | CDK のブートストラップの `deploy-role` と `file-publishing-role` を引き受けることだけ（東京と us-east-1） |
+
+このリポジトリは、OIDC のトークンの sub に immutable subject（`repo:<owner>@<owner_id>/<name>@<repo_id>`）を使う設定です。リポジトリの名前を変えても ID の部分は変わりませんが、名前の部分は変わるので、名前を変えたら `cdk/bin/infra.ts` の `subjectPrefix` も直します。今の値は `gh api repos/ykitaza/health-log/actions/oidc/customization/sub` の `sub_claim_prefix` で確かめられます。
 
 - どちらも `aud` は `sts.amazonaws.com` だけです。リポジトリは固定で、ワイルドカードは使いません
 - `cdk diff --method template` は、ブートストラップの lookup ロールを引き受けようとします。lookup ロールは `ReadOnlyAccess`（DynamoDB の記録も読める）なので、差分用のロールには引き受けさせません。CDK は「Lookup role … was not assumed」と警告を出し、差分用のロールのままで続けます

@@ -30,6 +30,7 @@ const monitoringGlobal = new MonitoringGlobalStack(app, 'CognitoStudyMonitoringG
 new CiCdStack(app, 'CognitoStudyCiCd', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
   repository: 'ykitaza/health-log',
+  subjectPrefix: 'repo:ykitaza@104138874/health-log@1416443559',
   diffBranch: 'main',
   deployEnvironment: 'aws-prod',
   targetStacks: [infra, monitoring, monitoringGlobal],
