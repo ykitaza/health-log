@@ -23,8 +23,10 @@ from training.domain.model import (
     BodyPart,
     BodyRecord,
     Exercise,
+    HeartRateDay,
     RecordType,
     SetRow,
+    SleepSession,
     TraineeId,
     Workout,
     WorkoutEntry,
@@ -37,6 +39,8 @@ REQUIRED = {
     "workout_entry": {"date", "exercise_id", "sort_order"},
     "workout_set": {"entry_id", "set_index", "reps"},
     "body_record": {"date", "measured_at", "source"},
+    "sleep_session": {"date", "start_at", "end_at", "asleep_min", "awake_min", "source"},
+    "heart_rate_day": {"date", "samples"},
 }
 _MISSING = object()
 
@@ -141,6 +145,16 @@ class SyncTrainingRepository:
         return [BodyRecord(s.entity_id, s.values["date"], s.values["measured_at"], s.values.get("weight_kg"),
                            s.values.get("body_fat_pct"), s.values.get("muscle_pct"), s.values.get("waist_cm"),
                            s.values.get("memo", ""), s.values["source"], s.updated_at) for s in states]
+
+    async def sleep_sessions(self, trainee: TraineeId) -> list[SleepSession]:
+        states = await self._run(self._alive, trainee.value, "sleep_session")
+        return [SleepSession(s.entity_id, s.values["date"], s.values["start_at"], s.values["end_at"],
+                             s.values["asleep_min"], s.values["awake_min"]) for s in states]
+
+    async def heart_rate_days(self, trainee: TraineeId) -> list[HeartRateDay]:
+        states = await self._run(self._alive, trainee.value, "heart_rate_day")
+        return [HeartRateDay(s.values["date"], s.values.get("resting_bpm"), s.values.get("avg_bpm"),
+                             s.values.get("min_bpm"), s.values.get("max_bpm"), s.values["samples"]) for s in states]
 
     # --- 書き込み ---
 

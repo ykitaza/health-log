@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from training.domain import body, calculations
+from training.domain import body, calculations, health
 from training.domain.catalog import Catalog
-from training.domain.model import TraineeId, Workout
+from training.domain.model import HeartRateDay, TraineeId, Workout
 from training.domain.ports import TrainingRepository
 
 
@@ -31,6 +31,18 @@ class BodyProgress:
     days: list[body.DailyBody]  # 期間の中の、日ごとの値（古い順）
     latest: body.DailyBody | None  # 期間の中でいちばん新しい日
     weekly_pace: float | None  # 直近28日の体重のペース（kg／週）
+
+
+@dataclass(frozen=True)
+class SleepSummary:
+    nights: list[health.SleepNight]  # 期間の中の、起きた日ごとのまとめ（古い順。記録がない日は含めない）
+    average_asleep_min: float | None  # 記録がある日の平均
+
+
+@dataclass(frozen=True)
+class HeartRateSummary:
+    days: list[HeartRateDay]  # 期間の中の、日ごとのまとめ（古い順。記録がない日は含めない）
+    average_resting_bpm: float | None  # 安静時心拍がある日の平均
 
 
 class TrainingQueries:
@@ -78,3 +90,12 @@ class TrainingQueries:
         days = [d for d in all_days if start <= d.date <= today]
         weights = [(d.date, d.weight_kg) for d in all_days if d.weight_kg is not None]
         return BodyProgress(days, days[-1] if days else None, body.weekly_pace(weights, today))
+
+    async def sleep_summary(self, subject: str, start: str, end: str) -> SleepSummary:
+        nights = [n for n in health.sleep_nights(await self.repository.sleep_sessions(TraineeId(subject)))
+                  if start <= n.date <= end]
+        return SleepSummary(nights, health.average([n.asleep_min for n in nights]))
+
+    async def heart_rate_summary(self, subject: str, start: str, end: str) -> HeartRateSummary:
+        days = health.heart_rate_days_between(await self.repository.heart_rate_days(TraineeId(subject)), start, end)
+        return HeartRateSummary(days, health.average([d.resting_bpm for d in days if d.resting_bpm is not None]))

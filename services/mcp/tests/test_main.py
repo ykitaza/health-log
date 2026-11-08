@@ -87,9 +87,10 @@ def test_食事と筋トレとログアウトのツールが1つのサーバー�
 
     names = run(server, ALL_SCOPES, body)
     assert {"record_meal", "today_status", "set_day_type", "weekly_review", "record_weight"} <= names
-    assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body"} <= names
+    assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
+            "sleep_summary", "heart_rate_summary"} <= names
     assert "logout" in names
-    assert len(names) == 17 + 12 + 1
+    assert len(names) == 17 + 14 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):

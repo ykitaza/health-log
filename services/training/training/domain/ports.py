@@ -5,7 +5,17 @@ from __future__ import annotations
 from typing import Protocol
 
 from training.domain.catalog import Catalog
-from training.domain.model import BodyPart, BodyRecord, Exercise, SetRow, TraineeId, Workout, WorkoutEntry
+from training.domain.model import (
+    BodyPart,
+    BodyRecord,
+    Exercise,
+    HeartRateDay,
+    SetRow,
+    SleepSession,
+    TraineeId,
+    Workout,
+    WorkoutEntry,
+)
 
 
 class TrainingRepository(Protocol):
@@ -30,6 +40,14 @@ class TrainingRepository(Protocol):
         ...
 
     async def body_records(self, trainee: TraineeId) -> list[BodyRecord]: ...
+
+    async def sleep_sessions(self, trainee: TraineeId) -> list[SleepSession]:
+        """消していない睡眠（Health Connect の取り込み）。"""
+        ...
+
+    async def heart_rate_days(self, trainee: TraineeId) -> list[HeartRateDay]:
+        """消していない心拍の日のまとめ（Health Connect の取り込み）。"""
+        ...
 
     # --- 書き込み（変更の記録を通す。アプリに同期で降りる） ---
 

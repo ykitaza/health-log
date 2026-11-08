@@ -31,7 +31,8 @@ INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回�
 記録は、利用者が言った種目・重量・回数をそのまま record_workout に渡す（確認なしでよい）。数字を推測で埋めない。
 種目は名前の完全一致でだけ選ぶ。「ベンチ」のように略した名前で見つからないときは、返ってきた候補から利用者の意図がはっきりしていればその名前で呼び直し、迷うなら利用者に聞く。
 総負荷量（重量×回数の合計）・推定1RM（Epley 式）・自己ベストはサーバーが計算する。AI が計算し直さない。
-推移（総負荷量、推定1RM、体重）は、描けるならグラフで見せる。部位の偏りは割合で見せる。記録の少なさや休んだ日を責めない。"""
+推移（総負荷量、推定1RM、体重）は、描けるならグラフで見せる。部位の偏りは割合で見せる。記録の少なさや休んだ日を責めない。
+睡眠と心拍は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary。読むだけ）。病気の診断はしない。"""
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -298,6 +299,35 @@ def register_training_tools(
         start = end - timedelta(days=days - 1)
         progress = await queries.body_progress(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.body_progress(progress, start.isoformat(), end.isoformat()))
+
+    # --- 睡眠と心拍（アプリが Health Connect から取り込んだもの。読むだけ） ---
+
+    @mcp.tool(annotations=READ)
+    async def sleep_summary(days: Annotated[int, Field(ge=7, le=90, description="今日までの何日分か")] = 7) -> dict:
+        """睡眠のまとめ：起きた日ごとの眠っていた時間（分）・起きていた時間・寝た時刻と起きた時刻（日本時間）と、期間の平均。
+
+        アプリ（hlog）が Health Connect（ウォッチなど）から取り込んだもの。記録がない日は含めない。
+        1日に複数の睡眠（昼寝など）があれば足し、寝た時刻・起きた時刻はいちばん長い睡眠のもの。
+        推移は描けるならグラフで見せる。睡眠の短さを責めない。病気の診断はしない。
+        """
+        sub = subject(READ_SCOPE)
+        end = today()
+        start = end - timedelta(days=days - 1)
+        summary = await queries.sleep_summary(sub, start.isoformat(), end.isoformat())
+        return await synced(sub, views.sleep_summary(summary, start.isoformat(), end.isoformat()))
+
+    @mcp.tool(annotations=READ)
+    async def heart_rate_summary(days: Annotated[int, Field(ge=7, le=90, description="今日までの何日分か")] = 7) -> dict:
+        """心拍のまとめ：日ごとの安静時心拍・平均・最低・最高（拍/分）と測った回数、期間の安静時心拍の平均。
+
+        アプリ（hlog）が Health Connect（ウォッチなど）から取り込んだ1日のまとめ（1回ごとの値は持たない）。記録がない日は含めない。
+        安静時心拍の推移は、トレーニングの疲れや回復の目安として、描けるならグラフで見せる。病気の診断はしない。
+        """
+        sub = subject(READ_SCOPE)
+        end = today()
+        start = end - timedelta(days=days - 1)
+        summary = await queries.heart_rate_summary(sub, start.isoformat(), end.isoformat())
+        return await synced(sub, views.heart_rate_summary(summary, start.isoformat(), end.isoformat()))
 
 
 @contextmanager
