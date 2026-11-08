@@ -105,3 +105,10 @@ export const bodyFat = (id: string, time: string, pct: number): Rec => ({
 export const leanMass = (id: string, time: string, kg: number): Rec => ({
   recordType: 'LeanBodyMass', time, zoneOffset: JST, mass: { inKilograms: kg }, metadata: { id, dataOrigin: 'com.example.scale' },
 });
+
+/** 睡眠の記録。stages は [始まり, 終わり, 段階]（1：起きていた、4：浅い、5：深い、6：レム など） */
+export const sleep = (id: string, startTime: string, endTime: string, stages: [string, string, number][] = []): Rec => ({
+  recordType: 'SleepSession', startTime, endTime, startZoneOffset: JST, endZoneOffset: JST,
+  stages: stages.map(([s, e, stage]) => ({ startTime: s, endTime: e, stage })),
+  metadata: { id, dataOrigin: 'com.example.watch' },
+});

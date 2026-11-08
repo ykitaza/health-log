@@ -1,11 +1,12 @@
 // Health Connect の取り込み（lib/healthConnect/importer.ts、db/repositories/healthConnect.ts）。
 // Health Connect は偽物（test-utils/fakeHealthConnect.ts）、サーバーは偽の同期サーバー（当てはめの決まりはサーバーと同じ）
-import { migrate, MIGRATIONS } from '../migrations';
+import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { HC_META, healthConnectStore } from '../repositories/healthConnect';
 import { toPushChange } from '../repositories/sync';
-import { importedId, importHealthConnect, INITIAL_DAYS } from '@/lib/healthConnect/importer';
+import { formatClock, formatMinutes } from '@/lib/health';
+import { importedId, importHealthConnect, INITIAL_DAYS, sleepMinutes } from '@/lib/healthConnect/importer';
 import { uuid5 } from '@/lib/uuid5';
-import { bodyFat, fakeHealthConnect as hc, leanMass, weight } from '@/test-utils/fakeHealthConnect';
+import { bodyFat, fakeHealthConnect as hc, leanMass, sleep, weight } from '@/test-utils/fakeHealthConnect';
 import { memoryDb, testDeps } from '@/test-utils/nodeDb';
 import { Device, device } from '@/test-utils/syncHarness';
 
@@ -206,6 +207,67 @@ describe('手入力が先', () => {
   });
 });
 
+describe('睡眠', () => {
+  test('眠っていた分は、全体から「起きていた・ベッドの外」の段階を引く（記録からはみ出した段階は数えない）。段階がなければ全部', () => {
+    expect(sleepMinutes({ startTime: '2026-11-06T14:40:00Z', endTime: '2026-11-06T21:55:00Z' })).toEqual({ asleepMin: 435, awakeMin: 0 });
+    expect(sleepMinutes({
+      startTime: '2026-11-06T14:40:00Z', endTime: '2026-11-06T21:55:00Z',
+      stages: [
+        { startTime: '2026-11-06T14:30:00Z', endTime: '2026-11-06T14:50:00Z', stage: 1 }, // 10分だけ記録の中
+        { startTime: '2026-11-06T14:50:00Z', endTime: '2026-11-06T18:00:00Z', stage: 5 },
+        { startTime: '2026-11-06T18:00:00Z', endTime: '2026-11-06T18:12:00Z', stage: 3 },
+        { startTime: '2026-11-06T18:12:00Z', endTime: '2026-11-06T21:55:00Z', stage: 6 },
+      ],
+    })).toEqual({ asleepMin: 413, awakeMin: 22 });
+    expect(sleepMinutes({ startTime: '2026-11-06T21:55:00Z', endTime: '2026-11-06T14:40:00Z' })).toBeNull();
+    expect(formatMinutes(413)).toBe('6時間53分');
+    expect(formatMinutes(45)).toBe('45分');
+    expect(formatMinutes(420)).toBe('7時間');
+  });
+
+  test('1件を1行に。日付は起きた日（その土地の日付）。origin = import で積み、消えたら消す。24時間を超えるものは取り込まない', async () => {
+    const d = await device();
+    // 日本時間 11/6 23:40 〜 11/7 6:55
+    hc.put(sleep('s1', '2026-11-06T14:40:00Z', '2026-11-06T21:55:00Z', [['2026-11-06T18:00:00Z', '2026-11-06T18:15:00Z', 1]]));
+    hc.put(sleep('s2', '2026-11-07T04:00:00Z', '2026-11-07T04:30:00Z')); // 昼寝
+    hc.put(sleep('s-long', '2026-11-01T10:00:00Z', '2026-11-02T10:01:00Z'));
+    await runImport(d);
+    const rows = d.db.raw.prepare('SELECT * FROM sleep_sessions ORDER BY start_at').all() as Record<string, unknown>[];
+    expect(rows.map((r) => [r.external_id, r.date, r.asleep_min, r.awake_min, r.source, r.origin_package])).toEqual([
+      ['s1', '2026-11-07', 420, 15, 'health_connect', 'com.example.watch'],
+      ['s2', '2026-11-07', 30, 0, 'health_connect', 'com.example.watch'],
+    ]);
+    expect(rows[0].id).toBe(importedId('s1'));
+    expect(outbox(d).map((c) => [c.type, c.op, c.origin])).toEqual([
+      ['sleep_session', 'create', 'import'], ['sleep_session', 'create', 'import'],
+    ]);
+    expect(outbox(d)[0].fields).toEqual({
+      date: '2026-11-07', start_at: '2026-11-06T14:40:00.000Z', end_at: '2026-11-06T21:55:00.000Z', asleep_min: 420, awake_min: 15,
+      source: 'health_connect', external_id: 's1', origin_package: 'com.example.watch',
+    });
+    const day = await d.r.health.sleepDay('2026-11-07');
+    expect(day).toMatchObject({ asleepMin: 450, awakeMin: 15, mainStartAt: '2026-11-06T14:40:00.000Z', sessions: 2 });
+    expect(formatClock(day!.mainEndAt)).toBe(`${new Date('2026-11-06T21:55:00Z').getHours()}:55`);
+
+    await d.engine.run();
+    expect(d.server.state('sleep_session', importedId('s1'))!.fields).toMatchObject({ asleep_min: 420 });
+    hc.remove('s2');
+    await runImport(d);
+    expect(outbox(d)).toEqual([{ type: 'sleep_session', id: importedId('s2'), op: 'delete', origin: 'import', fields: null }]);
+    expect(await d.r.health.sleepDay('2026-11-07')).toMatchObject({ asleepMin: 420, sessions: 1 });
+  });
+
+  test('アカウントを変えて「消して受け取り直す」と睡眠も消え、取り込み直す', async () => {
+    const d = await device();
+    hc.put(sleep('s1', '2026-11-06T14:40:00Z', '2026-11-06T21:55:00Z'));
+    await runImport(d);
+    await d.store.switchAccount('user-b', 'replace', d.deps.now().toISOString());
+    expect(await d.r.health.sleepDay('2026-11-07')).toBeNull();
+    await runImport(d);
+    expect(await d.r.health.sleepDay('2026-11-07')).toMatchObject({ asleepMin: 435 });
+  });
+});
+
 describe('アカウントと連携', () => {
   test('アカウントを変えて「消して受け取り直す」と、トークンも消え、次は過去30日から取り込み直す。「送る」は取り込みを import で積む', async () => {
     const d = await device();
@@ -251,7 +313,7 @@ describe('版4のマイグレーション', () => {
       MIGRATIONS.push(...v4);
     }
     db.raw.prepare(`INSERT INTO settings (id, value, created_at, updated_at) VALUES ('weight_unit', 'lb', 'x', 'x')`).run();
-    expect(await migrate(db, deps.now)).toBe(4);
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
     db.raw.prepare(`UPDATE settings SET value = 'kg', updated_at = 'y' WHERE id = 'weight_unit'`).run();
     const rows = db.raw.prepare('SELECT op, origin FROM sync_outbox ORDER BY seq').all();
     expect(rows).toEqual([{ op: 'create', origin: 'app' }, { op: 'update', origin: 'app' }]);

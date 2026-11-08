@@ -13,6 +13,7 @@ import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
+import { formatClock, formatMinutes } from '@/lib/health';
 import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -33,9 +34,9 @@ const FIELD_LIMITS: Record<Field, Limit> = {
 export default function BodyScreen() {
   const [date, setDate] = useState(todayKey);
   const { data, reload, repos } = useFocusData(async (r) => {
-    const [daily, settings] = await Promise.all([r.body.listDaily(), r.settings.get()]);
-    return { daily, settings };
-  });
+    const [daily, settings, sleep] = await Promise.all([r.body.listDaily(), r.settings.get(), r.health.sleepDay(date)]);
+    return { daily, settings, sleep };
+  }, date);
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
   const [texts, setTexts] = useState<Texts>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
@@ -179,6 +180,20 @@ export default function BodyScreen() {
         </View>
       </Card>
       {error && <T size={12} color={colors.danger} style={{ marginTop: 6 }}>{error}</T>}
+
+      {data?.sleep && (
+        <Card style={{ marginTop: 12, paddingVertical: 12, gap: 6 }}>
+          <T size={12} color={colors.sub}>Health Connect から取り込み</T>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="sleep-day">
+            <T size={15} color={colors.sub} style={{ width: 52 }}>睡眠</T>
+            <T num bold size={20}>{formatMinutes(data.sleep.asleepMin)}</T>
+            <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>
+              {formatClock(data.sleep.mainStartAt)}〜{formatClock(data.sleep.mainEndAt)}
+              {data.sleep.sessions > 1 ? `ほか${data.sleep.sessions - 1}回` : ''}
+            </T>
+          </View>
+        </Card>
+      )}
 
       <T bold size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 8 }}>
         自動で計算{height != null ? `（身長 ${trimNumber(height)}cm）` : ''}

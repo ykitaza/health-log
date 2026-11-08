@@ -2,6 +2,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { bodyRepository } from '@/db/repositories/body';
 import { catalogRepository } from '@/db/repositories/catalog';
+import { healthRepository } from '@/db/repositories/health';
 import { mealRepository } from '@/db/repositories/meals';
 import { settingsRepository } from '@/db/repositories/settings';
 import { workoutRepository } from '@/db/repositories/workouts';
@@ -46,5 +47,6 @@ export function repos(db: Db, deps: Deps) {
     workouts: workoutRepository(db, deps),
     body: bodyRepository(db, deps),
     meals: mealRepository(db, deps),
+    health: healthRepository(db),
   };
 }

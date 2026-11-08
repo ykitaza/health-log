@@ -657,6 +657,45 @@ components:
           - 'null'
           maxLength: 1000
       description: 設定。entity_id は設定の名前（weight_unit など）。create では value が要る。update では変えた項目だけを送る
+    SleepSessionFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+          description: 起きた日（その土地の日付）
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        asleep_min:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: 眠っていた分（全体から、起きていた・ベッドの外の段階を引いたもの）
+        awake_min:
+          type: integer
+          minimum: 0
+          maximum: 1440
+        source:
+          type: string
+          enum:
+          - health_connect
+        external_id:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+        origin_package:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+      description: '睡眠（Health Connect の SleepSession の1件。アプリの取り込みだけが作る。origin: import）。段階の詳細は持たない。create では date, start_at, end_at, asleep_min, awake_min, source が要る。update では変えた項目だけを送る'
     EntityType:
       type: string
       enum:
@@ -671,6 +710,7 @@ components:
       - workout_set
       - body_record
       - setting
+      - sleep_session
       description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外は training.* の scope で扱う
     MealChange:
       type: object
@@ -1256,6 +1296,59 @@ components:
         fields:
           $ref: '#/components/schemas/SettingFields'
           description: create・update のとき。delete・restore では送らない
+    SleepSessionChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: sleep_session
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/SleepSessionFields'
+          description: create・update のとき。delete・restore では送らない
     Change:
       oneOf:
       - $ref: '#/components/schemas/MealChange'
@@ -1269,6 +1362,7 @@ components:
       - $ref: '#/components/schemas/WorkoutSetChange'
       - $ref: '#/components/schemas/BodyRecordChange'
       - $ref: '#/components/schemas/SettingChange'
+      - $ref: '#/components/schemas/SleepSessionChange'
       discriminator:
         propertyName: entity_type
         mapping:
@@ -1283,6 +1377,7 @@ components:
           workout_set: '#/components/schemas/WorkoutSetChange'
           body_record: '#/components/schemas/BodyRecordChange'
           setting: '#/components/schemas/SettingChange'
+          sleep_session: '#/components/schemas/SleepSessionChange'
     PushRequest:
       type: object
       additionalProperties: false

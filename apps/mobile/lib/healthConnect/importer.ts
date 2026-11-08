@@ -7,7 +7,7 @@
  * ID は Health Connect の記録の ID から決める（uuid5）。同じ記録を別の端末で取り込んでも、同じ行になる
  */
 import type { HealthConnectRecordResult, Permission, RecordType } from 'react-native-health-connect';
-import { BodyImport, HC_META, HealthConnectStore, ImportBatch } from '@/db/repositories/healthConnect';
+import { BodyImport, HC_META, HealthConnectStore, ImportBatch, SleepImport } from '@/db/repositories/healthConnect';
 import { toDateKey } from '@/lib/date';
 import { inRange, Limit, LIMITS } from '@/lib/limits';
 import { uuid5 } from '@/lib/uuid5';
@@ -74,6 +74,53 @@ function bodyHandler(recordType: 'Weight' | 'BodyFat' | 'LeanBodyMass', v: BodyV
   };
 }
 
+/** 睡眠の段階のうち、眠っていなかったもの（起きていた・ベッドの外・ベッドで起きていた） */
+const AWAKE_STAGES = new Set([1, 3, 7]);
+/** 1件の睡眠の長さの上限（分）。サーバーの sleep_session と同じ */
+export const SLEEP_MAX_MIN = 24 * 60;
+
+type Stage = { startTime: string; endTime: string; stage: number };
+type SleepRecord = HealthConnectRecordResult & {
+  startTime: string; endTime: string; endZoneOffset?: { totalSeconds: number } | null; stages?: Stage[];
+};
+
+/** 睡眠の1件の、眠っていた分と起きていた分（段階から。段階がなければ全部を眠っていたとする） */
+export function sleepMinutes(r: Pick<SleepRecord, 'startTime' | 'endTime' | 'stages'>): { asleepMin: number; awakeMin: number } | null {
+  const start = Date.parse(r.startTime);
+  const end = Date.parse(r.endTime);
+  if (!(end > start)) return null;
+  let awakeMs = 0;
+  for (const s of r.stages ?? []) {
+    if (!AWAKE_STAGES.has(s.stage)) continue;
+    // 段階は記録の中に収める（はみ出した分は数えない）
+    awakeMs += Math.max(0, Math.min(end, Date.parse(s.endTime)) - Math.max(start, Date.parse(s.startTime)));
+  }
+  const totalMin = Math.round((end - start) / 60_000);
+  const awakeMin = Math.min(totalMin, Math.round(awakeMs / 60_000));
+  return { asleepMin: totalMin - awakeMin, awakeMin };
+}
+
+/** 睡眠：起きた日（その土地の日付）に付ける。24時間を超えるもの・終わりが始まりより前のものは取り込まない */
+const sleepHandler: Handler = {
+  recordType: 'SleepSession',
+  async toBatch(events) {
+    const upserts: SleepImport[] = [];
+    const deletes: string[] = [];
+    for (const [externalId, r] of lastById(events)) {
+      if (r == null) { deletes.push(externalId); continue; }
+      const rec = r as SleepRecord;
+      const minutes = sleepMinutes(rec);
+      if (!minutes || minutes.asleepMin + minutes.awakeMin > SLEEP_MAX_MIN) continue;
+      upserts.push({
+        id: importedId(externalId), externalId, date: localDate(rec.endTime, rec.endZoneOffset),
+        startAt: new Date(rec.startTime).toISOString(), endAt: new Date(rec.endTime).toISOString(),
+        ...minutes, originPackage: r.metadata?.dataOrigin ?? null,
+      });
+    }
+    return { sleep: { upserts, deletes } };
+  },
+};
+
 export const HANDLERS: Handler[] = [
   bodyHandler('Weight', {
     column: 'weight_kg', limit: LIMITS.bodyWeight,
@@ -87,6 +134,7 @@ export const HANDLERS: Handler[] = [
     column: 'lean_mass_kg', limit: LIMITS.leanMass,
     value: (r) => (r as { mass?: { inKilograms?: number } }).mass?.inKilograms,
   }),
+  sleepHandler,
 ];
 
 /** 型の記録を、from から今まで全ページ読む */
