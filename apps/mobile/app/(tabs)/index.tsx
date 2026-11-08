@@ -44,7 +44,7 @@ export default function HomeScreen() {
     <Screen tab>
       <View style={s.topBar}>
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} bg="transparent" />
-        <T bold size={18}>hlog</T>
+        <T bold size={18} accessibilityLabel="hlog">hl<T bold size={18} color={colors.accent}>o</T>g</T>
         <View style={{ width: 44 }} />
       </View>
 
