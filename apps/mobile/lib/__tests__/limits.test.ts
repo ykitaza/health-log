@@ -1,4 +1,4 @@
-import { LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange, rangeMessage, REPS_MAX } from '../limits';
+import { LIMITS, MEMO_MAX_LENGTH, memoLengthError, NAME_MAX_LENGTH, nameLengthError, parseInRange, rangeMessage, REPS_MAX } from '../limits';
 import { SetDraft, validateSets } from '../sets';
 import { kgToUnit, trimNumber } from '../units';
 
@@ -79,5 +79,13 @@ describe('回数とメモの上限（同期のサーバーと同じ）', () => {
   test('体組成のメモ', () => {
     expect(memoLengthError('あ'.repeat(MEMO_MAX_LENGTH))).toBeNull();
     expect(memoLengthError('あ'.repeat(MEMO_MAX_LENGTH + 1))).toMatch(/1000 文字以内/);
+  });
+});
+
+describe('名前の長さはコードポイントで数える（書記素ではない）', () => {
+  test('サロゲートペアの絵文字は1つ、ZWJ でつないだ絵文字は、つないだ数だけ数える', () => {
+    expect(nameLengthError('種目', '💪'.repeat(NAME_MAX_LENGTH))).toBeNull();
+    // 👨‍👩‍👧 は 👨・ZWJ・👩・ZWJ・👧 の5つと数える。見た目は9文字でも45
+    expect(nameLengthError('種目', '👨‍👩‍👧'.repeat(9))).toBe('種目の名前は40文字以内で入れてください（今は45文字）');
   });
 });

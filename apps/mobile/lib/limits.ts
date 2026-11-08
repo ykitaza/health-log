@@ -14,7 +14,7 @@ export const LIMITS = {
   waist: { label: 'ウエスト', min: 30, max: 200, unit: 'cm' },
 } as const satisfies Record<string, Limit>;
 
-/** 種目と部位の名前の長さの上限（前後の空白を取ってから数える） */
+/** 種目と部位の名前の長さの上限（前後の空白を取ってから、コードポイントで数える。同期のサーバーの上限 200 の内側） */
 export const NAME_MAX_LENGTH = 40;
 
 /**
@@ -33,7 +33,11 @@ export function memoLengthError(memo: string): string | null {
   return n > MEMO_MAX_LENGTH ? `メモは ${MEMO_MAX_LENGTH} 文字以内で入れてください（今は${n}文字）` : null;
 }
 
-/** 名前が長すぎるときの文言（長さは文字の数。絵文字も1文字と数える）。長すぎなければ null */
+/**
+ * 名前が長すぎるときの文言。長すぎなければ null。
+ * 長さはコードポイントで数える（[...name].length）。サロゲートペアの絵文字（💪 など）は1つと数えるが、
+ * ZWJ でつないだ絵文字（👨‍👩‍👧 など）や肌の色を付けた絵文字は、見た目は1文字でも2つ以上と数える
+ */
 export function nameLengthError(what: '種目' | '部位', name: string): string | null {
   const n = [...name].length;
   return n > NAME_MAX_LENGTH ? `${what}の名前は${NAME_MAX_LENGTH}文字以内で入れてください（今は${n}文字）` : null;
