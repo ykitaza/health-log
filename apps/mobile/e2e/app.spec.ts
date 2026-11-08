@@ -8,8 +8,7 @@ test('4つのタブと、タブの見出し', async ({ page }) => {
 
   await goTab(page, '食事');
   await expect(see(page, '食事', { exact: true }).first()).toBeVisible();
-  await expect(see(page, '準備中です')).toBeVisible();
-  await expect(see(page, 'サーバーとつないでから使えるようになります', { exact: false })).toBeVisible();
+  await expect(see(page, '朝食はまだ記録していません')).toBeVisible();
 
   await goTab(page, '履歴／分析');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
@@ -43,8 +42,8 @@ test('歯車から設定へ行き、戻ると元の画面。設定と RM計算�
 
   // 設定の「準備中」
   await openSettings(page);
-  for (const t of ['サーバーとの同期', '食事の目標', 'チャットとの連携']) await expect(see(page, t, { exact: true })).toBeVisible();
-  await expect(see(page, '準備中', { exact: true })).toHaveCount(3);
+  await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
+  await expect(see(page, '準備中', { exact: true })).toHaveCount(1);
 });
 
 test('再読み込みしても記録・体組成・設定が残る', async ({ page }) => {

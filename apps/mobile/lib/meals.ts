@@ -324,7 +324,7 @@ export function parseGoal(d: GoalDraft): { value: NutritionGoal } | { error: str
       return { error: '筋トレの日と休みの日の kcal・脂質・炭水化物は、全部入れるか、全部空にしてください' };
     }
     const daily = (t: GoalDraft['training'], label: string): DailyTarget | string => {
-      const kcal = num(t.kcal, `${label}の kcal`, KCAL_MAX);
+      const kcal = num(t.kcal, `${label}のエネルギー`, KCAL_MAX);
       if (typeof kcal === 'string') return kcal;
       const fat = num(t.fat_g, `${label}の脂質`, GRAMS_MAX);
       if (typeof fat === 'string') return fat;

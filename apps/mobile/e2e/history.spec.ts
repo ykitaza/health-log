@@ -23,13 +23,12 @@ async function seed(page: Page) {
 
 const day = (page: Page, date: string) => page.getByTestId('history-calendar').getByTestId(`day-${date}`);
 
-test('記録がないときと、食事の「準備中」', async ({ page }) => {
+test('記録がないとき（筋トレと食事）', async ({ page }) => {
   await openApp(page);
   await tab(page, '履歴／分析').click();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
   await button(page, '食事').click();
-  await expect(see(page, '準備中です')).toBeVisible();
-  await expect(see(page, '食事の履歴と分析は、次の段階で使えるようになります')).toBeVisible();
+  await expect(see(page, 'この週はまだ記録がありません')).toBeVisible();
   await button(page, '筋トレ').click();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
 });

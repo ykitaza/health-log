@@ -1,0 +1,182 @@
+{
+  "description": "アプリで記録した筋トレ・種目・体組成・設定を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。",
+  "pushes": [
+    {
+      "device_id": "<device_id>",
+      "changes": [
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_entry",
+          "entity_id": "id-1",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "date": "2026-11-08",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "sort_order": 0
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_set",
+          "entity_id": "id-2",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "entry_id": "id-1",
+            "set_index": 0,
+            "weight_kg": 80,
+            "reps": 8,
+            "memo": "",
+            "done": true
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_set",
+          "entity_id": "id-3",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "entry_id": "id-1",
+            "set_index": 1,
+            "weight_kg": 82.5,
+            "reps": 6,
+            "memo": "最後は補助あり",
+            "done": false
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_entry",
+          "entity_id": "id-4",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "date": "2026-11-08",
+            "exercise_id": "11080b36-79ce-4306-a099-c779ae4323b3",
+            "sort_order": 1
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_set",
+          "entity_id": "id-5",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "entry_id": "id-4",
+            "set_index": 0,
+            "weight_kg": null,
+            "reps": 10,
+            "memo": "",
+            "done": true
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "exercise",
+          "entity_id": "id-6",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "body_part_id": "4297851d-7332-40e6-9ad8-8e7c9aee7d2f",
+            "name": "ブルガリアンスクワット",
+            "record_type": "weight_reps",
+            "sort_order": 18,
+            "hidden": false
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_entry",
+          "entity_id": "id-7",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "date": "2026-11-08",
+            "exercise_id": "id-6",
+            "sort_order": 2
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "workout_set",
+          "entity_id": "id-8",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "entry_id": "id-7",
+            "set_index": 0,
+            "weight_kg": 20,
+            "reps": 12,
+            "memo": "",
+            "done": false
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "exercise",
+          "entity_id": "a902b077-031a-4de6-814b-9ffb69b96778",
+          "op": "update",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "hidden": true
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "body_record",
+          "entity_id": "id-9",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T03:00:00.000Z",
+            "weight_kg": 70.4,
+            "body_fat_pct": 18.2,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": 80,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "setting",
+          "entity_id": "weight_unit",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "value": "lb"
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "setting",
+          "entity_id": "height_cm",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "value": "172"
+          }
+        }
+      ]
+    }
+  ]
+}

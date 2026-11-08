@@ -4,7 +4,8 @@
 // どの表も、のちにサーバーと同期できるように、次の列を持つ。
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
-import type { Db } from './types';
+import { MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
+import type { Bind, Db } from './types';
 
 export type Migration = { version: number; up: (db: Db, nowIso: string) => Promise<void> };
 
@@ -93,12 +94,57 @@ CREATE TABLE settings (
     },
   },
   {
+    // 同期（docs/sync-design.md の「アプリの同期」）。
+    // sync_outbox：送っていない変更（トリガーが積む）。断られたものは status = 'rejected' で残し、送り直さない
+    // sync_meta：端末の ID、受け取りの位置（cursor）、最後に同期した時刻など
+    // sync_seen：対象ごとに、当てはめた状態の seq（古い状態で上書きしないため）
+    // sync_held：端末にまだ行がなく、項目か親がそろっていない状態（そろったら当てはめる）
+    version: 2,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE sync_outbox (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  change_id TEXT NOT NULL UNIQUE,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  op TEXT NOT NULL CHECK (op IN ('create', 'update', 'delete', 'restore')),
+  fields TEXT,
+  changed_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'rejected')),
+  error_code TEXT
+);
+CREATE INDEX sync_outbox_entity ON sync_outbox (entity_type, entity_id);
+CREATE TABLE sync_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT);
+CREATE TABLE sync_seen (
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  PRIMARY KEY (entity_type, entity_id)
+);
+CREATE TABLE sync_held (
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  PRIMARY KEY (entity_type, entity_id)
+);
+INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
+`);
+      await backfillOutbox(db);
+      for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
     // 食事（docs/meals-design.md）。列の名前は同期の項目（services/meals/meals/infrastructure/sync_entities.py）と同じ。
     // meal_items：品目の ID は食事の中でだけ一意（MCP の複製といつものは、元の品目の ID をそのまま使う）。そこで (meal_id, id) を主キーにする
     // meal_templates：いつもの。id は名前から決める（lib/meals.ts の templateId）。items は品目の一覧の JSON（一覧ごと置き換える）
     // nutrition_goals：目標。id は 'current' だけ。targets は筋トレの日と休みの日の目標の JSON（両方あるか、NULL）
     // day_types：本人が決めた日の種類。id は日付
-    version: 2,
+    // 同期：outbox に親の ID（parent_id。品目の変更に付ける）を足し、食事の表にトリガーを作る。
+    // 版2までの端末は、受け取った食事の状態を当てはめずに受け取りの位置（cursor）だけ進めていたので、
+    // 位置を消して、次の同期でスナップショットを1回取り直す（サーバーが正本で、消えたものも含めて全部返る。
+    // 筋トレなどは、当てはめた seq（sync_seen）より古い状態では上書きしない）
+    version: 3,
     up: async (db) => {
       await db.execAsync(`
 CREATE TABLE meals (
@@ -142,10 +188,51 @@ CREATE TABLE day_types (
   id TEXT PRIMARY KEY NOT NULL,
   day_type TEXT NOT NULL CHECK (day_type IN ('training', 'rest')),${SYNC_COLUMNS}
 );
+ALTER TABLE sync_outbox ADD COLUMN parent_id TEXT;
+DELETE FROM sync_meta WHERE key = 'cursor';
 `);
+      for (const spec of MEAL_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];
+
+/**
+ * ログインの前に端末で作った記録を、最初の同期で送れるように outbox に積む。
+ * - 初期の部位と種目は、初期の値から変えた項目だけを update で積む（変えていないものを送ると、
+ *   ほかの端末や MCP で変えた値を、この端末を入れた時刻で上書きしてしまうため）
+ * - それ以外は、今の値を create で積む。時刻は行の updated_at
+ * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
+ */
+async function backfillOutbox(db: Db) {
+  const seeds: Record<string, Map<string, Record<string, Bind>>> = {
+    body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
+    exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
+      body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
+    }])),
+  };
+  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string) => db.runAsync(
+    `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
+    [type, id, op, fields ? JSON.stringify(fields) : null, at],
+  );
+  for (const spec of TRAINING_ENTITIES) {
+    const cols = Object.keys(spec.columns);
+    const rows = await db.getAllAsync<Record<string, Bind>>(
+      `SELECT id, updated_at, deleted_at, ${cols.join(', ')} FROM ${spec.table} ORDER BY created_at, id`, [],
+    );
+    for (const row of rows) {
+      const id = row.id as string;
+      const values = Object.fromEntries(cols.map((c) => [c, row[c]]));
+      const seed = seeds[spec.table]?.get(id);
+      if (seed) {
+        const changed = Object.fromEntries(cols.filter((c) => seed[c] !== values[c]).map((c) => [c, values[c]]));
+        if (Object.keys(changed).length > 0) await add(spec.type, id, 'update', changed, row.updated_at as string);
+        if (row.deleted_at) await add(spec.type, id, 'delete', null, row.deleted_at as string);
+      } else if (!row.deleted_at) {
+        await add(spec.type, id, 'create', values, row.updated_at as string);
+      }
+    }
+  }
+}
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

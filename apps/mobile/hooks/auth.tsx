@@ -7,7 +7,7 @@ import { AuthError, createAuthClient, logoutUrl, NATIVE_LOGOUT_URI } from '@/lib
 import { createSecureTokenStore } from '@/lib/auth/tokenStore';
 
 /**
- * ログインの状態をアプリ全体で持つ（次の段階の同期も、ここの getAccessToken と api を使う）。
+ * ログインの状態をアプリ全体で持つ（同期（hooks/sync.tsx）も、ここの api を使う）。
  * ログインは任意。ログインしていなくても、記録は今までどおり端末にだけ保存する
  */
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';

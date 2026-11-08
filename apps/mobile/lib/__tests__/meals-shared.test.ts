@@ -53,7 +53,7 @@ describe('summaries.json', () => {
 });
 
 describe('targets.json', () => {
-  const cases: { name: string; goal: NutritionGoal | null; day_type: 'training' | 'rest'; eaten: Nutrition; target: Gap | null; remaining: Gap | null }[] =
+  const cases: { name: string; goal: (Partial<NutritionGoal> & Pick<NutritionGoal, 'policy'>) | null; day_type: 'training' | 'rest'; eaten: Nutrition; target: Gap | null; remaining: Gap | null }[] =
     load('targets.json').cases;
   test.each(cases)('$name', (c) => {
     const goal = c.goal ? { body_weight_kg: null, protein_per_kg: null, targets: null, eating_style: null, target_weight_kg: null, ...c.goal } : null;

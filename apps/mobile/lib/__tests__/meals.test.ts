@@ -58,7 +58,7 @@ describe('目標の入力（MCP の set_goals と同じ）', () => {
     [{ proteinPerKg: '5.1' }, '体重1kgあたりのたんぱく質は 0 より大きく 5g までで入れてください'],
     [{ targetWeight: '29' }, '目標体重は 30〜300kg で入れてください'],
     [{ training: { kcal: '2600', fat_g: '', carbs_g: '' } }, '筋トレの日と休みの日の kcal・脂質・炭水化物は、全部入れるか、全部空にしてください'],
-    [{ training: { kcal: '2600', fat_g: '72', carbs_g: '340' }, rest: { kcal: '20001', fat_g: '1', carbs_g: '1' } }, '休みの日の kcal は 20,000 までで入れてください'],
+    [{ training: { kcal: '2600', fat_g: '72', carbs_g: '340' }, rest: { kcal: '20001', fat_g: '1', carbs_g: '1' } }, '休みの日のエネルギーは 20,000 までで入れてください'],
   ])('%o → %s', (d, error) => {
     expect(parseGoal(goalDraft(d as Partial<GoalDraft>))).toEqual({ error });
   });

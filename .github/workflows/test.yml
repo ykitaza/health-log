@@ -33,7 +33,7 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           # python の各サービスは、自分のフォルダと、依存するもの（pyproject.toml の path の依存と pythonpath）で動かす。
-          # testdata/ はサーバーの計算（training）と突き合わせているので、training とそれに依存するものも動かす。
+          # testdata/ はサーバーの計算（training・meals）と突き合わせているので、それらとそれに依存するものも動かす。
           # どのフィルターにも、このワークフロー自身を入れる
           filters: |
             workflow: &workflow
@@ -48,6 +48,7 @@ jobs:
               - *workflow
               - services/meals/**
               - services/sync/**
+              - testdata/**
             training:
               - *workflow
               - services/training/**
