@@ -15,14 +15,12 @@
 | `app.json` | `scheme`：`torelog` | 第2段階のログインの戻り先（`torelog://callback`）に使う |
 | `app.json` | `runtimeVersion`：`{"policy": "fingerprint"}` | [下を参照](#runtimeversion-の方針) |
 | `app.json` | `updates`：`checkAutomatically` は `ON_LOAD`、`fallbackToCacheTimeout` は `0` | 起動のたびに新しい JS を確かめ、取ってきたものは次の起動で使う（どちらも既定の値。起動を待たせない） |
-| `app.json` | `extra.eas.projectId`、`updates.url` | 手順3で、Expo の CLI が書き足したもの |
-| `app.json` | `updates.codeSigningCertificate`：`./certs/certificate.pem`、`updates.codeSigningMetadata`：`{"keyid": "main", "alg": "rsa-v1_5-sha256"}` | [コードの署名](#コードの署名)。APK に証明書が入り、署名の合わない配信を当てない |
-| `certs/certificate.pem` | コードの署名の証明書（公開してよいもの。10年で切れる。2036-11-08 まで） | 秘密鍵はリポジトリに入れない（`apps/mobile/keys/` は `.gitignore` で除く） |
+| `app.json` | `extra.eas.projectId`、`updates.url` | まだ書いていない。手順3で、Expo の CLI が書き足す |
 | `eas.json` | `preview` | APK・内部配信。チャンネルは `preview`。普段使うもの |
 | `eas.json` | `development` | 開発ビルド・内部配信。第2段階のログインや Health Connect を試すときに使う（開発ビルドは APK になり、どのチャンネルの配信も読めるので、`buildType` と `channel` は書かない） |
 | `eas.json` | `cli.version`：`>= 27.5.0` | 確かめた EAS CLI の版より古いものでは動かさない |
 | `eas.json` | `cli.appVersionSource`：`remote` | `versionCode` を Expo のサーバーで数え、`preview` のビルドのたびに1つ上げる（`autoIncrement`）。公式が勧める方法 |
-| `.github/workflows/eas-update.yml` | JS の配信 | main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` に配信する。environment `expo` の `EXPO_UPDATES_PRIVATE_KEY` で署名する |
+| `.github/workflows/eas-update.yml` | JS の配信 | main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` に配信する |
 | `.github/workflows/eas-build.yml` | APK のビルド | 手動で動かす |
 
 `production` のプロファイルは作っていません。公式では、`production` はストアに出すためのもので、既定で AAB（ストアからしか入れられない形式）になります。ストアに出さないので要りません。
@@ -117,17 +115,6 @@ Expo のダッシュボードの [Access tokens](https://expo.dev/settings/acces
 
 `EXPO_TOKEN` がないあいだ、ワークフローは失敗せずに、理由を出して飛ばします。
 
-#### 6-3. コードの署名の秘密鍵を GitHub の environment に置く
-
-秘密鍵は、手元のチェックアウトの `apps/mobile/keys/private-key.pem` にあります（[コードの署名](#コードの署名)）。リポジトリのルートで、次を打ちます（中身は画面に出ません）。
-
-```sh
-GH_TOKEN=$(gh auth token --user ykitaza) gh secret set EXPO_UPDATES_PRIVATE_KEY --env expo -R ykitaza/health-log < apps/mobile/keys/private-key.pem
-GH_TOKEN=$(gh auth token --user ykitaza) gh secret list --env expo -R ykitaza/health-log   # EXPO_UPDATES_PRIVATE_KEY があるかを確かめる
-```
-
-`EXPO_TOKEN` があって `EXPO_UPDATES_PRIVATE_KEY` がないと、`eas-update` のワークフローは失敗します（署名のない配信は、署名を入れた APK が当てないため）。
-
 ### 7. 以後の流れ
 
 | 変えたもの | すること |
@@ -138,50 +125,6 @@ GH_TOKEN=$(gh auth token --user ykitaza) gh secret list --env expo -R ykitaza/he
 - `eas-update` は、手動でも動かせます（Actions → `eas-update` → Run workflow。main だけ）。そのときは `apps/mobile/` が変わったかを見ずに配信します
 - 自動の配信は、main の最新のコミットとその1つ前（first parent）の差で `apps/mobile/` の変更を見ます。PR のマージコミットなら PR の全部の変更が入ります。いくつものコミットを main に直接 push したときは最後のコミットだけを見るので、漏れたら手動で動かします
 - ネイティブを変えたかどうかが分からないときは、`npx expo-doctor` のあとに APK を作り直せば確実です。作り直さなくても、`fingerprint` のおかげで合わない JS は届きません
-
-## コードの署名
-
-`EXPO_TOKEN` か Expo のアカウントが盗まれると、改ざんした JS を配信できます。それを防ぐために、配信に署名します（[Code signing](https://docs.expo.dev/eas-update/code-signing/)）。
-
-- APK には、`app.json` の `updates.codeSigningCertificate` の証明書（`certs/certificate.pem`）が入ります。アプリは、配信の署名をこの証明書で確かめ、合わなければ当てません
-- 署名は、`eas update` を動かす側で、秘密鍵を使ってします。秘密鍵は Expo に送られません。Expo のトークンだけを盗んでも、署名の合う配信は作れません
-- 秘密鍵の置き場所は、手元のチェックアウトの `apps/mobile/keys/private-key.pem`（`.gitignore` で除く。権限は自分だけ）と、GitHub の environment `expo` の `EXPO_UPDATES_PRIVATE_KEY`（手順6-3）の2つだけです。パスワード管理のソフトなどにも写しを置いておくと、手元の PC をなくしたときに困りません
-- 証明書と鍵を入れる前に作った APK は、署名を確かめません。**証明書を入れたあとに APK を作り直して入れ直すまで、署名の守りは効きません**（`app.json` が変わるので `fingerprint` の `runtimeVersion` も変わり、作り直すまで新しい配信は届きません）
-
-### 手で配信する
-
-ふつうは GitHub Actions の `eas-update` で配信します（手動でも動かせる）。手元から配信するときは、秘密鍵を指定します。
-
-```sh
-cd apps/mobile
-npx eas-cli update --channel preview --environment preview --platform android \
-  --message "<説明>" --private-key-path keys/private-key.pem
-```
-
-`--private-key-path` を付けないと、署名のない配信になり、アプリは当てません。
-
-### 鍵と証明書を作り直す（なくした・漏れた・期限が近い）
-
-証明書は APK に入っているので、**証明書を変えたら APK の作り直しと入れ直しが要ります**。入っている APK は、古い証明書に合う配信しか当てません。
-
-- **鍵をなくした**：入っている APK には、もう配信できません。下の手順で作り直し、APK を作り直します
-- **鍵が漏れた**：下の手順で作り直し、すぐに APK を作り直して入れ直します。それまでは、漏れた鍵で署名した配信を当ててしまいます。environment `expo` の `EXPO_TOKEN` も作り直します
-- **期限（2036-11-08）が近い**：期限を過ぎると、その鍵で署名した配信は当てられません。前もって作り直します
-
-手順（`apps/mobile` で。古い鍵は、漏れたのでなければ、終わるまで別の場所に残します）：
-
-1. 新しい鍵と証明書を作る（`keys/` と `certs/` の古いものは、上書きされる前に別の場所に移す）
-
-   ```sh
-   npx expo-updates codesigning:generate --key-output-directory keys --certificate-output-directory certs \
-     --certificate-validity-duration-years 10 --certificate-common-name "torelog"
-   chmod 700 keys && chmod 600 keys/*.pem
-   ```
-
-2. `app.json` の `updates.codeSigningMetadata.keyid` を、新しい値（例：`main-2`）にする（どの鍵の配信かを見分けやすくする）
-3. 手順6-3のコマンドで、`EXPO_UPDATES_PRIVATE_KEY` を新しい鍵で上書きする
-4. PR にして main に入れる（`app.json` が変わるので `runtimeVersion` も変わる。古い APK には届かない）
-5. `eas-build` で APK を作り直し、Pixel に入れる（同じ Android の署名の鍵なので、上書きで入り、記録は消えない）
 
 ## 気をつけること
 

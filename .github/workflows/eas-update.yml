@@ -12,7 +12,6 @@ on:
 # 初期の権限はなし。ジョブごとに必要なものだけを与える
 permissions: {}
 
-# 配信する JS はコードの署名をする（秘密鍵は environment expo の EXPO_UPDATES_PRIVATE_KEY。apps/mobile/docs/eas.md）。
 # 配信は1つずつ順に行う。途中で止めると配信が半端になるので、実行中のものは止めない
 concurrency:
   group: ${{ github.workflow }}
@@ -105,21 +104,6 @@ jobs:
       - if: steps.target.outputs.ok == 'true'
         run: npm ci --ignore-scripts
 
-      # コードの署名の秘密鍵（environment expo の EXPO_UPDATES_PRIVATE_KEY）を、ジョブの一時フォルダに書き出す。
-      # アプリは app.json の証明書で署名を確かめ、署名のない配信や違う鍵の配信は当てないので、鍵がなければ失敗させる。
-      # 依存の install（npm ci）のあと、使う直前に書き出し、ジョブの終わりに消す
-      - name: 署名の秘密鍵を書き出す
-        if: steps.target.outputs.ok == 'true'
-        env:
-          EXPO_UPDATES_PRIVATE_KEY: ${{ secrets.EXPO_UPDATES_PRIVATE_KEY }}
-        run: |
-          if [ -z "$EXPO_UPDATES_PRIVATE_KEY" ]; then
-            echo "::error::environment expo に EXPO_UPDATES_PRIVATE_KEY がありません。署名のない配信はアプリが当てないので、配信を止めます（apps/mobile/docs/eas.md）"
-            exit 1
-          fi
-          umask 077
-          printf '%s\n' "$EXPO_UPDATES_PRIVATE_KEY" > "$RUNNER_TEMP/expo-updates-private-key.pem"
-
       - if: steps.target.outputs.ok == 'true'
         run: >-
           eas update
@@ -127,10 +111,4 @@ jobs:
           --environment preview
           --platform android
           --message "$(git log -1 --format=%s)"
-          --private-key-path "$RUNNER_TEMP/expo-updates-private-key.pem"
           --non-interactive
-
-      - name: 署名の秘密鍵を消す
-        if: always()
-        working-directory: .
-        run: rm -f "$RUNNER_TEMP/expo-updates-private-key.pem"
