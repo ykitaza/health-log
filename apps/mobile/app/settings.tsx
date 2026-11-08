@@ -6,7 +6,8 @@ import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { toCsv } from '@/lib/csv';
-import { kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
+import { LIMITS, parseInRange } from '@/lib/limits';
+import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
 export default function SettingsScreen() {
@@ -27,19 +28,19 @@ export default function SettingsScreen() {
   const save = async (patch: Parameters<typeof repos.settings.update>[0]) => { await repos.settings.update(patch); reload(); };
 
   const saveHeight = () => {
-    const v = parseNumber(height);
-    if (height.trim() !== '' && (v == null || v < 50 || v > 250)) { setMessage('身長は 50〜250 cm で入れてください'); return; }
+    const parsed = parseInRange(height, LIMITS.height);
+    if ('error' in parsed) { setMessage(parsed.error); return; }
     setMessage(null);
-    save({ heightCm: v });
+    save({ heightCm: parsed.value });
   };
   const saveGoal = () => {
     // 出した値のままなら保存しない（lb で出した目標体重を kg に戻すと、丸めで値が変わるため）
     const saved = settings?.goalWeightKg;
     if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { setMessage(null); return; }
-    const v = parseNumber(goal);
-    if (goal.trim() !== '' && (v == null || v <= 0)) { setMessage('目標体重は正の数で入れてください'); return; }
+    const parsed = parseInRange(goal, LIMITS.goalWeight, unit);
+    if ('error' in parsed) { setMessage(parsed.error); return; }
     setMessage(null);
-    save({ goalWeightKg: v == null ? null : unitToKg(v, unit) });
+    save({ goalWeightKg: parsed.value });
   };
 
   const exportCsv = async () => {

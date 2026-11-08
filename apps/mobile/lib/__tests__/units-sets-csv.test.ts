@@ -24,18 +24,18 @@ const d = (key: string, weight: string, reps: string, memo = ''): SetDraft => ({
 
 describe('セットの入力の確認', () => {
   test('重量が空ならエラー', () => {
-    const e = validateSets([d('a', '80', '8'), d('b', '', '8')], 'weight_reps');
+    const e = validateSets([d('a', '80', '8'), d('b', '', '8')], 'weight_reps', 'kg');
     expect(e.size).toBe(1);
     expect(e.get('b')).toEqual({ weight: '重量を入れてください' });
   });
   test('回数がないか、整数でなければエラー', () => {
-    const e = validateSets([d('a', '80', ''), d('b', '80', '2.5')], 'weight_reps');
+    const e = validateSets([d('a', '80', ''), d('b', '80', '2.5')], 'weight_reps', 'kg');
     expect(e.get('a')?.reps).toBeDefined();
     expect(e.get('b')?.reps).toBeDefined();
   });
   test('空の行は無視し、回数だけの種目は重量を見ない', () => {
-    expect(validateSets([d('a', '', '')], 'weight_reps').size).toBe(0);
-    expect(validateSets([d('a', '', '20')], 'reps_only').size).toBe(0);
+    expect(validateSets([d('a', '', '')], 'weight_reps', 'kg').size).toBe(0);
+    expect(validateSets([d('a', '', '20')], 'reps_only', 'kg').size).toBe(0);
   });
   test('保存用に変換（空の行を落とし、lb は kg に）', () => {
     const out = toSetInputs([d('a', '100', '5', ' 良し '), d('b', '', '')], 'weight_reps', 'lb');

@@ -113,7 +113,7 @@ export default function EntryScreen() {
   };
 
   const save = async () => {
-    const errs = validateSets(drafts, exercise.recordType);
+    const errs = validateSets(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
     const sets = toSetInputs(drafts, exercise.recordType, unit);

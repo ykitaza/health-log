@@ -10,7 +10,8 @@ import { useFocusData } from '@/hooks/data';
 import { BodyMetric, bmi, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, addMonths, formatJpDate, todayKey } from '@/lib/date';
-import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '@/lib/units';
+import { Limit, LIMITS, parseInRange } from '@/lib/limits';
+import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
 type Field = 'weightKg' | 'bodyFatPct' | 'musclePct' | 'waistCm';
@@ -20,6 +21,9 @@ const FIELDS: { key: Field; label: string; unit: string; metric: BodyMetric; wei
   { key: 'musclePct', label: '筋肉率', unit: '%', metric: 'muscle' },
   { key: 'waistCm', label: 'ウエスト', unit: 'cm', metric: 'waist' },
 ];
+const FIELD_LIMITS: Record<Field, Limit> = {
+  weightKg: LIMITS.bodyWeight, bodyFatPct: LIMITS.bodyFat, musclePct: LIMITS.muscle, waistCm: LIMITS.waist,
+};
 
 /** 体組成（日付ごとの入力、自動の計算、目標体重、体重の推移） */
 export default function BodyScreen() {
@@ -49,11 +53,10 @@ export default function BodyScreen() {
     // 出した値のままなら保存しない（lb で出した体重を kg に戻すと、丸めで値が変わるため）
     const saved = day?.[f];
     if (t.trim() === (saved == null ? '' : trimNumber(f === 'weightKg' ? kgToUnit(saved, unit) : saved))) { setError(null); return; }
-    const n = parseNumber(t);
-    if (t.trim() !== '' && (n == null || n <= 0)) { setError('数を入れてください'); return; }
-    if ((f === 'bodyFatPct' || f === 'musclePct') && n != null && n >= 100) { setError('割合は 100 より小さく入れてください'); return; }
+    const parsed = parseInRange(t, FIELD_LIMITS[f], unit);
+    if ('error' in parsed) { setError(parsed.error); return; }
     setError(null);
-    const value = n == null ? null : f === 'weightKg' ? unitToKg(n, unit) : n;
+    const value = parsed.value;
     if (value === (day?.[f] ?? null)) return;
     await repos.body.saveManual(date, { [f]: value });
     reload();

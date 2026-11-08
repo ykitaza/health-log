@@ -154,10 +154,11 @@ test.describe('重量と回数の入力の確かめ', () => {
 
   const cases: { name: string; weight: string; reps: string; error: string }[] = [
     { name: '重量が空', weight: '', reps: '8', error: '重量を入れてください' },
-    { name: '重量が 0', weight: '0', reps: '8', error: '重量は正の数で入れてください' },
-    { name: '重量が負の数', weight: '-5', reps: '8', error: '重量は正の数で入れてください' },
-    { name: '重量が数字でない', weight: 'abc', reps: '8', error: '重量は正の数で入れてください' },
-    { name: '重量が指数の書き方', weight: '1e3', reps: '8', error: '重量は正の数で入れてください' },
+    { name: '重量が 0', weight: '0', reps: '8', error: '重量は 500kg までの正の数で入れてください' },
+    { name: '重量が負の数', weight: '-5', reps: '8', error: '重量は 500kg までの正の数で入れてください' },
+    { name: '重量が数字でない', weight: 'abc', reps: '8', error: '重量は 500kg までの正の数で入れてください' },
+    { name: '重量が指数の書き方', weight: '1e3', reps: '8', error: '重量は 500kg までの正の数で入れてください' },
+    { name: '重量が 500kg を超える', weight: '500.5', reps: '1', error: '重量は 500kg までの正の数で入れてください' },
     { name: '回数が空', weight: '80', reps: '', error: '回数を入れてください' },
     { name: '回数が 0', weight: '80', reps: '0', error: '回数を入れてください' },
     { name: '回数が小数', weight: '80', reps: '8.5', error: '回数を入れてください' },
@@ -188,18 +189,18 @@ test.describe('重量と回数の入力の確かめ', () => {
     await expect(see(page, '80.0 kg × 5 回')).toBeVisible();
   });
 
-  test('小数、全角の数字、「,」の小数点、とても大きな値は受ける', async ({ page }) => {
+  test('小数、全角の数字、「,」の小数点、上限の 500kg は受ける', async ({ page }) => {
     await fillSets(page, [
       { weight: '62.5', reps: '8' },
       { weight: '６０', reps: '１０' },
       { weight: '57,5', reps: '3' },
-      { weight: '99999', reps: '1' },
+      { weight: '500', reps: '1' },
     ]);
     await saveButton(page).click();
     await expect(see(page, '62.5 kg × 8 回')).toBeVisible();
     await expect(see(page, '60.0 kg × 10 回')).toBeVisible();
     await expect(see(page, '57.5 kg × 3 回')).toBeVisible();
-    await expect(see(page, '99999.0 kg × 1 回')).toBeVisible();
+    await expect(see(page, '500.0 kg × 1 回')).toBeVisible();
   });
 });
 
