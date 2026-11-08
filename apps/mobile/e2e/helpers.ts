@@ -116,6 +116,36 @@ export async function enter(page: Page, label: string, value: string) {
   await input.press('Tab');
 }
 
+/**
+ * DB の返事（expo-sqlite の web の worker から画面への返事）を、止めたり流したりできるようにする。openApp の前に呼ぶ。
+ * hold() のあとの返事は止めておき、release() で届いた順に流す。保存と読み直しの完了を、画面の操作のあとまで遅らせて確かめるため
+ */
+export async function controlDb(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __dbHeld: (() => void)[] | null };
+    w.__dbHeld = null;
+    const Original = window.Worker;
+    window.Worker = class extends Original {
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+        if (type !== 'message' || typeof listener !== 'function') return super.addEventListener(type, listener, options);
+        super.addEventListener(type, (e) => {
+          if (w.__dbHeld) w.__dbHeld.push(() => listener.call(this, e));
+          else listener.call(this, e);
+        }, options);
+      }
+    };
+  });
+  return {
+    hold: () => page.evaluate(() => { (window as unknown as { __dbHeld: (() => void)[] | null }).__dbHeld = []; }),
+    release: () => page.evaluate(() => {
+      const w = window as unknown as { __dbHeld: (() => void)[] | null };
+      const held = w.__dbHeld ?? [];
+      w.__dbHeld = null;
+      for (const f of held) f();
+    }),
+  };
+}
+
 /** ホームから体組成のタブを開く */
 export async function openBody(page: Page) {
   await goTab(page, '体組成');

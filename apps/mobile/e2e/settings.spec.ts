@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -291,4 +291,25 @@ test('身長を入れたまま単位を押しても、身長と単位の両方�
   await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
   await expect(button(page, '5セット')).toHaveAttribute('aria-selected', 'true');
   expect(errors).toEqual([]);
+});
+
+test('身長と目標体重の保存が終わる前に単位を変えても、欄は保存したあとの値を出す', async ({ page }) => {
+  // 欄を離れたときの保存と、単位の保存・読み直しが重なるときを、DB の返事を止めて毎回作る
+  const db = await controlDb(page);
+  await openApp(page);
+  await openSettings(page);
+  const height = page.getByRole('textbox', { name: '身長' });
+  const goal = page.getByRole('textbox', { name: '目標体重' });
+  await db.hold();
+  await height.fill('170');
+  await goal.fill('70'); // 身長の欄を離れて保存する（返事は止まっている）
+  await button(page, 'lb').click(); // 目標体重の欄を離れて kg で保存し、単位を lb にする
+  await db.release();
+  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
+  // 70kg = 154.32lb
+  await expect(goal).toHaveValue('154.32');
+  await expect(height).toHaveValue('170');
+  await page.reload();
+  await expect(goal).toHaveValue('154.32');
+  await expect(height).toHaveValue('170');
 });
