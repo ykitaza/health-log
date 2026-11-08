@@ -255,6 +255,9 @@ test('lb の表示で「前回をコピー」しても、kg の値は前回と�
   // 上のセットをコピーしても同じ
   await button(page, '上のセットをコピー').click();
   await saveButton(page).click();
+  // 保存が終わって、その日のトレーニングの画面に戻るまで待つ。保存の途中で押した「戻る」は
+  // 記録の入力の画面のものになり、保存のあとの戻りと合わせても1画面しか戻らない（ホームに着かない）
+  await expect(see(page, '176.4 lb × 8 回')).toHaveCount(2);
   await button(page, '戻る').click();
 
   await openSettings(page);
