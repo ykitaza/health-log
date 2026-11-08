@@ -76,7 +76,7 @@ export default function ManageScreen() {
         title="種目と部位の管理"
         onBack={() => router.back()}
         right={
-          <Pressable accessibilityRole="button" onPress={() => router.push('/exercises/new')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/exercises/new')} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="plus" size={18} color={colors.accent} />
             <T bold size={14} color={colors.accent}>種目を追加</T>
           </Pressable>
@@ -115,14 +115,14 @@ export default function ManageScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`${p.name}の名前を変える`}
                   onPress={() => { setRenaming({ id: p.id, name: p.name, original: p.name }); setRenameError(null); }}
-                  hitSlop={10}
+                  hitSlop={17}
                 >
                   <Icon name="pencil" size={15} color={colors.sub} />
                 </Pressable>
                 <View style={{ flex: 1 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <T size={12} color={colors.sub}>{items.length}種目{hiddenCount ? `・非表示 ${hiddenCount}` : ''}</T>
-                  <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} hitSlop={8}>
+                  <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}>
                     <T size={12} bold color={colors.accent}>{p.hidden ? '部位を表示' : '部位を非表示'}</T>
                   </Pressable>
                 </View>
@@ -157,6 +157,7 @@ export default function ManageScreen() {
               value={partName}
               onChangeText={(t) => { setPartName(t); setError(null); }}
               placeholder="部位の名前（例：前腕）"
+              accessibilityLabel="追加する部位の名前"
               placeholderTextColor={colors.sub}
               autoFocus
               style={{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }}

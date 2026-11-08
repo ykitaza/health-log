@@ -82,7 +82,7 @@ export default function HistoryScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26}>履歴／分析</T></View>
+      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">履歴／分析</T></View>
       <Segmented options={[{ key: 'training', label: '筋トレ' }, { key: 'meals', label: '食事' }]} value={mode} onChange={setMode} />
 
       {mode === 'meals' ? (
@@ -126,7 +126,7 @@ export default function HistoryScreen() {
                 const best = bestSet(e.sets);
                 return (
                   <Card key={e.id} style={{ marginTop: 12, gap: 6 }}>
-                    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/workout', params: { date: selectedDay } })} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Pressable accessibilityRole="button" hitSlop={{ top: 13, bottom: 13 }} onPress={() => router.push({ pathname: '/workout', params: { date: selectedDay } })} style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <T bold size={16} style={{ flex: 1 }}>{formatJpDate(selectedDay)} {e.exerciseName}</T>
                       <Icon name="chevron" size={16} color={colors.sub} />
                     </Pressable>
@@ -196,7 +196,7 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
     <>
       <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
         {PERIODS.map((p) => (
-          <Pressable key={p} accessibilityRole="button" onPress={() => setPeriod(p)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p ? colors.input : 'transparent' }}>
+          <Pressable key={p} accessibilityRole="button" aria-selected={period === p} hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }} onPress={() => setPeriod(p)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p ? colors.input : 'transparent' }}>
             <T size={13} bold={period === p} color={period === p ? colors.text : colors.sub}>{PERIOD_LABELS[p]}</T>
           </Pressable>
         ))}

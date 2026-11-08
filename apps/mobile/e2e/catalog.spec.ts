@@ -197,10 +197,10 @@ test('種目と部位の追加の途中で戻るときも確かめる。名前�
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('入力をやめますか？');
   await expect(dialog).toContainText('入力した種目は追加されません。');
-  await button(dialog, 'キャンセル').click();
+  await button(dialog, '入力を続ける').click();
   await expect(name).toHaveValue('片手ケーブルクロス');
   await button(page, '戻る').click();
-  await button(page.getByRole('dialog'), 'やめる').click();
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
   await expect(row(page, '片手ケーブルクロス')).toHaveCount(0);
   await button(page, '戻る').click();
@@ -211,7 +211,7 @@ test('種目と部位の追加の途中で戻るときも確かめる。名前�
   await page.getByPlaceholder('部位の名前（例：前腕）').fill('前腕');
   await button(page, '戻る').click();
   await expect(page.getByRole('dialog')).toContainText('入力した部位は追加されません。');
-  await button(page.getByRole('dialog'), 'やめる').click();
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
   await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
 });
 
@@ -273,7 +273,7 @@ test('種目の名前を変えると、過去の記録・履歴・選択に新�
   await name.fill('バーベルベンチプレス');
   await button(page, '戻る').click();
   await expect(page.getByRole('dialog')).toContainText('変更は保存されません。');
-  await button(page.getByRole('dialog'), 'キャンセル').click();
+  await button(page.getByRole('dialog'), '入力を続ける').click();
 
   // 断るときの文言を出す（空の名前・長い名前などの決まりは jest の db/__tests__/repositories.test.ts）
   await name.fill('  ');
@@ -308,7 +308,7 @@ test('種目の名前を変えると、過去の記録・履歴・選択に新�
   await shownSwitch(page).click();
   await expect(shownSwitch(page)).toHaveAttribute('aria-checked', 'false');
   await button(page, '戻る').click();
-  await button(page.getByRole('dialog'), 'やめる').click();
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
   await expect(row(page, 'スクワット')).toContainText('表示中');
   // 保存すると非表示になり、開き直してもスイッチは切れたまま
   await toggleShown(page, 'スクワット');

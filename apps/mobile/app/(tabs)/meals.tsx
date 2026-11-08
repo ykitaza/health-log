@@ -39,7 +39,7 @@ export default function MealsScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26}>食事</T></View>
+      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">食事</T></View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
@@ -50,14 +50,14 @@ export default function MealsScreen() {
         <Card style={{ marginTop: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <T bold size={15}>{date === today ? '今日の合計' : 'この日の合計'}</T>
-            <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType}
+            <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
               style={[s.badge, day.dayType === 'training' ? { backgroundColor: colors.accentDark } : { backgroundColor: colors.input }]}>
               <T size={12} bold color={day.dayType === 'training' ? colors.accent : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
             </Pressable>
           </View>
           <NutritionSummary total={day.total} target={day.target} remaining={day.remaining} />
           {!data?.goal && (
-            <Pressable accessibilityRole="button" onPress={() => router.push('/meals/goal')} style={{ marginTop: 10 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="目標が未設定です。目標を決める" onPress={() => router.push('/meals/goal')} hitSlop={{ top: 15, bottom: 15 }} style={{ marginTop: 10 }}>
               <T size={12} color={colors.sub}>目標が未設定です。<T size={12} bold color={colors.accent}>目標を決める</T>（Claude・ChatGPT でも決められます）</T>
             </Pressable>
           )}
@@ -85,7 +85,7 @@ export default function MealsScreen() {
         );
       })}
 
-      <Pressable accessibilityRole="button" accessibilityLabel="目標" onPress={() => router.push('/meals/goal')}>
+      <Pressable accessibilityRole="button" accessibilityLabel="食事の目標を見る・決める" onPress={() => router.push('/meals/goal')}>
         <Card style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <T bold size={15}>目標</T>

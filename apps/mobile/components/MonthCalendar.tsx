@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { DateKey, monthMatrix, WEEKDAY_EN } from '@/lib/date';
+import { DateKey, formatJpDate, monthMatrix, WEEKDAY_EN } from '@/lib/date';
 import { colors } from '@/theme';
 import { T } from './Text';
 
@@ -17,6 +17,11 @@ type Props = {
   cell?: number;
   testID?: string;
 };
+
+/** 日のマスの読み上げの名前（「11月5日（水） 今日 記録あり」） */
+export function dayLabel(key: DateKey, { today, marked }: { today?: boolean; marked?: boolean }): string {
+  return [formatJpDate(key), today ? '今日' : '', marked ? '記録あり' : ''].filter(Boolean).join(' ');
+}
 
 /** 英語の月のカレンダー（日曜始まり） */
 export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, testID }: Props) {
@@ -43,7 +48,11 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
                 disabled={!onPressDay || !d.inMonth || isAfterMax}
                 aria-selected={onPressDay ? isFilled : undefined}
                 onPress={() => onPressDay?.(d.key)}
-                accessibilityLabel={isMarked ? `${d.key} 記録あり` : d.key}
+                accessibilityRole={onPressDay && d.inMonth ? 'button' : undefined}
+                accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked })}
+                // 月の外の日（薄く出すだけ）は読ませない
+                importantForAccessibility={d.inMonth ? 'auto' : 'no-hide-descendants'}
+                aria-hidden={!d.inMonth || undefined}
                 testID={d.inMonth ? `day-${d.key}` : undefined}
                 style={[
                   s.cellBox,

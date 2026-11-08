@@ -10,7 +10,7 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await openApp(page);
   await expect(see(page, 'November 2026', { exact: true })).toBeVisible();
   // 今日（8日）は塗られ、印はない
-  await expect(day(page, TODAY)).toHaveAttribute('aria-label', TODAY);
+  await expect(day(page, TODAY)).toHaveAttribute('aria-label', '11月8日（日） 今日');
   await expect(visible(page, 'archive')).toContainText('0days');
   await expect(visible(page, 'archive')).toContainText('TOTAL0 days');
   for (const id of ['volume-7d', 'volume-28d', 'volume-total']) {
@@ -43,9 +43,9 @@ test('記録したあとの総負荷量のカード、週ごとの棒、カレ�
   expect(parseFloat(await width(2))).toBe(0);
 
   // カレンダーの印は 11 月の 3 日と 8 日
-  await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '2026-11-03 記録あり');
-  await expect(day(page, TODAY)).toHaveAttribute('aria-label', `${TODAY} 記録あり`);
-  await expect(day(page, '2026-11-04')).toHaveAttribute('aria-label', '2026-11-04');
+  await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '11月3日（火） 記録あり');
+  await expect(day(page, TODAY)).toHaveAttribute('aria-label', '11月8日（日） 今日 記録あり');
+  await expect(day(page, '2026-11-04')).toHaveAttribute('aria-label', '11月4日（水）');
   await expect(visible(page, 'archive')).toContainText('2days');
   await expect(visible(page, 'archive')).toContainText('TOTAL2 days');
 

@@ -120,7 +120,7 @@ export default function MealDetailScreen() {
   return (
     <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="この食事を消す" variant="danger" onPress={() => setConfirmDelete(true)} /></>}>
       <Header title={mealTitle(meal)} onBack={() => router.back()}
-        right={<Pressable accessibilityRole="button" onPress={save} hitSlop={8}><T bold size={16} color={colors.accent}>保存</T></Pressable>} />
+        right={<Pressable accessibilityRole="button" onPress={save} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}><T bold size={16} color={colors.accent}>保存</T></Pressable>} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {SLOTS.map((x) => <Chip key={x} label={SLOT_LABELS[x]} active={x === slot} onPress={() => setSlot(x)} />)}
       </View>

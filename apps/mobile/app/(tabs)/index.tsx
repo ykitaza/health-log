@@ -44,7 +44,7 @@ export default function HomeScreen() {
     <Screen tab>
       <View style={s.topBar}>
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} bg="transparent" />
-        <T bold size={18} accessibilityLabel="hlog">hl<T bold size={18} color={colors.accent}>o</T>g</T>
+        <T bold size={18} accessibilityLabel="hlog" accessibilityRole="header">hl<T bold size={18} color={colors.accent}>o</T>g</T>
         <View style={{ width: 44 }} />
       </View>
 
@@ -104,7 +104,7 @@ export default function HomeScreen() {
         {isToday ? (
           <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="calendar" size={15} color={colors.accent} />
             <T bold size={13} color={colors.accent}>今日に戻る</T>
           </Pressable>
@@ -123,7 +123,7 @@ export default function HomeScreen() {
         {dayEntries?.map((e) => {
           const best = bestSet(e.sets);
           return (
-            <Pressable key={e.id} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
+            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`${e.exerciseName}の記録を開く`} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
               <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>
@@ -154,7 +154,7 @@ export default function HomeScreen() {
 
 function VolumeCard({ testID, title, kg, vehicle, unit, children }: { testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; children?: React.ReactNode }) {
   return (
-    <View style={s.volume} testID={testID}>
+    <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
       <T size={10} color={colors.sub}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         <T num bold size={26}>{tonnes(kg, unit)}</T>

@@ -32,7 +32,7 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
 
   // 目標（休みの日 2000kcal、たんぱく質 70kg × 2g）
-  await button(page, '目標').click();
+  await button(page, '食事の目標を見る・決める').click();
   await button(page, '維持').click();
   await field(page, '体重').fill('70');
   await field(page, 'たんぱく質（体重1kgあたり）').fill('2');

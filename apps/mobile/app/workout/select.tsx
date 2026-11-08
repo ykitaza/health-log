@@ -51,7 +51,7 @@ export default function SelectExerciseScreen() {
         subtitle={`${date === today ? '今日' : formatJpDate(date)}に記録`}
         onBack={() => router.back()}
         right={
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/exercises/new', params: part ? { bodyPartId: part } : {} })} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/exercises/new', params: part ? { bodyPartId: part } : {} })} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="plus" size={18} color={colors.accent} />
             <T bold size={14} color={colors.accent}>種目を追加</T>
           </Pressable>
@@ -64,6 +64,7 @@ export default function SelectExerciseScreen() {
           value={query}
           onChangeText={setQuery}
           placeholder="種目を検索"
+          accessibilityLabel="種目を検索"
           placeholderTextColor={colors.sub}
           style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', color: colors.text, fontFamily: fonts.regular, fontSize: 15 }}
         />

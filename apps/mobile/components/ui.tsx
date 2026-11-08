@@ -65,7 +65,7 @@ export function Header({ title, subtitle, onBack, right, overline }: {
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} />}
       <View style={{ flex: 1 }}>
         {overline && <T size={12} color={colors.sub}>{overline}</T>}
-        <T bold size={overline ? 20 : 22} numberOfLines={1}>{title}</T>
+        <T bold size={overline ? 20 : 22} numberOfLines={1} accessibilityRole="header">{title}</T>
         {subtitle && <T size={12} color={colors.sub}>{subtitle}</T>}
       </View>
       {right}
@@ -146,8 +146,8 @@ export function EmptyState({ icon = 'dumbbell', title, body }: { icon?: IconName
 }
 
 /** 確認のダイアログ */
-export function ConfirmDialog({ visible, title, body, confirmLabel, onConfirm, onCancel, danger = true }: {
-  visible: boolean; title: string; body?: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
+export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'キャンセル', onConfirm, onCancel, danger = true }: {
+  visible: boolean; title: string; body?: string; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -156,7 +156,7 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, onConfirm, o
           <T bold size={17}>{title}</T>
           {body && <T size={13} color={colors.sub} style={{ lineHeight: 20 }}>{body}</T>}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-            <Button label="キャンセル" variant="secondary" onPress={onCancel} style={{ flex: 1 }} small />
+            <Button label={cancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} small />
             <Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onPress={onConfirm} style={{ flex: 1 }} small />
           </View>
         </View>
@@ -189,7 +189,7 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
 export function SectionTitle({ title, right }: { title: string; right?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-      <T bold size={13} color={colors.sub}>{title}</T>
+      <T bold size={13} color={colors.sub} accessibilityRole="header">{title}</T>
       {right && <T size={12} color={colors.sub}>{right}</T>}
     </View>
   );
