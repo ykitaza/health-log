@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { MonthCalendar } from '@/components/MonthCalendar';
@@ -6,7 +7,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { formatJpDate, MONTH_NAMES_EN, todayKey, yearMonth } from '@/lib/date';
+import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, todayKey, yearMonth } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { bestSet, daysInMonth, periodTotals, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -17,10 +18,17 @@ const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo:
 
 export default function HomeScreen() {
   const today = todayKey();
+  // カレンダーで選んだ日（過去の日の記録を見る・足す）。null なら今日。未来の日は選べない
+  const [picked, setPicked] = useState<DateKey | null>(null);
+  const selected = pickedDayOrToday(picked, today);
+  const isToday = selected === today;
+  const dayLabel = isToday ? '今日' : formatMonthDay(selected);
   const { data } = useFocusData(async (r) => {
-    const [rows, todays, settings] = await Promise.all([r.workouts.allSetRows(), r.workouts.getDay(today), r.settings.get()]);
-    return { rows, todays, settings };
-  }, today);
+    const [rows, todays, settings] = await Promise.all([r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get()]);
+    return { rows, todays, settings, day: selected };
+  }, selected);
+  // 日を選び直した直後は、読み終わるまで前の日の記録を出さない
+  const dayEntries = data?.day === selected ? data.todays : null;
 
   const { year, month } = yearMonth(today);
   const rows = data?.rows ?? [];
@@ -41,7 +49,10 @@ export default function HomeScreen() {
       <Card style={{ flexDirection: 'row', gap: 10, padding: 12 }}>
         <View style={{ flex: 1.55 }}>
           <T num bold size={28} style={{ marginBottom: 8 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
-          <MonthCalendar year={year} month={month} today={today} marked={new Set(dates)} cell={29} testID="home-calendar" />
+          <MonthCalendar
+            year={year} month={month} today={today} marked={new Set(dates)} cell={29} testID="home-calendar"
+            selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
+          />
           <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <T num bold size={14} style={{ lineHeight: 15 }}>{'MONTHLY\nARCHIVE'}</T>
@@ -77,22 +88,40 @@ export default function HomeScreen() {
       </Card>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-        <Button label="本日のトレーニングを追加" icon="plus" onPress={() => router.push({ pathname: '/workout', params: { date: today } })} style={{ flex: 1 }} />
+        <Button
+          label={isToday ? '本日のトレーニングを追加' : `${dayLabel}のトレーニングを追加`}
+          icon="plus"
+          onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
+          style={{ flex: 1 }}
+        />
         <Button label="RM計算機" icon="calc" variant="outline" onPress={() => router.push('/rm')} />
       </View>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10 }}>
-        <T bold size={17}>今日の記録</T>
-        <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
+        <T bold size={17}>{dayLabel}の記録</T>
+        {isToday ? (
+          <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
+        ) : (
+          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Icon name="calendar" size={15} color={colors.accent} />
+            <T bold size={13} color={colors.accent}>今日に戻る</T>
+          </Pressable>
+        )}
       </View>
-      {data && data.todays.length === 0 && (
-        <Card><T color={colors.sub} size={13}>まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。</T></Card>
+      {dayEntries?.length === 0 && (
+        <Card>
+          <T color={colors.sub} size={13}>
+            {isToday
+              ? 'まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。'
+              : `${formatJpDate(selected)}の記録はありません。「${dayLabel}のトレーニングを追加」から記録できます。`}
+          </T>
+        </Card>
       )}
       <View style={{ gap: 10 }}>
-        {data?.todays.map((e) => {
+        {dayEntries?.map((e) => {
           const best = bestSet(e.sets);
           return (
-            <Pressable key={e.id} onPress={() => router.push({ pathname: '/workout', params: { date: today } })}>
+            <Pressable key={e.id} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
               <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>

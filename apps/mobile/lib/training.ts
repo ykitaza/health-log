@@ -51,6 +51,26 @@ export function topSet<T extends SetValues>(sets: T[]): T | null {
   return top;
 }
 
+/**
+ * 種目ごとの「前回」：その日まで（その日を含む）でいちばん新しく記録した日と、その日のいちばん重いセット。
+ * 過去の日に記録するときは、その日より後の記録は使わない
+ */
+export function lastTopSets(rows: TrainingSetRow[], date: DateKey): Map<string, { date: DateKey; top: TrainingSetRow }> {
+  const byEx = new Map<string, { date: DateKey; sets: TrainingSetRow[] }>();
+  for (const r of rows) {
+    if (r.date > date) continue;
+    const cur = byEx.get(r.exerciseId);
+    if (!cur || r.date > cur.date) byEx.set(r.exerciseId, { date: r.date, sets: [r] });
+    else if (r.date === cur.date) cur.sets.push(r);
+  }
+  const m = new Map<string, { date: DateKey; top: TrainingSetRow }>();
+  for (const [id, v] of byEx) {
+    const top = topSet(v.sets);
+    if (top) m.set(id, { date: v.date, top });
+  }
+  return m;
+}
+
 /** from〜to（両端を含む）の負荷量の合計 */
 export function volumeBetween(rows: TrainingSetRow[], from: DateKey, to: DateKey): number {
   return rows.reduce((a, r) => (r.date >= from && r.date <= to ? a + setVolume(r) : a), 0);
