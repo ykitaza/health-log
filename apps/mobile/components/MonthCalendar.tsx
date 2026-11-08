@@ -24,7 +24,7 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
     <View style={{ gap: 6 }} testID={testID}>
       <View style={s.row}>
         {WEEKDAY_EN.map((w) => (
-          <View key={w} style={[s.cellBox, { width: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
+          <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
         ))}
       </View>
       {rows.map((row, i) => (
@@ -43,7 +43,8 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
                 testID={d.inMonth ? `day-${d.key}` : undefined}
                 style={[
                   s.cellBox,
-                  { width: cell, height: cell, borderRadius: cell / 2 },
+                  // 幅が足りなければ縮める（360 の幅など）。足りれば cell の大きさ
+                  { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: cell / 2 },
                   d.inMonth && { borderWidth: 1, borderColor: colors.line },
                   isMarked && { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark },
                   isToday && !isFilled && !isMarked && { borderColor: colors.text },
