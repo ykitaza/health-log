@@ -15,5 +15,6 @@ wheels/
 .me-password
 .authz-private-key.pem
 .session-secret
-# EAS Update のコードの署名の秘密鍵（apps/mobile/docs/eas.md）。証明書（apps/mobile/certs/）だけを入れる
+
+# 使わなくなったコードの署名の鍵を誤ってコミットしないため
 apps/mobile/keys/
