@@ -51,7 +51,7 @@ test('種目の検索と部位のチップ。一致がなければ空の状態',
   await expect(see(page, '見つかりません')).toBeVisible();
 });
 
-test('種目の追加：名前が空、同じ名前、長い名前、回数だけ', async ({ page }) => {
+test('種目の追加：名前が空、同じ名前、長い名前（40文字まで）、回数だけ', async ({ page }) => {
   await openApp(page);
   await openSelect(page);
   // 選んでいた部位が初めから選ばれる
@@ -73,9 +73,12 @@ test('種目の追加：名前が空、同じ名前、長い名前、回数だ�
   await button(page, '追加する').click();
   await expect(see(page, '同じ部位に同じ名前の種目があります')).toBeVisible();
 
-  // 長い名前
-  const long = 'とても長い名前の種目' + 'ア'.repeat(40);
-  await name.fill(long);
+  // 名前は40文字まで（前後の空白は数えない）
+  await name.fill('とても長い名前の種目' + 'ア'.repeat(40));
+  await button(page, '追加する').click();
+  await expect(see(page, '種目の名前は40文字以内で入れてください（今は50文字）')).toBeVisible();
+  const long = 'とても長い名前の種目' + 'ア'.repeat(30);
+  await name.fill(`  ${long} `);
   await page.getByRole('radio', { name: /^回数だけ/ }).click();
   await expect(page.getByRole('radio', { name: /^回数だけ/ })).toHaveAttribute('aria-checked', 'true');
   await button(page, '追加する').click();
@@ -99,6 +102,9 @@ test('部位の追加と、その部位に種目を足す', async ({ page }) => 
   await input.fill('胸');
   await button(page, '追加する').click();
   await expect(see(page, '同じ名前の部位があります')).toBeVisible();
+  await input.fill('長'.repeat(41));
+  await button(page, '追加する').click();
+  await expect(see(page, '部位の名前は40文字以内で入れてください（今は41文字）')).toBeVisible();
   // キャンセルすると入力は消える
   await button(page, 'キャンセル').click();
   await button(page, '部位を追加').click();

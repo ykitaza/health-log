@@ -14,6 +14,15 @@ export const LIMITS = {
   waist: { label: 'ウエスト', min: 30, max: 200, unit: 'cm' },
 } as const satisfies Record<string, Limit>;
 
+/** 種目と部位の名前の長さの上限（前後の空白を取ってから数える） */
+export const NAME_MAX_LENGTH = 40;
+
+/** 名前が長すぎるときの文言（長さは文字の数。絵文字も1文字と数える）。長すぎなければ null */
+export function nameLengthError(what: '種目' | '部位', name: string): string | null {
+  const n = [...name].length;
+  return n > NAME_MAX_LENGTH ? `${what}の名前は${NAME_MAX_LENGTH}文字以内で入れてください（今は${n}文字）` : null;
+}
+
 export function inRange(value: number, limit: Limit): boolean {
   return (limit.minExclusive ? value > limit.min : value >= limit.min) && value <= limit.max;
 }

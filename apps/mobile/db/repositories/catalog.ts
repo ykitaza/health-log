@@ -1,3 +1,4 @@
+import { nameLengthError } from '@/lib/limits';
 import type { RecordType } from '@/lib/sets';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -65,6 +66,8 @@ export function catalogRepository(db: Db, deps: Deps) {
     async createExercise(input: { name: string; bodyPartId: string; recordType: RecordType }): Promise<string> {
       const name = input.name.trim();
       if (name === '') throw new Error('種目の名前を入れてください');
+      const tooLong = nameLengthError('種目', name);
+      if (tooLong) throw new Error(tooLong);
       const dup = await db.getFirstAsync<{ id: string; hidden: number }>(
         'SELECT id, hidden FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ?', [input.bodyPartId, name],
       );
@@ -86,6 +89,8 @@ export function catalogRepository(db: Db, deps: Deps) {
     async createBodyPart(nameInput: string): Promise<string> {
       const name = nameInput.trim();
       if (name === '') throw new Error('部位の名前を入れてください');
+      const tooLong = nameLengthError('部位', name);
+      if (tooLong) throw new Error(tooLong);
       const dup = await db.getFirstAsync<{ id: string; hidden: number }>(
         'SELECT id, hidden FROM body_parts WHERE deleted_at IS NULL AND name = ?', [name],
       );

@@ -103,6 +103,18 @@ describe('種目と部位', () => {
     expect((await r.catalog.listBodyParts()).at(-1)?.id).toBe(newPart);
   });
 
+  test('種目と部位の名前は、前後の空白を取って40文字まで', async () => {
+    const { r } = await setup();
+    const n40 = 'ア'.repeat(39) + '💪'; // 絵文字も1文字と数える
+    const id = await r.catalog.createExercise({ name: `  ${n40}  `, bodyPartId: CHEST, recordType: 'weight_reps' });
+    expect((await r.catalog.getExercise(id))?.name).toBe(n40);
+    await expect(r.catalog.createExercise({ name: 'イ'.repeat(41), bodyPartId: CHEST, recordType: 'weight_reps' }))
+      .rejects.toThrow('種目の名前は40文字以内で入れてください（今は41文字）');
+    const part = await r.catalog.createBodyPart(` ${'ウ'.repeat(40)} `);
+    expect((await r.catalog.listBodyParts()).find((p) => p.id === part)?.name).toBe('ウ'.repeat(40));
+    await expect(r.catalog.createBodyPart('エ'.repeat(41))).rejects.toThrow('部位の名前は40文字以内で入れてください（今は41文字）');
+  });
+
   test('非表示の部位・種目と同じ名前を足そうとすると、その ID を添えて知らせる（足さない）', async () => {
     const { r } = await setup();
     const ABS = SEED_BODY_PARTS.find((p) => p.name === '腹筋')!.id;
