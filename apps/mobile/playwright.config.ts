@@ -12,7 +12,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   // 不安定なテストを隠さないよう、やり直しはしない
   retries: 0,
-  workers: process.env.CI ? 2 : undefined,
+  // GitHub のマシンは4コア。4 並びで流す
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

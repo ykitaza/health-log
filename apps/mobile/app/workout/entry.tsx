@@ -14,7 +14,7 @@ import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
 import { MEMO_MAX_LENGTH } from '@/lib/limits';
-import { copyOf, hasChanges, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
+import { copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave, SetDraft, SetError } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -69,10 +69,7 @@ export default function EntryScreen() {
       setLoaded({ exercise, entry, previous, best: personalBests(rows, date).get(exerciseId) ?? null, settings, position });
       const unit = settings.weightUnit;
       const start = entry
-        ? entry.sets.map((s) => ({
-            key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
-            weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
-          }))
+        ? entry.sets.map((s) => draftFromSet(s, unit, newKey()))
         : Array.from({ length: settings.defaultSetCount }, blank);
       setDrafts(start);
       setInitial(start);
@@ -105,10 +102,8 @@ export default function EntryScreen() {
 
   const copyPrevious = () => {
     if (!previous) return;
-    setDrafts(previous.sets.map((s) => ({
-      key: newKey(), weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)), weightKg: s.weightKg ?? undefined,
-      reps: String(s.reps), memo: '', done: false,
-    })));
+    // 前回の値だけを写す（メモと完了は写さない）
+    setDrafts(previous.sets.map((s) => copyOf(draftFromSet(s, unit, ''), newKey())));
     setErrors(new Map());
   };
 
@@ -128,11 +123,9 @@ export default function EntryScreen() {
 
   const save = async () => {
     if (savingRef.current || isFuture) return;
-    const errs = validateSets(drafts, exercise.recordType, unit);
+    const { errors: errs, formError: message, sets } = prepareSave(drafts, exercise.recordType, unit);
     setErrors(errs);
-    if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
-    const sets = toSetInputs(drafts, exercise.recordType, unit);
-    if (sets.length === 0) { setFormError('セットを1つ以上入れてください'); return; }
+    if (message) { setFormError(message); return; }
     savingRef.current = true;
     setSaving(true);
     try {

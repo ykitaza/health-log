@@ -20,6 +20,9 @@ async function expectInTrend(page: Page, label: string, texts: string[]) {
   await expect(see(page, '自動で計算', { exact: false }).first()).toBeVisible();
 }
 
+// 範囲（両端）・BMI などの計算・目標体重の残りとペース・1日に複数の記録のまとめ方は jest
+//（lib/__tests__/limits.test.ts、body.test.ts、screen-logic.test.ts、db/__tests__/repositories.test.ts）。ここは入力と保存の流れと表示
+
 async function goBackDays(page: Page, n: number) {
   for (let i = 0; i < n; i++) await button(page, '前の日').click();
 }
@@ -65,40 +68,20 @@ test('入力と保存、身長からの計算。再読み込みしても残る',
   await expect(field(page, '体重')).toHaveValue('68.4');
 });
 
-test('身長がないとき、BMI は出ない', async ({ page }) => {
+test('身長がないとき BMI は出ない。不正な値は保存せずエラーを出し、空にすると消える', async ({ page }) => {
   await openApp(page);
   await openBody(page);
   await expect(see(page, '自動で計算', { exact: true })).toBeVisible();
   await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
-  await enter(page, '体重', '70');
   await enter(page, '体脂肪率', '20');
+  await enter(page, '体重', '70');
   await expect(computed(page, 'BMI')).toContainText('BMI—');
   await expect(computed(page, '体脂肪量')).toContainText('体脂肪量14.0kg');
-  // 推移の画面でも、BMI は身長がないと出ない
-  await computed(page, 'BMI').click();
-  await expect(see(page, 'BMI の推移', { exact: true })).toBeVisible();
-  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
-  await expect(see(page, 'この期間の記録がありません')).toBeVisible();
-});
 
-test('不正な値（範囲の外、負の数、数字でない）は保存しない。空にすると消える', async ({ page }) => {
-  await openApp(page);
-  await openBody(page);
-  await enter(page, '体脂肪率', '20');
-  await enter(page, '体重', '70');
-  await expect(computed(page, '体脂肪量')).toContainText('14.0kg');
-  for (const bad of ['0', '-1', 'abc', '29.9', '300.1']) {
-    await enter(page, '体重', bad);
-    await expect(see(page, '体重は 30〜300kg で入れてください', { exact: true })).toBeVisible();
-  }
-  await enter(page, '体脂肪率', '100.1');
-  await expect(see(page, '体脂肪率は 0〜100% で入れてください')).toBeVisible();
-  await enter(page, '筋肉率', '150');
-  await expect(see(page, '筋肉率は 0〜100% で入れてください')).toBeVisible();
-  for (const bad of ['29', '201']) {
-    await enter(page, 'ウエスト', bad);
-    await expect(see(page, 'ウエストは 30〜200cm で入れてください')).toBeVisible();
-  }
+  await enter(page, '体重', 'abc');
+  await expect(see(page, '体重は 30〜300kg で入れてください', { exact: true })).toBeVisible();
+  await enter(page, 'ウエスト', '201');
+  await expect(see(page, 'ウエストは 30〜200cm で入れてください')).toBeVisible();
   // 正しい値を入れるとエラーは消える（体重は 70 のまま：70 × 99.9% = 69.9）
   await enter(page, '体脂肪率', '99.9');
   await expect(see(page, 'ウエストは 30〜200cm で入れてください')).toBeHidden();
@@ -109,7 +92,6 @@ test('不正な値（範囲の外、負の数、数字でない）は保存し�
   await openBody(page);
   await expect(field(page, '体重')).toHaveValue('70');
   await expect(field(page, '体脂肪率')).toHaveValue('99.9');
-  await expect(field(page, '筋肉率')).toHaveValue('');
   await expect(field(page, 'ウエスト')).toHaveValue('');
 
   // 空にして離れると消える
@@ -118,6 +100,12 @@ test('不正な値（範囲の外、負の数、数字でない）は保存し�
   await page.reload();
   await openBody(page);
   await expect(field(page, '体重')).toHaveValue('');
+
+  // 推移の画面でも、BMI は身長がないと出ない
+  await computed(page, 'BMI').click();
+  await expect(see(page, 'BMI の推移', { exact: true })).toBeVisible();
+  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
+  await expect(see(page, 'この期間の記録がありません')).toBeVisible();
 });
 
 test('メモは 1000 文字で止まる', async ({ page }) => {
@@ -130,23 +118,6 @@ test('メモは 1000 文字で止まる', async ({ page }) => {
   await page.reload();
   await openBody(page);
   await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('あ'.repeat(1000));
-});
-
-test('範囲の両端は受ける：体重 30〜300kg、体脂肪率と筋肉率 0〜100%、ウエスト 30〜200cm', async ({ page }) => {
-  await openApp(page);
-  await openBody(page);
-  await enter(page, '体重', '300');
-  await enter(page, '体脂肪率', '100');
-  await expect(computed(page, '体脂肪量')).toContainText('300.0kg');
-  await enter(page, '筋肉率', '0');
-  await expect(computed(page, '筋肉量')).toContainText('0.0kg');
-  await enter(page, '体重', '30');
-  await expect(computed(page, '体脂肪量')).toContainText('30.0kg');
-  await enter(page, 'ウエスト', '200');
-  await expectInTrend(page, 'ウエスト', ['200.0']);
-  await enter(page, 'ウエスト', '30');
-  await expectInTrend(page, 'ウエスト', ['30.0']);
-  await expect(see(page, /で入れてください/)).toHaveCount(0);
 });
 
 test('日付の移動。先の日には進めず、入力中に日を変えても元の日に保存する', async ({ page }) => {
@@ -216,25 +187,6 @@ test('保存が終わる前にその日へ戻っても、保存した値を出�
   await expectInTrend(page, 'ウエスト', ['81.0', '80.0']);
 });
 
-test('1日に何度か入れたときは、その日の値をまとめて出す', async ({ page }) => {
-  // 手入力は1日1件の記録を書き換える。体重計の取り込み（複数の記録）は第2段階で、web の E2E では作れない（jest で確かめている）
-  await openApp(page);
-  await openBody(page);
-  await enter(page, '体脂肪率', '18');
-  await expectInTrend(page, '体脂肪率', ['18.0']);
-  await page.reload();
-  await openBody(page);
-  await enter(page, '体重', '70');
-  await expect(computed(page, '体脂肪量')).toContainText('12.6kg'); // 朝の体脂肪率と、あとの体重をまとめる
-  await enter(page, '体重', '69.5');
-  await expect(computed(page, '体脂肪量')).toContainText('12.5kg'); // 69.5 × 18%
-  await computed(page, '体脂肪量').click();
-  // 推移の記録の一覧には、その日が1行だけ出る
-  await expect(see(page, '体脂肪量の推移', { exact: true })).toBeVisible();
-  await expect(see(page, '11月8日（日）', { exact: true })).toHaveCount(1);
-  await expect(see(page, '記録が2日以上になると、グラフが出ます')).toBeVisible();
-});
-
 test('推移の画面：項目と期間の切り替え、記録がないとき', async ({ page }) => {
   await openApp(page);
   await setBodyInfo(page, { height: '170' });
@@ -277,7 +229,7 @@ test('推移の画面：項目と期間の切り替え、記録がないとき',
   await expect(see(page, 'この期間の記録がありません')).toBeVisible();
 });
 
-test('目標体重のカード：目標がない・体重がないと出ない。残り、ペース、届いたとき', async ({ page }) => {
+test('目標体重のカード：目標がない・体重がないと出ない。残り、ペースの説明、届いたとき、消したとき', async ({ page }) => {
   await openApp(page);
   await openBody(page);
   await enter(page, '体重', '68.4');
@@ -290,17 +242,12 @@ test('目標体重のカード：目標がない・体重がないと出ない�
   await expect(see(page, '3.4', { exact: true })).toBeVisible();
   await expect(see(page, '直近28日の記録が2つ以上あるとペースが出ます')).toBeVisible();
 
-  // 14日前に 70.0：ペース (68.4 − 70.0) ÷ 14 × 7 = −0.8kg／週、残り 3.4 ÷ 0.8 = 4.25 → 約5週
-  await goBackDays(page, 14);
-  await enter(page, '体重', '70');
-  for (let i = 0; i < 14; i++) await button(page, '次の日').click();
-  await expect(see(page, '直近28日のペース −0.8kg／週')).toBeVisible();
-  await expect(see(page, 'このペースで約5週')).toBeVisible();
-
-  // 増やす目標なのに減っているときは、週数を出さない
-  await setBodyInfo(page, { goal: '72' });
-  await expect(see(page, '目標 72.0kg')).toBeVisible();
-  await expect(see(page, /このペースで約/)).toHaveCount(0);
+  // 前の日に 69.0：ペース (68.4 − 69.0) ÷ 1 × 7 = −4.2kg／週、残り 3.4 ÷ 4.2 → 約1週
+  await button(page, '前の日').click();
+  await enter(page, '体重', '69');
+  await button(page, '次の日').click();
+  await expect(see(page, '直近28日のペース −4.2kg／週')).toBeVisible();
+  await expect(see(page, 'このペースで約1週')).toBeVisible();
 
   // 届いたとき
   await setBodyInfo(page, { goal: '68.4' });
@@ -309,16 +256,4 @@ test('目標体重のカード：目標がない・体重がないと出ない�
   // 目標を空にすると消える
   await setBodyInfo(page, { goal: '' });
   await expect(see(page, '目標体重まで')).toHaveCount(0);
-});
-
-test('体重の記録がない日を開いても、目標は最新の体重で見る', async ({ page }) => {
-  await openApp(page);
-  await setBodyInfo(page, { goal: '65' });
-  await openBody(page);
-  await expect(see(page, '目標体重まで')).toHaveCount(0);
-  await button(page, '前の日').click();
-  await enter(page, '体重', '66');
-  await button(page, '次の日').click();
-  await expect(see(page, '目標体重まで')).toBeVisible();
-  await expect(see(page, '1.0', { exact: true })).toBeVisible();
 });

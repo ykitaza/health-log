@@ -1,4 +1,4 @@
-import { addDays, DateKey, daysBetween } from './date';
+import { addDays, addMonths, DateKey, daysBetween } from './date';
 
 /** BMI ＝ 体重 ÷ 身長(m)² */
 export function bmi(weightKg: number | null, heightCm: number | null): number | null {
@@ -120,4 +120,19 @@ export function dailyBodyValues(records: BodyRecordLike[]): DailyBody[] {
     if (d.memo === '' && r.memo !== '') d.memo = r.memo;
   }
   return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+/**
+ * 体組成の画面の、体重の推移（1か月）と目標体重のカード。
+ * 目標は、開いている日ではなく、今日までのいちばん新しい体重で見る。目標か体重がなければ progress は null
+ */
+export function weightOverview(daily: { date: DateKey; weightKg: number | null }[], goalKg: number | null, today: DateKey) {
+  const weights = daily.filter((d) => d.weightKg != null).map((d) => ({ date: d.date, weightKg: d.weightKg! }));
+  const from = addMonths(today, -1);
+  const recent = weights.filter((p) => p.date >= from && p.date <= today);
+  const latest = weights.filter((p) => p.date <= today).at(-1);
+  const pace = weeklyPace(weights, today);
+  const progress = latest && goalKg != null ? goalProgress(latest.weightKg, goalKg, pace) : null;
+  const monthChange = recent.length >= 2 ? recent[recent.length - 1].weightKg - recent[0].weightKg : null;
+  return { from, recent, pace, progress, monthChange };
 }

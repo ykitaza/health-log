@@ -14,7 +14,7 @@ import { addMonths, formatJpDate, formatMonthDay, formatShortDate, MONTH_NAMES_E
 import { formatSetLong } from '@/lib/format';
 import {
   bestSet, changeOver, exerciseDailySeries, filterSince, Period, PERIOD_LABELS, periodStart, personalBests,
-  totalVolume, trainingDates, weeklyVolumeByBodyPart,
+  totalVolume, trainingDates, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, partColor } from '@/theme';
@@ -240,9 +240,7 @@ function AllGraph({ data, today, unit, onPick }: {
   const partIndex = new Map(data.parts.map((p, i) => [p.id, i]));
   const usedParts = data.parts.filter((p) => weeks.some((w) => (w.byPart[p.id] ?? 0) > 0));
   const t = (kg: number) => kgToUnit(kg, unit) / 1000;
-  const thisWeek = weeks[weeks.length - 1].total;
-  const lastWeek = weeks[weeks.length - 2]?.total ?? 0;
-  const avg = weeks.reduce((a, w) => a + w.total, 0) / weeks.length;
+  const { thisWeek, lastWeek, avg } = weeklySummary(weeks);
   const pbs = [...personalBests(data.rows).values()].sort((a, b) => b.e1rm - a.e1rm);
   const exName = new Map(data.exercises.map((e) => [e.id, e]));
 
