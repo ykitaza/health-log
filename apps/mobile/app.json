@@ -14,7 +14,12 @@
     "updates": {
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/2a651658-41c1-4568-b30f-56edccf5df13"
+      "url": "https://u.expo.dev/2a651658-41c1-4568-b30f-56edccf5df13",
+      "codeSigningCertificate": "./certs/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      }
     },
     "ios": {
       "supportsTablet": true

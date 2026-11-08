@@ -29,6 +29,9 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+# EAS Update のコードの署名の証明書（公開してよいもの）。秘密鍵は keys/ に置き、入れない
+!/certs/certificate.pem
+/keys/
 
 # local env files
 .env*.local
