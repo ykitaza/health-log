@@ -172,7 +172,6 @@ CDK の `AuthFlow` の資料も、パスキーを有効にしたら `authFlows: 
 ### パスキーをなくしたとき
 
 端末をなくしたり、盗まれたりして、パスキーが他人の手にあるかもしれないときの手順です。ユーザーは消さずに残します（消すと `sub` が変わり、記録がたどれなくなるため）。
-Cognito には、管理者がパスキーを消す API（Admin の付くもの）がありません。パスキーを消す `DeleteWebAuthnCredential` は、本人のアクセストークン（scope `aws.cognito.signin.user.admin`）でだけ呼べます。
 
 1. **管理者**が、Cognito のトークンをすべて失効させる
    ```sh
@@ -180,20 +179,9 @@ Cognito には、管理者がパスキーを消す API（Admin の付くもの�
    ```
    - Cognito が出した ID トークン・アクセストークン・リフレッシュトークンが失効します（スマホアプリのログインも切れます）
    - マネージドログインのセッションの Cookie は消えません。なくした端末のブラウザで、Cookie が切れるまではログイン画面を通らずに入れることがあります
-   - 認可API が Claude・ChatGPT に出したトークンは、Cognito のものではないので、これでは失効しません（手順5）
-2. **管理者**が、一時的なパスワードを設定する（[パスキーを作る手順](#パスキーを作る手順)の手順1と同じ。値は本人に渡し、手順4で捨てる）
-3. **本人**が、残っているパスキー（なければ手順2のパスワード）でログインし、なくした方のパスキーを消す。**どの方法で消すかは、まだ決めていません（判断待ち）**。今の2つの OAuth のクライアント（`authz-api`・`torelog-app`）は、マネージドログインのトークンに `aws.cognito.signin.user.admin` の scope を出さないので、次のどれかが要ります
-   - **案 A：API の `USER_AUTH` でログインする**。`InitiateAuth`（認証フロー `USER_AUTH`）で返るアクセストークンには、`aws.cognito.signin.user.admin` の scope が付きます。シークレットのない `torelog-app` のクライアントなら、管理者の端末から CLI で呼べます（`ALLOW_USER_AUTH` はすでに付いている）。CLI ではパスキーで答えにくいので、手順2のパスワードで入ります（このコマンドはまだ試していません）
-     ```sh
-     aws cognito-idp initiate-auth --auth-flow USER_AUTH --client-id <AppClientId> \
-       --auth-parameters USERNAME=<メールアドレス>,PREFERRED_CHALLENGE=PASSWORD,PASSWORD="$PW"
-     aws cognito-idp list-web-authn-credentials --access-token <アクセストークン>
-     aws cognito-idp delete-web-authn-credential --access-token <アクセストークン> --credential-id <消すパスキーの CredentialId>
-     ```
-   - **案 B：クライアントに一時的に scope を足す**。`aws.cognito.signin.user.admin` を、どちらかのクライアントの許す scope に足してデプロイし、マネージドログインで（残っているパスキーで）入って、そのアクセストークンで上の `list-web-authn-credentials`・`delete-web-authn-credential` を呼ぶ。終わったら scope を外してデプロイし直す。scope を足している間は、そのクライアントのトークンでユーザーの属性の変更なども呼べるので、開ける時間を短くする
-   - **案 C：パスキーを消すための、開発用のクライアントを別に作る**。案 B の scope を、普段は使わないクライアントにだけ付けておく（開発用のクライアントを分ける話と合わせて決める）
-4. **管理者**が、パスワードを別のランダムな値に変えて捨てる（[パスキーを作る手順](#パスキーを作る手順)の手順4）。パスキーが残っていなければ、手順4の前に、パスキーを作る手順の手順2・3で新しいパスキーを作る
-5. **本人**が、Claude・ChatGPT のコネクタの連携を解除する。連携の解除だけでは認可API に取り消しが届くとは限らないので、**管理者**が、認可API のリフレッシュトークンの系列も消す
+   - 認可API が Claude・ChatGPT に出したトークンは、Cognito のものではないので、これでは失効しません（手順3）
+2. なくした方のパスキーを、Cognito と Google パスワード マネージャーの両方から消す（下の「[パスキーを消す手順](#パスキーを消す手順)」。一時的なパスワードの設定から、パスワードを捨てるまでを含む）
+3. **本人**が、Claude・ChatGPT のコネクタの連携を解除する。連携の解除だけでは認可API に取り消しが届くとは限らないので、**管理者**が、認可API のリフレッシュトークンの系列も消す
    - 系列は StateTable に、`pk` が `refresh#<系列 ID>` の項目として入っています（`services/authorization/oauth/server.py` の `save_token`、`infrastructure/stores.py`）。項目の `data`（JSON）に、本人の `sub`（`subject.id`）が入っています
    - 項目を消すと、その系列のリフレッシュトークンは使えなくなります。アクセストークン（JWT）は MCP が署名だけで確かめるので、期限（5分）までは使えます
    ```sh
@@ -207,6 +195,67 @@ Cognito には、管理者がパスキーを消す API（Admin の付くもの�
    ```
    - 使うのは本人だけなので、`:sub` の条件を外して、`refresh#` の項目をすべて消してもかまいません
    - 消したあと、コネクタをつなぎ直します（新しい系列ができます）
+
+### パスキーを消す手順
+
+なくしたときのほか、使わなくなった端末のパスキーを消すときにも使います。パスキーは、Cognito（サーバー）と端末（Google パスワード マネージャー）の両方にあり、片方を消しても、もう片方は残ります。**両方を消します**。
+
+#### Cognito から消す（案 A：API の `USER_AUTH` でログインする）
+
+Cognito には、管理者がパスキーを消す API（Admin の付くもの）がありません。`ListWebAuthnCredentials`・`DeleteWebAuthnCredential` は、本人のアクセストークン（scope `aws.cognito.signin.user.admin`）でだけ呼べます。
+マネージドログインのトークンにはこの scope が付かない（`authz-api`・`torelog-app` のクライアントが出さない）ので、API の `InitiateAuth`（認証フロー `USER_AUTH`）でログインし、そのアクセストークンを使います。
+クライアントは、シークレットのない `torelog-app` を使います（`ALLOW_USER_AUTH` が付いていて、管理者の端末から CLI で呼べる）。CLI ではパスキーで答えにくいので、一時的なパスワードで入ります。
+
+`<AppClientId>` は `cdk deploy` の出力の `AppClientId`、または SSM パラメータ `/cognito-study/app/client-id` です。`<UserPoolId>` も `cdk deploy` の出力です。
+コマンドは、同じシェルで続けて実行します。パスワードとトークンは、変数にだけ置き、画面やファイルに出しません。
+
+1. **管理者**が、一時的な長いランダムなパスワードを設定する（[パスキーを作る手順](#パスキーを作る手順)の手順1と同じ）
+   ```sh
+   PW="$(openssl rand -base64 33 | tr -d '/+=')Aa1!"
+   aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> --username <メールアドレス> --password "$PW" --permanent
+   ```
+2. そのパスワードで `USER_AUTH` のログインをし、アクセストークンを変数に入れる（有効なのは15分）
+   ```sh
+   TOKEN=$(aws cognito-idp initiate-auth --region ap-northeast-1 --no-sign-request \
+     --auth-flow USER_AUTH --client-id <AppClientId> \
+     --auth-parameters "USERNAME=<メールアドレス>,PREFERRED_CHALLENGE=PASSWORD,PASSWORD=$PW" \
+     --query AuthenticationResult.AccessToken --output text)
+   ```
+   - `--no-sign-request`：この API は AWS の資格情報ではなく、ユーザーのパスワードやトークンで認証します
+   - 失敗すると `TOKEN` は空になります。`[ -n "$TOKEN" ] && echo ok` で確かめます（トークンそのものは出さない）
+3. パスキーを一覧する
+   ```sh
+   aws cognito-idp list-web-authn-credentials --region ap-northeast-1 --no-sign-request --access-token "$TOKEN" \
+     --query 'Credentials[].[CredentialId,FriendlyCredentialName,AuthenticatorAttachment,CreatedAt]' --output table
+   ```
+   - `FriendlyCredentialName`（パスキーを作った端末やパスワード マネージャーの名前）と `CreatedAt`（作った日時）で、消すものを決めます
+4. 消す（消すパスキーごとに）
+   ```sh
+   aws cognito-idp delete-web-authn-credential --region ap-northeast-1 --no-sign-request --access-token "$TOKEN" \
+     --credential-id <消すパスキーの CredentialId>
+   ```
+   もう一度手順3を実行し、消えたことを確かめます
+5. **管理者**が、後片付けをする
+   ```sh
+   aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> --username <メールアドレス> \
+     --password "$(openssl rand -base64 33 | tr -d '/+=')Aa1!" --permanent   # パスワードを別の値にして捨てる
+   aws cognito-idp admin-user-global-sign-out --user-pool-id <UserPoolId> --username <メールアドレス>   # 手順2のトークンも失効させる
+   unset PW TOKEN
+   ```
+   - パスキーが1つも残っていなければ、この手順の前に、[パスキーを作る手順](#パスキーを作る手順)の手順2・3（手順1のパスワードでログインする）で新しいパスキーを作ります
+
+- 監視のメール（[monitoring.md](monitoring.md) の `CognitoChangeRule`）が、`AdminSetUserPassword`・`DeleteWebAuthnCredential`・`AdminUserGlobalSignOut` で届きます。自分の操作であることを、`sourceIPAddress` で確かめます
+- コマンドの引数にパスワードとトークンが入るので、ほかの人が使っている PC では実行しません（実行中のコマンドの一覧から見えるため）
+- 確かめたこと（2026-11-08）：AWS CLI 2.34 に `list-web-authn-credentials`・`delete-web-authn-credential` があり、引数は `--access-token` と `--credential-id`。`torelog-app` はシークレットがなく、認証フローは `ALLOW_USER_AUTH` だけ。`USER_AUTH` で選べるものに `PASSWORD` がある（いないユーザーで呼んで、返ってきた選択肢を見た）。本人のユーザーでの消す操作は、まだ試していません
+
+#### 端末から消す（Google パスワード マネージャー）
+
+Cognito から消したパスキーは、端末に残っていても、もうログインには使えません。ただ、残っていると、ログインのときに選べてしまい、失敗して紛らわしいので、消します。パスキーは Google アカウントで同期されるので、どれか1つの端末で消せば、ほかの端末からも消えます。なくした端末からは消せないので、ほかの端末か PC で消します。
+
+- **Android（Pixel）**：設定 → Google → 自動入力 → Google パスワード マネージャー（またはパスワード、パスキー、アカウント）を開き、`oidc-study-<アカウント ID>.auth.ap-northeast-1.amazoncognito.com` を選んで、パスキーを削除する
+- **PC**：ブラウザで [passwords.google.com](https://passwords.google.com) を開き、同じ名前のサイトを選んで、パスキーを削除する（Chrome なら `chrome://password-manager/passwords` でも同じ）
+- サイトにパスキーが複数あるときは、作った日時で、Cognito から消したものと同じものを選びます
+- iCloud キーチェーンなど、ほかの場所に作ったパスキーは、そちらのパスワードの管理の画面で消します
 
 ## スマホアプリ（トレログ）のログイン
 
