@@ -150,7 +150,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 
 ```sh
 (cd services/authorization && uv run flask --app main run --port 3000) &
-(cd services/mcp && PYTHONPATH=../meals uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals から読む）
+(cd services/mcp && PYTHONPATH=../meals:../composition uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals、組み立ての共有は ../composition から読む）
 ```
 
 先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。ログインには、本人のユーザーとパスキーを使います（ローカルの戻り先 `http://localhost:3000/cognito/callback` も Cognito に登録してあります）。
