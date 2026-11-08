@@ -43,6 +43,8 @@ export default function EntryScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  // 保存の途中か。saving（ボタンを押せなくする）は描き直すまで効かないので、続けて届いた2回目はこれで止める
+  const savingRef = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -121,11 +123,13 @@ export default function EntryScreen() {
   };
 
   const save = async () => {
+    if (savingRef.current) return;
     const errs = validateSets(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
     const sets = toSetInputs(drafts, exercise.recordType, unit);
     if (sets.length === 0) { setFormError('セットを1つ以上入れてください'); return; }
+    savingRef.current = true;
     setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
@@ -134,6 +138,7 @@ export default function EntryScreen() {
       else router.replace({ pathname: '/workout', params: { date } });
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
+      savingRef.current = false;
       setSaving(false);
     }
   };
