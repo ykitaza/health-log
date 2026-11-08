@@ -15,3 +15,6 @@ wheels/
 .me-password
 .authz-private-key.pem
 .session-secret
+
+# 使わなくなったコードの署名の鍵を誤ってコミットしないため
+apps/mobile/keys/

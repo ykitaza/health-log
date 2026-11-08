@@ -184,3 +184,11 @@ Google は、認定された Android 端末（Android 7 以上）に入れるア
 
 - limited distribution のアカウントを作り、`com.ykitaza.torelog` を登録する
 - Pixel を PC とつなぎ、`adb install` で入れる（確認が要らない）
+
+## 配信の改ざんへの備え（コードの署名は使わない）
+
+expo-updates のコードの署名は、EAS の有料プラン（Production 以上）でしか使えないため、入れていません（2026-11-08 に試し、配信が「EAS Update code signing requires a subscription」で断られたので取りやめた）。代わりに、次で配信の乗っ取りを防ぎます。
+
+- Expo のアカウントに2段階認証を付ける
+- 配信に使う `EXPO_TOKEN` は、ロボット（役割は Developer）のトークンにし、GitHub の environment `expo`（main だけから使える）に置く
+- トークンが漏れたと思ったら、Expo の Access tokens でロボットのトークンを消し、新しく作り直して登録し直す
