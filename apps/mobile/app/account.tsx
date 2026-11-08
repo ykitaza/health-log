@@ -1,13 +1,14 @@
 import { makeRedirectUri, Prompt, ResponseType, useAuthRequest } from 'expo-auth-session';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Button, Card, ConfirmDialog, Header, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
-import { ApiError } from '@/lib/api';
+import { useSync } from '@/hooks/sync';
+import type { ApiErrorCode } from '@/lib/api';
 import { authConfig, NATIVE_REDIRECT_URI } from '@/lib/auth/config';
 import { AuthError, endpoints, SCOPES } from '@/lib/auth/session';
 import { colors } from '@/theme';
@@ -24,26 +25,27 @@ const signInErrorMessage = (e: unknown) => {
   return 'ログインできませんでした。もう一度ログインしてください。';
 };
 
-const apiErrorMessage = (e: unknown) => {
-  const code = e instanceof ApiError ? e.code : 'server';
-  return {
-    signedOut: 'ログインの期限が切れました。',
-    forbidden: 'サーバーに断られました（権限が足りません）。ログアウトして、ログインし直してください。',
-    throttled: 'サーバーが混んでいます。少し待ってから確かめてください。',
-    network: 'サーバーにつながりませんでした。通信を確かめてください。',
-    server: 'サーバーで問題が起きました。少し待ってから確かめてください。',
-  }[code];
+const syncErrorMessage = (code: ApiErrorCode) => ({
+  signedOut: 'ログインの期限が切れました。もう一度ログインしてください。',
+  forbidden: 'サーバーに断られました（権限が足りません）。ログアウトして、ログインし直してください。',
+  throttled: 'サーバーが混んでいます。少し待ってから、自動でやり直します。',
+  network: 'サーバーにつながりませんでした。つながるようになったら、自動でやり直します。',
+  rejected: 'サーバーに断られました。',
+  server: 'サーバーで問題が起きました。少し待ってから、自動でやり直します。',
+}[code]);
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** 同期した時刻（端末の時刻で「11/8 10:05」） */
+const formatSyncedAt = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
-
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-
-type Check = { kind: 'idle' } | { kind: 'checking' } | { kind: 'ok'; at: Date } | { kind: 'error'; message: string };
 
 export default function AccountScreen() {
   const auth = useAuth();
+  const sync = useSync();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [check, setCheck] = useState<Check>({ kind: 'idle' });
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -57,16 +59,6 @@ export default function AccountScreen() {
     usePKCE: true,
     prompt: Prompt.Login,
   }, discovery);
-
-  const runCheck = useCallback(async () => {
-    setCheck({ kind: 'checking' });
-    try {
-      await auth.api.checkConnection();
-      setCheck({ kind: 'ok', at: new Date() });
-    } catch (e) {
-      setCheck({ kind: 'error', message: apiErrorMessage(e) });
-    }
-  }, [auth.api]);
 
   // 認可の画面から戻ったら、認可コードをトークンに換える（state は expo-auth-session が確かめている）
   const handled = useRef<object | null>(null);
@@ -87,12 +79,6 @@ export default function AccountScreen() {
     }
     // dismiss・cancel（自分で閉じた）は知らせない
   }, [response, request, auth]);
-
-  // ログインしたら、確認として API を1回呼ぶ
-  useEffect(() => {
-    if (auth.status === 'signedIn') { if (check.kind === 'idle') runCheck(); }
-    else setCheck({ kind: 'idle' });
-  }, [auth.status, check.kind, runCheck]);
 
   const signIn = async () => {
     setError(null);
@@ -127,15 +113,31 @@ export default function AccountScreen() {
               <T bold size={16} style={{ flex: 1 }}>ログインしています</T>
               <Badge label="ログイン中" />
             </View>
-            <T size={12} color={colors.sub}>パスキーでログインしています。記録は今までどおり端末に保存します（サーバーとの同期は次の段階で入ります）。</T>
+            <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
+              パスキーでログインしています。記録は先に端末に保存し、サーバーと同期します。チャット（MCP）で記録したものもここに届きます。
+            </T>
           </Card>
 
-          <SectionTitle title="サーバーとのつながり" />
+          <SectionTitle title="同期" />
           <Card style={{ gap: 12 }}>
-            {check.kind === 'checking' && <T size={14} color={colors.sub}>確かめています…</T>}
-            {check.kind === 'ok' && <T bold size={14} color={colors.accent}>{`つながりました（${hhmm(check.at)} に確認）`}</T>}
-            {check.kind === 'error' && <T size={13} color={colors.danger}>{check.message}</T>}
-            <Button label="もう一度確かめる" variant="secondary" small onPress={runCheck} disabled={check.kind === 'checking'} />
+            <StatusRow label="最後に同期した時刻" value={sync.lastSyncedAt ? formatSyncedAt(sync.lastSyncedAt) : 'まだ同期していません'} testID="sync-last" />
+            <StatusRow label="送っていない変更" value={`${sync.pending}件`} testID="sync-pending" />
+            {sync.rejected > 0 && (
+              <>
+                <StatusRow label="サーバーに断られた変更" value={`${sync.rejected}件`} color={colors.danger} testID="sync-rejected" />
+                <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
+                  サーバーが受け付けなかった変更です。送り直しはしません。端末の記録はそのまま残ります。
+                </T>
+              </>
+            )}
+            {sync.error && !sync.syncing && <T size={13} color={colors.danger}>{syncErrorMessage(sync.error)}</T>}
+            <Button
+              label={sync.syncing ? '同期しています…' : '今すぐ同期'}
+              variant="secondary"
+              small
+              onPress={sync.syncNow}
+              disabled={sync.syncing}
+            />
           </Card>
 
           <Button label="ログアウト" variant="danger" onPress={() => setConfirmSignOut(true)} disabled={busy} style={{ marginTop: 24 }} />
@@ -146,7 +148,7 @@ export default function AccountScreen() {
           <Card style={{ gap: 12 }}>
             <T bold size={16}>ログインしていません</T>
             <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
-              ログインは任意です。ログインしなくても、今までどおりこの端末だけで使えます。ログインすると、次の段階で記録をサーバーと同期できるようになります。
+              ログインは任意です。ログインしなくても、今までどおりこの端末だけで使えます。ログインすると、記録をサーバーと同期し、チャット（MCP）からも読み書きできるようになります。
             </T>
             {auth.expired && <T size={13} color={colors.danger}>ログインの期限が切れました。もう一度ログインしてください。</T>}
             {error && <T size={13} color={colors.danger}>{error}</T>}
@@ -174,5 +176,14 @@ export default function AccountScreen() {
         onCancel={() => setConfirmSignOut(false)}
       />
     </Screen>
+  );
+}
+
+function StatusRow({ label, value, color = colors.text, testID }: { label: string; value: string; color?: string; testID?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <T size={14} color={colors.sub} style={{ flex: 1 }}>{label}</T>
+      <T bold size={14} color={color} testID={testID}>{value}</T>
+    </View>
   );
 }

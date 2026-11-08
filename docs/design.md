@@ -301,7 +301,7 @@ scope はリソースサーバー `torelog-api` に置き、名前は「対象.�
 - アプリが求める scope は `torelog-api/` の4つだけです（ID トークンもユーザー情報も使わないので、`openid` は求めない）
 - **カスタムスキームの横取りの対策**：マネージドログインは、画面でログインすると、ブラウザにセッションの Cookie を置きます。Cookie は1時間有効で、Cookie でのログインでは延びません（[AWS の資料](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-managed-login.html)の「The one-hour managed login and hosted UI session cookie」）。そのあいだ、同じ端末で `torelog://` を登録した別のアプリが、自分の PKCE で `/oauth2/authorize` を開くと、画面なしでコードを受け取り、トークンに換えられます（`prompt=login` は正規のアプリの要求にしか付かない）。そこで、認可コードをトークンに換えたあと（うまくいってもいかなくても）、同じ Custom Tabs で `/logout`（`client_id`、`logout_uri=torelog://signout`）を開いて Cookie を消します。`/logout` はすぐ `torelog://signout` に戻すので、利用者の操作は増えません。根本の対策（https の戻り先と Android App Links）は、まだ入れていません
 - トークンは expo-secure-store に置き、自動バックアップから外します。アクセストークンは切れる1分前から更新し、リフレッシュトークンが切れていたら、ログインしていない状態に戻します。ログアウトでは端末のトークンを消してから `/oauth2/revoke` を呼びます
-- ログインの確認は、アプリ用の API の `GET /v1/sync/changes?after=0&limit=1`（読むだけ）を1回呼びます。本人の情報を返すルートは足していません（API とインフラを変えずに済むため）
+- ログインしたら同期を始めます。つながったかどうかは、アカウントの画面の同期の表示（最後に同期した時刻、エラー）で分かります。本人の情報を返すルートは足していません（API とインフラを変えずに済むため）。同期の仕組みは [sync-design.md](sync-design.md#アプリの同期appsmobile)
 
 アプリが使う値（issuer、クライアント ID、Cognito のドメイン、API の URL）は、`cdk deploy` の出力（`CognitoIssuer`・`AppClientId`・`CognitoDomain`・`AppApiUrl`）と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
 
@@ -327,12 +327,12 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 
 ## 筋トレのアプリとの関係
 
-筋トレのアプリ（トレログ、`apps/mobile/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。今はまだつながっていません。
+筋トレのアプリ（トレログ、`apps/mobile/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。アプリでログインすると、同期でつながります。
 
 | 段階 | アプリ | サーバー |
 |---|---|---|
 | 今（第1段階） | 記録を端末の SQLite にだけ保存する。ログインも同期もない | アプリ用のクライアント（`torelog-app`）、アプリ用の API、同期の仕組みはデプロイ済み。MCP の筋トレのツールは、MCP から記録した分だけを読み書きする |
-| 第2段階 | Cognito にパスキーでログインし、変更の記録を送り合って同期する。食事の記録と目標も扱う | 変わらない（同じ API と同じテーブルの `SYNC#` の項目） |
+| 第2段階 | Cognito にパスキーでログインし、変更の記録を送り合って同期する（筋トレ・体組成・設定は入った）。食事の記録と目標も扱う | 変わらない（同じ API と同じテーブルの `SYNC#` の項目） |
 
 - 記録の置き場所は、アプリから送られた分も MCP から書いた分も、食事のテーブル（`MealsTable`）の同期の項目（`SYNC#…`）です。どちらの変更も同じ「変更の記録」を通るので、同期でもう一方に届きます（[sync-design.md](sync-design.md)）
 - 同じ人かどうかは、Cognito の `sub` で決まります（上の「スマホアプリ（トレログ）のログイン」）

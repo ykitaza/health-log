@@ -1,0 +1,711 @@
+{
+  "description": "同期の衝突の決まり（docs/sync-design.md）。changes を受け付けた順（received_at の順）に当てはめた結果が expected になる。サーバー（services/training/tests/test_shared_sync_testdata.py）と、アプリ（apps/mobile/db/__tests__/sync-shared.test.ts：偽のサーバーと、端末を通したもの）で同じ結果になることを確かめる。origin が app の変更は端末で記録したもの（端末は create で全部の項目を送る）、mcp は MCP（changed_at はサーバーが受け付けた時刻）、import は取り込み。",
+  "cases": [
+    {
+      "name": "同じ記録の違う項目は、両方が残る",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b1",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b1",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "body_fat_pct": 18.5
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b1",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T03:00:00.000Z",
+          "fields": {
+            "weight_kg": 71.2
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b1",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 71.2,
+            "body_fat_pct": 18.5,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ項目は、変えた時刻の新しい方（あとに届いた古い変更は負ける）",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b2",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b2",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "memo": "夜"
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b2",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T03:00:00.000Z",
+          "fields": {
+            "memo": "朝"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b2",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "夜",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ項目は、変えた時刻の新しい方（端末の方が新しい）",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b3",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b3",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "memo": "A"
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b3",
+          "changed_at": "2026-11-08T02:30:00.000Z",
+          "received_at": "2026-11-08T03:00:00.000Z",
+          "fields": {
+            "memo": "B"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b3",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "B",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "端末の時計が進んでいても、受け付けた時刻で切る",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b4",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b4",
+          "changed_at": "2027-01-01T00:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "weight_kg": 72.0
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b4",
+          "changed_at": "2026-11-08T02:30:00.000Z",
+          "received_at": "2026-11-08T02:30:00.000Z",
+          "fields": {
+            "weight_kg": 73.0
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b4",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 73.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "削除と変更は、削除が勝つ（変更の値は項目に入る。あとの変更でも戻らない）",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b5",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b5",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "weight_kg": 74.0
+          }
+        },
+        {
+          "origin": "app",
+          "op": "delete",
+          "entity_type": "body_record",
+          "entity_id": "b5",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T03:00:00.000Z"
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b5",
+          "changed_at": "2026-11-08T04:00:00.000Z",
+          "received_at": "2026-11-08T04:00:00.000Z",
+          "fields": {
+            "memo": "あと"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b5",
+          "deleted": true,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 74.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "あと",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "消したものを戻す（restore）",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b6",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "app",
+          "op": "delete",
+          "entity_type": "body_record",
+          "entity_id": "b6",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T01:30:01.000Z"
+        },
+        {
+          "origin": "app",
+          "op": "restore",
+          "entity_type": "body_record",
+          "entity_id": "b6",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:01.000Z"
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b6",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "取り込みより手入力が勝つ（取り込み直しで手入力の項目を上書きしない。取り込みどうしは新しい方。消した記録は取り込みの create で戻らない）",
+      "changes": [
+        {
+          "origin": "import",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "health_connect",
+            "external_id": "hc-1",
+            "origin_package": "com.example.scale"
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T01:30:01.000Z",
+          "fields": {
+            "weight_kg": 69.5
+          }
+        },
+        {
+          "origin": "import",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:01.000Z",
+          "fields": {
+            "weight_kg": 71.0,
+            "body_fat_pct": 20.0
+          }
+        },
+        {
+          "origin": "app",
+          "op": "delete",
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "changed_at": "2026-11-08T02:30:00.000Z",
+          "received_at": "2026-11-08T02:30:01.000Z"
+        },
+        {
+          "origin": "import",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "received_at": "2026-11-08T03:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "health_connect",
+            "external_id": "hc-1",
+            "origin_package": "com.example.scale"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b7",
+          "deleted": true,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 69.5,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "health_connect",
+            "external_id": "hc-1",
+            "origin_package": "com.example.scale"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ時刻なら、あとに受け付けた方",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b8",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b8",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "memo": "記録"
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b8",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "memo": "修正"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b8",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-08T00:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "修正",
+            "source": "manual",
+            "external_id": null,
+            "origin_package": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "セット：端末の重さと完了、MCP の回数が両方残る",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "workout_entry",
+          "entity_id": "e9",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "sort_order": 0
+          }
+        },
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "workout_set",
+          "entity_id": "s9",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "entry_id": "e9",
+            "set_index": 0,
+            "weight_kg": 80.0,
+            "reps": 8,
+            "memo": "",
+            "done": false
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "workout_set",
+          "entity_id": "s9",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "reps": 10
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "workout_set",
+          "entity_id": "s9",
+          "changed_at": "2026-11-08T01:30:00.000Z",
+          "received_at": "2026-11-08T03:00:00.000Z",
+          "fields": {
+            "weight_kg": 82.5,
+            "done": true
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "workout_entry",
+          "entity_id": "e9",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "sort_order": 0
+          }
+        },
+        {
+          "entity_type": "workout_set",
+          "entity_id": "s9",
+          "deleted": false,
+          "fields": {
+            "entry_id": "e9",
+            "set_index": 0,
+            "weight_kg": 82.5,
+            "reps": 10,
+            "memo": "",
+            "done": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "設定：同じ項目は新しい方",
+      "changes": [
+        {
+          "origin": "app",
+          "op": "create",
+          "entity_type": "setting",
+          "entity_id": "weight_unit",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "value": "kg"
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "setting",
+          "entity_id": "weight_unit",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "value": "lb"
+          }
+        },
+        {
+          "origin": "app",
+          "op": "update",
+          "entity_type": "setting",
+          "entity_id": "weight_unit",
+          "changed_at": "2026-11-08T02:10:00.000Z",
+          "received_at": "2026-11-08T02:20:00.000Z",
+          "fields": {
+            "value": "kg"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "setting",
+          "entity_id": "weight_unit",
+          "deleted": false,
+          "fields": {
+            "value": "kg"
+          }
+        }
+      ]
+    }
+  ]
+}

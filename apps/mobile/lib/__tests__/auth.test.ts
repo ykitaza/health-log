@@ -294,7 +294,7 @@ describe('アプリ用の API のクライアント', () => {
   test('トークンは Authorization ヘッダーにだけ載せる（URL に載せない）', async () => {
     const { fetch, calls } = fakeFetch([page()]);
     const api = createApiClient({ baseUrl: API, getAccessToken: async () => 'access-1', fetch });
-    expect(await api.checkConnection()).toEqual({ hasData: false });
+    expect(await api.pullChanges(0, 1)).toEqual({ entries: [], next_cursor: 0, has_more: false });
     expect(calls[0].url).toBe(`${API}/v1/sync/changes?after=0&limit=1`);
     expect(calls[0].url).not.toContain('access-1');
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer access-1');
@@ -304,7 +304,7 @@ describe('アプリ用の API のクライアント', () => {
     const { fetch, calls } = fakeFetch([json(401, { message: 'Unauthorized' }), page()]);
     const getAccessToken = jest.fn(async (o?: { force?: boolean }) => (o?.force ? 'access-2' : 'access-1'));
     const api = createApiClient({ baseUrl: API, getAccessToken, fetch });
-    await api.checkConnection();
+    await api.pullChanges(0, 1);
     expect(getAccessToken).toHaveBeenLastCalledWith({ force: true });
     expect((calls[1].init.headers as Record<string, string>).Authorization).toBe('Bearer access-2');
   });
@@ -312,27 +312,27 @@ describe('アプリ用の API のクライアント', () => {
   test('送り直しても 401 なら signedOut', async () => {
     const { fetch } = fakeFetch([json(401, {}), json(401, {})]);
     const api = createApiClient({ baseUrl: API, getAccessToken: async () => 't', fetch });
-    await expect(api.checkConnection()).rejects.toMatchObject({ code: 'signedOut' });
+    await expect(api.pullChanges(0, 1)).rejects.toMatchObject({ code: 'signedOut' });
   });
 
   test.each([[403, 'forbidden'], [429, 'throttled'], [500, 'server']])('%i は %s', async (status, code) => {
     const { fetch } = fakeFetch([json(status, {})]);
     const api = createApiClient({ baseUrl: API, getAccessToken: async () => 't', fetch });
-    await expect(api.checkConnection()).rejects.toMatchObject({ code });
+    await expect(api.pullChanges(0, 1)).rejects.toMatchObject({ code });
   });
 
   test('ログインしていなければ、通信せずに signedOut', async () => {
     const { fetch, calls } = fakeFetch([]);
     const api = createApiClient({ baseUrl: API, getAccessToken: async () => null, fetch });
-    await expect(api.checkConnection()).rejects.toBeInstanceOf(ApiError);
+    await expect(api.pullChanges(0, 1)).rejects.toBeInstanceOf(ApiError);
     expect(calls).toHaveLength(0);
   });
 
   test('ログインの期限切れ（更新の失敗）は signedOut、つながらないのは network', async () => {
     const expired = createApiClient({ baseUrl: API, getAccessToken: async () => { throw new AuthError('expired', 'x'); }, fetch: fakeFetch([]).fetch });
-    await expect(expired.checkConnection()).rejects.toMatchObject({ code: 'signedOut' });
+    await expect(expired.pullChanges(0, 1)).rejects.toMatchObject({ code: 'signedOut' });
     const offline = createApiClient({ baseUrl: API, getAccessToken: async () => 't', fetch: fakeFetch([new TypeError('Network request failed')]).fetch });
-    await expect(offline.checkConnection()).rejects.toMatchObject({ code: 'network' });
+    await expect(offline.pullChanges(0, 1)).rejects.toMatchObject({ code: 'network' });
   });
 });
 

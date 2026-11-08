@@ -2,7 +2,7 @@
 
 筋トレと体組成を記録するスマホのアプリです。Expo（SDK 58）と expo-router で作り、Pixel（Android）で使う前提です。
 
-記録は端末の SQLite にだけ保存します。第2段階の最初として、設定の画面からログイン（任意）できるようになりました。ログインしても、同期はまだしません（次に入れます）。アプリを消すと記録も消えるので、残したいときは設定の画面から CSV で書き出します。
+記録は先に端末の SQLite に保存します。設定の画面からログイン（任意）すると、筋トレ・種目・部位・体組成・設定をサーバーと同期し、チャット（MCP）で記録したものも届きます。ログインしていないあいだは端末にだけあり、アプリを消すと記録も消えるので、残したいときは設定の画面から CSV で書き出します。
 
 ## できること
 
@@ -55,13 +55,23 @@ Cognito のマネージドログイン（MCP と同じユーザーのパスキ�
 1. 設定 → ログイン →「パスキーでログイン」で、Chrome Custom Tabs にログインの画面が開く（毎回 `prompt=login`）
 2. パスキーで入ると `torelog://callback` に戻り、認可コードをトークンに換える（`lib/auth/session.ts`。シークレットは使わない）
 3. 換えたあと（うまくいかなくても）、同じブラウザで Cognito の `/logout` を開いてセッションの Cookie を消し、`torelog://signout` で自動で閉じる。Cookie が残る1時間のあいだ、`torelog://` を登録した別のアプリが画面なしでコードを受け取れてしまうため
-4. 確認として、アプリ用の API（`GET /v1/sync/changes?after=0&limit=1`）を1回呼んで「つながりました」と出す（`lib/api.ts`）
+4. ログインしたら同期を始める（下の「同期」）
 
 - トークンは expo-secure-store（Android の Keystore で暗号化。自動バックアップから外す）にだけ置く。ID トークンは求めない（scope は `torelog-api/` の4つだけ）。web は安全な保存先がないので、メモリーにだけ置く
 - アクセストークンは15分。切れる1分前から、リフレッシュトークン（30日、使うたびに新しくなる）で更新する。リフレッシュトークンが切れていたら、ログインしていない状態に戻して知らせる
 - ログアウト：端末のトークンを消してから、Cognito の `/oauth2/revoke` でリフレッシュトークンを取り消す
 - 値（クライアント ID、Cognito のドメイン、API の URL）は `app.json` の `extra.torelog`。どれも秘密ではない（`cdk deploy` の出力 `AppClientId`・`CognitoDomain`・`AppApiUrl`）。変えたあと web で確かめるときは `npx expo export --platform web --clear`（Metro の変換のキャッシュに古い値が残る）
-- 画面の道：`app/account.tsx`（ログイン）、`app/callback.tsx`（web の戻り先）、`app/+native-intent.tsx`（`torelog://callback`・`torelog://signout` で画面を動かさない）。状態は `hooks/auth.tsx` がアプリ全体で持ち、次の段階の同期もこれを使う
+- 画面の道：`app/account.tsx`（ログイン）、`app/callback.tsx`（web の戻り先）、`app/+native-intent.tsx`（`torelog://callback`・`torelog://signout` で画面を動かさない）。状態は `hooks/auth.tsx` がアプリ全体で持ち、同期もこれを使う
+
+## 同期
+
+設計は [docs/sync-design.md](../../docs/sync-design.md#アプリの同期appsmobile) にあります。
+
+- 記録・編集・削除のたびに、表のトリガーが `sync_outbox` に変更を積む（`db/syncSpec.ts`、`db/migrations.ts` の版2）。ログインの前の記録も、版2のマイグレーションで積む
+- ログインしているときだけ、起動・前面に戻ったとき・保存のあと（3秒まとめる）・アカウントの画面の「今すぐ同期」で、送る → 受け取る → 当てはめる（`lib/sync/engine.ts`、`lib/sync/scheduler.ts`、`hooks/sync.tsx`）
+- 端末は衝突の決まりを持たず、サーバーが返した状態で上書きする。まだ送っていない項目は端末の値を残す（`db/repositories/sync.ts`）
+- 通信の失敗は、間を倍にしながらやり直す。サーバーに断られた変更は印を付けて飛ばし、アカウントの画面に件数を出す
+- 食事の変更は、食事タブの段階まで当てはめない
 
 ## テスト
 
@@ -72,7 +82,7 @@ npx jest           # 計算の関数（lib/__tests__）と、DB のリポジト�
 npx expo-doctor    # Expo の設定と依存の版を確かめる
 ```
 
-jest の DB のテストは、expo-sqlite の代わりに Node の `node:sqlite`（メモリー上）を使います（`test-utils/nodeDb.ts`）。
+jest の DB のテストは、expo-sqlite の代わりに Node の `node:sqlite`（メモリー上）を使います（`test-utils/nodeDb.ts`）。同期のテストは、偽の同期サーバー（`test-utils/fakeSyncServer.ts`）に当て、本物の API には当てません。サーバーと同じテストのデータ（`testdata/sync/`）も使います。
 
 画面の E2E テストは、Expo の web 向けの書き出しを Playwright で操作します。動かし方と書き方の決まりは [e2e/README.md](e2e/README.md) にあります。
 
@@ -91,16 +101,16 @@ EAS Build で APK を作って Pixel に入れ、JS の変更は EAS Update で�
 |---|---|
 | `app/` | 画面。expo-router がファイルの名前で道を決める（`(tabs)/` は下のタブ、`workout/` は筋トレの記録、`exercises/` は種目の管理） |
 | `components/` | 画面で使う部品（文字、カード、アイコン、カレンダー、グラフ） |
-| `hooks/` | 画面から DB を読む処理（`data.ts`）、入力の途中で戻るときの確認（`confirmDiscard.tsx`）、ログインの状態（`auth.tsx`） |
-| `db/` | SQLite。表の定義（`migrations.ts`）、初期の部位と種目（`seed.ts`）、読み書き（`repositories/`）。書き込みは1つずつ順に行う（`serial.ts`） |
-| `lib/` | 計算と変換（負荷量、推定1RM、体組成、単位、日付、入力の範囲、CSV）、ログインのトークンの扱い（`auth/`）、アプリ用の API のクライアント（`api.ts`）。画面や DB に依存しない |
+| `hooks/` | 画面から DB を読む処理（`data.ts`）、入力の途中で戻るときの確認（`confirmDiscard.tsx`）、ログインの状態（`auth.tsx`）、同期（`sync.tsx`） |
+| `db/` | SQLite。表の定義（`migrations.ts`）、初期の部位と種目（`seed.ts`）、読み書き（`repositories/`）、同期する種類と outbox のトリガー（`syncSpec.ts`）。書き込みは1つずつ順に行う（`serial.ts`） |
+| `lib/` | 計算と変換（負荷量、推定1RM、体組成、単位、日付、入力の範囲、CSV）、ログインのトークンの扱い（`auth/`）、アプリ用の API のクライアント（`api.ts`）、同期の流れといつ動かすか（`sync/`） |
 | `theme/` | 色と文字 |
 | `e2e/` | 画面の E2E テスト（Playwright） |
 | `docs/` | Pixel への配信（EAS）の手順 |
-| `test-utils/` | jest で使う、メモリー上の DB |
+| `test-utils/` | jest で使う、メモリー上の DB と偽の同期サーバー（E2E も使う） |
 | `assets/` | アイコンとスプラッシュの画像 |
 
-どの表も、のちにサーバーと同期できるように、ID（UUID）、作成・更新の時刻、論理削除の列を持ちます（`db/migrations.ts`）。
+どの表も、サーバーと同期するために、ID（UUID）、作成・更新の時刻、論理削除の列を持ちます（`db/migrations.ts`）。
 
 ## 依存の更新
 
@@ -111,6 +121,5 @@ EAS Build で APK を作って Pixel に入れ、JS の変更は EAS Update で�
 
 ## 次の段階で入れるもの
 
-- サーバーとの同期。端末に先に保存し、つながったときに変更を送り合う（サーバーの側はデプロイ済み。ログインは入った）
 - 食事の記録と目標（MCP の食事記録と同じデータを使う）
 - Health Connect からの取り込み（睡眠・心拍・体重計（体重・体脂肪など））。体組成の表の `source`・`external_id`・`origin_package`・`lean_mass_kg` は、そのために置いています

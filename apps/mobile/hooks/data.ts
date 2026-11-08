@@ -1,7 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRepositories, Repositories } from '@/db';
+import { onRemoteChange } from '@/lib/sync/events';
 
 export function useRepos(): Repositories {
   const db = useSQLiteContext();
@@ -9,7 +10,7 @@ export function useRepos(): Repositories {
 }
 
 /**
- * 画面が前に出るたびに読み直す。key（日付など）が変わったときも読み直す。
+ * 画面が前に出るたびに読み直す。key（日付など）が変わったときと、同期でサーバーの変更を当てはめたときも読み直す。
  * load は描くたびに作り直されるので、最新のものを ref に持ち、読み直すときにそれを使う
  */
 export function useFocusData<T>(load: (r: Repositories) => Promise<T>, key?: string) {
@@ -35,5 +36,6 @@ export function useFocusData<T>(load: (r: Repositories) => Promise<T>, key?: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repos, key]);
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  useEffect(() => onRemoteChange(() => { reload(); }), [reload]);
   return { data, error, reload, repos };
 }

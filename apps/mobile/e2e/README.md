@@ -51,6 +51,8 @@ Android と iOS の動きは、この設定では変わらない。
 | `rm.spec.ts` | RM計算機の正常な値と表、空・0・負・回数が小数、回数が1、単位 |
 | `app.spec.ts` | 4つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーが出ない、再読み込みしても残る、深い画面の URL、まっさらな開始、知らない道 |
 | `narrow.spec.ts` | 360 の幅でホームのカレンダーが負荷量のカードに潜らない |
+| `account.spec.ts` | ログイン前の表示、ログインの画面の中止・エラー、認可の要求の中身、トークンの要求の本文（ログインの偽物は `login.ts`） |
+| `sync.spec.ts` | ログインして同期し、MCP で記録した筋トレ・体組成（`testdata/sync/mcp_pull.json`）が履歴と体組成に出る。アプリで記録したものが保存のあとにサーバーへ届く（トークンはヘッダーだけ）。つながらないときの件数とエラー、「今すぐ同期」、ログインの前の記録も送る。断られた変更の件数の表示。画面の流れだけで、衝突の決まり・分け方・やり直しは jest（`db/__tests__/sync*.test.ts`、`lib/__tests__/sync-scheduler.test.ts`）。アプリ用の API への通信は、偽のサーバー（`test-utils/fakeSyncServer.ts`）が返す |
 
 ## web では確かめられないこと
 
@@ -65,4 +67,5 @@ Android と iOS の動きは、この設定では変わらない。
 - **SQLite の保存先**：web は OPFS、Android はアプリのファイル。アプリを閉じても残ることは、web の再読み込みでしか確かめていない
 - **端末の時刻とタイムゾーン**：日付の切り替わりはブラウザの時刻を固定して確かめた
 - **ログイン**：本物の Cognito には当てない（`e2e/account.spec.ts`）。web のログインはポップアップで開くが、この配信は COOP: same-origin（expo-sqlite に要る）なので、別のオリジンを開いたポップアップからは結果を返せない。そこで `window.open` を差し替えて「戻り先に着いた」ところを作り、ログイン前の表示とエラーの表示、認可の要求の中身（PKCE・`prompt=login`・scope）、トークンの要求の本文だけを確かめた。Chrome Custom Tabs でのパスキーのログイン、`torelog://callback` の戻り、Cookie を消す `/logout`、トークンの保存（expo-secure-store）と更新は、jest（`lib/__tests__/auth.test.ts`）と Pixel の実機で確かめる
+- **同期**：本物の API には当てない（`e2e/sync.spec.ts`）。前面に戻ったときの同期（`AppState`）、つながらないあいだのやり直しの間（jest の `lib/__tests__/sync-scheduler.test.ts` で確かめた）、アプリを閉じて開いたときに outbox が残ること、Android の SQLite でのトリガーと JSON の関数は、Pixel の実機で確かめる
 - **体重計の取り込み（Health Connect）による1日に複数の記録**：画面からは作れないので、選び方は jest（`db/__tests__/repositories.test.ts`、`lib/__tests__/body.test.ts`）で確かめている

@@ -1,0 +1,241 @@
+{
+  "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成を記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
+  "page": {
+    "entries": [
+      {
+        "change": {
+          "seq": 1,
+          "change_id": "00000000-0000-4000-8000-000000000001",
+          "entity_type": "workout_entry",
+          "entity_id": "00000000-0000-4000-8000-000000000002",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "date": "2026-11-07",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "sort_order": 0
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "workout_entry",
+          "entity_id": "00000000-0000-4000-8000-000000000002",
+          "parent_id": null,
+          "fields": {
+            "date": "2026-11-07",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "sort_order": 0
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 1
+        }
+      },
+      {
+        "change": {
+          "seq": 2,
+          "change_id": "00000000-0000-4000-8000-000000000003",
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000004",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000002",
+            "set_index": 0,
+            "weight_kg": 100.0,
+            "reps": 5,
+            "memo": "",
+            "done": true
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000004",
+          "parent_id": null,
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000002",
+            "set_index": 0,
+            "weight_kg": 100.0,
+            "reps": 5,
+            "memo": "",
+            "done": true
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 2
+        }
+      },
+      {
+        "change": {
+          "seq": 3,
+          "change_id": "00000000-0000-4000-8000-000000000005",
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000006",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000002",
+            "set_index": 1,
+            "weight_kg": 100.0,
+            "reps": 4,
+            "memo": "",
+            "done": true
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000006",
+          "parent_id": null,
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000002",
+            "set_index": 1,
+            "weight_kg": 100.0,
+            "reps": 4,
+            "memo": "",
+            "done": true
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 3
+        }
+      },
+      {
+        "change": {
+          "seq": 4,
+          "change_id": "00000000-0000-4000-8000-000000000007",
+          "entity_type": "workout_entry",
+          "entity_id": "00000000-0000-4000-8000-000000000008",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "date": "2026-11-07",
+            "exercise_id": "11080b36-79ce-4306-a099-c779ae4323b3",
+            "sort_order": 1
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "workout_entry",
+          "entity_id": "00000000-0000-4000-8000-000000000008",
+          "parent_id": null,
+          "fields": {
+            "date": "2026-11-07",
+            "exercise_id": "11080b36-79ce-4306-a099-c779ae4323b3",
+            "sort_order": 1
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 4
+        }
+      },
+      {
+        "change": {
+          "seq": 5,
+          "change_id": "00000000-0000-4000-8000-000000000009",
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000010",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000008",
+            "set_index": 0,
+            "weight_kg": null,
+            "reps": 12,
+            "memo": "",
+            "done": true
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "workout_set",
+          "entity_id": "00000000-0000-4000-8000-000000000010",
+          "parent_id": null,
+          "fields": {
+            "entry_id": "00000000-0000-4000-8000-000000000008",
+            "set_index": 0,
+            "weight_kg": null,
+            "reps": 12,
+            "memo": "",
+            "done": true
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 5
+        }
+      },
+      {
+        "change": {
+          "seq": 6,
+          "change_id": "00000000-0000-4000-8000-000000000011",
+          "entity_type": "body_record",
+          "entity_id": "00000000-0000-4000-8000-000000000012",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "date": "2026-11-07",
+            "measured_at": "2026-11-07T03:00:00.000Z",
+            "weight_kg": 71.3,
+            "body_fat_pct": 17.5,
+            "muscle_pct": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual"
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "body_record",
+          "entity_id": "00000000-0000-4000-8000-000000000012",
+          "parent_id": null,
+          "fields": {
+            "date": "2026-11-07",
+            "measured_at": "2026-11-07T03:00:00.000Z",
+            "weight_kg": 71.3,
+            "body_fat_pct": 17.5,
+            "muscle_pct": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "manual"
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 6
+        }
+      }
+    ],
+    "next_cursor": 6,
+    "has_more": false
+  }
+}
