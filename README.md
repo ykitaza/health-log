@@ -16,7 +16,7 @@ Claude や ChatGPT に、食事の写真か一言を送るだけで記録でき�
 | `cdk/` | AWS の構成（CDK）。スタックは `CognitoStudy` と、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal` の3つ |
 | `docs/` | 構成図、シーケンス図、設計、監視の説明 |
 | `tools/inspector/` | MCP Inspector で試すときの CIMD の文書 |
-| `.github/` | CI（テスト）と Dependabot の設定 |
+| `.github/` | CI（テスト、アプリの配信）と Dependabot の設定 |
 
 ## 背景
 

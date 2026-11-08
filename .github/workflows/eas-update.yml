@@ -1,0 +1,114 @@
+name: eas-update
+
+# アプリ（apps/mobile）の JS の変更を、EAS Update で preview のチャンネルに配信する（apps/mobile/docs/eas.md）。
+# main への push で test のワークフローが通ったあとに動く。手動でも動かせる（main だけ）
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# 初期の権限はなし。ジョブごとに必要なものだけを与える
+permissions: {}
+
+# 配信は1つずつ順に行う。途中で止めると配信が半端になるので、実行中のものは止めない
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # workflow_run は PR（フォークからのものも）の test が終わったときにも起きる。
+    # branches の絞り込みは PR の元のブランチ名でも当たるので、push で起きたこと・このリポジトリであることも確かめる
+    if: >-
+      github.ref == 'refs/heads/main' && (
+        github.event_name == 'workflow_dispatch' || (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # EXPO_TOKEN は environment に置く。environment は main だけから使えるようにする
+    environment: expo
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: EXPO_TOKEN があるかを確かめる
+        id: token
+        working-directory: .
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::environment expo に EXPO_TOKEN がまだないので、配信を飛ばします（apps/mobile/docs/eas.md）"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # イベントの中の SHA ではなく、既定のブランチ（main）の最新を取り出す。
+      # workflow_run のときは、test が確かめたコミットと同じかを次で確かめる
+      - if: steps.token.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: 配信するかを決める
+        id: target
+        if: steps.token.outputs.ok == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # test のあとに main が進んでいたら、新しいコミットの test のあとの実行に任せる
+          if [ "$(git rev-parse HEAD)" != "$TESTED_SHA" ]; then
+            echo "::notice::main が test のあとに進んだので飛ばします（新しいコミットの実行で配信します）"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # main には PR のマージコミットが入るので、1つ前（first parent）との差で apps/mobile の変更を見る
+          if git diff --quiet HEAD^1 HEAD -- .; then
+            echo "::notice::apps/mobile に変更がないので飛ばします"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # トークンを使うジョブなので、キャッシュは使わない（main のキャッシュを、ほかのワークフローと共有しないため）
+      - if: steps.target.outputs.ok == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/mobile/.node-version
+
+      - if: steps.target.outputs.ok == 'true'
+        uses: expo/expo-github-action@9da89d3617bb88139671bad31b09c65714c2ee06 # 9.0.1
+        with:
+          eas-version: 27.5.0
+          eas-cache: false
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # 依存の install script は動かさない（入れる依存で install script を持つのは、
+      # 開発用の @parcel/watcher と fsevents だけで、eas update の書き出しには要らない）
+      - if: steps.target.outputs.ok == 'true'
+        run: npm ci --ignore-scripts
+
+      - if: steps.target.outputs.ok == 'true'
+        run: >-
+          eas update
+          --channel preview
+          --environment preview
+          --platform android
+          --message "$(git log -1 --format=%s)"
+          --non-interactive

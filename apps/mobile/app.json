@@ -8,10 +8,18 @@
     "scheme": "torelog",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0E1013",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.ykitaza.torelog",
       "adaptiveIcon": {
         "backgroundColor": "#0E1013",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
