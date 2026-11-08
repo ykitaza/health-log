@@ -9,6 +9,7 @@ import { T } from '@/components/Text';
 import { Card, IconButton } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useFocusData, useRepos } from '@/hooks/data';
+import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
@@ -16,8 +17,9 @@ import { colors, radius } from '@/theme';
 
 /** 食事（その日の区分ごとの食事、合計と目標の残り）。日付は過去にも戻れる。今日が初め */
 export default function MealsScreen() {
-  const today = todayKey();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayKey);
+  // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
+  const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   const [adding, setAdding] = useState<Slot | null>(null);
   const { status } = useAuth();
   const { data, reload, repos } = useFocusData(async (r) => {
