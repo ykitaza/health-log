@@ -1,6 +1,6 @@
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { newApp } from './app';
-import { MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
+import { COGNITO_CHANGE_PATTERN, MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
 
 // InfraStack は Lambda のビルド（build-lambda.sh）が要るので、ここでは SSM パラメータの名前だけを渡す
 const env = { account: '123456789012', region: 'ap-northeast-1' };
@@ -241,16 +241,34 @@ describe('EventBridge のルール', () => {
     });
   });
 
-  test('Cognito のユーザーとユーザープールの変更（CDK のデプロイを除く）', () => {
+  test('Cognito の変更：前方一致、パスキーの API、マネージドログインでのパスキーの登録（CDK のデプロイを除く）', () => {
     template.hasResourceProperties('AWS::Events::Rule', {
       EventPattern: {
         source: ['aws.cognito-idp'],
-        detail: Match.objectLike({
-          eventName: Match.arrayWith(['AdminCreateUser', 'AdminDeleteUser', 'AdminSetUserPassword', 'UpdateUserPool']),
+        'detail-type': ['AWS API Call via CloudTrail', 'AWS Service Event via CloudTrail'],
+        detail: {
+          eventSource: ['cognito-idp.amazonaws.com'],
+          eventName: [
+            ...['Admin', 'Create', 'Update', 'Delete', 'Set', 'Add', 'Start', 'Complete'].map((prefix) => ({ prefix })),
+            'SignUp', 'ChangePassword', 'ConfirmForgotPassword', 'passkeys_add_POST',
+          ],
           ...notByCdk,
-        }),
+        },
       },
     });
+  });
+
+  // EventBridge のパターンの一致を、実際の名前で確かめる（前方一致で拾うもの・拾わないもの）
+  test.each([
+    ['AdminCreateUser', true], ['AdminSetUserPassword', true], ['AdminUserGlobalSignOut', true],
+    ['UpdateUserPool', true], ['DeleteUser', true], ['SetUserPoolMfaConfig', true], ['AddCustomAttributes', true],
+    ['StartWebAuthnRegistration', true], ['CompleteWebAuthnRegistration', true], ['DeleteWebAuthnCredential', true],
+    ['SignUp', true], ['passkeys_add_POST', true],
+    ['InitiateAuth', false], ['ListWebAuthnCredentials', false], ['login_POST', false], ['token_POST', false],
+  ])('Cognito の %s は通知するか：%s', (eventName, expected) => {
+    const names = COGNITO_CHANGE_PATTERN.detail!.eventName as (string | { prefix: string })[];
+    const matched = names.some((n) => (typeof n === 'string' ? n === eventName : eventName.startsWith(n.prefix)));
+    expect(matched).toBe(expected);
   });
 
   test('CloudTrail の停止と削除（CDK のデプロイでも通知する）', () => {

@@ -36,12 +36,14 @@
 |---|---|---|
 | ルートでのログイン、MFA なしのログイン（失敗も含む） | CloudTrail → CloudWatch Logs のメトリクスフィルター → アラーム `SuspiciousConsoleLoginAlarm`（5分に1件以上） | なし |
 | IAM の変更（ユーザー、アクセスキー、パスワード、MFA、ポリシー、ロール、ID プロバイダー。名前が Create・Delete・Update・Put・Attach・Detach・Add・Remove・Set・Enable・Deactivate・Upload・Change・Resync で始まる操作） | us-east-1 の EventBridge → 東京の既定のイベントバス → `IamChangeRule` | CDK のデプロイ |
-| Cognito のユーザーの作成・削除・パスワードの設定、ユーザープールとアプリクライアントの変更 | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
+| Cognito の変更（名前が Admin・Create・Update・Delete・Set・Add・Start・Complete で始まる操作と、SignUp・ChangePassword・ConfirmForgotPassword）。パスキーの登録と削除（`StartWebAuthnRegistration`・`CompleteWebAuthnRegistration`・`DeleteWebAuthnCredential`）と、マネージドログインの画面からのパスキーの登録（`passkeys_add_POST`）を含む | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
 | CloudTrail の停止・削除・変更（StopLogging、DeleteTrail、UpdateTrail、PutEventSelectors） | 東京の EventBridge `CloudTrailTamperRule` | なし（CDK のデプロイでも通知する） |
 
 - **ログインをアラームで見る理由**：`ConsoleLogin` が記録されるリージョンは、利用者の種類と入口で変わります。ルートは us-east-1・us-east-2・us-west-2 のどれか、IAM ユーザーは us-east-1・us-east-2・eu-north-1・ap-southeast-2 のどれか、リージョンの入口を使えばそのリージョンです（[AWS Management Console sign-in events](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-aws-console-sign-in-events.html)）。このアカウントでも、直近のログインは5つのリージョンに記録されていました。EventBridge のルールはリージョンごとに要るので、すべてのリージョンを1つのロググループに集める証跡で数えます
 - **IAM を us-east-1 から転送する理由**：IAM はグローバルなサービスで、操作は us-east-1 にだけ記録され、us-east-1 の EventBridge にだけ届きます。送り先を東京の1つのトピックにまとめ、メールの購読を1回で済ませるために、東京のイベントバスに転送します
 - **CDK のデプロイを除く方法**：CloudFormation が使うロール `cdk-hnb659fds-cfn-exec-role-*` による操作を、`userIdentity.sessionContext.sessionIssuer.userName` の前方一致（`anything-but`）で除きます。`anything-but` は項目がない（IAM ユーザーやルートの操作）と一致しないので、`exists: false` と `$or` でつなぎます。その名前のロールを新しく作る操作は通知されるので、同じ名前で紛れ込むことはできません
+- **マネージドログインでのパスキーの登録**：画面（`/passkeys/add`）からの登録は API の呼び出しではなく、エンドポイントへのリクエストとして CloudTrail に記録されます（`eventType` が `AwsServiceEvent`、`eventName` が `passkeys_add_POST`。このアカウントの記録でも確かめた）。EventBridge には detail-type `AWS Service Event via CloudTrail` で届くはずなので、ルールに両方の detail-type を入れています。届くかはデプロイのあとに試して確かめます（下の「デプロイと、メールの購読の足し方」の手順4）
+- 読むだけの操作（`AdminGetUser`、`ListWebAuthnCredentials` など）は、前方一致に当たっても、EventBridge の既定の状態（`ENABLED`）のルールには届かないので、通知されません
 - 通知の中身は CloudTrail のイベントそのもの（JSON）です。パスワードは CloudTrail が伏せて記録します
 
 ### CloudTrail の証跡
@@ -136,6 +138,7 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 4. 届くかを確かめる（どれも1通ずつ届く）
    - アラーム：`aws cloudwatch set-alarm-state --region ap-northeast-1 --alarm-name <RequestsAlarm の名前> --state-value ALARM --state-reason test`（次の評価で元に戻る）
    - IAM の転送：何も付けないポリシーを作って消す（`aws iam create-policy --policy-name monitoring-test --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"none:none","Resource":"*"}]}'` のあと `aws iam delete-policy --policy-arn <ARN>`）。2通届く
+   - マネージドログインでのパスキーの登録：パスキーを作る手順（[design.md](design.md#パスキーを作る手順)）で、パスキーを足したときに `passkeys_add_POST` の通知が届くかを見る。届かなければ、EventBridge にはこのイベントが来ていない。そのときは、証跡のロググループ（`TrailLogGroup`）にメトリクスフィルター（`{ $.eventName = "passkeys_add_POST" }`）を足して、アラームで知らせる。ただし、アラームのメトリクスは無料枠（10個）をすでに使い切っているので、アラームを1個足すと月 $0.10 かかる（または、`SuspiciousConsoleLoginAlarm` を、ログインとパスキーの登録をまとめた式にする。これも式の中のメトリクスの数で数えるので、1個増える）
 
 初めてデプロイするときは、証跡を作る操作（PutEventSelectors など）で、CloudTrail のルールから通知が来ます。
 

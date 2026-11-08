@@ -40,20 +40,23 @@ export const IAM_CHANGE_PATTERN: events.EventPattern = {
   },
 };
 
-// Cognito のユーザーの作成・削除・パスワードの設定と、ユーザープール・アプリクライアントの変更
+// Cognito の変更。IAM と同じく、操作の名前の前方一致で広く捕まえる（読むだけの操作 Get・List・Describe は除く。
+// AdminGetUser のような読み取りは、EventBridge の既定のルールには届かない）。
+// - Admin：管理者の操作（ユーザーの作成・削除、パスワードの設定、全セッションのサインアウトなど）
+// - Create・Update・Delete・Set・Add：ユーザープール、クライアント、ドメイン、IdP、グループ、ユーザー自身の削除、パスキーの削除（DeleteWebAuthnCredential）
+// - Start・Complete：パスキーの登録（StartWebAuthnRegistration・CompleteWebAuthnRegistration）、ユーザーのインポート
+// - 前方一致で拾えない、ユーザー自身の操作（新規登録、パスワードの変更・再設定）は名前で足す
+// マネージドログインの画面からのパスキーの登録（passkeys_add_POST）は、API の呼び出しではなく
+// エンドポイントへのリクエストとして、CloudTrail に AwsServiceEvent で記録されるので、detail-type も足す
 export const COGNITO_CHANGE_PATTERN: events.EventPattern = {
   source: ['aws.cognito-idp'],
-  detailType: ['AWS API Call via CloudTrail'],
+  detailType: ['AWS API Call via CloudTrail', 'AWS Service Event via CloudTrail'],
   detail: {
     eventSource: ['cognito-idp.amazonaws.com'],
     eventName: [
-      'AdminCreateUser', 'SignUp', 'AdminDeleteUser', 'DeleteUser',
-      'AdminSetUserPassword', 'AdminResetUserPassword', 'ChangePassword', 'ConfirmForgotPassword',
-      'AdminAddUserToGroup', 'AdminUpdateUserAttributes', 'AdminSetUserMFAPreference', 'SetUserPoolMfaConfig',
-      'CreateUserPool', 'UpdateUserPool', 'DeleteUserPool',
-      'CreateUserPoolClient', 'UpdateUserPoolClient', 'DeleteUserPoolClient',
-      'CreateIdentityProvider', 'UpdateIdentityProvider', 'DeleteIdentityProvider',
-      'CreateUserPoolDomain', 'UpdateUserPoolDomain', 'DeleteUserPoolDomain',
+      ...['Admin', 'Create', 'Update', 'Delete', 'Set', 'Add', 'Start', 'Complete'].map((prefix) => ({ prefix })),
+      'SignUp', 'ChangePassword', 'ConfirmForgotPassword',
+      'passkeys_add_POST',
     ],
     ...notByCdkDeploy,
   },
@@ -254,7 +257,7 @@ export class MonitoringStack extends cdk.Stack {
       description: 'IAM の変更（us-east-1 から転送されたもの）', eventPattern: IAM_CHANGE_PATTERN, targets: [topicTarget],
     });
     new events.Rule(this, 'CognitoChangeRule', {
-      description: 'Cognito のユーザーとユーザープールの変更', eventPattern: COGNITO_CHANGE_PATTERN, targets: [topicTarget],
+      description: 'Cognito のユーザー・パスキー・ユーザープールの変更', eventPattern: COGNITO_CHANGE_PATTERN, targets: [topicTarget],
     });
     new events.Rule(this, 'CloudTrailTamperRule', {
       description: 'CloudTrail の停止・削除・変更', eventPattern: CLOUDTRAIL_TAMPER_PATTERN, targets: [topicTarget],
