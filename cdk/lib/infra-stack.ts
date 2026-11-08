@@ -95,6 +95,8 @@ export class InfraStack extends cdk.Stack {
       timeToLiveAttribute: 'expires_at',
       // 中身は期限つきの状態だけだが、リフレッシュトークンの系列も入るので、消えると全員がログインし直しになる
       deletionProtection: true,
+      // 誤って消したり書き換えたりしたときに、35日前までの任意の時点に戻せるようにする（費用はテーブルの大きさで決まり、数十 KB なのでほぼ0）
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -192,6 +194,8 @@ export class InfraStack extends cdk.Stack {
       billing: dynamodb.Billing.onDemand(),
       // 記録は本人のデータなので、スタックを消しても残し（RETAIN）、テーブルの削除も止める（削除の保護）
       deletionProtection: true,
+      // 誤って消したり書き換えたりした記録を、35日前までの任意の時点に戻せるようにする（戻すと別のテーブルができる）
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 

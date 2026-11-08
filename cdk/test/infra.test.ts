@@ -36,7 +36,7 @@ describe('データを持つリソースを守る', () => {
     });
   });
 
-  test('DynamoDB のテーブルは、どれも削除の保護があり、スタックを消しても残る', () => {
+  test('DynamoDB のテーブルは、どれも削除の保護とポイントインタイムリカバリがあり、スタックを消しても残る', () => {
     const tables = template.findResources('AWS::DynamoDB::GlobalTable');
     expect(Object.keys(tables).sort()).toEqual(
       expect.arrayContaining([expect.stringMatching(/^MealsTable/), expect.stringMatching(/^StateTable/)]));
@@ -45,13 +45,16 @@ describe('データを持つリソースを守る', () => {
       expect(table.UpdateReplacePolicy).toBe('Retain');
       for (const replica of table.Properties.Replicas) {
         expect(replica.DeletionProtectionEnabled).toBe(true);
+        // ポイントインタイムリカバリ（35日。既定の期間）
+        expect(replica.PointInTimeRecoverySpecification).toEqual({ PointInTimeRecoveryEnabled: true });
       }
     }
   });
 
   test('既存のリソースの論理 ID が変わっていない（変わると作り直しになる）', () => {
     const ids = Object.keys(template.toJSON().Resources);
-    for (const prefix of ['UserPool6BA7E5F2', 'UserPoolDomainD0EA232A', 'UserPoolRpClient06B6EADD']) {
+    for (const prefix of ['UserPool6BA7E5F2', 'UserPoolDomainD0EA232A', 'UserPoolRpClient06B6EADD', 'MealsTableCAABDBC9',
+      'StateTable9728C7E5']) {
       expect(ids).toContain(prefix);
     }
   });
