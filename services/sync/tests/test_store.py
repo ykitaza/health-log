@@ -66,6 +66,27 @@ def test_ほかの人の記録には届かない(sync_store):
     assert len(e.docs_by_index("u1", "meal", "2026-11-08#", "2026-11-08#z")) == 1
 
 
+def test_アプリからの変更を最後に受け付けた時刻を残し_MCP_の変更では変えない(sync_store):
+    times = iter(["2026-11-08T10:00:00.000Z", "2026-11-08T11:00:00.000Z", "2026-11-08T12:00:00.000Z"])
+    e = SyncEngine(sync_store, REGISTRY, clock=lambda: next(times))
+    assert e.last_app_received_at("u1") is None
+    e.append("u1", [change()])  # アプリ（app）から
+    e.append("u1", [Change(str(uuid.uuid4()), "workout_set", "s9", None, "create", SET, NOW, "mcp")])
+    assert e.last_app_received_at("u1") == "2026-11-08T10:00:00.000Z"
+    imported = Change(str(uuid.uuid4()), "workout_set", "s8", None, "create", SET, NOW, "import")
+    e.append("u1", [imported])
+    assert e.last_app_received_at("u1") == "2026-11-08T12:00:00.000Z"
+    assert e.last_app_received_at("u2") is None  # ほかの人の時刻は見えない
+
+
+def test_まとめて読むと_ないものは入らない(sync_store):
+    e = SyncEngine(sync_store, REGISTRY, clock=lambda: NOW)
+    e.append("u1", [change(), change(entity_id="s2")])
+    assert set(e.docs("u1", {("workout_set", "s1"), ("workout_set", "s2"), ("workout_set", "x")})) == {
+        ("workout_set", "s1"), ("workout_set", "s2")}
+    assert e.docs("u2", {("workout_set", "s1")}) == {}
+
+
 def test_先頭が変わっていたら書かない(sync_store):
     e = SyncEngine(sync_store, REGISTRY, clock=lambda: NOW)
     e.append("u1", [change()])
