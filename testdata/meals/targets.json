@@ -1,0 +1,148 @@
+{
+  "description": "目標（nutrition_goal の項目）と日の種類から、その日の目標と残り（目標 − 食べた分）を出す。目標がない項目は null",
+  "cases": [
+    {
+      "name": "目標なし",
+      "goal": null,
+      "day_type": "rest",
+      "eaten": {
+        "kcal": 1234.5,
+        "protein_g": 98.7,
+        "fat_g": 60.1,
+        "carbs_g": 300.3
+      },
+      "target": null,
+      "remaining": null
+    },
+    {
+      "name": "方針だけ",
+      "goal": {
+        "policy": "maintain"
+      },
+      "day_type": "training",
+      "eaten": {
+        "kcal": 1234.5,
+        "protein_g": 98.7,
+        "fat_g": 60.1,
+        "carbs_g": 300.3
+      },
+      "target": {
+        "kcal": null,
+        "protein_g": null,
+        "fat_g": null,
+        "carbs_g": null
+      },
+      "remaining": {
+        "kcal": null,
+        "protein_g": null,
+        "fat_g": null,
+        "carbs_g": null
+      }
+    },
+    {
+      "name": "体重だけ（たんぱく質の目標だけ）",
+      "goal": {
+        "policy": "bulk",
+        "body_weight_kg": 70.1,
+        "protein_per_kg": 1.7
+      },
+      "day_type": "rest",
+      "eaten": {
+        "kcal": 1234.5,
+        "protein_g": 98.7,
+        "fat_g": 60.1,
+        "carbs_g": 300.3
+      },
+      "target": {
+        "kcal": null,
+        "protein_g": 119.16999999999999,
+        "fat_g": null,
+        "carbs_g": null
+      },
+      "remaining": {
+        "kcal": null,
+        "protein_g": 20.469999999999985,
+        "fat_g": null,
+        "carbs_g": null
+      }
+    },
+    {
+      "name": "筋トレの日",
+      "goal": {
+        "policy": "cut",
+        "body_weight_kg": 62.5,
+        "protein_per_kg": 2.2,
+        "targets": {
+          "training_day": {
+            "kcal": 2100,
+            "fat_g": 58.3,
+            "carbs_g": 250.7
+          },
+          "rest_day": {
+            "kcal": 1800,
+            "fat_g": 50,
+            "carbs_g": 200.1
+          }
+        }
+      },
+      "day_type": "training",
+      "eaten": {
+        "kcal": 1234.5,
+        "protein_g": 98.7,
+        "fat_g": 60.1,
+        "carbs_g": 300.3
+      },
+      "target": {
+        "kcal": 2100,
+        "protein_g": 137.5,
+        "fat_g": 58.3,
+        "carbs_g": 250.7
+      },
+      "remaining": {
+        "kcal": 865.5,
+        "protein_g": 38.8,
+        "fat_g": -1.8000000000000043,
+        "carbs_g": -49.60000000000002
+      }
+    },
+    {
+      "name": "休みの日（食べすぎて残りが負）",
+      "goal": {
+        "policy": "cut",
+        "body_weight_kg": 62.5,
+        "protein_per_kg": 2.2,
+        "targets": {
+          "training_day": {
+            "kcal": 2100,
+            "fat_g": 58.3,
+            "carbs_g": 250.7
+          },
+          "rest_day": {
+            "kcal": 1800,
+            "fat_g": 50,
+            "carbs_g": 200.1
+          }
+        }
+      },
+      "day_type": "rest",
+      "eaten": {
+        "kcal": 2000.2,
+        "protein_g": 150.4,
+        "fat_g": 70.7,
+        "carbs_g": 210.9
+      },
+      "target": {
+        "kcal": 1800,
+        "protein_g": 137.5,
+        "fat_g": 50,
+        "carbs_g": 200.1
+      },
+      "remaining": {
+        "kcal": -200.20000000000005,
+        "protein_g": -12.900000000000006,
+        "fat_g": -20.700000000000003,
+        "carbs_g": -10.800000000000011
+      }
+    }
+  ]
+}

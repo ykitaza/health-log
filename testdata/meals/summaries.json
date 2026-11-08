@@ -1,0 +1,1487 @@
+{
+  "description": "アプリから届いた食事の変更（changes）を、サーバーが当てはめた状態（states）と、そこから出す1日の合計・目標・残りと週のふり返り（expected）。数値は丸めない。週は last_day までの7日",
+  "last_day": "2026-11-08",
+  "training_days": [
+    "2026-11-03",
+    "2026-11-07",
+    "2026-11-08"
+  ],
+  "changes": [
+    {
+      "change_id": "c001",
+      "entity_type": "meal",
+      "entity_id": "m1",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-02",
+        "slot": "breakfast",
+        "time": "07:30",
+        "description": "オートミールとプロテイン",
+        "source": "text"
+      },
+      "changed_at": "2026-11-02T22:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c002",
+      "entity_type": "meal_item",
+      "entity_id": "oats",
+      "parent_id": "m1",
+      "op": "create",
+      "fields": {
+        "name": "オートミール",
+        "amount": 40,
+        "unit": "g",
+        "kcal": 150.1,
+        "protein_g": 5.5,
+        "fat_g": 2.3,
+        "carbs_g": 27.6,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-02T22:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c003",
+      "entity_type": "meal_item",
+      "entity_id": "whey",
+      "parent_id": "m1",
+      "op": "create",
+      "fields": {
+        "name": "プロテイン",
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 120.2,
+        "protein_g": 24.1,
+        "fat_g": 1.2,
+        "carbs_g": 3.3,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "changed_at": "2026-11-02T22:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c004",
+      "entity_type": "meal",
+      "entity_id": "m2",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-03",
+        "slot": "lunch",
+        "time": null,
+        "description": "",
+        "source": "text"
+      },
+      "changed_at": "2026-11-03T03:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c005",
+      "entity_type": "meal_item",
+      "entity_id": "rice",
+      "parent_id": "m2",
+      "op": "create",
+      "fields": {
+        "name": "白米",
+        "amount": 200,
+        "unit": "g",
+        "kcal": 312,
+        "protein_g": 5,
+        "fat_g": 0.6,
+        "carbs_g": 74.2,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-03T03:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c006",
+      "entity_type": "meal_item",
+      "entity_id": "chicken",
+      "parent_id": "m2",
+      "op": "create",
+      "fields": {
+        "name": "鶏むね肉",
+        "amount": 100,
+        "unit": "g",
+        "kcal": 108.3,
+        "protein_g": 22.3,
+        "fat_g": 1.5,
+        "carbs_g": 0,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "changed_at": "2026-11-03T03:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c007",
+      "entity_type": "meal",
+      "entity_id": "m3",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-03",
+        "slot": "dinner",
+        "time": null,
+        "description": "消した夕食",
+        "source": "text"
+      },
+      "changed_at": "2026-11-03T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c008",
+      "entity_type": "meal_item",
+      "entity_id": "ramen",
+      "parent_id": "m3",
+      "op": "create",
+      "fields": {
+        "name": "ラーメン",
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 800,
+        "protein_g": 25,
+        "fat_g": 30,
+        "carbs_g": 100,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-03T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c009",
+      "entity_type": "meal",
+      "entity_id": "m3",
+      "parent_id": null,
+      "op": "delete",
+      "fields": null,
+      "changed_at": "2026-11-03T11:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c010",
+      "entity_type": "meal",
+      "entity_id": "m4",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-04",
+        "slot": "snack",
+        "time": null,
+        "description": "",
+        "source": "text"
+      },
+      "changed_at": "2026-11-04T05:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c011",
+      "entity_type": "meal_item",
+      "entity_id": "cookie",
+      "parent_id": "m4",
+      "op": "create",
+      "fields": {
+        "name": "クッキー",
+        "amount": 2,
+        "unit": "個",
+        "kcal": 98.4,
+        "protein_g": 1.2,
+        "fat_g": 5.1,
+        "carbs_g": 12.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-04T05:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c012",
+      "entity_type": "meal_item",
+      "entity_id": "cookie",
+      "parent_id": "m4",
+      "op": "delete",
+      "fields": null,
+      "changed_at": "2026-11-04T06:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c013",
+      "entity_type": "meal_item",
+      "entity_id": "salmon",
+      "parent_id": "m5",
+      "op": "create",
+      "fields": {
+        "name": "鮭の塩焼き",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 160.4,
+        "protein_g": 18.1,
+        "fat_g": 9.6,
+        "carbs_g": 0.1,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-05T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c014",
+      "entity_type": "meal",
+      "entity_id": "m5",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-05",
+        "slot": "dinner",
+        "time": null,
+        "description": "鮭の定食",
+        "source": "text"
+      },
+      "changed_at": "2026-11-05T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c015",
+      "entity_type": "meal_item",
+      "entity_id": "rice2",
+      "parent_id": "m5",
+      "op": "create",
+      "fields": {
+        "name": "白米",
+        "amount": 150,
+        "unit": "g",
+        "kcal": 234.3,
+        "protein_g": 3.8,
+        "fat_g": 0.5,
+        "carbs_g": 55.7,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "changed_at": "2026-11-05T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c016",
+      "entity_type": "meal_item",
+      "entity_id": "rice2",
+      "parent_id": "m5",
+      "op": "update",
+      "fields": {
+        "amount": 180,
+        "kcal": 281.16,
+        "protein_g": 4.56,
+        "fat_g": 0.6,
+        "carbs_g": 66.84
+      },
+      "changed_at": "2026-11-05T12:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c017",
+      "entity_type": "meal_item",
+      "entity_id": "rice2",
+      "parent_id": "m5",
+      "op": "update",
+      "fields": {
+        "amount": 100,
+        "kcal": 156.2,
+        "protein_g": 2.53,
+        "fat_g": 0.33,
+        "carbs_g": 37.13
+      },
+      "changed_at": "2026-11-05T11:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c018",
+      "entity_type": "meal_item",
+      "entity_id": "soup",
+      "parent_id": "m5",
+      "op": "create",
+      "fields": {
+        "name": "みそ汁",
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 46.1,
+        "protein_g": 4.2,
+        "fat_g": 2.3,
+        "carbs_g": 3.1,
+        "confidence": "high",
+        "sort_order": 2
+      },
+      "changed_at": "2026-11-05T10:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c019",
+      "entity_type": "meal_item",
+      "entity_id": "soup",
+      "parent_id": "m5",
+      "op": "delete",
+      "fields": null,
+      "changed_at": "2026-11-05T11:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c020",
+      "entity_type": "meal_item",
+      "entity_id": "soup",
+      "parent_id": "m5",
+      "op": "update",
+      "fields": {
+        "amount": 2,
+        "kcal": 92.2
+      },
+      "changed_at": "2026-11-05T13:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c021",
+      "entity_type": "day_type",
+      "entity_id": "2026-11-05",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "day_type": "training"
+      },
+      "changed_at": "2026-11-05T09:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c022",
+      "entity_type": "meal",
+      "entity_id": "m10",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-01",
+        "slot": "lunch",
+        "time": null,
+        "description": "移した食事",
+        "source": "text"
+      },
+      "changed_at": "2026-11-01T03:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c023",
+      "entity_type": "meal_item",
+      "entity_id": "bar",
+      "parent_id": "m10",
+      "op": "create",
+      "fields": {
+        "name": "プロテインバー",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 200.5,
+        "protein_g": 20.1,
+        "fat_g": 6.2,
+        "carbs_g": 14.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-01T03:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c024",
+      "entity_type": "meal",
+      "entity_id": "m10",
+      "parent_id": null,
+      "op": "update",
+      "fields": {
+        "date": "2026-11-06",
+        "slot": "snack"
+      },
+      "changed_at": "2026-11-06T08:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c025",
+      "entity_type": "meal",
+      "entity_id": "a1b2c3d4e5f6",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-07",
+        "slot": "snack",
+        "time": null,
+        "description": "おにぎり",
+        "source": "photo"
+      },
+      "changed_at": "2026-11-07T06:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c026",
+      "entity_type": "meal_item",
+      "entity_id": "0a1b2c3d4e5f",
+      "parent_id": "a1b2c3d4e5f6",
+      "op": "create",
+      "fields": {
+        "name": "鮭おにぎり",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 180.7,
+        "protein_g": 5.2,
+        "fat_g": 1.9,
+        "carbs_g": 38.4,
+        "confidence": "medium",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-07T06:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c027",
+      "entity_type": "meal",
+      "entity_id": "f6e5d4c3b2a1",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-07",
+        "slot": "dinner",
+        "time": null,
+        "description": "おにぎり",
+        "source": "copy"
+      },
+      "changed_at": "2026-11-07T11:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c028",
+      "entity_type": "meal_item",
+      "entity_id": "0a1b2c3d4e5f",
+      "parent_id": "f6e5d4c3b2a1",
+      "op": "create",
+      "fields": {
+        "name": "鮭おにぎり",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 180.7,
+        "protein_g": 5.2,
+        "fat_g": 1.9,
+        "carbs_g": 38.4,
+        "confidence": "medium",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-07T11:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c029",
+      "entity_type": "day_type",
+      "entity_id": "2026-11-07",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "day_type": "rest"
+      },
+      "changed_at": "2026-11-07T01:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c030",
+      "entity_type": "meal",
+      "entity_id": "m8b",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-08",
+        "slot": "breakfast",
+        "time": null,
+        "description": "2回目",
+        "source": "text"
+      },
+      "changed_at": "2026-11-08T01:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c031",
+      "entity_type": "meal_item",
+      "entity_id": "y",
+      "parent_id": "m8b",
+      "op": "create",
+      "fields": {
+        "name": "ヨーグルト",
+        "amount": 100,
+        "unit": "g",
+        "kcal": 62.1,
+        "protein_g": 3.6,
+        "fat_g": 3.0,
+        "carbs_g": 4.9,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-08T01:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c032",
+      "entity_type": "meal",
+      "entity_id": "m8a",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "date": "2026-11-08",
+        "slot": "breakfast",
+        "time": null,
+        "description": "1回目",
+        "source": "text"
+      },
+      "changed_at": "2026-11-08T00:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c033",
+      "entity_type": "meal_item",
+      "entity_id": "toast",
+      "parent_id": "m8a",
+      "op": "create",
+      "fields": {
+        "name": "トースト",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 0.1,
+        "protein_g": 0.2,
+        "fat_g": 0.3,
+        "carbs_g": 0.1,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "changed_at": "2026-11-08T00:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c034",
+      "entity_type": "meal_item",
+      "entity_id": "egg",
+      "parent_id": "m8a",
+      "op": "create",
+      "fields": {
+        "name": "ゆで卵",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 0.2,
+        "protein_g": 0.1,
+        "fat_g": 0.3,
+        "carbs_g": 0.2,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "changed_at": "2026-11-08T00:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c035",
+      "entity_type": "meal_item",
+      "entity_id": "milk",
+      "parent_id": "m8a",
+      "op": "create",
+      "fields": {
+        "name": "牛乳",
+        "amount": 200,
+        "unit": "ml",
+        "kcal": 0.3,
+        "protein_g": 0.3,
+        "fat_g": 0.3,
+        "carbs_g": 0.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "changed_at": "2026-11-08T00:00:00.000Z",
+      "origin": "app"
+    },
+    {
+      "change_id": "c036",
+      "entity_type": "nutrition_goal",
+      "entity_id": "current",
+      "parent_id": null,
+      "op": "create",
+      "fields": {
+        "policy": "bulk",
+        "body_weight_kg": 70.3,
+        "protein_per_kg": 1.9,
+        "targets": {
+          "training_day": {
+            "kcal": 2600,
+            "fat_g": 72.2,
+            "carbs_g": 340.1
+          },
+          "rest_day": {
+            "kcal": 2200,
+            "fat_g": 61.1,
+            "carbs_g": 280.3
+          }
+        },
+        "eating_style": "home_cooked",
+        "target_weight_kg": 75
+      },
+      "changed_at": "2026-11-01T00:00:00.000Z",
+      "origin": "app"
+    }
+  ],
+  "states": [
+    {
+      "entity_type": "meal",
+      "entity_id": "m1",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-02",
+        "slot": "breakfast",
+        "time": "07:30",
+        "description": "オートミールとプロテイン",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-02T22:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "oats",
+      "parent_id": "m1",
+      "fields": {
+        "name": "オートミール",
+        "amount": 40,
+        "unit": "g",
+        "kcal": 150.1,
+        "protein_g": 5.5,
+        "fat_g": 2.3,
+        "carbs_g": 27.6,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-02T22:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "whey",
+      "parent_id": "m1",
+      "fields": {
+        "name": "プロテイン",
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 120.2,
+        "protein_g": 24.1,
+        "fat_g": 1.2,
+        "carbs_g": 3.3,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "deleted": false,
+      "created_at": "2026-11-02T22:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m2",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-03",
+        "slot": "lunch",
+        "time": null,
+        "description": "",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-03T03:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "rice",
+      "parent_id": "m2",
+      "fields": {
+        "name": "白米",
+        "amount": 200,
+        "unit": "g",
+        "kcal": 312,
+        "protein_g": 5,
+        "fat_g": 0.6,
+        "carbs_g": 74.2,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-03T03:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "chicken",
+      "parent_id": "m2",
+      "fields": {
+        "name": "鶏むね肉",
+        "amount": 100,
+        "unit": "g",
+        "kcal": 108.3,
+        "protein_g": 22.3,
+        "fat_g": 1.5,
+        "carbs_g": 0,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "deleted": false,
+      "created_at": "2026-11-03T03:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m3",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-03",
+        "slot": "dinner",
+        "time": null,
+        "description": "消した夕食",
+        "source": "text"
+      },
+      "deleted": true,
+      "created_at": "2026-11-03T10:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "ramen",
+      "parent_id": "m3",
+      "fields": {
+        "name": "ラーメン",
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 800,
+        "protein_g": 25,
+        "fat_g": 30,
+        "carbs_g": 100,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-03T10:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m4",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-04",
+        "slot": "snack",
+        "time": null,
+        "description": "",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-04T05:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "cookie",
+      "parent_id": "m4",
+      "fields": {
+        "name": "クッキー",
+        "amount": 2,
+        "unit": "個",
+        "kcal": 98.4,
+        "protein_g": 1.2,
+        "fat_g": 5.1,
+        "carbs_g": 12.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": true,
+      "created_at": "2026-11-04T05:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "salmon",
+      "parent_id": "m5",
+      "fields": {
+        "name": "鮭の塩焼き",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 160.4,
+        "protein_g": 18.1,
+        "fat_g": 9.6,
+        "carbs_g": 0.1,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-05T10:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m5",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-05",
+        "slot": "dinner",
+        "time": null,
+        "description": "鮭の定食",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-05T10:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "rice2",
+      "parent_id": "m5",
+      "fields": {
+        "name": "白米",
+        "amount": 180,
+        "unit": "g",
+        "kcal": 281.16,
+        "protein_g": 4.56,
+        "fat_g": 0.6,
+        "carbs_g": 66.84,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "deleted": false,
+      "created_at": "2026-11-05T10:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "soup",
+      "parent_id": "m5",
+      "fields": {
+        "name": "みそ汁",
+        "amount": 2,
+        "unit": "杯",
+        "kcal": 92.2,
+        "protein_g": 4.2,
+        "fat_g": 2.3,
+        "carbs_g": 3.1,
+        "confidence": "high",
+        "sort_order": 2
+      },
+      "deleted": true,
+      "created_at": "2026-11-05T10:00:00.000Z"
+    },
+    {
+      "entity_type": "day_type",
+      "entity_id": "2026-11-05",
+      "parent_id": null,
+      "fields": {
+        "day_type": "training"
+      },
+      "deleted": false,
+      "created_at": "2026-11-05T09:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m10",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-06",
+        "slot": "snack",
+        "time": null,
+        "description": "移した食事",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-01T03:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "bar",
+      "parent_id": "m10",
+      "fields": {
+        "name": "プロテインバー",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 200.5,
+        "protein_g": 20.1,
+        "fat_g": 6.2,
+        "carbs_g": 14.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-01T03:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "a1b2c3d4e5f6",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-07",
+        "slot": "snack",
+        "time": null,
+        "description": "おにぎり",
+        "source": "photo"
+      },
+      "deleted": false,
+      "created_at": "2026-11-07T06:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "0a1b2c3d4e5f",
+      "parent_id": "a1b2c3d4e5f6",
+      "fields": {
+        "name": "鮭おにぎり",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 180.7,
+        "protein_g": 5.2,
+        "fat_g": 1.9,
+        "carbs_g": 38.4,
+        "confidence": "medium",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-07T06:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "f6e5d4c3b2a1",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-07",
+        "slot": "dinner",
+        "time": null,
+        "description": "おにぎり",
+        "source": "copy"
+      },
+      "deleted": false,
+      "created_at": "2026-11-07T11:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "0a1b2c3d4e5f",
+      "parent_id": "f6e5d4c3b2a1",
+      "fields": {
+        "name": "鮭おにぎり",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 180.7,
+        "protein_g": 5.2,
+        "fat_g": 1.9,
+        "carbs_g": 38.4,
+        "confidence": "medium",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-07T11:00:00.000Z"
+    },
+    {
+      "entity_type": "day_type",
+      "entity_id": "2026-11-07",
+      "parent_id": null,
+      "fields": {
+        "day_type": "rest"
+      },
+      "deleted": false,
+      "created_at": "2026-11-07T01:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m8b",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-08",
+        "slot": "breakfast",
+        "time": null,
+        "description": "2回目",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T01:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "y",
+      "parent_id": "m8b",
+      "fields": {
+        "name": "ヨーグルト",
+        "amount": 100,
+        "unit": "g",
+        "kcal": 62.1,
+        "protein_g": 3.6,
+        "fat_g": 3.0,
+        "carbs_g": 4.9,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T01:00:00.000Z"
+    },
+    {
+      "entity_type": "meal",
+      "entity_id": "m8a",
+      "parent_id": null,
+      "fields": {
+        "date": "2026-11-08",
+        "slot": "breakfast",
+        "time": null,
+        "description": "1回目",
+        "source": "text"
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T00:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "toast",
+      "parent_id": "m8a",
+      "fields": {
+        "name": "トースト",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 0.1,
+        "protein_g": 0.2,
+        "fat_g": 0.3,
+        "carbs_g": 0.1,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T00:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "egg",
+      "parent_id": "m8a",
+      "fields": {
+        "name": "ゆで卵",
+        "amount": 1,
+        "unit": "個",
+        "kcal": 0.2,
+        "protein_g": 0.1,
+        "fat_g": 0.3,
+        "carbs_g": 0.2,
+        "confidence": "high",
+        "sort_order": 1
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T00:00:00.000Z"
+    },
+    {
+      "entity_type": "meal_item",
+      "entity_id": "milk",
+      "parent_id": "m8a",
+      "fields": {
+        "name": "牛乳",
+        "amount": 200,
+        "unit": "ml",
+        "kcal": 0.3,
+        "protein_g": 0.3,
+        "fat_g": 0.3,
+        "carbs_g": 0.3,
+        "confidence": "high",
+        "sort_order": 0
+      },
+      "deleted": false,
+      "created_at": "2026-11-08T00:00:00.000Z"
+    },
+    {
+      "entity_type": "nutrition_goal",
+      "entity_id": "current",
+      "parent_id": null,
+      "fields": {
+        "policy": "bulk",
+        "body_weight_kg": 70.3,
+        "protein_per_kg": 1.9,
+        "targets": {
+          "training_day": {
+            "kcal": 2600,
+            "fat_g": 72.2,
+            "carbs_g": 340.1
+          },
+          "rest_day": {
+            "kcal": 2200,
+            "fat_g": 61.1,
+            "carbs_g": 280.3
+          }
+        },
+        "eating_style": "home_cooked",
+        "target_weight_kg": 75
+      },
+      "deleted": false,
+      "created_at": "2026-11-01T00:00:00.000Z"
+    }
+  ],
+  "expected": {
+    "daily": [
+      {
+        "date": "2026-11-02",
+        "day_type": "rest",
+        "meals": [
+          {
+            "meal_id": "m1",
+            "slot": "breakfast",
+            "item_ids": [
+              "oats",
+              "whey"
+            ],
+            "total": {
+              "kcal": 270.3,
+              "protein_g": 29.6,
+              "fat_g": 3.5,
+              "carbs_g": 30.900000000000002
+            }
+          }
+        ],
+        "total": {
+          "kcal": 270.3,
+          "protein_g": 29.6,
+          "fat_g": 3.5,
+          "carbs_g": 30.900000000000002
+        },
+        "target": {
+          "kcal": 2200,
+          "protein_g": 133.57,
+          "fat_g": 61.1,
+          "carbs_g": 280.3
+        },
+        "remaining": {
+          "kcal": 1929.7,
+          "protein_g": 103.97,
+          "fat_g": 57.6,
+          "carbs_g": 249.4
+        }
+      },
+      {
+        "date": "2026-11-03",
+        "day_type": "training",
+        "meals": [
+          {
+            "meal_id": "m2",
+            "slot": "lunch",
+            "item_ids": [
+              "rice",
+              "chicken"
+            ],
+            "total": {
+              "kcal": 420.3,
+              "protein_g": 27.3,
+              "fat_g": 2.1,
+              "carbs_g": 74.2
+            }
+          }
+        ],
+        "total": {
+          "kcal": 420.3,
+          "protein_g": 27.3,
+          "fat_g": 2.1,
+          "carbs_g": 74.2
+        },
+        "target": {
+          "kcal": 2600,
+          "protein_g": 133.57,
+          "fat_g": 72.2,
+          "carbs_g": 340.1
+        },
+        "remaining": {
+          "kcal": 2179.7,
+          "protein_g": 106.27,
+          "fat_g": 70.10000000000001,
+          "carbs_g": 265.90000000000003
+        }
+      },
+      {
+        "date": "2026-11-04",
+        "day_type": "rest",
+        "meals": [],
+        "total": {
+          "kcal": 0,
+          "protein_g": 0,
+          "fat_g": 0,
+          "carbs_g": 0
+        },
+        "target": {
+          "kcal": 2200,
+          "protein_g": 133.57,
+          "fat_g": 61.1,
+          "carbs_g": 280.3
+        },
+        "remaining": {
+          "kcal": 2200,
+          "protein_g": 133.57,
+          "fat_g": 61.1,
+          "carbs_g": 280.3
+        }
+      },
+      {
+        "date": "2026-11-05",
+        "day_type": "training",
+        "meals": [
+          {
+            "meal_id": "m5",
+            "slot": "dinner",
+            "item_ids": [
+              "salmon",
+              "rice2"
+            ],
+            "total": {
+              "kcal": 441.56000000000006,
+              "protein_g": 22.66,
+              "fat_g": 10.2,
+              "carbs_g": 66.94
+            }
+          }
+        ],
+        "total": {
+          "kcal": 441.56000000000006,
+          "protein_g": 22.66,
+          "fat_g": 10.2,
+          "carbs_g": 66.94
+        },
+        "target": {
+          "kcal": 2600,
+          "protein_g": 133.57,
+          "fat_g": 72.2,
+          "carbs_g": 340.1
+        },
+        "remaining": {
+          "kcal": 2158.44,
+          "protein_g": 110.91,
+          "fat_g": 62.0,
+          "carbs_g": 273.16
+        }
+      },
+      {
+        "date": "2026-11-06",
+        "day_type": "rest",
+        "meals": [
+          {
+            "meal_id": "m10",
+            "slot": "snack",
+            "item_ids": [
+              "bar"
+            ],
+            "total": {
+              "kcal": 200.5,
+              "protein_g": 20.1,
+              "fat_g": 6.2,
+              "carbs_g": 14.3
+            }
+          }
+        ],
+        "total": {
+          "kcal": 200.5,
+          "protein_g": 20.1,
+          "fat_g": 6.2,
+          "carbs_g": 14.3
+        },
+        "target": {
+          "kcal": 2200,
+          "protein_g": 133.57,
+          "fat_g": 61.1,
+          "carbs_g": 280.3
+        },
+        "remaining": {
+          "kcal": 1999.5,
+          "protein_g": 113.47,
+          "fat_g": 54.9,
+          "carbs_g": 266.0
+        }
+      },
+      {
+        "date": "2026-11-07",
+        "day_type": "rest",
+        "meals": [
+          {
+            "meal_id": "f6e5d4c3b2a1",
+            "slot": "dinner",
+            "item_ids": [
+              "0a1b2c3d4e5f"
+            ],
+            "total": {
+              "kcal": 180.7,
+              "protein_g": 5.2,
+              "fat_g": 1.9,
+              "carbs_g": 38.4
+            }
+          },
+          {
+            "meal_id": "a1b2c3d4e5f6",
+            "slot": "snack",
+            "item_ids": [
+              "0a1b2c3d4e5f"
+            ],
+            "total": {
+              "kcal": 180.7,
+              "protein_g": 5.2,
+              "fat_g": 1.9,
+              "carbs_g": 38.4
+            }
+          }
+        ],
+        "total": {
+          "kcal": 361.4,
+          "protein_g": 10.4,
+          "fat_g": 3.8,
+          "carbs_g": 76.8
+        },
+        "target": {
+          "kcal": 2200,
+          "protein_g": 133.57,
+          "fat_g": 61.1,
+          "carbs_g": 280.3
+        },
+        "remaining": {
+          "kcal": 1838.6,
+          "protein_g": 123.16999999999999,
+          "fat_g": 57.300000000000004,
+          "carbs_g": 203.5
+        }
+      },
+      {
+        "date": "2026-11-08",
+        "day_type": "training",
+        "meals": [
+          {
+            "meal_id": "m8a",
+            "slot": "breakfast",
+            "item_ids": [
+              "milk",
+              "egg",
+              "toast"
+            ],
+            "total": {
+              "kcal": 0.6,
+              "protein_g": 0.6000000000000001,
+              "fat_g": 0.8999999999999999,
+              "carbs_g": 0.6
+            }
+          },
+          {
+            "meal_id": "m8b",
+            "slot": "breakfast",
+            "item_ids": [
+              "y"
+            ],
+            "total": {
+              "kcal": 62.1,
+              "protein_g": 3.6,
+              "fat_g": 3.0,
+              "carbs_g": 4.9
+            }
+          }
+        ],
+        "total": {
+          "kcal": 62.7,
+          "protein_g": 4.2,
+          "fat_g": 3.9,
+          "carbs_g": 5.5
+        },
+        "target": {
+          "kcal": 2600,
+          "protein_g": 133.57,
+          "fat_g": 72.2,
+          "carbs_g": 340.1
+        },
+        "remaining": {
+          "kcal": 2537.3,
+          "protein_g": 129.37,
+          "fat_g": 68.3,
+          "carbs_g": 334.6
+        }
+      }
+    ],
+    "weekly": {
+      "recorded_days": 6,
+      "average": {
+        "kcal": 292.7933333333333,
+        "protein_g": 19.043333333333333,
+        "fat_g": 4.949999999999999,
+        "carbs_g": 44.77333333333334
+      },
+      "average_target": {
+        "kcal": 2400.0,
+        "protein_g": 133.57,
+        "fat_g": 66.65,
+        "carbs_g": 310.2
+      },
+      "gap": {
+        "kcal": -2107.206666666667,
+        "protein_g": -114.52666666666666,
+        "fat_g": -61.7,
+        "carbs_g": -265.4266666666666
+      },
+      "days": [
+        {
+          "date": "2026-11-02",
+          "day_type": "rest",
+          "recorded": true,
+          "total": {
+            "kcal": 270.3,
+            "protein_g": 29.6,
+            "fat_g": 3.5,
+            "carbs_g": 30.900000000000002
+          }
+        },
+        {
+          "date": "2026-11-03",
+          "day_type": "training",
+          "recorded": true,
+          "total": {
+            "kcal": 420.3,
+            "protein_g": 27.3,
+            "fat_g": 2.1,
+            "carbs_g": 74.2
+          }
+        },
+        {
+          "date": "2026-11-04",
+          "day_type": "rest",
+          "recorded": false,
+          "total": {
+            "kcal": 0,
+            "protein_g": 0,
+            "fat_g": 0,
+            "carbs_g": 0
+          }
+        },
+        {
+          "date": "2026-11-05",
+          "day_type": "training",
+          "recorded": true,
+          "total": {
+            "kcal": 441.56000000000006,
+            "protein_g": 22.66,
+            "fat_g": 10.2,
+            "carbs_g": 66.94
+          }
+        },
+        {
+          "date": "2026-11-06",
+          "day_type": "rest",
+          "recorded": true,
+          "total": {
+            "kcal": 200.5,
+            "protein_g": 20.1,
+            "fat_g": 6.2,
+            "carbs_g": 14.3
+          }
+        },
+        {
+          "date": "2026-11-07",
+          "day_type": "rest",
+          "recorded": true,
+          "total": {
+            "kcal": 361.4,
+            "protein_g": 10.4,
+            "fat_g": 3.8,
+            "carbs_g": 76.8
+          }
+        },
+        {
+          "date": "2026-11-08",
+          "day_type": "training",
+          "recorded": true,
+          "total": {
+            "kcal": 62.7,
+            "protein_g": 4.2,
+            "fat_g": 3.9,
+            "carbs_g": 5.5
+          }
+        }
+      ]
+    }
+  }
+}

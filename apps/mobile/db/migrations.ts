@@ -92,6 +92,59 @@ CREATE TABLE settings (
       }
     },
   },
+  {
+    // 食事（docs/meals-design.md）。列の名前は同期の項目（services/meals/meals/infrastructure/sync_entities.py）と同じ。
+    // meal_items：品目の ID は食事の中でだけ一意（MCP の複製といつものは、元の品目の ID をそのまま使う）。そこで (meal_id, id) を主キーにする
+    // meal_templates：いつもの。id は名前から決める（lib/meals.ts の templateId）。items は品目の一覧の JSON（一覧ごと置き換える）
+    // nutrition_goals：目標。id は 'current' だけ。targets は筋トレの日と休みの日の目標の JSON（両方あるか、NULL）
+    // day_types：本人が決めた日の種類。id は日付
+    version: 2,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE meals (
+  id TEXT PRIMARY KEY NOT NULL,
+  date TEXT NOT NULL,
+  slot TEXT NOT NULL CHECK (slot IN ('breakfast', 'lunch', 'dinner', 'snack')),
+  time TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL CHECK (source IN ('photo', 'text', 'numbers', 'copy', 'template')),${SYNC_COLUMNS}
+);
+CREATE INDEX meals_date ON meals (date);
+CREATE TABLE meal_items (
+  meal_id TEXT NOT NULL REFERENCES meals(id),
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  unit TEXT NOT NULL CHECK (unit IN ('g', 'ml', '個', '杯')),
+  kcal REAL NOT NULL,
+  protein_g REAL NOT NULL,
+  fat_g REAL NOT NULL,
+  carbs_g REAL NOT NULL,
+  confidence TEXT NOT NULL CHECK (confidence IN ('high', 'medium', 'low')),
+  sort_order INTEGER NOT NULL,${SYNC_COLUMNS},
+  PRIMARY KEY (meal_id, id)
+);
+CREATE TABLE meal_templates (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  items TEXT NOT NULL,${SYNC_COLUMNS}
+);
+CREATE TABLE nutrition_goals (
+  id TEXT PRIMARY KEY NOT NULL,
+  policy TEXT NOT NULL CHECK (policy IN ('bulk', 'maintain', 'cut')),
+  body_weight_kg REAL,
+  protein_per_kg REAL,
+  targets TEXT,
+  eating_style TEXT,
+  target_weight_kg REAL,${SYNC_COLUMNS}
+);
+CREATE TABLE day_types (
+  id TEXT PRIMARY KEY NOT NULL,
+  day_type TEXT NOT NULL CHECK (day_type IN ('training', 'rest')),${SYNC_COLUMNS}
+);
+`);
+    },
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
