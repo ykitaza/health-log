@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 import httpx
 
 from oauth.models import Client, is_client_id_url
@@ -14,15 +16,21 @@ class CimdClientDirectory:
 
     SSRF の対策として、https の URL だけを、リダイレクトをたどらず、5秒・5KB までで取りに行く。
     allow_loopback_http は PC で動かすときだけ True にする（localhost の http も取りに行く）。
+    allowed_hosts を渡すと、そのホスト（既定のポート）の URL だけを取りに行く。None なら絞らない（PC で動かすとき）。
     """
 
-    def __init__(self, http_get=None, *, allow_loopback_http: bool = False):
+    def __init__(self, http_get=None, *, allow_loopback_http: bool = False, allowed_hosts: frozenset[str] | None = None):
         self.http_get = http_get or self._get
         self.allow_loopback_http = allow_loopback_http
+        self.allowed_hosts = allowed_hosts
 
     def find(self, client_id: str) -> Client:
         if not is_client_id_url(client_id, allow_loopback_http=self.allow_loopback_http):
             raise ClientRejected("client_id は https の URL である必要があります")
+        if self.allowed_hosts is not None:
+            url = urlsplit(client_id)
+            if url.hostname not in self.allowed_hosts or url.port is not None:
+                raise ClientRejected("このクライアントには対応していません")
         try:
             res = self.http_get(client_id)
         except httpx.HTTPError:

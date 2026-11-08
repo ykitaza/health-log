@@ -415,6 +415,22 @@ def test_lambda_does_not_fetch_localhost_client_id(monkeypatch, login):
     assert token.json["error"] == "invalid_client"
 
 
+@pytest.mark.parametrize(("on_lambda", "client_id", "fetched_expected"), [
+    (True, "https://client.example/metadata.json", False),  # Lambda：Claude と ChatGPT 以外には取りに行かない
+    (True, "https://chatgpt.com/oauth/client.json", True),
+    (True, "https://claude.ai/oauth/mcp-oauth-client-metadata", True),
+    (False, "https://client.example/metadata.json", True),  # PC：絞らない
+])
+def test_lambda_fetches_metadata_only_from_claude_and_chatgpt(monkeypatch, login, on_lambda, client_id, fetched_expected):
+    fetched = []
+    real_client = httpx.Client
+    transport = httpx.MockTransport(lambda request: fetched.append(str(request.url)) or httpx.Response(404))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: real_client(transport=transport, **kwargs))
+    res = app_for(on_lambda, login).get("/authorize", query_string=authorize_params(client_id=client_id))
+    assert res.status_code == 400  # 文書は 404 なので、どちらもエラー画面
+    assert fetched == ([client_id] if fetched_expected else [])
+
+
 def test_local_pc_accepts_localhost_client_id(monkeypatch, login):
     # PC（README の手順）では、自分の PC の中のクライアント（MCP Inspector など）を http の localhost で使える
     doc = {"client_id": LOCAL_CLIENT_ID, "client_name": "Local", "redirect_uris": ["http://localhost/callback"]}

@@ -17,6 +17,9 @@ from presentation.routes import LoginGateway, create_blueprint
 
 # MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）
 MCP_SCOPES = ("meals:read", "meals:write", "training:read", "training:write")
+# Lambda で CIMD の文書を取りに行ってよいホスト。使うクライアントは Claude（claude.ai と Claude Code）と ChatGPT だけなので、
+# ほかのホストには取りに行かない（知らないクライアントを断り、外への通信を絞る）。PC で動かすときは絞らない（MCP Inspector など）
+CIMD_ALLOWED_HOSTS = frozenset({"claude.ai", "chatgpt.com"})
 
 
 def create_app(
@@ -57,5 +60,7 @@ def create_app(
             client_secret=settings.cognito_client_secret,
             redirect_uri=f"{settings.issuer}/cognito/callback",
         )
-    app.register_blueprint(create_blueprint(server, clients or CimdClientDirectory(allow_loopback_http=local), store, login))
+    if clients is None:
+        clients = CimdClientDirectory(allow_loopback_http=local, allowed_hosts=None if local else CIMD_ALLOWED_HOSTS)
+    app.register_blueprint(create_blueprint(server, clients, store, login))
     return app
