@@ -1,7 +1,7 @@
 [project]
-name = "cognito-study"
+name = "authorization"
 version = "0.1.0"
-description = "Add your description here"
+description = "認可API（OAuth 2.1 の認可サーバー。Flask ＋ Authlib、ログインは Cognito に任せる）"
 requires-python = ">=3.12"
 dependencies = [
     "authlib>=1.8.0",
