@@ -1,4 +1,5 @@
 import { toCsv } from '../csv';
+import { formatSetLong, formatSetShort, tonnes } from '../format';
 import { copyOf, hasChanges, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '../units';
 
@@ -86,8 +87,6 @@ describe('セットの入力の確認', () => {
 test('CSV は必要なときだけ引用符で囲む', () => {
   expect(toCsv(['a', 'b'], [['x,y', 'say "hi"'], [1, null]])).toBe('a,b\r\n"x,y","say ""hi"""\r\n1,\r\n');
 });
-
-import { formatSetLong, formatSetShort, tonnes } from '../format';
 
 test('セットの表示', () => {
   expect(formatSetLong(80, 8, 'kg')).toBe('80.0 kg × 8 回');

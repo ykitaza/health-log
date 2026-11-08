@@ -1,5 +1,5 @@
 import { expect, Locator, Page, test } from '@playwright/test';
-import { button, controlDb, enter, openApp, openBody, see, setBodyInfo } from './helpers';
+import { button, controlDb, enter, openApp, openBody, pressKeepingFocus, see, setBodyInfo } from './helpers';
 
 /** 自動で計算のカード（BMI など）の値 */
 const computed = (page: Page, label: string): Locator => page.getByRole('button', { name: `${label}の推移` }).filter({ visible: true }).last();
@@ -120,6 +120,18 @@ test('不正な値（範囲の外、負の数、数字でない）は保存し�
   await expect(field(page, '体重')).toHaveValue('');
 });
 
+test('メモは 1000 文字で止まる', async ({ page }) => {
+  await openApp(page);
+  await openBody(page);
+  await enter(page, 'ウエスト', '80');
+  await enter(page, 'メモ（例：朝・起床後に計測）', 'あ'.repeat(1001));
+  await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('あ'.repeat(1000));
+  await expectInTrend(page, 'ウエスト', ['80.0', 'あ'.repeat(1000)]);
+  await page.reload();
+  await openBody(page);
+  await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('あ'.repeat(1000));
+});
+
 test('範囲の両端は受ける：体重 30〜300kg、体脂肪率と筋肉率 0〜100%、ウエスト 30〜200cm', async ({ page }) => {
   await openApp(page);
   await openBody(page);
@@ -152,6 +164,28 @@ test('日付の移動。先の日には進めず、入力中に日を変えて�
   await button(page, '次の日').click();
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
   await expect(field(page, '体重')).toHaveValue('68.4');
+  await button(page, '前の日').click();
+  await expect(field(page, '体重')).toHaveValue('69');
+});
+
+test('欄を離れないまま（Android のように blur が起きずに）日を変えても、元の日に保存する', async ({ page }) => {
+  await openApp(page);
+  await openBody(page);
+  await field(page, '体重').fill('68.4');
+  await field(page, 'ウエスト').fill('80');
+  await field(page, 'メモ（例：朝・起床後に計測）').fill('朝');
+  await pressKeepingFocus(button(page, '前の日'));
+  await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
+  await expect(field(page, 'ウエスト')).toHaveValue('');
+  await field(page, '体重').fill('69');
+  await pressKeepingFocus(button(page, '次の日'));
+  await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
+  await expect(field(page, 'ウエスト')).toHaveValue('80');
+  await page.reload();
+  await openBody(page);
+  await expect(field(page, '体重')).toHaveValue('68.4');
+  await expect(field(page, 'ウエスト')).toHaveValue('80');
+  await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('朝');
   await button(page, '前の日').click();
   await expect(field(page, '体重')).toHaveValue('69');
 });

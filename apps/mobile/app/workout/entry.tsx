@@ -12,6 +12,7 @@ import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
+import { MEMO_MAX_LENGTH } from '@/lib/limits';
 import { copyOf, hasChanges, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
@@ -42,6 +43,8 @@ export default function EntryScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  // 保存の途中か。saving（ボタンを押せなくする）は描き直すまで効かないので、続けて届いた2回目はこれで止める
+  const savingRef = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -120,11 +123,13 @@ export default function EntryScreen() {
   };
 
   const save = async () => {
+    if (savingRef.current) return;
     const errs = validateSets(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
     const sets = toSetInputs(drafts, exercise.recordType, unit);
     if (sets.length === 0) { setFormError('セットを1つ以上入れてください'); return; }
+    savingRef.current = true;
     setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
@@ -133,6 +138,7 @@ export default function EntryScreen() {
       else router.replace({ pathname: '/workout', params: { date } });
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -228,8 +234,8 @@ export default function EntryScreen() {
                   <Icon name="check" size={20} color={d.done ? colors.onAccent : colors.sub} />
                 </Pressable>
               </View>
-              {(err?.weight || err?.reps) && (
-                <T size={12} color={colors.danger} style={{ marginLeft: 38 }}>{[err.weight, err.reps].filter(Boolean).join('・')}</T>
+              {(err?.weight || err?.reps || err?.memo) && (
+                <T size={12} color={colors.danger} style={{ marginLeft: 38 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 38 }}>
                 <View style={s.memo}>
@@ -237,6 +243,7 @@ export default function EntryScreen() {
                   <TextInput
                     value={d.memo}
                     onChangeText={(t) => update(d.key, { memo: t })}
+                    maxLength={MEMO_MAX_LENGTH}
                     placeholder="メモを追加"
                     placeholderTextColor={colors.sub}
                     accessibilityLabel={`セット${i + 1}のメモ`}

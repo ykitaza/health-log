@@ -37,7 +37,7 @@ export function workoutRepository(db: Db, deps: Deps) {
     const ids = rows.map((r) => r.id);
     const sets = await db.getAllAsync<SetRow>(
       `SELECT id, entry_id, set_index, weight_kg, reps, memo, done FROM workout_sets
-       WHERE deleted_at IS NULL AND entry_id IN (${ids.map(() => '?').join(',')}) ORDER BY set_index`, ids,
+       WHERE deleted_at IS NULL AND entry_id IN (${ids.map(() => '?').join(',')}) ORDER BY set_index, id`, ids,
     );
     const byEntry = new Map<string, SetRecord[]>();
     for (const s of sets) {
@@ -55,7 +55,7 @@ export function workoutRepository(db: Db, deps: Deps) {
   return serializeWrites(db, {
     /** その日の記録（実施した順） */
     async getDay(date: DateKey): Promise<Entry[]> {
-      const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.date = ? ORDER BY w.sort_order`, [date]);
+      const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.date = ? ORDER BY w.sort_order, w.id`, [date]);
       return withSets(rows);
     },
 
@@ -72,7 +72,7 @@ export function workoutRepository(db: Db, deps: Deps) {
     /** その日より前の、いちばん新しい記録（「前回」） */
     async previousEntry(exerciseId: string, beforeDate: DateKey): Promise<Entry | null> {
       const rows = await db.getAllAsync<EntryRow>(
-        `${ENTRY_SELECT} AND w.exercise_id = ? AND w.date < ? ORDER BY w.date DESC LIMIT 1`, [exerciseId, beforeDate],
+        `${ENTRY_SELECT} AND w.exercise_id = ? AND w.date < ? ORDER BY w.date DESC, w.sort_order DESC, w.id DESC LIMIT 1`, [exerciseId, beforeDate],
       );
       return (await withSets(rows))[0] ?? null;
     },
@@ -165,7 +165,7 @@ export function workoutRepository(db: Db, deps: Deps) {
          JOIN workout_entries w ON w.id = s.entry_id
          JOIN exercises e ON e.id = w.exercise_id
          WHERE s.deleted_at IS NULL AND w.deleted_at IS NULL
-         ORDER BY w.date, w.sort_order, s.set_index`, [],
+         ORDER BY w.date, w.sort_order, w.id, s.set_index, s.id`, [],
       );
       return rows.map((r) => ({ date: r.date, exerciseId: r.exercise_id, bodyPartId: r.body_part_id, weightKg: r.weight_kg, reps: r.reps }));
     },
@@ -179,7 +179,7 @@ export function workoutRepository(db: Db, deps: Deps) {
          JOIN exercises e ON e.id = w.exercise_id
          JOIN body_parts p ON p.id = e.body_part_id
          WHERE s.deleted_at IS NULL AND w.deleted_at IS NULL
-         ORDER BY w.date, w.sort_order, s.set_index`, [],
+         ORDER BY w.date, w.sort_order, w.id, s.set_index, s.id`, [],
       );
     },
   }, ['saveEntry', 'deleteEntry', 'moveEntry']);

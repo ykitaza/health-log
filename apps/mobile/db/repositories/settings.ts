@@ -25,29 +25,34 @@ function num(v: string | null | undefined): number | null {
 }
 
 export function settingsRepository(db: Db, deps: Deps) {
-  return serializeWrites(db, {
-    async get(): Promise<Settings> {
-      const rows = await db.getAllAsync<{ id: string; value: string | null }>(
-        'SELECT id, value FROM settings WHERE deleted_at IS NULL', [],
-      );
-      const m = new Map(rows.map((r) => [r.id, r.value]));
-      const unit = m.get(KEYS.weightUnit);
-      const sets = num(m.get(KEYS.defaultSetCount));
-      return {
-        weightUnit: unit === 'lb' ? 'lb' : 'kg',
-        defaultSetCount: sets != null && sets >= 1 && sets <= 6 ? Math.round(sets) : DEFAULT_SETTINGS.defaultSetCount,
-        heightCm: num(m.get(KEYS.heightCm)),
-        goalWeightKg: num(m.get(KEYS.goalWeightKg)),
-      };
-    },
+  async function get(): Promise<Settings> {
+    const rows = await db.getAllAsync<{ id: string; value: string | null }>(
+      'SELECT id, value FROM settings WHERE deleted_at IS NULL', [],
+    );
+    const m = new Map(rows.map((r) => [r.id, r.value]));
+    const unit = m.get(KEYS.weightUnit);
+    const sets = num(m.get(KEYS.defaultSetCount));
+    return {
+      weightUnit: unit === 'lb' ? 'lb' : 'kg',
+      defaultSetCount: sets != null && sets >= 1 && sets <= 6 ? Math.round(sets) : DEFAULT_SETTINGS.defaultSetCount,
+      heightCm: num(m.get(KEYS.heightCm)),
+      goalWeightKg: num(m.get(KEYS.goalWeightKg)),
+    };
+  }
 
+  return serializeWrites(db, {
+    get,
+
+    /** 今の値（初期値を含む）と同じ項目は書かない */
     async update(patch: Partial<Settings>): Promise<void> {
       const now = deps.now().toISOString();
       if (patch.defaultSetCount != null && (patch.defaultSetCount < 1 || patch.defaultSetCount > 6)) {
         throw new Error('セット数の初期値は1〜6です');
       }
+      const current = await get();
       await db.withTransactionAsync(async () => {
         for (const [k, v] of Object.entries(patch) as [keyof Settings, Settings[keyof Settings]][]) {
+          if (v === undefined || current[k] === v) continue;
           const value = v == null ? null : String(v);
           await db.runAsync(
             `INSERT INTO settings (id, value, created_at, updated_at) VALUES (?, ?, ?, ?)

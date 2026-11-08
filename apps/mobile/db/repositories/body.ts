@@ -39,16 +39,24 @@ export function bodyRepository(db: Db, deps: Deps) {
       return dailyBodyValues(rows.map(toLike))[0] ?? null;
     },
 
-    /** 手入力の値を保存する（null を渡すと、その項目を消す） */
+    /**
+     * 手入力の値を保存する（null を渡すと、その項目を消す）。今の値と同じ項目は書かない。
+     * その日に手入力の行がなく、値がすべて空（null か空のメモ）なら、行を作らない
+     */
     async saveManual(date: DateKey, patch: BodyPatch): Promise<void> {
-      const entries = Object.entries(patch).filter(([, v]) => v !== undefined) as [keyof BodyPatch, number | string | null][];
+      const all = Object.entries(patch).filter(([, v]) => v !== undefined) as [keyof BodyPatch, number | string | null][];
+      const existing = await db.getFirstAsync<Row>(
+        `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo
+         FROM body_records WHERE deleted_at IS NULL AND source = 'manual' AND date = ?
+         ORDER BY measured_at DESC LIMIT 1`, [date],
+      );
+      const empty = (k: keyof BodyPatch, v: number | string | null) => (k === 'memo' ? (v ?? '') === '' : v == null);
+      const entries = existing
+        ? all.filter(([k, v]) => (k === 'memo' ? (v ?? '') : v) !== existing[COLUMNS[k] as keyof Row])
+        : all.filter(([k, v]) => !empty(k, v));
       if (entries.length === 0) return;
       const now = deps.now();
       const nowIso = now.toISOString();
-      const existing = await db.getFirstAsync<{ id: string }>(
-        `SELECT id FROM body_records WHERE deleted_at IS NULL AND source = 'manual' AND date = ?
-         ORDER BY measured_at DESC LIMIT 1`, [date],
-      );
       if (existing) {
         const sets = entries.map(([k]) => `${COLUMNS[k]} = ?`).join(', ');
         await db.runAsync(

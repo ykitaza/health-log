@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
@@ -10,7 +10,7 @@ import { useFocusData } from '@/hooks/data';
 import { BodyMetric, bmi, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, addMonths, formatJpDate, todayKey } from '@/lib/date';
-import { Limit, LIMITS, parseInRange } from '@/lib/limits';
+import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -38,13 +38,18 @@ export default function BodyScreen() {
   const day = data?.daily.find((d) => d.date === date) ?? null;
   const [texts, setTexts] = useState<Texts>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
   const [error, setError] = useState<string | null>(null);
+  // 打ったが、まだ保存していない欄。Android では、入力中に「前の日」「次の日」を押しても欄を離れない（onBlur が起きない）ため、
+  // 日を変える前に、これを元の日に保存する
+  const editing = useRef(new Set<keyof Texts>());
 
   // その日の保存済みの値を、欄に出す文字にしたもの
-  const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
-  const savedTexts: Texts = {
-    weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
-    bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
-  };
+  const savedTexts = useMemo((): Texts => {
+    const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
+    return {
+      weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
+      bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
+    };
+  }, [day, unit]);
   // 前に欄へ出した値（日付・単位と組で）
   const shown = useRef<{ date: string; unit: string; texts: Texts } | null>(null);
   useEffect(() => {
@@ -52,20 +57,23 @@ export default function BodyScreen() {
     shown.current = { date, unit, texts: savedTexts };
     // 日付・単位を変えたときは、すべての欄を埋め直す
     if (!prev || prev.date !== date || prev.unit !== unit) {
+      editing.current.clear();
       setTexts(savedTexts);
       setError(null);
       return;
     }
     // 読み直したとき（保存のあとなど）は、手で変えていない欄（前に出した値のまま）だけを、保存済みの値にそろえる。
     // 入力中の欄は消さない。保存が終わる前に日を移って戻ると、古いデータで埋めた欄が空のまま残り、触れて離れると値を消していた
+    // 読み直しても値が同じなら、欄はそのまま（描き直さない）
     setTexts((x) => {
       const next = { ...x };
       for (const k of Object.keys(next) as (keyof Texts)[]) if (x[k] === prev.texts[k]) next[k] = savedTexts[k];
-      return next;
+      return (Object.keys(next) as (keyof Texts)[]).every((k) => next[k] === x[k]) ? x : next;
     });
-  }, [date, unit, JSON.stringify(savedTexts)]);
+  }, [date, unit, savedTexts]);
 
   const commit = async (f: Field) => {
+    editing.current.delete(f);
     const t = texts[f];
     // 出した値のままなら保存しない（lb で出した体重を kg に戻すと、丸めで値が変わるため）
     const saved = day?.[f];
@@ -84,9 +92,21 @@ export default function BodyScreen() {
     reload();
   };
   const commitMemo = async () => {
+    editing.current.delete('memo');
     if (texts.memo.trim() === (day?.memo ?? '')) return;
+    const tooLong = memoLengthError(texts.memo);
+    if (tooLong) { setError(tooLong); return; }
+    setError(null);
     await repos.body.saveManual(date, { memo: texts.memo.trim() });
     reload();
+  };
+  // 日を変える。保存していない欄は、先に今の日へ保存する（保存は順に行うので、日を変えたあとに終わっても元の日に入る）
+  const changeDate = (next: string) => {
+    for (const k of [...editing.current]) {
+      if (k === 'memo') commitMemo();
+      else commit(k);
+    }
+    setDate(next);
   };
 
   const height = data?.settings.heightCm ?? null;
@@ -116,9 +136,9 @@ export default function BodyScreen() {
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} />
       </View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
+        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, padding: 0 }}>
@@ -127,7 +147,7 @@ export default function BodyScreen() {
             <T size={15} color={colors.sub} style={{ flex: 1 }}>{f.label}</T>
             <TextInput
               value={texts[f.key]}
-              onChangeText={(t) => setTexts((x) => ({ ...x, [f.key]: t }))}
+              onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
               onBlur={() => commit(f.key)}
               onSubmitEditing={() => commit(f.key)}
               keyboardType="decimal-pad"
@@ -145,8 +165,9 @@ export default function BodyScreen() {
           <Icon name="pencil" size={16} color={colors.sub} />
           <TextInput
             value={texts.memo}
-            onChangeText={(t) => setTexts((x) => ({ ...x, memo: t }))}
+            onChangeText={(t) => { editing.current.add('memo'); setTexts((x) => ({ ...x, memo: t })); }}
             onBlur={commitMemo}
+            maxLength={MEMO_MAX_LENGTH}
             placeholder="メモ（例：朝・起床後に計測）"
             placeholderTextColor={colors.sub}
             style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}

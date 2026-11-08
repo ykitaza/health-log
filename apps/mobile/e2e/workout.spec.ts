@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { addEntry, button, chooseExercise, fillSets, moveToDate, openApp, recordOn, saveButton, TODAY, see } from './helpers';
+import { addEntry, button, chooseExercise, controlDb, fillSets, moveToDate, openApp, recordOn, saveButton, TODAY, see } from './helpers';
 
 /** ホームから今日のトレーニングを開く */
 async function openToday(page: Page) {
@@ -189,6 +189,7 @@ test.describe('重量と回数の入力の確かめ', () => {
     { name: '回数が空', weight: '80', reps: '', error: '回数を入れてください' },
     { name: '回数が 0', weight: '80', reps: '0', error: '回数を入れてください' },
     { name: '回数が小数', weight: '80', reps: '8.5', error: '回数は整数で入れてください' },
+    { name: '回数が 10000 回を超える', weight: '80', reps: '10001', error: '回数は 10000 回までで入れてください' },
   ];
   for (const c of cases) {
     test(`${c.name}なら保存しない`, async ({ page }) => {
@@ -215,6 +216,13 @@ test.describe('重量と回数の入力の確かめ', () => {
     await expect(see(page, '入力を確かめてください')).toBeHidden();
     await saveButton(page).click();
     await expect(see(page, '80.0 kg × 5 回')).toBeVisible();
+  });
+
+  test('メモは 1000 文字で止まり、回数は 10000 回まで受ける', async ({ page }) => {
+    await fillSets(page, [{ weight: '80', reps: '10000', memo: 'あ'.repeat(1001) }]);
+    await expect(page.getByLabel('セット1のメモ', { exact: true })).toHaveValue('あ'.repeat(1000));
+    await saveButton(page).click();
+    await expect(see(page, '80.0 kg × 10000 回')).toBeVisible();
   });
 
   test('小数、全角の数字、「,」の小数点、上限の 500kg は受ける', async ({ page }) => {
@@ -318,6 +326,27 @@ test('↑ を素早く2回押しても、2つ上がる', async ({ page }) => {
   await page.reload();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);
   expect(errors).toEqual([]);
+});
+
+test('保存のボタンを2回押しても、記録は1つだけ', async ({ page }) => {
+  // 保存が終わる前（ボタンが押せなくなる前）に2回目が届くときを、DB の返事を止めて毎回作る
+  const db = await controlDb(page);
+  await openApp(page);
+  await openToday(page);
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'ベンチプレス');
+  await fillSets(page, [{ weight: '80', reps: '8' }]);
+  await db.hold();
+  // 2回の押下を、画面が描き直す前に続けて届ける
+  await saveButton(page).evaluate((el) => { (el as HTMLElement).click(); (el as HTMLElement).click(); });
+  await db.release();
+  // 1つ前の画面（その日のトレーニング）に戻る。2回戻ってホームまで行かない
+  await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
+  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await page.goto('/');
+  await openToday(page);
+  await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toHaveCount(1);
+  await expect(see(page, '80.0 kg × 8 回')).toHaveCount(1);
 });
 
 test('同じ日に同じ種目を選ぶと、新しく足さずに既存の記録が開く', async ({ page }) => {

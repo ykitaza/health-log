@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Share, TextInput, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -16,25 +16,31 @@ export default function SettingsScreen() {
   const [goal, setGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  // 打ったが、まだ保存していない欄。Android では、入力中に単位を押しても欄を離れない（onBlur が起きない）ため、
+  // 単位を変える前に、これを今の単位で保存する
+  const editing = useRef(new Set<'height' | 'goal'>());
 
   const unit = settings?.weightUnit ?? 'kg';
   // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
-  const loaded = settings != null;
+  const shownUnit = useRef<WeightUnit | null>(null);
   useEffect(() => {
-    if (!settings) return;
+    if (!settings || shownUnit.current === settings.weightUnit) return;
+    shownUnit.current = settings.weightUnit;
     setHeight(settings.heightCm == null ? '' : trimNumber(settings.heightCm));
     setGoal(settings.goalWeightKg == null ? '' : trimNumber(kgToUnit(settings.goalWeightKg, settings.weightUnit)));
-  }, [loaded, settings?.weightUnit]);
+  }, [settings]);
 
   const save = async (patch: Parameters<typeof repos.settings.update>[0]) => { await repos.settings.update(patch); reload(); };
 
   const saveHeight = () => {
+    editing.current.delete('height');
     const parsed = parseInRange(height, LIMITS.height);
     if ('error' in parsed) { setMessage(parsed.error); return; }
     setMessage(null);
     save({ heightCm: parsed.value });
   };
   const saveGoal = () => {
+    editing.current.delete('goal');
     // 出した値のままなら保存しない（lb で出した目標体重を kg に戻すと、丸めで値が変わるため）
     const saved = settings?.goalWeightKg;
     if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { setMessage(null); return; }
@@ -42,6 +48,12 @@ export default function SettingsScreen() {
     if ('error' in parsed) { setMessage(parsed.error); return; }
     setMessage(null);
     save({ goalWeightKg: parsed.value });
+  };
+
+  const changeUnit = (u: WeightUnit) => {
+    if (editing.current.has('height')) saveHeight();
+    if (editing.current.has('goal')) saveGoal();
+    save({ weightUnit: u });
   };
 
   const exportCsv = async () => {
@@ -68,7 +80,7 @@ export default function SettingsScreen() {
       <Card style={{ gap: 14 }}>
         <View style={{ gap: 8 }}>
           <T bold size={16}>重さの単位</T>
-          <Segmented<WeightUnit> options={[{ key: 'kg', label: 'kg' }, { key: 'lb', label: 'lb' }]} value={unit} onChange={(u) => save({ weightUnit: u })} />
+          <Segmented<WeightUnit> options={[{ key: 'kg', label: 'kg' }, { key: 'lb', label: 'lb' }]} value={unit} onChange={changeUnit} />
         </View>
         <View style={{ gap: 8 }}>
           <T bold size={16}>セット数の初期値</T>
@@ -83,8 +95,8 @@ export default function SettingsScreen() {
 
       <SectionTitle title="体の情報" />
       <Card style={{ gap: 12 }}>
-        <Field label="身長" unit="cm" value={height} onChange={setHeight} onDone={saveHeight} />
-        <Field label="目標体重" unit={unit} value={goal} onChange={setGoal} onDone={saveGoal} />
+        <Field label="身長" unit="cm" value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
+        <Field label="目標体重" unit={unit} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
         {message && <T size={12} color={colors.danger}>{message}</T>}
         <T size={12} color={colors.sub}>身長は体組成の自動計算（BMI など）に、目標体重は体組成の「目標体重まで」に使います。空にすると消えます。</T>
       </Card>

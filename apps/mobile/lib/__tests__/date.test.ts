@@ -1,3 +1,4 @@
+import { dateLabels, datePoints, niceTicks } from '../chart';
 import { addDays, addMonths, daysBetween, formatJpDate, monthMatrix, relativeDays, toDateKey, weekStart } from '../date';
 
 test('日付の文字列と日数の計算', () => {
@@ -33,15 +34,11 @@ test('表示の形', () => {
   expect(relativeDays('2026-11-08', '2026-11-08')).toBe('今日');
 });
 
-import { dateLabels, datePoints } from '../chart';
-
 test('グラフの横の位置と目盛り', () => {
   const pts = datePoints([{ date: '2026-11-01', v: 1 }, { date: '2026-11-08', v: 2 }], (i) => i.v, '2026-11-01', '2026-11-11');
   expect(pts).toEqual([{ x: 0, y: 1 }, { x: 0.7, y: 2 }]);
   expect(dateLabels('2026-11-01', '2026-11-10', 4).map((l) => l.label)).toEqual(['11/1', '11/4', '11/7', '11/10']);
 });
-
-import { niceTicks } from '../chart';
 
 test('縦軸の目盛りは最小と最大を含む', () => {
   expect(niceTicks(95, 101.3)).toEqual([95, 100, 105]);
