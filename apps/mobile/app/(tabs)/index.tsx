@@ -48,7 +48,7 @@ export default function HomeScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      <Card style={{ flexDirection: 'row', gap: 10, padding: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         <View style={{ flex: 1.55 }}>
           <T num bold size={28} style={{ marginBottom: 8 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
           <MonthCalendar
@@ -87,7 +87,7 @@ export default function HomeScreen() {
           <VolumeCard testID="volume-28d" title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} />
           <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} />
         </View>
-      </Card>
+      </View>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Button
