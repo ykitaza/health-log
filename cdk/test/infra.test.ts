@@ -138,6 +138,15 @@ describe('スマホアプリ用のクライアント', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 2);
   });
 
+  test('Lambda のロググループは、3つとも CDK が作り、90日残す（論理 ID は今のまま）', () => {
+    for (const id of ['AuthzFunctionLogGroup5336A532', 'MealsFunctionLogGroupAA05EA7B', 'AppApiFunctionLogGroupA294EE67']) {
+      const logGroup = (template.toJSON().Resources as Record<string, any>)[id];
+      expect(logGroup.Type).toBe('AWS::Logs::LogGroup');
+      expect(logGroup.Properties.RetentionInDays).toBe(90);
+      expect(logGroup.DeletionPolicy).toBe('Retain');
+    }
+  });
+
   test('監視のスタックが読む関数名を、3つの Lambda について SSM に置く', () => {
     for (const fnId of ['AuthzFunction', 'MealsFunction', 'AppApiFunction']) {
       template.hasResourceProperties('AWS::SSM::Parameter', {

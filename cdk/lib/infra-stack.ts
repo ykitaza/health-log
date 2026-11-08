@@ -369,6 +369,13 @@ export class InfraStack extends cdk.Stack {
     }
     new ssm.StringParameter(this, 'AppApiUrlParam', { parameterName: APP_API_URL_PARAM, stringValue: appHttpApi.apiEndpoint });
 
+    // Lambda のログ（CDK が関数ごとに作るロググループ。機能フラグ @aws-cdk/aws-lambda:useCdkManagedLogGroup）は90日残す。
+    // 既定の2年は長すぎる。90日は、CloudTrail のイベント履歴と同じで、DynamoDB のポイントインタイムリカバリ（35日）より長い。
+    // 量は月に数百 KB なので、費用はほぼ0。スタックを消しても残る（RETAIN。README の「片付け」）
+    for (const fn of [authzFn, mealsFn, appApiFn]) {
+      (fn.node.findChild('LogGroup').node.defaultChild as logs.CfnLogGroup).retentionInDays = logs.RetentionDays.THREE_MONTHS;
+    }
+
     // 監視のスタックが読む、関数名の置き場所（アクセスログのロググループ名と同じく、Export を作らない）
     for (const [fnId, fn] of Object.entries({ AuthzFunction: authzFn, MealsFunction: mealsFn, AppApiFunction: appApiFn })) {
       const parameterName = `${MONITORING_PARAM_PREFIX}/${fnId}/function-name`;

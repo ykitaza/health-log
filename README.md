@@ -179,6 +179,7 @@ PR と main への push では、GitHub Actions（`.github/workflows/test.yml`�
 | Cognito のユーザープール（`cognito-study`） | 削除の保護と RETAIN。ユーザーが消えると `sub` が変わり、記録がたどれなくなるため | コンソールで削除の保護を外してから消す |
 | DynamoDB の `MealsTable`（記録）と `StateTable`（ログインの途中の状態、リフレッシュトークン） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
 | CloudTrail の証跡のバケット | RETAIN。証拠として残すため | 中身を消してから消す（[監視の片付け](docs/monitoring.md#片付け)） |
+| Lambda のロググループ（`/aws/lambda/CognitoStudy-*`。90日で古いものから消える） | RETAIN（CDK の既定）。消したあとに調べられるように残す | 要らなければコンソールか `aws logs delete-log-group` で消す |
 | SSM パラメータ（署名鍵とセッションの秘密） | 認可API が初回の起動で作り、スタックの外にあるため | 下のコマンド |
 
 ```sh

@@ -59,7 +59,7 @@
 | 通知 | 見るもの |
 |---|---|
 | API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
-| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API） |
+| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）。90日残す |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail の操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
