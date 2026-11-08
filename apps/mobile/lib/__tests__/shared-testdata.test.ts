@@ -11,6 +11,7 @@ import {
 const load = (name: string) =>
   JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'testdata', 'training', name), 'utf8'));
 
+type SetCase = { weight_kg: number | null; reps: number | null; expected: number };
 type Row = { date: string; exercise_id: string; body_part_id: string; weight_kg: number | null; reps: number | null };
 const toRow = (r: Row): TrainingSetRow =>
   ({ date: r.date, exerciseId: r.exercise_id, bodyPartId: r.body_part_id, weightKg: r.weight_kg, reps: r.reps });
@@ -18,13 +19,15 @@ const toBest = (b: { exercise_id: string; e1rm: number; weight_kg: number; reps:
   ({ exerciseId: b.exercise_id, e1rm: b.e1rm, weightKg: b.weight_kg, reps: b.reps, date: b.date });
 
 describe('estimated_1rm.json', () => {
-  test.each(load('estimated_1rm.json').cases)('$weight_kg kg × $reps 回', ({ weight_kg, reps, expected }) => {
+  const cases: SetCase[] = load('estimated_1rm.json').cases;
+  test.each(cases)('$weight_kg kg × $reps 回', ({ weight_kg, reps, expected }) => {
     expect(estimated1RM(weight_kg, reps)).toEqual(expected);
   });
 });
 
 describe('set_volume.json', () => {
-  test.each(load('set_volume.json').cases)('$weight_kg kg × $reps 回', ({ weight_kg, reps, expected }) => {
+  const cases: SetCase[] = load('set_volume.json').cases;
+  test.each(cases)('$weight_kg kg × $reps 回', ({ weight_kg, reps, expected }) => {
     expect(setVolume({ weightKg: weight_kg, reps })).toEqual(expected);
   });
 });
