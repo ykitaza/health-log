@@ -295,6 +295,14 @@ Cognito から消したパスキーは、端末に残っていても、もうロ
 | scope | `openid`、`torelog-api/meals.read`・`meals.write`・`training.read`・`training.write` | アプリ用の API のルートで必須にし、ID トークンや認可API 用のクライアントのトークンを断る |
 
 scope はリソースサーバー `torelog-api` に置き、名前は「対象.操作」にして、食事（`meals.*`）と筋トレ（`training.*`）を分けています（MCP の認可API の scope `meals:read` とは別の名前空間です）。
+アプリの側（`apps/mobile/lib/auth/`、`hooks/auth.tsx`、`app/account.tsx`）：
+
+- ログインは任意で、設定の画面から入ります。expo-auth-session（PKCE・state）で認可の画面を Chrome Custom Tabs に開き、毎回 `prompt=login` を付けます
+- アプリが求める scope は `torelog-api/` の4つだけです（ID トークンもユーザー情報も使わないので、`openid` は求めない）
+- **カスタムスキームの横取りの対策**：マネージドログインは、画面でログインすると、ブラウザにセッションの Cookie を置きます。Cookie は1時間有効で、Cookie でのログインでは延びません（[AWS の資料](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-managed-login.html)の「The one-hour managed login and hosted UI session cookie」）。そのあいだ、同じ端末で `torelog://` を登録した別のアプリが、自分の PKCE で `/oauth2/authorize` を開くと、画面なしでコードを受け取り、トークンに換えられます（`prompt=login` は正規のアプリの要求にしか付かない）。そこで、認可コードをトークンに換えたあと（うまくいってもいかなくても）、同じ Custom Tabs で `/logout`（`client_id`、`logout_uri=torelog://signout`）を開いて Cookie を消します。`/logout` はすぐ `torelog://signout` に戻すので、利用者の操作は増えません。根本の対策（https の戻り先と Android App Links）は、まだ入れていません
+- トークンは expo-secure-store に置き、自動バックアップから外します。アクセストークンは切れる1分前から更新し、リフレッシュトークンが切れていたら、ログインしていない状態に戻します。ログアウトでは端末のトークンを消してから `/oauth2/revoke` を呼びます
+- ログインの確認は、アプリ用の API の `GET /v1/sync/changes?after=0&limit=1`（読むだけ）を1回呼びます。本人の情報を返すルートは足していません（API とインフラを変えずに済むため）
+
 アプリが使う値（issuer、クライアント ID、Cognito のドメイン、API の URL）は、`cdk deploy` の出力（`CognitoIssuer`・`AppClientId`・`CognitoDomain`・`AppApiUrl`）と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
 
 ## スマホアプリ用の API

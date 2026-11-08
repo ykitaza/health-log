@@ -64,4 +64,5 @@ Android と iOS の動きは、この設定では変わらない。
 - **フォントの描画と文字の収まり**：`adjustsFontSizeToFit`（ボタンの文字を縮めて1行に収める）は web では効かず「…」で切れる。Barlow Condensed と Noto Sans JP の Android での見た目
 - **SQLite の保存先**：web は OPFS、Android はアプリのファイル。アプリを閉じても残ることは、web の再読み込みでしか確かめていない
 - **端末の時刻とタイムゾーン**：日付の切り替わりはブラウザの時刻を固定して確かめた
+- **ログイン**：本物の Cognito には当てない（`e2e/account.spec.ts`）。web のログインはポップアップで開くが、この配信は COOP: same-origin（expo-sqlite に要る）なので、別のオリジンを開いたポップアップからは結果を返せない。そこで `window.open` を差し替えて「戻り先に着いた」ところを作り、ログイン前の表示とエラーの表示、認可の要求の中身（PKCE・`prompt=login`・scope）、トークンの要求の本文だけを確かめた。Chrome Custom Tabs でのパスキーのログイン、`torelog://callback` の戻り、Cookie を消す `/logout`、トークンの保存（expo-secure-store）と更新は、jest（`lib/__tests__/auth.test.ts`）と Pixel の実機で確かめる
 - **体重計の取り込み（Health Connect）による1日に複数の記録**：画面からは作れないので、選び方は jest（`db/__tests__/repositories.test.ts`、`lib/__tests__/body.test.ts`）で確かめている
