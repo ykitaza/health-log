@@ -95,6 +95,9 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 
 ### 片付け
 
+ユーザープールと DynamoDB のテーブルは、削除の保護を付け、`cdk destroy` でも残るようにしています（記録を守るため）。
+消すときは、先にコンソールで削除の保護を外してから、それぞれを消します。
+
 ```sh
 cd cdk && npx cdk destroy --all
 # 認可APIが初回起動時に作った秘密の値（スタックとは別に残る）
