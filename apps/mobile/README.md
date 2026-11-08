@@ -43,6 +43,13 @@ jest の DB のテストは、expo-sqlite の代わりに Node の `node:sqlite`
 
 CI（`.github/workflows/test.yml`）では、型チェック・jest・E2E を動かします。
 
+## Pixel への配信
+
+EAS Build で APK を作って Pixel に入れ、JS の変更は EAS Update で配信します（Play ストアには出しません）。設定の中身と、Expo のアカウントの作り方からの手順は [docs/eas.md](docs/eas.md) にあります。
+
+- `.github/workflows/eas-update.yml`：main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` のチャンネルに配信する
+- `.github/workflows/eas-build.yml`：手動で APK を作る（ネイティブを変えたとき）
+
 ## フォルダの構成
 
 | フォルダ | 中身 |
@@ -54,6 +61,7 @@ CI（`.github/workflows/test.yml`）では、型チェック・jest・E2E を動
 | `lib/` | 計算と変換（負荷量、推定1RM、体組成、単位、日付、入力の範囲、CSV）。画面や DB に依存しない |
 | `theme/` | 色と文字 |
 | `e2e/` | 画面の E2E テスト（Playwright） |
+| `docs/` | Pixel への配信（EAS）の手順 |
 | `test-utils/` | jest で使う、メモリー上の DB |
 | `assets/` | アイコンとスプラッシュの画像 |
 

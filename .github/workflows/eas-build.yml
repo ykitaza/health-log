@@ -1,0 +1,68 @@
+name: eas-build
+
+# Pixel に入れる APK を、EAS Build（preview のプロファイル）で作る（apps/mobile/docs/eas.md）。
+# ネイティブの変更（ライブラリの追加、SDK を上げる）のあとに、手動で動かす（main だけ）
+on:
+  workflow_dispatch:
+
+# 初期の権限はなし。ジョブごとに必要なものだけを与える
+permissions: {}
+
+# ビルドは無料のプランで月の回数に限りがあるので、重ねて頼まない
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # EXPO_TOKEN は environment に置く。environment は main だけから使えるようにする
+    environment: expo
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: EXPO_TOKEN があるかを確かめる
+        id: token
+        working-directory: .
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::environment expo に EXPO_TOKEN がまだないので、ビルドを飛ばします（apps/mobile/docs/eas.md）"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.token.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # トークンを使うジョブなので、キャッシュは使わない（main のキャッシュを、ほかのワークフローと共有しないため）
+      - if: steps.token.outputs.ok == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/mobile/.node-version
+
+      - if: steps.token.outputs.ok == 'true'
+        uses: expo/expo-github-action@9da89d3617bb88139671bad31b09c65714c2ee06 # 9.0.1
+        with:
+          eas-version: 27.5.0
+          eas-cache: false
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # 依存の install script は動かさない（eas-update.yml と同じ理由）。
+      # ビルドそのものは EAS のサーバーで、依存を入れ直して行う
+      - if: steps.token.outputs.ok == 'true'
+        run: npm ci --ignore-scripts
+
+      # ビルドを頼んだら終わる（--no-wait）。進み具合と APK の URL は、出力に出る Expo のページで見る
+      - if: steps.token.outputs.ok == 'true'
+        run: eas build --profile preview --platform android --non-interactive --no-wait
