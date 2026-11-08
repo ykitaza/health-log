@@ -12,8 +12,10 @@ Claude や ChatGPT に、食事の写真か一言を送るだけで記録でき�
 そこで、推定は AI に任せ、記録と集計だけをこのサーバーが受け持つ形にしました。
 目標の計算や週のまとめはサーバーが決まった式で行い、AI に数字を考えさせません。
 
-もう1つの目的は、MCP の認可（OAuth 2.1、CIMD、PKCE、リフレッシュトークン）を自分で実装して理解することです。
-そのため、ログイン画面は Cognito に任せ、その前に置く認可API は自作しています。
+もう1つの目的は、MCP の認可（OAuth 2.1、CIMD、PKCE、リフレッシュトークン）を理解することです。
+ログイン画面は Cognito に任せ、その前に認可API を置いています。
+OAuth の中心（認可コード、PKCE、リフレッシュトークン、失効、JWT のアクセストークン）は保守されているライブラリ（Authlib）に任せ、
+Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書いています。
 
 ## 特徴
 
@@ -74,7 +76,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy
 ### PC で動かす
 
 ```sh
-(cd services/authorization && uv run uvicorn main:app --port 3000) &
+(cd services/authorization && uv run flask --app main run --port 3000) &
 (cd services/meals && uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く）
 ```
 

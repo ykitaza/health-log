@@ -2,8 +2,6 @@
 
 import html
 
-from application.complete_login import ConsentView
-
 # 同意画面に表示する scope の説明
 SCOPE_DESCRIPTIONS = {
     "meals:read": "食事記録と目標の読み取り",
@@ -82,18 +80,18 @@ def _page(title: str, body: str) -> str:
 </html>"""
 
 
-def render_consent_page(view: ConsentView) -> str:
+def render_consent_page(client_name: str, client_host: str, email: str, scopes: list[str]) -> str:
     # client_name はクライアントが自由に書ける値なので、必ずエスケープする。偽の名前に備えてドメインも並べて出す
-    scopes = "".join(f"<li>{html.escape(SCOPE_DESCRIPTIONS.get(s, s))}</li>" for s in view.scopes)
-    meals = any(s.startswith("meals:") for s in view.scopes)
+    items = "".join(f"<li>{html.escape(SCOPE_DESCRIPTIONS.get(s, s))}</li>" for s in scopes)
+    meals = any(s.startswith("meals:") for s in scopes)
     photo_note = "食事の写真はこのサービスに送られず、保存もしません。" if meals else ""
     return _page("連携の確認", f"""<h1>連携の確認</h1>
 <section class="panel">
-<p class="client-name">{html.escape(view.client_name)}</p>
-<p class="client-host">{html.escape(view.client_host)}</p>
-<p>このアプリが、{html.escape(view.email)} さんの次の操作を求めています。
+<p class="client-name">{html.escape(client_name)}</p>
+<p class="client-host">{html.escape(client_host)}</p>
+<p>このアプリが、{html.escape(email)} さんの次の操作を求めています。
 <a href="/switch-account">別のアカウントで入り直す</a></p>
-<ul>{scopes}</ul>
+<ul>{items}</ul>
 </section>
 <p class="note">心当たりのないアプリなら、許可しないでください。{photo_note}詳しくは<a href="/privacy" target="_blank">プライバシーポリシー</a>をご覧ください。</p>
 <form method="post" action="/consent" class="actions"

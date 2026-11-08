@@ -1,22 +1,28 @@
 import httpx
 
-from domain.client import Client
-from domain.errors import ClientRejected
-from domain.values import ClientId, RedirectUri
+from oauth.models import Client, is_client_id_url
 
 CIMD_MAX_BYTES = 5 * 1024
 
 
+class ClientRejected(Exception):
+    """クライアントを確かめられない。redirect_uri が攻撃者の URL かもしれないので、そこへは返さずにエラー画面を出す。"""
+
+
 class CimdClientDirectory:
-    """ClientDirectory の実装。CIMD：client_id の URL から、クライアントの情報を書いた文書を取りに行く。"""
+    """CIMD：client_id の URL から、クライアントの情報を書いた文書を取りに行く。
+
+    SSRF の対策として、https の URL だけを、リダイレクトをたどらず、5秒・5KB までで取りに行く。
+    """
 
     def __init__(self, http_get=None):
         self.http_get = http_get or self._get
 
-    async def find(self, client_id: ClientId) -> Client:
-        # 本番では、社内ネットワークの宛先を取りに行かないように制限する（SSRF の対策）
+    def find(self, client_id: str) -> Client:
+        if not is_client_id_url(client_id):
+            raise ClientRejected("client_id は https の URL である必要があります")
         try:
-            res = await self.http_get(client_id.value)
+            res = self.http_get(client_id)
         except httpx.HTTPError:
             raise ClientRejected("クライアントのメタデータを取得できません")
         if res.status_code != 200 or len(res.content) > CIMD_MAX_BYTES:
@@ -27,7 +33,7 @@ class CimdClientDirectory:
             raise ClientRejected("クライアントのメタデータが JSON ではありません")
 
         # 文書の中の client_id が、取りに行った URL と同じか（他人の文書を使い回していないか）
-        if doc.get("client_id") != client_id.value:
+        if doc.get("client_id") != client_id:
             raise ClientRejected("メタデータの client_id が URL と一致しません")
         # シークレットを持たないクライアント（PKCE で確かめる）だけを受け付ける。
         # ChatGPT は token_endpoint_auth_method に private_key_jwt を書き、対応できる方式の一覧
@@ -39,12 +45,12 @@ class CimdClientDirectory:
         if not isinstance(doc.get("redirect_uris"), list):
             raise ClientRejected("メタデータに redirect_uris がありません")
         return Client(
-            id=client_id,
-            name=doc.get("client_name") or client_id.value,
-            redirect_uris=tuple(RedirectUri(uri) for uri in doc["redirect_uris"]),
+            client_id=client_id,
+            client_name=doc.get("client_name") or client_id,
+            redirect_uris=tuple(str(uri) for uri in doc["redirect_uris"]),
         )
 
     @staticmethod
-    async def _get(url: str) -> httpx.Response:
-        async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
-            return await client.get(url)
+    def _get(url: str) -> httpx.Response:
+        with httpx.Client(timeout=5, follow_redirects=False) as client:
+            return client.get(url)
