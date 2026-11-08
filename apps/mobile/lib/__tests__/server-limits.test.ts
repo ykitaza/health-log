@@ -3,6 +3,7 @@
 // 値はサーバーのソースから読む（docs/api/app-api.yaml は手で直すことがあり、サーバーと食い違いうるため）
 import * as fs from 'fs';
 import * as path from 'path';
+import { SLEEP_MAX_MIN } from '../healthConnect/importer';
 import { LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
@@ -45,6 +46,12 @@ describe('同期のサーバーの決まりと合っている', () => {
     expect(fieldArgs(entities, 'BodyRecordFields', 'muscle_pct')).toEqual(ge(LIMITS.muscle));
     expect(fieldArgs(entities, 'BodyRecordFields', 'waist_cm')).toEqual(ge(LIMITS.waist));
     expect(fieldArgs(entities, 'BodyRecordFields', 'lean_mass_kg')).toEqual(ge(LIMITS.leanMass));
+  });
+
+  test('睡眠の分（Health Connect の取り込み）は、サーバーの上限と同じ', () => {
+    expect(entities).toMatch(/^class SleepSessionFields[\s\S]*?^\s+asleep_min: Minutes = None/m);
+    expect(entities).toMatch(/^class SleepSessionFields[\s\S]*?^\s+awake_min: Minutes = None/m);
+    expect(fieldArgs(entities, null, 'Minutes')).toEqual({ ge: 0, le: SLEEP_MAX_MIN });
   });
 
   test('種目と部位の名前は、サーバーの上限（コードポイント）の内側', () => {

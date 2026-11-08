@@ -7,7 +7,7 @@ import pytest
 
 from sync.engine import SyncEngine
 from sync.model import Change
-from sync.registry import Registry
+from sync.registry import Registry, Rejection
 from sync.store import InMemorySyncStore
 from training.domain.model import TraineeId
 from training.main import create_queries, register_sync_entities
@@ -109,5 +109,30 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
 
 
 def test_筋トレの種類は_training_の_scope():
-    assert REGISTRY.types_in({"training"}) == {"body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting"}
+    assert REGISTRY.types_in({"training"}) == {
+        "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session"}
     assert REGISTRY.types_in({"meals"}) == set()
+
+
+SLEEP = {"date": "2026-11-07", "start_at": "2026-11-06T14:40:00.000Z", "end_at": "2026-11-06T21:55:00.000Z",
+         "asleep_min": 420, "awake_min": 15, "source": "health_connect", "external_id": "s1", "origin_package": "com.example.watch"}
+
+
+def sleep_change(fields, op="create", origin="import"):
+    return {"change_id": str(uuid.uuid4()), "entity_type": "sleep_session", "entity_id": "x", "op": op,
+            "fields": fields, "changed_at": "2026-11-08T09:00:00Z", "origin": origin}
+
+
+def test_睡眠_取り込みを受け付ける_24時間までの分_日付と時刻の形():
+    assert isinstance(REGISTRY.parse_change(sleep_change(SLEEP), set(REGISTRY.specs), "pixel"), Change)
+    assert isinstance(REGISTRY.parse_change(sleep_change({**SLEEP, "asleep_min": 1440, "awake_min": 0}), set(REGISTRY.specs), "pixel"),
+                      Change)
+    for bad in ({"asleep_min": 1441}, {"awake_min": -1}, {"asleep_min": 7.5}, {"date": "2026/11/07"},
+                {"start_at": "2026-11-06T14:40:00"}, {"source": "manual"}):
+        assert isinstance(REGISTRY.parse_change(sleep_change({**SLEEP, **bad}), set(REGISTRY.specs), "pixel"), Rejection), bad
+    missing = {k: v for k, v in SLEEP.items() if k != "asleep_min"}
+    rejection = REGISTRY.parse_change(sleep_change(missing), set(REGISTRY.specs), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "missing_fields"
+    # meals の scope だけでは書けない
+    rejection = REGISTRY.parse_change(sleep_change(SLEEP), REGISTRY.types_in({"meals"}), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"

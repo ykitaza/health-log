@@ -3,6 +3,7 @@
 範囲はアプリの apps/mobile/lib/limits.ts に合わせる（アプリで通った記録を、同期で断らないように）。
 名前の長さは、アプリが書記素（絵文字も1文字）で40文字までにしているので、ここではコードポイントで200までにする。
 scope は torelog-api/training.read・training.write。
+睡眠（sleep_session）は、アプリが Health Connect から取り込んだものだけ（手入力はない。origin は import）。
 """
 
 from __future__ import annotations
@@ -61,6 +62,20 @@ class BodyRecordFields(FieldsModel):
     origin_package: Annotated[str, Field(max_length=200)] | None = None
 
 
+Minutes = Annotated[int, Field(ge=0, le=1440)]  # 1件の睡眠は24時間まで（アプリの SLEEP_MAX_MIN）
+
+
+class SleepSessionFields(FieldsModel):
+    date: Day = None  # 起きた日（その土地の日付）
+    start_at: Moment = None
+    end_at: Moment = None
+    asleep_min: Minutes = None  # 眠っていた分（全体から、起きていた・ベッドの外の段階を引いたもの）
+    awake_min: Minutes = None
+    source: Literal["health_connect"] = None
+    external_id: Annotated[str, Field(max_length=200)] | None = None
+    origin_package: Annotated[str, Field(max_length=200)] | None = None
+
+
 class SettingFields(FieldsModel):
     value: Annotated[str, Field(max_length=1000)] | None = None
 
@@ -74,3 +89,5 @@ def register(registry: Registry) -> None:
                                                 owner=("workout_entry", "entry_id")))
     registry.register("body_record", EntitySpec(BodyRecordFields, ("date", "measured_at", "source"), AREA))
     registry.register("setting", EntitySpec(SettingFields, ("value",), AREA))
+    registry.register("sleep_session", EntitySpec(
+        SleepSessionFields, ("date", "start_at", "end_at", "asleep_min", "awake_min", "source"), AREA))

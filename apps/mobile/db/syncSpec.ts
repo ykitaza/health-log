@@ -10,7 +10,7 @@ import type { Bind } from './types';
 export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
-  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type';
+  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session';
 
 export type EntitySpec = {
   type: SyncType;
@@ -109,7 +109,23 @@ export const MEAL_ENTITIES: EntitySpec[] = [
   },
 ];
 
-export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES];
+/**
+ * Health Connect から取り込むもの（版5で睡眠）。サーバーの筋トレの種類（training.*）として同期する。
+ * どれも取り込みだけで作る（手入力はない）
+ */
+export const HEALTH_ENTITIES: EntitySpec[] = [
+  {
+    type: 'sleep_session', table: 'sleep_sessions',
+    columns: {
+      date: 'text', start_at: 'text', end_at: 'text', asleep_min: 'int', awake_min: 'int',
+      source: 'text', external_id: 'text', origin_package: 'text',
+    },
+    required: ['date', 'start_at', 'end_at', 'asleep_min', 'awake_min', 'source'],
+    imported: { column: 'source', equals: 'health_connect' },
+  },
+];
+
+export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES];
 
 export const SPEC_BY_TYPE = new Map(ENTITIES.map((s) => [s.type, s]));
 

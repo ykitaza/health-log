@@ -5,11 +5,16 @@
 // 作り直すとき：UPDATE_TESTDATA=1 npx jest db/__tests__/sync-shared.test.ts（mcp_pull.json は pytest 側で作る）
 import * as fs from 'fs';
 import * as path from 'path';
+import { healthConnectStore } from '../repositories/healthConnect';
 import { SEED_EXERCISES } from '../seed';
 import { SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Bind } from '../types';
+import { importHealthConnect } from '@/lib/healthConnect/importer';
+import { fakeHealthConnect as hc, sleep, weight } from '@/test-utils/fakeHealthConnect';
 import { createFakeSyncServer, Origin } from '@/test-utils/fakeSyncServer';
 import { Device, device } from '@/test-utils/syncHarness';
+
+jest.mock('react-native-health-connect', () => require('@/test-utils/fakeHealthConnect').module);
 
 const DIR = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'sync');
 const load = (name: string) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'));
@@ -126,6 +131,13 @@ async function appPushes() {
   await d.r.catalog.setExerciseHidden(SQUAT, true);
   await d.r.body.saveManual('2026-11-08', { weightKg: 70.4, bodyFatPct: 18.2, waistCm: 80 });
   await d.r.settings.update({ weightUnit: 'lb', heightCm: 172 });
+  // Health Connect の取り込み（origin = import）：11/7 の体重計、11/8 の手入力よりあとの体重計（手入力が先）、11/8 に起きた睡眠
+  hc.reset();
+  d.deps.advance(3_600_000);
+  hc.put(weight('hc-w1', '2026-11-06T22:00:00Z', 70.1));
+  hc.put(weight('hc-w2', '2026-11-08T03:30:00Z', 69.9));
+  hc.put(sleep('hc-s1', '2026-11-07T14:40:00Z', '2026-11-07T21:55:00Z', [['2026-11-07T18:00:00Z', '2026-11-07T18:15:00Z', 1]]));
+  await importHealthConnect(healthConnectStore(d.db, d.deps), d.deps.now);
   expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   return server.requests.filter((q) => q.method === 'POST').map((q) => {
     const body = q.body as { device_id: string; changes: { change_id: string }[] };
@@ -138,7 +150,7 @@ describe('app_push.json：アプリが送る本文（サーバーの pytest が�
     const pushes = await appPushes();
     if (process.env.UPDATE_TESTDATA) {
       fs.writeFileSync(path.join(DIR, 'app_push.json'), `${JSON.stringify({
-        description: 'アプリで記録した筋トレ・種目・体組成・設定を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
+        description: 'アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
           + 'services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);

@@ -33,9 +33,22 @@ export type BodyImport = {
   value: number;
 };
 
+/** 睡眠の1件（Health Connect の SleepSession の1件を sleep_sessions の1行に） */
+export type SleepImport = {
+  id: string;
+  externalId: string;
+  date: string;
+  startAt: string;
+  endAt: string;
+  asleepMin: number;
+  awakeMin: number;
+  originPackage: string | null;
+};
+
 /** 1回の書き込み。upserts は作るか直す。deletes は消えた記録の external_id */
 export type ImportBatch = {
   body?: { upserts: BodyImport[]; deletes: string[] };
+  sleep?: { upserts: SleepImport[]; deletes: string[] };
 };
 
 type BodyRow = { id: string; deleted_at: string | null; date: string; measured_at: string; origin_package: string | null } & Record<string, unknown>;
@@ -75,14 +88,52 @@ export function healthConnectStore(db: Db, deps: Deps) {
       }
       written++;
     }
-    for (const externalId of body.deletes) {
+    return written + await softDelete('body_records', body.deletes, nowIso);
+  }
+
+  /** 取り込みの行を、external_id で消す（消えていなければ）。消した行の数 */
+  async function softDelete(table: string, externalIds: string[], nowIso: string): Promise<number> {
+    let n = 0;
+    for (const externalId of externalIds) {
       const res = await db.runAsync(
-        `UPDATE body_records SET deleted_at = ?, updated_at = ?
+        `UPDATE ${table} SET deleted_at = ?, updated_at = ?
          WHERE source = 'health_connect' AND external_id = ? AND deleted_at IS NULL`, [nowIso, nowIso, externalId],
       ) as { changes?: number };
-      written += res?.changes ?? 0;
+      n += res?.changes ?? 0;
     }
-    return written;
+    return n;
+  }
+
+  /** 睡眠：あれば変わった項目だけ直す。消した行は戻さない */
+  async function writeSleep(sleep: NonNullable<ImportBatch['sleep']>, nowIso: string): Promise<number> {
+    let written = 0;
+    for (const r of sleep.upserts) {
+      const row = await db.getFirstAsync<Record<string, string | number | null>>(
+        `SELECT id, deleted_at, date, start_at, end_at, asleep_min, awake_min, origin_package FROM sleep_sessions
+         WHERE source = 'health_connect' AND external_id = ?`, [r.externalId],
+      );
+      if (row?.deleted_at) continue;
+      const next: Record<string, string | number | null> = {
+        date: r.date, start_at: r.startAt, end_at: r.endAt, asleep_min: r.asleepMin, awake_min: r.awakeMin, origin_package: r.originPackage,
+      };
+      if (row) {
+        const changed = Object.entries(next).filter(([k, v]) => row[k] !== v);
+        if (changed.length === 0) continue;
+        await db.runAsync(
+          `UPDATE sleep_sessions SET ${changed.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
+          [...changed.map(([, v]) => v), nowIso, row.id],
+        );
+      } else {
+        const cols = Object.keys(next);
+        await db.runAsync(
+          `INSERT INTO sleep_sessions (id, ${cols.join(', ')}, source, external_id, created_at, updated_at)
+           VALUES (?, ${cols.map(() => '?').join(', ')}, 'health_connect', ?, ?, ?)`,
+          [r.id, ...Object.values(next), r.externalId, nowIso, nowIso],
+        );
+      }
+      written++;
+    }
+    return written + await softDelete('sleep_sessions', sleep.deletes, nowIso);
   }
 
   return {
@@ -100,6 +151,7 @@ export function healthConnectStore(db: Db, deps: Deps) {
           try {
             const nowIso = deps.now().toISOString();
             if (batch.body) n += await writeBody(batch.body, nowIso);
+            if (batch.sleep) n += await writeSleep(batch.sleep, nowIso);
             for (const [k, v] of Object.entries(metaUpdates)) await putMeta(k, v);
           } finally {
             await db.runAsync(`DELETE FROM sync_meta WHERE key = 'importing'`, []);

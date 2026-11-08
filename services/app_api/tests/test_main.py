@@ -19,7 +19,7 @@ from sync.store import BY_DAY_INDEX, InMemorySyncStore
 
 APP_CLIENT = "app-client"
 MEALS = {"meal", "meal_item", "meal_template", "nutrition_goal", "day_type"}
-TRAINING = {"body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting"}
+TRAINING = {"body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session"}
 
 
 def event(method, path, sub="cognito-sub-1", scope="torelog-api/meals.read torelog-api/meals.write "

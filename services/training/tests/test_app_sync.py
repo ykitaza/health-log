@@ -1,6 +1,6 @@
 """アプリと MCP が、同期を通して同じ記録を見ること（testdata/sync の app_push.json・mcp_pull.json）。
 
-- アプリ → MCP：アプリが送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る app_push.json）を、
+- アプリ → MCP：アプリが送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る app_push.json。Health Connect の取り込みも含む）を、
   アプリ用の API（SyncHttpApi）に送り、MCP のツール（get_workout など）から見えることを確かめる。同じ本文を2回送っても二重にならない
 - MCP → アプリ：MCP のツールで記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes）が返すページを、
   mcp_pull.json と比べる（ID は置き換える）。アプリの jest が同じファイルを端末に当てはめて、画面から見えることを確かめる。
@@ -102,8 +102,15 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
     exercises = {e["name"]: e for p in tool("list_exercises", include_hidden=True)["body_parts"] for e in p["exercises"]}
     assert exercises["スクワット"]["hidden"] is True
     assert exercises["ブルガリアンスクワット"]["record_type"] == "weight_reps" and not exercises["ブルガリアンスクワット"].get("hidden")
+    # 11/7 は体重計の取り込みだけ。11/8 は手入力よりあとに体重計の取り込みがあるが、手入力が先
     body = tool("body_progress", days=7)["days"]
-    assert [(d["date"], d["weight_kg"], d["body_fat_pct"], d["waist_cm"]) for d in body] == [("2026-11-08", 70.4, 18.2, 80.0)]
+    assert [(d["date"], d["weight_kg"], d["body_fat_pct"], d["waist_cm"]) for d in body] == [
+        ("2026-11-07", 70.1, None, None), ("2026-11-08", 70.4, 18.2, 80.0)]
+    # Health Connect の睡眠（origin = import）
+    sleeps = [c for p in pushes for c in p["changes"] if c["entity_type"] == "sleep_session"]
+    assert [c["origin"] for c in sleeps] == ["import"]
+    state = engine.doc("alice", "sleep_session", sleeps[0]["entity_id"]).own.view()
+    assert (state["deleted"], state["fields"]["date"], state["fields"]["asleep_min"]) == (False, "2026-11-08", 420)
 
 
 def normalize(value, ids: dict):

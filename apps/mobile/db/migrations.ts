@@ -4,7 +4,7 @@
 // どの表も、のちにサーバーと同期できるように、次の列を持つ。
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
-import { ENTITIES, EntitySpec, MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
+import { ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
 import type { Bind, Db } from './types';
 
 export type Migration = { version: number; up: (db: Db, nowIso: string) => Promise<void> };
@@ -190,10 +190,34 @@ DELETE FROM sync_meta WHERE key = 'cursor';
     version: 4,
     up: async (db) => {
       await db.execAsync(`ALTER TABLE sync_outbox ADD COLUMN origin TEXT NOT NULL DEFAULT 'app' CHECK (origin IN ('app', 'import'));`);
-      for (const spec of ENTITIES) {
+      for (const spec of [...TRAINING_ENTITIES, ...MEAL_ENTITIES]) {
         await db.execAsync(`DROP TRIGGER sync_${spec.table}_insert; DROP TRIGGER sync_${spec.table}_update;`);
         await db.execAsync(triggerSql(spec));
       }
+    },
+  },
+  {
+    // 睡眠（Health Connect の SleepSession の1件を1行に）。date は起きた日（その土地の日付）。
+    // asleep_min は眠っていた分（全体から、段階の「起きていた・ベッドの外」を引いたもの）、awake_min はその引いた分。段階の詳細は持たない。
+    // 同じ source と external_id の組は1行だけ（消した行も含め、取り込み直しで消した記録が戻らないように）
+    version: 5,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE sleep_sessions (
+  id TEXT PRIMARY KEY NOT NULL,
+  date TEXT NOT NULL,
+  start_at TEXT NOT NULL,
+  end_at TEXT NOT NULL,
+  asleep_min INTEGER NOT NULL,
+  awake_min INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'health_connect' CHECK (source IN ('health_connect')),
+  external_id TEXT,
+  origin_package TEXT,${SYNC_COLUMNS},
+  UNIQUE (source, external_id)
+);
+CREATE INDEX sleep_sessions_date ON sleep_sessions (date);
+`);
+      for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'sleep_sessions')) await db.execAsync(triggerSql(spec));
     },
   },
 ];
