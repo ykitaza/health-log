@@ -307,9 +307,9 @@ export class InfraStack extends cdk.Stack {
       environment: { MEALS_TABLE: mealsTable.tableName, APP_CLIENT_ID: appClient.userPoolClientId },
     });
     // 食事のテーブルの読み書きだけ。変更の記録は追記だけなので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
-    // TransactWriteItems は、中の Put と条件の確認の権限で許される
+    // TransactWriteItems は、中の操作（Put。条件は Put に付ける）の権限で許される
     appApiFn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:ConditionCheckItem'],
+      actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem'],
       resources: [mealsTable.tableArn, `${mealsTable.tableArn}/index/*`],
     }));
 

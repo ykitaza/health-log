@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Annotated, Literal
@@ -16,6 +17,13 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationErr
 from sync.model import APP_ORIGINS, OPS, Change, parse_timestamp
 
 ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# いつものの ID は名前から決める（同じ名前は1つ。アプリと MCP で同じ ID になる）
+TEMPLATE_NAMESPACE = uuid.UUID("6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61")
+
+
+def template_id(name: str) -> str:
+    return str(uuid.uuid5(TEMPLATE_NAMESPACE, name))
+
 UUID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
@@ -260,6 +268,9 @@ def parse_change(raw: dict, allowed_types: set[str], device_id: str | None) -> C
         fields = check_fields(entity_type, op, fields)
         if isinstance(fields, Rejection):
             return fields
+        if entity_type == "meal_template" and "name" in fields and entity_id != template_id(fields["name"]):
+            return Rejection("invalid_fields", "いつものの entity_id は、名前から決めた ID（uuid5）にしてください",
+                             ({"field": "entity_id", "message": f"この名前なら {template_id(fields['name'])}"},))
     return Change(raw["change_id"].lower(), entity_type, entity_id, parent_id, op, fields, changed_at, origin,
                   device_id)
 

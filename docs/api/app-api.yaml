@@ -390,7 +390,7 @@ components:
                 - medium
                 - low
           description: 品目の一覧。項目としては1つ（一覧ごと置き換わる）
-      description: いつもの。entity_id は名前から決める（sync-design.md）。create では name, items が要る。update では変えた項目だけを送る
+      description: いつもの。entity_id は uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)。名前を含む変更で合わなければ invalid_fields。create では name, items が要る。update では変えた項目だけを送る
     NutritionGoalFields:
       type: object
       additionalProperties: false

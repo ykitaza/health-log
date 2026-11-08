@@ -214,7 +214,7 @@ describe('アプリ用の API（同期）', () => {
     expect(statements).toHaveLength(1);
     expect(statements[0].Effect).toBe('Allow');
     expect([...statements[0].Action].sort()).toEqual([
-      'dynamodb:BatchGetItem', 'dynamodb:ConditionCheckItem', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:Query']);
+      'dynamodb:BatchGetItem', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:Query']);
     const mealsTable = logicalId('AWS::DynamoDB::GlobalTable', 'MealsTable');
     expect(JSON.stringify(statements[0].Resource)).toContain(mealsTable);
     expect(JSON.stringify(statements[0].Resource)).not.toContain('StateTable');

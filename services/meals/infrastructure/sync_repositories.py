@@ -20,17 +20,12 @@ from domain.meal_template import MealTemplate
 from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from domain.values import Confidence, DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 from sync.engine import SyncEngine
+from sync.entities import template_id
 from sync.model import Change, Doc, EntityState
 
 SLOT_ORDER = list(MealSlot)
 GOAL_ID = "current"
-# いつものの ID は名前から決める（同じ名前は1つ。アプリと MCP で同じ ID になる）
-TEMPLATE_NAMESPACE = uuid.UUID("6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61")
 _MISSING = object()
-
-
-def template_id(name: str) -> str:
-    return str(uuid.uuid5(TEMPLATE_NAMESPACE, name))
 
 
 def _item_core(i: FoodItem) -> dict:

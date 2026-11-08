@@ -32,7 +32,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
 - 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
-- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(いつものの名前空間, 名前)`。`infrastructure/sync_repositories.py` の `template_id`）。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
+- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`sync/entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
 - 体重は、体組成（`body_record`）に一本化するまで、今の MCP と同じ扱い（同期しない）にします
 
@@ -178,7 +178,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
   - アプリ用の Lambda（`AppApiFunction`、`app_api_main.handler`）は、Lambda Web Adapter を通さず、API Gateway のイベント（`requestContext.authorizer.jwt.claims`）からクレームを読みます。利用者が送るヘッダーは読みません
   - Lambda でも、`token_use` が `access`、`client_id` がアプリのクライアントであることを、もう一度確かめます
   - スナップショットの `page_token` には sk の位置しか入れません。どの pk を読むかはクレームで決まるので、ほかの人の `page_token` を使っても自分の分しか読めません
-- Lambda の権限は、食事のテーブル（とその LSI）の `GetItem`・`BatchGetItem`・`Query`・`PutItem`・`ConditionCheckItem` だけです。変更の記録は追記だけなので、`DeleteItem`・`UpdateItem`・`Scan` は与えません
+- Lambda の権限は、食事のテーブル（とその LSI）の `GetItem`・`BatchGetItem`・`Query`・`PutItem` だけです。変更の記録は追記だけなので、`DeleteItem`・`UpdateItem`・`Scan` は与えません
 - MCP の認可API のアクセストークンの `sub` は、Cognito の ID トークンの `sub` そのものです（`services/authorization/infrastructure/cognito_login.py`）。アプリのアクセストークンの `sub` も同じ Cognito のユーザーの `sub` なので、同じ人は同じ pk になります
 - 流量の制限は、1秒10回・瞬間20回です。アプリを開いたときに、送信と受け取りのページ送りが続けて数回から十数回届くためです（MCP は1秒1回・瞬間5回のまま）
 - アクセスログは30日残します

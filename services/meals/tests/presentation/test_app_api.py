@@ -153,6 +153,17 @@ def test_目標と日の種類の_ID_は決まった形だけ(api):
     assert [r["status"] for r in body["results"]] == ["rejected", "rejected", "accepted"]
 
 
+def test_いつものの_ID_は名前から決めたものだけ(api):
+    from sync.entities import template_id
+
+    item = {"name": "白米", "amount": 200, "unit": "g", "kcal": 312, "protein_g": 5, "fat_g": 0.6, "carbs_g": 74,
+            "confidence": "medium"}
+    fields = {"name": "いつもの昼", "items": [item]}
+    _, body, _ = push(api, change("meal_template", str(uuid.uuid4()), fields=fields),
+                      change("meal_template", template_id("いつもの昼"), fields=fields))
+    assert [r["status"] for r in body["results"]] == ["rejected", "accepted"]
+
+
 def test_削除に_fields_は入れない(api):
     _, body, _ = push(api, {**change(op="delete", fields=None), "fields": SET})
     assert body["results"][0]["error"]["code"] == "fields_not_allowed"
