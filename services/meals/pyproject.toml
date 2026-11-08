@@ -1,13 +1,11 @@
 [project]
 name = "meals"
 version = "0.1.0"
-description = "食事記録コンテキスト（MCP サーバー）"
+description = "食事記録コンテキスト（MCP のツール。サーバーの組み立ては services/mcp）"
 requires-python = ">=3.12"
 dependencies = [
     "mcp>=2.3.0",
     "sync",
-    "pyjwt[crypto]>=2.15.1",
-    "uvicorn>=0.54.0",
 ]
 
 [tool.pytest.ini_options]

@@ -8,7 +8,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from infrastructure.access_token_verifier import AuthzApiTokenVerifier
+from connector.access_token_verifier import AuthzApiTokenVerifier
 
 ISSUER = "https://authz.example"
 RESOURCE = "https://mcp.example/mcp"

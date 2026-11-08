@@ -20,7 +20,9 @@ from infrastructure import memory_repositories as memory
 from infrastructure import sync_repositories as synced
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from presentation import mcp_server
-from presentation.mcp_server import Services, create_mcp_server
+from mcp.server.mcpserver import MCPServer
+
+from presentation.mcp_server import Services, register_meal_tools
 from sync.engine import SyncEngine
 from tests.sync.conftest import memory_engine
 from tests.application import test_services
@@ -73,9 +75,8 @@ def call(monkeypatch):
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
     session = test_mcp_server.FakeSession()
-    mcp = create_mcp_server(services, token_verifier=object(), trusted_issuer="https://authz.example",
-                            resource_url="https://meals.example/mcp", today=lambda: test_mcp_server.TODAY,
-                            session=session)
+    mcp = MCPServer(name="test")
+    register_meal_tools(mcp, services, today=lambda: test_mcp_server.TODAY)
     return _caller(mcp, session)
 
 

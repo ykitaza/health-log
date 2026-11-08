@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Callable
 
-from sync.model import Change, Doc, LogEntry, stamped, utc_now
+from sync.model import APP_ORIGINS, Change, Doc, LogEntry, stamped, utc_now
 from sync.registry import Registry
 from sync.store import Conflict, SyncStore
 
-# 1つのトランザクションは100件まで：先頭1＋（変更の記録＋印＋状態）×30以下
+# 1つのトランザクションは100件まで：先頭1＋（変更の記録＋印＋状態）×30以下＋アプリの受け付けの時刻1
 MAX_CHANGES_PER_COMMIT = 30
 RETRIES = 3
 
@@ -53,9 +53,11 @@ class SyncEngine:
                 change = stamped(change, received_at, seq)
                 doc = docs.setdefault(change.doc_key, Doc(*change.doc_key))
                 logs.append(LogEntry(change, doc.apply(change).view()))
+            # アプリ（端末）からの変更を含むなら、その受け付けの時刻を残す（MCP が「最後の同期」として見せる）
+            from_app = received_at if any(c.origin in APP_ORIGINS for c in fresh) else None
             try:
                 self.store.commit(user, head, seq, logs, {e.change.change_id: e.change.seq for e in logs},
-                                  list(docs.values()))
+                                  list(docs.values()), app_received_at=from_app)
             except Conflict:
                 continue  # ほかの書き込みと重なった。読み直してやり直す
             return [Accepted(c, s, True) for c, s in seen.items()] + [
@@ -75,6 +77,14 @@ class SyncEngine:
 
     def head(self, user: str) -> int:
         return self.store.head(user)
+
+    def last_app_received_at(self, user: str) -> str | None:
+        """アプリ（端末）からの変更を最後に受け付けた時刻（UTC、ミリ秒まで）。まだなければ None。"""
+        return self.store.last_app_received_at(user)
+
+    def docs(self, user: str, keys: set[tuple[str, str]]) -> dict[tuple[str, str], Doc]:
+        """(種類, ID) の組でまとめて読む。ないものは入らない。"""
+        return self.store.get_docs(user, keys)
 
     def doc(self, user: str, entity_type: str, entity_id: str) -> Doc | None:
         return self.store.get_docs(user, {(entity_type, entity_id)}).get((entity_type, entity_id))

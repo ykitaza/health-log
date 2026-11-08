@@ -4,6 +4,7 @@ DynamoDB のキー（pk は利用者。今の MealsTable の項目と同じ EATE
   SYNC#HEAD                    今の seq
   SYNC#LOG#<seq を12桁>        変更の記録と、当てはめたあとの対象の状態
   SYNC#CHANGE#<change_id>      受け付けた印（冪等のため）
+  SYNC#APP                     アプリ（端末）からの変更を最後に受け付けた時刻（MCP が「最後の同期」として見せる）
   SYNC#STATE#<種類>#<ID>       今の状態（Doc）。並びのキー（Registry の index_key）があれば day_key に入れ、
                                LSI by_day で範囲を探せる（今は食事の日付と区分）
 
@@ -24,6 +25,7 @@ IndexKey = Callable[[Doc], str | None]
 HEAD_SK = "SYNC#HEAD"
 LOG_PREFIX = "SYNC#LOG#"
 CHANGE_PREFIX = "SYNC#CHANGE#"
+APP_SK = "SYNC#APP"
 STATE_PREFIX = "SYNC#STATE#"
 BY_DAY_INDEX = "by_day"
 MAX_SEQ = 10**12 - 1
@@ -55,8 +57,15 @@ class SyncStore(Protocol):
     def get_docs(self, user: str, keys: set[tuple[str, str]]) -> dict[tuple[str, str], Doc]: ...
 
     def commit(self, user: str, expected_head: int, new_head: int, logs: list[LogEntry],
-               markers: dict[str, int], docs: list[Doc]) -> None:
-        """まとめて書く。先頭が expected_head でなければ Conflict。"""
+               markers: dict[str, int], docs: list[Doc], app_received_at: str | None = None) -> None:
+        """まとめて書く。先頭が expected_head でなければ Conflict。
+
+        app_received_at は、アプリ（端末）からの変更を含むときの受け付けた時刻。同じトランザクションで残す。
+        """
+        ...
+
+    def last_app_received_at(self, user: str) -> str | None:
+        """アプリ（端末）からの変更を最後に受け付けた時刻。まだなければ None。"""
         ...
 
     def read_log(self, user: str, after: int, limit: int) -> tuple[list[LogEntry], bool]:
@@ -81,7 +90,7 @@ class InMemorySyncStore:
         self._lock = threading.Lock()
 
     def _user(self, user: str) -> dict:
-        return self._users.setdefault(user, {"head": 0, "log": {}, "markers": {}, "docs": {}})
+        return self._users.setdefault(user, {"head": 0, "log": {}, "markers": {}, "docs": {}, "app": None})
 
     def head(self, user: str) -> int:
         with self._lock:
@@ -97,17 +106,23 @@ class InMemorySyncStore:
             docs = self._user(user)["docs"]
             return {k: Doc.from_json(json.loads(docs[state_sk(*k)])) for k in keys if state_sk(*k) in docs}
 
-    def commit(self, user, expected_head, new_head, logs, markers, docs) -> None:
+    def commit(self, user, expected_head, new_head, logs, markers, docs, app_received_at=None) -> None:
         with self._lock:
             u = self._user(user)
             if u["head"] != expected_head or any(c in u["markers"] for c in markers):
                 raise Conflict()
             u["head"] = new_head
+            if app_received_at is not None:
+                u["app"] = app_received_at
             for entry in logs:
                 u["log"][entry.change.seq] = json.dumps(entry.to_json())
             u["markers"].update(markers)
             for doc in docs:
                 u["docs"][state_sk(*doc.key)] = json.dumps(doc.to_json())
+
+    def last_app_received_at(self, user):
+        with self._lock:
+            return self._user(user)["app"]
 
     def read_log(self, user, after, limit):
         with self._lock:
@@ -175,7 +190,7 @@ class DynamoDBSyncStore:
                 request = res.get("UnprocessedKeys") or None
         return items
 
-    def commit(self, user, expected_head, new_head, logs, markers, docs) -> None:
+    def commit(self, user, expected_head, new_head, logs, markers, docs, app_received_at=None) -> None:
         from botocore.exceptions import ClientError
 
         p = pk(user)
@@ -195,12 +210,19 @@ class DynamoDBSyncStore:
             if (day_key := self.index_key(doc)) is not None:
                 item["day_key"] = day_key
             items.append({"Put": {"TableName": self.table_name, "Item": item}})
+        if app_received_at is not None:
+            items.append({"Put": {"TableName": self.table_name, "Item": {
+                "pk": p, "sk": APP_SK, "received_at": app_received_at}}})
         try:
             self.client.transact_write_items(TransactItems=items)
         except ClientError as e:
             if e.response["Error"]["Code"] == "TransactionCanceledException":
                 raise Conflict() from e
             raise
+
+    def last_app_received_at(self, user):
+        item = self.table.get_item(Key={"pk": pk(user), "sk": APP_SK}, ConsistentRead=True).get("Item")
+        return item["received_at"] if item else None
 
     def read_log(self, user, after, limit):
         from boto3.dynamodb.conditions import Key

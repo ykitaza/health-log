@@ -200,7 +200,18 @@ def test_scope_defaults_to_all_scopes_of_the_resource_and_resource_defaults_to_m
     code = issue_code(client, scope=None, resource=None)
     body = exchange(client, code, resource=None).json
     claims = verify_like_meals(client, body["access_token"])
-    assert claims["scope"] == "meals:read meals:write"
+    assert claims["scope"] == "meals:read meals:write training:read training:write"
+
+
+def test_consent_page_explains_training_scopes(client):
+    client.get("/authorize", query_string=authorize_params(
+        scope="meals:read meals:write training:read training:write"))
+    text = client.get("/cognito/callback").get_data(as_text=True)
+    assert "筋トレ（種目・重量・回数）と体組成の記録の読み取り" in text
+    assert "筋トレと体組成の記録の追加・修正・削除" in text
+    res = client.post("/consent", data={"decision": "allow"})
+    body = exchange(client, query_of(res)["code"]).json
+    assert body["scope"] == "meals:read meals:write training:read training:write"
 
 
 def test_scope_is_narrowed_to_what_the_resource_serves(client):
@@ -314,6 +325,7 @@ def test_refresh_token_issued_before_the_switch_to_authlib_still_works(client, s
     }, 3600)
     body = refresh(client, "fam.secret-1").json
     claims = verify_like_meals(client, body["access_token"])
+    # 筋トレの scope は足さない（同意したときの scope のまま。筋トレを使うには同意し直す）
     assert (claims["sub"], claims["sid"], claims["scope"]) == ("user-1", "fam", "meals:read meals:write")
 
 
@@ -357,7 +369,7 @@ def test_metadata(client):
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": ["meals:read", "meals:write"],
+        "scopes_supported": ["meals:read", "meals:write", "training:read", "training:write"],
         "authorization_response_iss_parameter_supported": True,
         "client_id_metadata_document_supported": True,
     }

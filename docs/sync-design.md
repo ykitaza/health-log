@@ -110,7 +110,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 5. ほかの書き込みと重なってトランザクションが断られたら、1から3回までやり直す
 
 先頭の `seq` を進めるのと、変更の記録を書くのが同時なので、受け取る側が番号を飛ばすことはありません。
-1つのトランザクションは100件までなので、1回の送信を25件（先頭1＋変更の記録25＋印25＋状態25以下）にしています。
+1つのトランザクションは100件までなので、1回の送信を25件（先頭1＋変更の記録25＋印25＋状態25以下＋`SYNC#APP` 1）にしています。
 
 ## DynamoDB のキー
 
@@ -121,6 +121,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `SYNC#HEAD` | 今の `seq` |
 | `SYNC#LOG#<seq を12桁>` | 変更の記録と、当てはめたあとの対象の状態。sk が `seq` の順に並ぶので、カーソルで読める |
 | `SYNC#CHANGE#<change_id>` | 受け付けた印と `seq`（冪等のため） |
+| `SYNC#APP` | アプリ（`app`・`import`）からの変更を最後に受け付けた時刻。その変更と同じトランザクションで書く。MCP の応答の `last_app_sync_at` に使う |
 | `SYNC#STATE#<種類>#<ID>` | 今の状態。品目は、親の食事の項目の中に入れる（食事は品目と一緒に読むので） |
 
 - 食事の今の状態には `day_key`（日付＋区分の順番）を入れ、今の LSI `by_day` で期間を探します（今の `MEAL#` の項目と同じ）
@@ -199,8 +200,9 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `services/meals/infrastructure/sync_entities.py` | 食事の5つの種類を登録する | 食事、sync |
 | `services/meals/infrastructure/sync_repositories.py` | MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 食事、sync |
 | `services/meals/presentation/app_routes.py` | `POST /v1/meals/goal-suggestions` | 食事、sync の入口の型 |
-| `services/training/training/infrastructure/` | 筋トレの6つの種類を登録する、同期された記録を読む | 筋トレ、sync |
+| `services/training/training/infrastructure/` | 筋トレの6つの種類を登録する、MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 筋トレ、sync |
 | `services/app_api/main.py` | アプリ用の Lambda の組み立て。登録とルートをまとめる | すべて |
+| `services/mcp/main.py` | MCP サーバーの Lambda の組み立て。食事と筋トレのツールをまとめる | すべて |
 
 依存の向きは、コンテキスト（食事・筋トレ）→ sync です。sync はコンテキストを import しません。
 

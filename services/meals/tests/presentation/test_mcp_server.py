@@ -16,7 +16,9 @@ from application.weights import WeightService
 from infrastructure import memory_repositories as memory
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from presentation import mcp_server
-from presentation.mcp_server import Services, create_mcp_server
+from mcp.server.mcpserver import MCPServer
+
+from presentation.mcp_server import Services, register_meal_tools
 
 TODAY = date(2026, 10, 12)
 LUNCH = {
@@ -63,8 +65,8 @@ def call(monkeypatch):
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
     session = FakeSession()
-    mcp = create_mcp_server(services, token_verifier=object(), trusted_issuer="https://authz.example",
-                            resource_url="https://meals.example/mcp", today=lambda: TODAY, session=session)
+    mcp = MCPServer(name="test")  # サーバーと認証は組み立ての場所（services/mcp）が作る
+    register_meal_tools(mcp, services, today=lambda: TODAY)
 
     def _call(tool: str, **arguments):
         result = asyncio.run(mcp.call_tool(tool, arguments))
@@ -138,12 +140,6 @@ def test_目標を決めるときに聞く項目を返し_必須は方針だけ(
     result = call("goal_questions")
     required = [q["name"] for q in result["questions"] if q.get("required")]
     assert required == ["policy"] and result["current_goal"] is None
-
-
-def test_ログアウトは本人のトークンで連携を取り消し_リンクを返す(call):
-    result = call("logout")
-    assert call.session.revoked == [("t", "c")]
-    assert result["logout_url"] == "https://authz.example/logout"
 
 
 def test_方針だけでも目標を設定できる(call):
