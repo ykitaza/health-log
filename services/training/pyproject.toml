@@ -9,6 +9,10 @@ dependencies = [
     "sync",
 ]
 
+# MCP のツール（training.presentation.mcp_tools）を使うときだけ要る。アプリ用の API（services/app_api）は入れない
+[project.optional-dependencies]
+mcp = ["mcp>=2.3.0"]
+
 # アプリ用の API の組み立て（services/app_api）から path の依存で使うので、パッケージとして作れるようにする。
 # 食事のサービスは domain・application などをトップレベルに置いているので、ぶつからないよう training の下に入れる
 [build-system]
@@ -27,5 +31,6 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
+    "mcp>=2.3.0",
     "pytest>=9.1.1",
 ]
