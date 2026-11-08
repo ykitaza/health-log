@@ -117,7 +117,7 @@ def refresh(client, refresh_token, **overrides):
 
 
 def verify_like_meals(client, access_token) -> dict:
-    """食事記録（services/meals/infrastructure/access_token_verifier.py）と同じ確かめ方をする。"""
+    """MCP の入口（services/mcp/connector/access_token_verifier.py）と同じ確かめ方をする。"""
     header = jwt.get_unverified_header(access_token)
     assert header["typ"] == "at+jwt"
     keys = {k.key_id: k for k in jwt.PyJWKSet.from_dict(client.get("/.well-known/jwks.json").json).keys}

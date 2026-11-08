@@ -64,7 +64,7 @@ export class InfraStack extends cdk.Stack {
       autoVerify: { email: true },
       standardAttributes: { email: { required: true, mutable: true } },
       // パスキーでログインする。パスワードは CloudFormation の決まりで外せないので残し、
-      // 運用で長いランダムな値にして捨てる（docs/design.md の「パスキーへの移行」）
+      // 運用で長いランダムな値にして捨てる（docs/design.md の「パスキーを作る手順」）
       signInPolicy: { allowedFirstAuthFactors: { password: true, passkey: true } },
       // RP ID は今のプレフィックスのドメイン。あとで独自ドメインを足すと、パスキーは全部作り直しになる
       passkeyRelyingPartyId: `${domainPrefix}.auth.${this.region}.amazoncognito.com`,
@@ -178,7 +178,7 @@ export class InfraStack extends cdk.Stack {
     }));
 
 
-    // ---- 食事記録の MCPサーバー ----
+    // ---- MCPサーバー（食事と筋トレ） ----
 
     // 食事・いつもの・目標・日の種類を、食べた人ごとに1つのテーブルに置く（pk は食べた人、sk は種類と ID）。
     // 期間で食事を探すために、食べた日＋区分の順番（day_key）で並べる LSI を付ける（LSI はテーブルを作るときにしか足せない）
