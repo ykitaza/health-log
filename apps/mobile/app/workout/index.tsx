@@ -21,7 +21,7 @@ export default function WorkoutDayScreen() {
   const { data, reload, repos } = useFocusData(async (r) => {
     const [entries, settings] = await Promise.all([r.workouts.getDay(date), r.settings.get()]);
     return { entries, settings };
-  }, [date]);
+  }, date);
   const [removing, setRemoving] = useState<Entry | null>(null);
   const unit = data?.settings.weightUnit ?? 'kg';
   const entries = data?.entries ?? [];

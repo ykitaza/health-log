@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
@@ -43,11 +43,13 @@ export default function BodyScreen() {
   const editing = useRef(new Set<keyof Texts>());
 
   // その日の保存済みの値を、欄に出す文字にしたもの
-  const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
-  const savedTexts: Texts = {
-    weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
-    bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
-  };
+  const savedTexts = useMemo((): Texts => {
+    const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
+    return {
+      weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
+      bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
+    };
+  }, [day, unit]);
   // 前に欄へ出した値（日付・単位と組で）
   const shown = useRef<{ date: string; unit: string; texts: Texts } | null>(null);
   useEffect(() => {
@@ -62,12 +64,13 @@ export default function BodyScreen() {
     }
     // 読み直したとき（保存のあとなど）は、手で変えていない欄（前に出した値のまま）だけを、保存済みの値にそろえる。
     // 入力中の欄は消さない。保存が終わる前に日を移って戻ると、古いデータで埋めた欄が空のまま残り、触れて離れると値を消していた
+    // 読み直しても値が同じなら、欄はそのまま（描き直さない）
     setTexts((x) => {
       const next = { ...x };
       for (const k of Object.keys(next) as (keyof Texts)[]) if (x[k] === prev.texts[k]) next[k] = savedTexts[k];
-      return next;
+      return (Object.keys(next) as (keyof Texts)[]).every((k) => next[k] === x[k]) ? x : next;
     });
-  }, [date, unit, JSON.stringify(savedTexts)]);
+  }, [date, unit, savedTexts]);
 
   const commit = async (f: Field) => {
     editing.current.delete(f);

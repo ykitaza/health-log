@@ -21,7 +21,7 @@ export default function SelectExerciseScreen() {
       r.catalog.listBodyParts(), r.catalog.listExercises(), r.workouts.allSetRows(), r.settings.get(), r.workouts.getDay(date),
     ]);
     return { parts, exercises, rows, settings, day };
-  }, [date]);
+  }, date);
 
   // 種目ごとの前回（その日まで）のいちばん重いセット
   const last = useMemo(() => {

@@ -20,7 +20,7 @@ export default function HomeScreen() {
   const { data } = useFocusData(async (r) => {
     const [rows, todays, settings] = await Promise.all([r.workouts.allSetRows(), r.workouts.getDay(today), r.settings.get()]);
     return { rows, todays, settings };
-  }, [today]);
+  }, today);
 
   const { year, month } = yearMonth(today);
   const rows = data?.rows ?? [];

@@ -22,12 +22,13 @@ export default function SettingsScreen() {
 
   const unit = settings?.weightUnit ?? 'kg';
   // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
-  const loaded = settings != null;
+  const shownUnit = useRef<WeightUnit | null>(null);
   useEffect(() => {
-    if (!settings) return;
+    if (!settings || shownUnit.current === settings.weightUnit) return;
+    shownUnit.current = settings.weightUnit;
     setHeight(settings.heightCm == null ? '' : trimNumber(settings.heightCm));
     setGoal(settings.goalWeightKg == null ? '' : trimNumber(kgToUnit(settings.goalWeightKg, settings.weightUnit)));
-  }, [loaded, settings?.weightUnit]);
+  }, [settings]);
 
   const save = async (patch: Parameters<typeof repos.settings.update>[0]) => { await repos.settings.update(patch); reload(); };
 

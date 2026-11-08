@@ -41,7 +41,7 @@ export default function HistoryScreen() {
     return { parts, exercises, rows, settings };
   });
   const unit = data?.settings.weightUnit ?? 'kg';
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data]);
   const exercisesWithRecords = useMemo(() => new Set(rows.map((r) => r.exerciseId)), [rows]);
 
   // チップに出す種目：「すべて」なら記録のある種目、部位なら表示中の種目（と、その部位で記録のある非表示の種目）

@@ -33,6 +33,7 @@ npx expo start
 
 ```sh
 npx tsc --noEmit   # 型チェック
+npx expo lint      # ESLint（eslint-config-expo。設定は eslint.config.js）
 npx jest           # 計算の関数（lib/__tests__）と、DB のリポジトリ（db/__tests__）
 npx expo-doctor    # Expo の設定と依存の版を確かめる
 ```
@@ -41,7 +42,7 @@ jest の DB のテストは、expo-sqlite の代わりに Node の `node:sqlite`
 
 画面の E2E テストは、Expo の web 向けの書き出しを Playwright で操作します。動かし方と書き方の決まりは [e2e/README.md](e2e/README.md) にあります。
 
-CI（`.github/workflows/test.yml`）では、型チェック・jest・E2E を動かします。
+CI（`.github/workflows/test.yml`）では、型チェック・lint・jest・E2E を動かします。
 
 ## Pixel への配信
 
