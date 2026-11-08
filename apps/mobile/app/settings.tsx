@@ -33,6 +33,9 @@ export default function SettingsScreen() {
     save({ heightCm: v });
   };
   const saveGoal = () => {
+    // 出した値のままなら保存しない（lb で出した目標体重を kg に戻すと、丸めで値が変わるため）
+    const saved = settings?.goalWeightKg;
+    if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { setMessage(null); return; }
     const v = parseNumber(goal);
     if (goal.trim() !== '' && (v == null || v <= 0)) { setMessage('目標体重は正の数で入れてください'); return; }
     setMessage(null);

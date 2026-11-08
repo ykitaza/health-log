@@ -27,6 +27,7 @@
     "react-native-worklets": "0.13.0"
   },
   "devDependencies": {
+    "@playwright/test": "~1.65.0",
     "@types/jest": "30.0.0",
     "@types/node": "^24.19.2",
     "@types/react": "~19.3.0",
@@ -39,13 +40,16 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e:build": "expo export --platform web",
+    "e2e": "playwright test"
   },
   "private": true,
   "jest": {
     "preset": "jest-expo",
     "testPathIgnorePatterns": [
-      "/node_modules/"
+      "/node_modules/",
+      "<rootDir>/e2e/"
     ]
   }
 }

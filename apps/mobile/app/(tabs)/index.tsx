@@ -41,8 +41,8 @@ export default function HomeScreen() {
       <Card style={{ flexDirection: 'row', gap: 10, padding: 12 }}>
         <View style={{ flex: 1.55 }}>
           <T num bold size={28} style={{ marginBottom: 8 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
-          <MonthCalendar year={year} month={month} today={today} marked={new Set(dates)} cell={29} />
-          <View style={s.archive}>
+          <MonthCalendar year={year} month={month} today={today} marked={new Set(dates)} cell={29} testID="home-calendar" />
+          <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <T num bold size={14} style={{ lineHeight: 15 }}>{'MONTHLY\nARCHIVE'}</T>
               <View style={{ width: 2, height: 30, backgroundColor: colors.text }} />
@@ -59,20 +59,20 @@ export default function HomeScreen() {
         </View>
 
         <View style={{ flex: 1, gap: 8 }}>
-          <VolumeCard title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit}>
+          <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit}>
             <View style={{ gap: 3, marginTop: 8 }}>
               {weekly.map((v, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <T size={9} color={i === 0 ? colors.text : colors.sub} style={{ width: 30 }}>{WEEK_LABELS[i]}</T>
                   <View style={{ flex: 1, height: 6 }}>
-                    <View style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : '#2F7A52' }} />
+                    <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : '#2F7A52' }} />
                   </View>
                 </View>
               ))}
             </View>
           </VolumeCard>
-          <VolumeCard title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} />
-          <VolumeCard title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} />
+          <VolumeCard testID="volume-28d" title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} />
+          <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} />
         </View>
       </Card>
 
@@ -121,9 +121,9 @@ export default function HomeScreen() {
   );
 }
 
-function VolumeCard({ title, kg, vehicle, unit, children }: { title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; children?: React.ReactNode }) {
+function VolumeCard({ testID, title, kg, vehicle, unit, children }: { testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; children?: React.ReactNode }) {
   return (
-    <View style={s.volume}>
+    <View style={s.volume} testID={testID}>
       <T size={10} color={colors.sub}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         <T num bold size={26}>{tonnes(kg, unit)}</T>

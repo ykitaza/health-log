@@ -44,6 +44,15 @@ describe('セットの入力の確認', () => {
     expect(out[0]).toMatchObject({ reps: 5, memo: '良し', done: false });
     expect(toSetInputs([d('a', '10', '20')], 'reps_only', 'kg')[0].weightKg).toBeNull();
   });
+  test('保存済みの重量を lb で出したときは、変えなければ kg の値をそのまま使う', () => {
+    // 80kg は 176.37lb と出る。176.37lb を kg に戻すと 80.00009kg になり、開いて保存しただけで値が変わってしまう
+    const draft: SetDraft = { ...d('a', trimNumber(kgToUnit(80, 'lb')), '8'), weightKg: 80 };
+    expect(draft.weight).toBe('176.37');
+    expect(toSetInputs([draft], 'weight_reps', 'lb')[0].weightKg).toBe(80);
+    expect(toSetInputs([copyOf(draft, 'b')], 'weight_reps', 'lb')[0].weightKg).toBe(80);
+    // 変えたら、入れた値から換算する
+    expect(toSetInputs([{ ...draft, weight: '180' }], 'weight_reps', 'lb')[0].weightKg).toBeCloseTo(81.647, 3);
+  });
   test('上のセットを写す', () => {
     expect(copyOf({ ...d('a', '80', '8', 'メモ'), done: true, id: 'x' }, 'b')).toEqual(d('b', '80', '8'));
   });

@@ -11,6 +11,7 @@ async function setup() {
 
 const BENCH = SEED_EXERCISES[0].id;
 const SQUAT = SEED_EXERCISES.find((e) => e.name === 'スクワット')!.id;
+const DEADLIFT = SEED_EXERCISES.find((e) => e.name === 'デッドリフト')!.id;
 const CHEST = SEED_BODY_PARTS[0].id;
 
 describe('マイグレーション', () => {
@@ -53,6 +54,13 @@ describe('設定', () => {
     expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 5, heightCm: null, goalWeightKg: 65 });
     await expect(r.settings.update({ defaultSetCount: 7 })).rejects.toThrow();
   });
+
+  test('保存が重なっても、両方とも保存する', async () => {
+    // 身長の欄を離れたときの保存と、単位の切り替えなどが同時に走る。トランザクションが入れ子になって失敗していた
+    const { r } = await setup();
+    await Promise.all([r.settings.update({ heightCm: 170 }), r.settings.update({ goalWeightKg: 65 }), r.settings.update({ weightUnit: 'lb' })]);
+    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65 });
+  });
 });
 
 describe('種目と部位', () => {
@@ -65,6 +73,20 @@ describe('種目と部位', () => {
     expect(ex).toMatchObject({ name: 'インクラインベンチプレス', bodyPartName: '胸', hidden: false });
     await expect(r.catalog.createExercise({ name: 'インクラインベンチプレス', bodyPartId: CHEST, recordType: 'weight_reps' })).rejects.toThrow('同じ部位');
     await expect(r.catalog.createExercise({ name: '  ', bodyPartId: CHEST, recordType: 'weight_reps' })).rejects.toThrow();
+  });
+
+  test('同じ種目・部位の追加が重なっても、1つだけ足す', async () => {
+    // 「追加する」を素早く2回押したとき
+    const { r } = await setup();
+    const results = await Promise.allSettled([
+      r.catalog.createExercise({ name: 'ケーブルクロス', bodyPartId: CHEST, recordType: 'weight_reps' }),
+      r.catalog.createExercise({ name: 'ケーブルクロス', bodyPartId: CHEST, recordType: 'weight_reps' }),
+      r.catalog.createBodyPart('前腕'),
+      r.catalog.createBodyPart('前腕'),
+    ]);
+    expect(results.map((x) => x.status)).toEqual(['fulfilled', 'rejected', 'fulfilled', 'rejected']);
+    expect((await r.catalog.listExercises()).filter((e) => e.name === 'ケーブルクロス')).toHaveLength(1);
+    expect((await r.catalog.listBodyParts()).filter((p) => p.name === '前腕')).toHaveLength(1);
   });
 
   test('非表示にしても消さない。部位を隠すと、その種目も一覧から外れる', async () => {
@@ -118,6 +140,21 @@ describe('筋トレの記録', () => {
     await expect(r.workouts.saveEntry({ id, date: '2026-11-08', exerciseId: BENCH, sets: [] })).rejects.toThrow();
   });
 
+  test('並べ替えや保存が重なっても、失敗せず順に当たる', async () => {
+    // ↑ を素早く2回押したときなど
+    const { r } = await setup();
+    const a = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: [set(80, 8)] });
+    const b = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: SQUAT, sets: [set(100, 5)] });
+    const c = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: DEADLIFT, sets: [set(120, 3)] });
+    await Promise.all([r.workouts.moveEntry(c, -1), r.workouts.moveEntry(c, -1)]);
+    expect((await r.workouts.getDay('2026-11-08')).map((e) => e.id)).toEqual([c, a, b]);
+    await Promise.all([
+      r.workouts.saveEntry({ id: a, date: '2026-11-08', exerciseId: BENCH, sets: [set(85, 5)] }),
+      r.workouts.deleteEntry(b),
+    ]);
+    expect((await r.workouts.getDay('2026-11-08')).map((e) => [e.id, e.sets.map((x) => x.weightKg)])).toEqual([[c, [120]], [a, [85]]]);
+  });
+
   test('並べ替えと、種目を外す', async () => {
     const { r } = await setup();
     const a = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: [set(80, 8)] });
@@ -160,6 +197,18 @@ describe('体組成', () => {
     });
     const row = db.raw.prepare('SELECT source, external_id, origin_package FROM body_records').get();
     expect(row).toEqual({ source: 'manual', external_id: null, origin_package: null });
+  });
+
+  test('同じ日の手入力の保存が重なっても、手入力の行は1件だけで、あとから消せる', async () => {
+    // 体組成の画面は欄を離れたときに保存する。別の欄の「×」などと重なると、2つの保存が同時に走る
+    const { r, db } = await setup();
+    await Promise.all([
+      r.body.saveManual('2026-11-08', { weightKg: 70 }),
+      r.body.saveManual('2026-11-08', { bodyFatPct: 20 }),
+    ]);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM body_records WHERE source = 'manual'").get()).toEqual({ n: 1 });
+    await r.body.saveManual('2026-11-08', { weightKg: null });
+    expect(await r.body.getDay('2026-11-08')).toMatchObject({ weightKg: null, bodyFatPct: 20 });
   });
 
   test('1日に複数の記録があるときは、項目ごとに新しいものを使う', async () => {

@@ -1,6 +1,7 @@
 import type { DateKey } from '@/lib/date';
 import type { RecordType, SetInput } from '@/lib/sets';
 import type { TrainingSetRow } from '@/lib/training';
+import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
 export type SetRecord = { id: string; setIndex: number; weightKg: number | null; reps: number; memo: string; done: boolean };
@@ -51,7 +52,7 @@ export function workoutRepository(db: Db, deps: Deps) {
     }));
   }
 
-  return {
+  return serializeWrites(db, {
     /** その日の記録（実施した順） */
     async getDay(date: DateKey): Promise<Entry[]> {
       const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.date = ? ORDER BY w.sort_order`, [date]);
@@ -181,5 +182,5 @@ export function workoutRepository(db: Db, deps: Deps) {
          ORDER BY w.date, w.sort_order, s.set_index`, [],
       );
     },
-  };
+  }, ['saveEntry', 'deleteEntry', 'moveEntry']);
 }

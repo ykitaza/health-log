@@ -1,4 +1,5 @@
 import type { WeightUnit } from '@/lib/units';
+import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
 export type Settings = {
@@ -24,7 +25,7 @@ function num(v: string | null | undefined): number | null {
 }
 
 export function settingsRepository(db: Db, deps: Deps) {
-  return {
+  return serializeWrites(db, {
     async get(): Promise<Settings> {
       const rows = await db.getAllAsync<{ id: string; value: string | null }>(
         'SELECT id, value FROM settings WHERE deleted_at IS NULL', [],
@@ -56,5 +57,5 @@ export function settingsRepository(db: Db, deps: Deps) {
         }
       });
     },
-  };
+  }, ['update']);
 }

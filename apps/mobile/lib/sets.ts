@@ -1,10 +1,12 @@
-import { parseNumber, unitToKg, WeightUnit } from './units';
+import { kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from './units';
 
 /** 記録の入力画面の1セット（入力中の文字列のまま持つ） */
 export type SetDraft = {
   key: string; // 画面での並びの key
   id?: string; // 保存済みのセットの ID
   weight: string;
+  /** weight を保存済みの値（kg）から作ったときの、その kg。lb で出すと丸めが入るので、変えていなければこちらを保存する */
+  weightKg?: number;
   reps: string;
   memo: string;
   done: boolean;
@@ -45,9 +47,10 @@ export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: We
     .filter((d) => !isBlank(d))
     .map((d) => {
       const w = parseNumber(d.weight);
+      const unchanged = d.weightKg != null && d.weight.trim() === trimNumber(kgToUnit(d.weightKg, unit));
       return {
         id: d.id,
-        weightKg: recordType === 'weight_reps' && w != null ? unitToKg(w, unit) : null,
+        weightKg: recordType === 'weight_reps' && w != null ? (unchanged ? d.weightKg! : unitToKg(w, unit)) : null,
         reps: parseNumber(d.reps) ?? 0,
         memo: d.memo.trim(),
         done: d.done,
@@ -57,5 +60,5 @@ export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: We
 
 /** 上のセットを写す（メモと完了は写さない） */
 export function copyOf(d: SetDraft, key: string): SetDraft {
-  return { key, weight: d.weight, reps: d.reps, memo: '', done: false };
+  return { key, weight: d.weight, weightKg: d.weightKg, reps: d.reps, memo: '', done: false };
 }
