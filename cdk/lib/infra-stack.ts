@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as cdk from 'aws-cdk-lib/core';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -24,15 +25,19 @@ const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 
 const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
 const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
 const APP_COGNITO_DOMAIN_PARAM = `${PARAM_PREFIX}/app/cognito-domain`;
+const APP_API_URL_PARAM = `${PARAM_PREFIX}/app/api-url`;
 
 // アプリ用の API の名前（Cognito のリソースサーバーの識別子）。アクセストークンの scope は「torelog-api/meals.read」の形になる。
-// scope は「対象.操作」にし、あとで筋トレ（training.read・training.write）を同じ形で足す
+// scope は「対象.操作」にし、食事（meals.*）と筋トレ（training.*）を分ける
 const APP_API_IDENTIFIER = 'torelog-api';
 
-// HTTP API の流量の制限（3つの API それぞれに）。超えた分は 429 で断る。
+// HTTP API の流量の制限（認可API と MCP それぞれに）。超えた分は 429 で断る。
 // 使うのは本人だけなので、1秒あたり1回・瞬間的に5回まで（Claude は接続のときに数回まとめて送る）。
 // ずっと上限で叩かれても、月の費用に上限がかかる
 const THROTTLE = { rateLimit: 1, burstLimit: 5 };
+// アプリ用の API の流量の制限。アプリを開いたときに、送信（25件ずつ）と受け取りのページ送りが
+// 続けて数回から十数回届くので、MCP より多くする。トークンのない通信はオーソライザーが Lambda の前で断る
+const APP_THROTTLE = { rateLimit: 10, burstLimit: 20 };
 
 // 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
 // 認可APIが書き込める /cognito-study/* の外に置く
@@ -115,6 +120,11 @@ export class InfraStack extends cdk.Stack {
         defaultIntegration: new HttpLambdaIntegration(`${id}Integration`, fn),
         createDefaultStage: false, // 流量の制限を付けるため、ステージは自分で作る
       });
+      loggedStage(id, api, THROTTLE);
+      return api.apiEndpoint;
+    };
+    // ステージ（流量の制限）とアクセスログ。ロググループ名は、監視のスタックが読む SSM パラメータにも置く
+    const loggedStage = (id: string, api: apigw.HttpApi, throttle: apigw.ThrottleSettings) => {
       // 送信元 IP を記録し、ChatGPT・Claude の通信が公開されている IP の範囲から来るかを確かめる
       const accessLogs = new logs.LogGroup(this, `${id}AccessLogs`, {
         retention: logs.RetentionDays.ONE_MONTH, // 30日
@@ -126,7 +136,7 @@ export class InfraStack extends cdk.Stack {
       });
       this.accessLogGroupParams[id] = accessLogGroupParam;
       new apigw.HttpStage(this, `${id}DefaultStage`, {
-        httpApi: api, stageName: '$default', autoDeploy: true, throttle: THROTTLE,
+        httpApi: api, stageName: '$default', autoDeploy: true, throttle,
         accessLogSettings: {
           destination: new apigw.LogGroupLogDestination(accessLogs),
           format: apigateway.AccessLogFormat.custom(JSON.stringify({
@@ -140,7 +150,6 @@ export class InfraStack extends cdk.Stack {
           })),
         },
       });
-      return api.apiEndpoint;
     };
 
     // 自分の URL は作成後に決まるので、環境変数ではなく SSM パラメータで渡す。
@@ -234,10 +243,12 @@ export class InfraStack extends cdk.Stack {
     // アプリ用の API の scope。ルートごとに必須にし、ID トークンや認可API 用のクライアントのトークンを断る
     const mealsRead = new cognito.ResourceServerScope({ scopeName: 'meals.read', scopeDescription: '食事の記録を読む' });
     const mealsWrite = new cognito.ResourceServerScope({ scopeName: 'meals.write', scopeDescription: '食事の記録を書く' });
+    const trainingRead = new cognito.ResourceServerScope({ scopeName: 'training.read', scopeDescription: '筋トレの記録を読む' });
+    const trainingWrite = new cognito.ResourceServerScope({ scopeName: 'training.write', scopeDescription: '筋トレの記録を書く' });
     const appApi = userPool.addResourceServer('AppApiResourceServer', {
       identifier: APP_API_IDENTIFIER,
       userPoolResourceServerName: 'torelog-api',
-      scopes: [mealsRead, mealsWrite],
+      scopes: [mealsRead, mealsWrite, trainingRead, trainingWrite],
     });
 
     // アプリクライアント（スマホアプリ）：端末に秘密を置けないので、シークレットなしのパブリッククライアントにし、
@@ -251,8 +262,7 @@ export class InfraStack extends cdk.Stack {
         flows: { authorizationCodeGrant: true },
         scopes: [
           cognito.OAuthScope.OPENID,
-          cognito.OAuthScope.resourceServer(appApi, mealsRead),
-          cognito.OAuthScope.resourceServer(appApi, mealsWrite),
+          ...[mealsRead, mealsWrite, trainingRead, trainingWrite].map((s) => cognito.OAuthScope.resourceServer(appApi, s)),
         ],
         callbackUrls: ['torelog://callback'],
         logoutUrls: ['torelog://signout'],
@@ -283,6 +293,53 @@ export class InfraStack extends cdk.Stack {
       parameterName: APP_COGNITO_DOMAIN_PARAM, stringValue: domain.baseUrl(),
     });
 
+    // ---- スマホアプリ用の API（同期）。仕様は docs/api/app-api.yaml ----
+
+    // MCP の Lambda とは別の関数にする。Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取り、
+    // オーソライザーが確かめたクレームをイベントから読む
+    const appApiFn = new lambda.Function(this, 'AppApiFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      architecture: lambda.Architecture.ARM_64,
+      code: lambda.Code.fromAsset(path.join(__dirname, '..', 'build', 'meals')),
+      handler: 'app_api_main.handler',
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(15),
+      environment: { MEALS_TABLE: mealsTable.tableName, APP_CLIENT_ID: appClient.userPoolClientId },
+    });
+    // 食事のテーブルの読み書きだけ。変更の記録は追記だけなので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
+    // TransactWriteItems は、中の Put と条件の確認の権限で許される
+    appApiFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:ConditionCheckItem'],
+      resources: [mealsTable.tableArn, `${mealsTable.tableArn}/index/*`],
+    }));
+
+    const appHttpApi = new apigw.HttpApi(this, 'AppApi', {
+      createDefaultStage: false, // 流量の制限を付けるため、ステージは自分で作る
+    });
+    loggedStage('AppApi', appHttpApi, APP_THROTTLE);
+    // issuer は Cognito、audience はアプリのクライアントだけ（認可API 用のクライアントのトークンを断る）。
+    // Cognito のアクセストークンには aud がなく、API Gateway は client_id を audience として確かめる
+    const appAuthorizer = new HttpJwtAuthorizer('AppJwtAuthorizer', cognitoIssuer, {
+      jwtAudience: [appClient.userPoolClientId],
+    });
+    const appIntegration = new HttpLambdaIntegration('AppApiIntegration', appApiFn);
+    // ルートごとに scope を必須にする（並べたもののどれか1つで通る）。ID トークンには scope がないので断られる。
+    // 種類ごとの scope（食事か筋トレか）は Lambda がもう一度確かめる
+    const scopeOf = (s: cognito.ResourceServerScope) => `${APP_API_IDENTIFIER}/${s.scopeName}`;
+    const appRoutes: [string, apigw.HttpMethod, cognito.ResourceServerScope[]][] = [
+      ['/v1/sync/changes', apigw.HttpMethod.POST, [mealsWrite, trainingWrite]],
+      ['/v1/sync/changes', apigw.HttpMethod.GET, [mealsRead, trainingRead]],
+      ['/v1/sync/snapshot', apigw.HttpMethod.GET, [mealsRead, trainingRead]],
+      ['/v1/meals/goal-suggestions', apigw.HttpMethod.POST, [mealsRead]],
+    ];
+    for (const [routePath, method, scopes] of appRoutes) {
+      appHttpApi.addRoutes({
+        path: routePath, methods: [method], integration: appIntegration,
+        authorizer: appAuthorizer, authorizationScopes: scopes.map(scopeOf),
+      });
+    }
+    new ssm.StringParameter(this, 'AppApiUrlParam', { parameterName: APP_API_URL_PARAM, stringValue: appHttpApi.apiEndpoint });
+
     // services/authorization/.env に入れる値（クライアントシークレットは出力しない）
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new cdk.CfnOutput(this, 'CognitoIssuer', { value: cognitoIssuer });
@@ -290,6 +347,7 @@ export class InfraStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ClientId', { value: client.userPoolClientId });
     // アプリ（apps/mobile/）に入れる値。issuer とドメインは上の CognitoIssuer・CognitoDomain と同じ
     new cdk.CfnOutput(this, 'AppClientId', { value: appClient.userPoolClientId });
+    new cdk.CfnOutput(this, 'AppApiUrl', { value: appHttpApi.apiEndpoint });
     // Lambda で動かしている認可API と MCPサーバーの URL
     new cdk.CfnOutput(this, 'AuthzUrl', { value: authzUrl });
     new cdk.CfnOutput(this, 'MealsMcpServerUrl', { value: `${mealsUrl}/mcp` });
