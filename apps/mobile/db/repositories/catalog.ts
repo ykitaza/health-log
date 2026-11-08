@@ -1,3 +1,4 @@
+import { nameLengthError } from '@/lib/limits';
 import type { RecordType } from '@/lib/sets';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -12,6 +13,14 @@ export type Exercise = {
   sortOrder: number;
   hidden: boolean;
 };
+
+/** 非表示の部位・種目と同じ名前を足そうとしたとき。id は、その非表示のもの（表示に戻すときに使う） */
+export class HiddenDuplicateError extends Error {
+  constructor(message: string, readonly id: string) {
+    super(message);
+    this.name = 'HiddenDuplicateError';
+  }
+}
 
 type ExerciseRow = {
   id: string; body_part_id: string; body_part_name: string; name: string;
@@ -57,9 +66,12 @@ export function catalogRepository(db: Db, deps: Deps) {
     async createExercise(input: { name: string; bodyPartId: string; recordType: RecordType }): Promise<string> {
       const name = input.name.trim();
       if (name === '') throw new Error('種目の名前を入れてください');
-      const dup = await db.getFirstAsync<{ id: string }>(
-        'SELECT id FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ?', [input.bodyPartId, name],
+      const tooLong = nameLengthError('種目', name);
+      if (tooLong) throw new Error(tooLong);
+      const dup = await db.getFirstAsync<{ id: string; hidden: number }>(
+        'SELECT id, hidden FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ?', [input.bodyPartId, name],
       );
+      if (dup?.hidden) throw new HiddenDuplicateError('非表示の種目があります。表示に戻しますか？', dup.id);
       if (dup) throw new Error('同じ部位に同じ名前の種目があります');
       const max = await db.getFirstAsync<{ m: number | null }>(
         'SELECT MAX(sort_order) AS m FROM exercises WHERE body_part_id = ?', [input.bodyPartId],
@@ -77,9 +89,12 @@ export function catalogRepository(db: Db, deps: Deps) {
     async createBodyPart(nameInput: string): Promise<string> {
       const name = nameInput.trim();
       if (name === '') throw new Error('部位の名前を入れてください');
-      const dup = await db.getFirstAsync<{ id: string }>(
-        'SELECT id FROM body_parts WHERE deleted_at IS NULL AND name = ?', [name],
+      const tooLong = nameLengthError('部位', name);
+      if (tooLong) throw new Error(tooLong);
+      const dup = await db.getFirstAsync<{ id: string; hidden: number }>(
+        'SELECT id, hidden FROM body_parts WHERE deleted_at IS NULL AND name = ?', [name],
       );
+      if (dup?.hidden) throw new HiddenDuplicateError('非表示の部位があります。表示に戻しますか？', dup.id);
       if (dup) throw new Error('同じ名前の部位があります');
       const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM body_parts', []);
       const id = deps.newId();

@@ -81,23 +81,27 @@ test('身長がないとき、BMI は出ない', async ({ page }) => {
   await expect(see(page, 'この期間の記録がありません')).toBeVisible();
 });
 
-test('不正な値（0、負の数、数字でない、割合が 100 以上）は保存しない。空にすると消える', async ({ page }) => {
+test('不正な値（範囲の外、負の数、数字でない）は保存しない。空にすると消える', async ({ page }) => {
   await openApp(page);
   await openBody(page);
   await enter(page, '体脂肪率', '20');
   await enter(page, '体重', '70');
   await expect(computed(page, '体脂肪量')).toContainText('14.0kg');
-  for (const bad of ['0', '-1', 'abc']) {
+  for (const bad of ['0', '-1', 'abc', '29.9', '300.1']) {
     await enter(page, '体重', bad);
-    await expect(see(page, '数を入れてください', { exact: true })).toBeVisible();
+    await expect(see(page, '体重は 30〜300kg で入れてください', { exact: true })).toBeVisible();
   }
-  await enter(page, '体脂肪率', '100');
-  await expect(see(page, '割合は 100 より小さく入れてください')).toBeVisible();
+  await enter(page, '体脂肪率', '100.1');
+  await expect(see(page, '体脂肪率は 0〜100% で入れてください')).toBeVisible();
   await enter(page, '筋肉率', '150');
-  await expect(see(page, '割合は 100 より小さく入れてください')).toBeVisible();
+  await expect(see(page, '筋肉率は 0〜100% で入れてください')).toBeVisible();
+  for (const bad of ['29', '201']) {
+    await enter(page, 'ウエスト', bad);
+    await expect(see(page, 'ウエストは 30〜200cm で入れてください')).toBeVisible();
+  }
   // 正しい値を入れるとエラーは消える（体重は 70 のまま：70 × 99.9% = 69.9）
   await enter(page, '体脂肪率', '99.9');
-  await expect(see(page, '割合は 100 より小さく入れてください')).toBeHidden();
+  await expect(see(page, 'ウエストは 30〜200cm で入れてください')).toBeHidden();
   await expect(computed(page, '体脂肪量')).toContainText('69.9kg');
 
   // 保存されているのは最後の正しい値だけ
@@ -106,6 +110,7 @@ test('不正な値（0、負の数、数字でない、割合が 100 以上）�
   await expect(field(page, '体重')).toHaveValue('70');
   await expect(field(page, '体脂肪率')).toHaveValue('99.9');
   await expect(field(page, '筋肉率')).toHaveValue('');
+  await expect(field(page, 'ウエスト')).toHaveValue('');
 
   // 空にして離れると消える
   await enter(page, '体重', '');
@@ -113,6 +118,23 @@ test('不正な値（0、負の数、数字でない、割合が 100 以上）�
   await page.reload();
   await openBody(page);
   await expect(field(page, '体重')).toHaveValue('');
+});
+
+test('範囲の両端は受ける：体重 30〜300kg、体脂肪率と筋肉率 0〜100%、ウエスト 30〜200cm', async ({ page }) => {
+  await openApp(page);
+  await openBody(page);
+  await enter(page, '体重', '300');
+  await enter(page, '体脂肪率', '100');
+  await expect(computed(page, '体脂肪量')).toContainText('300.0kg');
+  await enter(page, '筋肉率', '0');
+  await expect(computed(page, '筋肉量')).toContainText('0.0kg');
+  await enter(page, '体重', '30');
+  await expect(computed(page, '体脂肪量')).toContainText('30.0kg');
+  await enter(page, 'ウエスト', '200');
+  await expectInTrend(page, 'ウエスト', ['200.0']);
+  await enter(page, 'ウエスト', '30');
+  await expectInTrend(page, 'ウエスト', ['30.0']);
+  await expect(see(page, /で入れてください/)).toHaveCount(0);
 });
 
 test('日付の移動。先の日には進めず、入力中に日を変えても元の日に保存する', async ({ page }) => {

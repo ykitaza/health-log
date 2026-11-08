@@ -1,5 +1,5 @@
 import {
-  bestSet, changeOver, epley1RM, exerciseDailySeries, filterSince, periodStart, periodTotals,
+  bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart, periodTotals,
   personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
   daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, weeklyVolumes,
 } from '../training';
@@ -7,14 +7,29 @@ import {
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
   ({ date, weightKg, reps, exerciseId, bodyPartId });
 
-describe('推定1RM（Epley 式）', () => {
+describe('推定1RM（2回以上は Epley 式、1回なら重量そのもの）', () => {
   test('80kg × 8回 は 101.3kg', () => {
-    expect(epley1RM(80, 8)).toBeCloseTo(101.333, 2);
+    expect(estimated1RM(80, 8)).toBeCloseTo(101.333, 2);
+    expect(estimated1RM(100, 2)).toBeCloseTo(106.667, 2);
+  });
+  test('1回なら重量そのもの', () => {
+    expect(estimated1RM(100, 1)).toBe(100);
+    expect(estimated1RM(62.5, 1)).toBe(62.5);
   });
   test('重さか回数がなければ 0', () => {
-    expect(epley1RM(null, 8)).toBe(0);
-    expect(epley1RM(80, 0)).toBe(0);
-    expect(epley1RM(-1, 5)).toBe(0);
+    expect(estimated1RM(null, 8)).toBe(0);
+    expect(estimated1RM(80, 0)).toBe(0);
+    expect(estimated1RM(-1, 5)).toBe(0);
+    expect(estimated1RM(-1, 1)).toBe(0);
+  });
+  test('ベストのセット・日ごとの最大・自己ベストも、1回のセットは重量で比べる', () => {
+    // 100kg × 1 は 100（Epley 式なら 103.3）、90kg × 3 は 99
+    const sets = [row('2026-11-06', 100, 1), row('2026-11-06', 90, 3)];
+    expect(bestSet(sets)?.e1rm).toBe(100);
+    expect(exerciseDailySeries(sets, 'bench')[0].max1RM).toBe(100);
+    expect(personalBests(sets).get('bench')).toMatchObject({ e1rm: 100, weightKg: 100, reps: 1 });
+    // 105kg × 1（105。Epley 式なら 108.5）より 100kg × 2（106.7）が上
+    expect(bestSet([{ weightKg: 105, reps: 1 }, { weightKg: 100, reps: 2 }])?.weightKg).toBe(100);
   });
 });
 

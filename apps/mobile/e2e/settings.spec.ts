@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, enter, goTab, moveToDate, openApp, openBody, openSettings, recordOn, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -99,18 +99,19 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
 test('身長と目標体重の不正な値', async ({ page }) => {
   await openApp(page);
   await openSettings(page);
-  for (const bad of ['49', '251', '0', '-170', 'abc']) {
+  for (const bad of ['99.9', '251', '0', '-170', 'abc']) {
     await enter(page, '身長', bad);
-    await expect(see(page, '身長は 50〜250 cm で入れてください')).toBeVisible();
+    await expect(see(page, '身長は 100〜250cm で入れてください')).toBeVisible();
   }
+  await enter(page, '身長', '100');
+  await expect(see(page, '身長は 100〜250cm で入れてください')).toBeHidden();
   await enter(page, '身長', '250');
-  await expect(see(page, '身長は 50〜250 cm で入れてください')).toBeHidden();
-  for (const bad of ['0', '-60', 'abc']) {
+  for (const bad of ['0', '-60', 'abc', '29.9', '300.1']) {
     await enter(page, '目標体重', bad);
-    await expect(see(page, '目標体重は正の数で入れてください')).toBeVisible();
+    await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeVisible();
   }
   await enter(page, '目標体重', '60.5');
-  await expect(see(page, '目標体重は正の数で入れてください')).toBeHidden();
+  await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeHidden();
   await button(page, '戻る').click();
   await openBody(page);
   await expect(see(page, '自動で計算（身長 250cm）')).toBeVisible();
@@ -118,6 +119,38 @@ test('身長と目標体重の不正な値', async ({ page }) => {
   // 空にすると消える
   await setBodyInfo(page, { height: '' });
   await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
+});
+
+test('lb の表示では、kg に直して範囲を確かめ、範囲を lb で出す', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  await chooseUnit(page, 'lb');
+  // 目標体重 30〜300kg = 66.14〜661.39lb（範囲の内側に丸めて出す）
+  for (const bad of ['66.1', '661.4']) {
+    await enter(page, '目標体重', bad);
+    await expect(see(page, '目標体重は 66.2〜661.3lb で入れてください')).toBeVisible();
+  }
+  await enter(page, '目標体重', '661.3');
+  await expect(see(page, /目標体重は .*で入れてください/)).toHaveCount(0);
+  await button(page, '戻る').click();
+
+  await openBody(page);
+  await enter(page, '体重', '661.4');
+  await expect(see(page, '体重は 66.2〜661.3lb で入れてください')).toBeVisible();
+  await enter(page, '体重', '150');
+  await expect(see(page, /体重は .*で入れてください/)).toHaveCount(0);
+
+  // 記録の重量：500kg = 1102.31lb
+  await goTab(page, 'ホーム');
+  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'デッドリフト');
+  await fillSets(page, [{ weight: '1102.4', reps: '1' }]);
+  await saveButton(page).click();
+  await expect(see(page, '重量は 1102.3lb までの正の数で入れてください')).toBeVisible();
+  await fillSets(page, [{ weight: '1102.3', reps: '1' }]);
+  await saveButton(page).click();
+  await expect(see(page, '1102.3 lb × 1 回')).toBeVisible();
 });
 
 test('CSV：記録がなければ見出しだけ', async ({ page }) => {
@@ -129,6 +162,35 @@ test('CSV：記録がなければ見出しだけ', async ({ page }) => {
   const s = (await shared(page))[0];
   expect(s.title).toBe('トレログの記録（CSV）');
   expect(s.text).toBe('日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n');
+});
+
+test('CSV：共有のメニューが使えないときは、エラーを出す', async ({ page }) => {
+  // web で navigator.share がないとき（Android ではまず起きない）。今までは何も起きなかった
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
+  await expect(see(page, '共有のメニューを開けなかったため、CSV を書き出せませんでした。')).toBeVisible();
+});
+
+test('CSV：共有のメニューを閉じただけなら、エラーを出さない', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { __calls: number }).__calls = 0;
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async () => {
+        (window as unknown as { __calls: number }).__calls++;
+        throw new DOMException('Share canceled', 'AbortError');
+      },
+    });
+  });
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __calls: number }).__calls)).toBe(1);
+  await expect(see(page, /CSV を書き出せませんでした/)).toHaveCount(0);
 });
 
 test('CSV：メモの「,」と「"」はくくって書き出し、消した記録と完了を反映する', async ({ page }) => {

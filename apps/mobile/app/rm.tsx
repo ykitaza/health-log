@@ -5,7 +5,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Header } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { epley1RM, rmTable } from '@/lib/training';
+import { estimated1RM, rmTable } from '@/lib/training';
 import { fmt1, parseNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -17,7 +17,7 @@ export default function RmScreen() {
   const [reps, setReps] = useState('');
   const w = parseNumber(weight);
   const r = parseNumber(reps);
-  const oneRm = epley1RM(w, r != null && Number.isInteger(r) ? r : null);
+  const oneRm = estimated1RM(w, r != null && Number.isInteger(r) ? r : null);
 
   return (
     <Screen>
@@ -32,7 +32,7 @@ export default function RmScreen() {
           <T num bold size={60} color={oneRm > 0 ? colors.accent : colors.sub}>{oneRm > 0 ? fmt1(oneRm) : '—'}</T>
           <T size={16} color={colors.sub}>{unit}</T>
         </View>
-        <T size={12} color={colors.sub}>計算式：重量 ×（1 ＋ 回数 ÷ 30）</T>
+        <T size={12} color={colors.sub}>計算式：重量 ×（1 ＋ 回数 ÷ 30）。1回なら重量そのもの</T>
       </Card>
       <Card style={{ marginTop: 14, padding: 0 }}>
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10 }}>

@@ -4,7 +4,9 @@ import { Pressable, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Header, ListRow } from '@/components/ui';
+import { Button, Card, ConfirmDialog, Header, ListRow } from '@/components/ui';
+import { HiddenDuplicateError } from '@/db/repositories/catalog';
+import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
 import { colors, fonts } from '@/theme';
 
@@ -19,6 +21,8 @@ export default function ManageScreen() {
   const [adding, setAdding] = useState(false);
   const [partName, setPartName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [hiddenDup, setHiddenDup] = useState<HiddenDuplicateError | null>(null);
+  const { dialog } = useConfirmDiscard(adding && partName.trim() !== '', '入力した部位は追加されません。');
 
   const toggleExercise = async (id: string, hidden: boolean) => { await repos.catalog.setExerciseHidden(id, !hidden); reload(); };
   const togglePart = async (id: string, hidden: boolean) => { await repos.catalog.setBodyPartHidden(id, !hidden); reload(); };
@@ -28,12 +32,30 @@ export default function ManageScreen() {
       setPartName(''); setAdding(false); setError(null);
       reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof HiddenDuplicateError) setHiddenDup(e);
+      else setError(e instanceof Error ? e.message : String(e));
     }
+  };
+  // 非表示の部位と同じ名前なら、新しく足さずに、その部位を表示に戻す
+  const showHiddenPart = async () => {
+    if (!hiddenDup) return;
+    await repos.catalog.setBodyPartHidden(hiddenDup.id, false);
+    setHiddenDup(null); setPartName(''); setAdding(false); setError(null);
+    reload();
   };
 
   return (
     <Screen>
+      {dialog}
+      <ConfirmDialog
+        visible={hiddenDup != null}
+        title={hiddenDup?.message ?? ''}
+        body={`「${partName.trim()}」を表示に戻すと、種目の選択にまた出ます。`}
+        confirmLabel="表示に戻す"
+        danger={false}
+        onCancel={() => setHiddenDup(null)}
+        onConfirm={showHiddenPart}
+      />
       <Header
         title="種目と部位の管理"
         onBack={() => router.back()}

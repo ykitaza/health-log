@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, Header } from '@/components/ui';
-import type { BodyPart } from '@/db/repositories/catalog';
+import { Button, Card, Chip, ConfirmDialog, Header } from '@/components/ui';
+import { BodyPart, HiddenDuplicateError } from '@/db/repositories/catalog';
+import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import type { RecordType } from '@/lib/sets';
 import { colors, fonts } from '@/theme';
@@ -23,6 +24,8 @@ export default function NewExerciseScreen() {
   const [partId, setPartId] = useState<string | null>(params.bodyPartId ?? null);
   const [type, setType] = useState<RecordType>('weight_reps');
   const [error, setError] = useState<string | null>(null);
+  const [hiddenDup, setHiddenDup] = useState<HiddenDuplicateError | null>(null);
+  const { dialog, allowLeave } = useConfirmDiscard(name.trim() !== '', '入力した種目は追加されません。');
 
   useEffect(() => {
     repos.catalog.listBodyParts().then((ps) => {
@@ -36,14 +39,34 @@ export default function NewExerciseScreen() {
     if (!partId) { setError('部位を選んでください'); return; }
     try {
       await repos.catalog.createExercise({ name, bodyPartId: partId, recordType: type });
+      allowLeave();
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof HiddenDuplicateError) setHiddenDup(e);
+      else setError(e instanceof Error ? e.message : String(e));
     }
+  };
+  // 同じ部位の非表示の種目と同じ名前なら、新しく足さずに、その種目を表示に戻す
+  const showHiddenExercise = async () => {
+    if (!hiddenDup) return;
+    await repos.catalog.setExerciseHidden(hiddenDup.id, false);
+    setHiddenDup(null);
+    allowLeave();
+    router.back();
   };
 
   return (
     <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="追加する" onPress={submit} /></>}>
+      {dialog}
+      <ConfirmDialog
+        visible={hiddenDup != null}
+        title={hiddenDup?.message ?? ''}
+        body={`「${name.trim()}」を表示に戻すと、種目の選択にまた出ます。これまでの記録はそのままです。`}
+        confirmLabel="表示に戻す"
+        danger={false}
+        onCancel={() => setHiddenDup(null)}
+        onConfirm={showHiddenExercise}
+      />
       <Header title="種目を追加" onBack={() => router.back()} />
       <T size={13} color={colors.sub} style={{ marginTop: 12, marginBottom: 6 }}>種目の名前</T>
       <TextInput

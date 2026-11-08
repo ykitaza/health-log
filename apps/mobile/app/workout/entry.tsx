@@ -8,10 +8,11 @@ import { Button, Card, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
+import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
-import { copyOf, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
+import { copyOf, hasChanges, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -36,6 +37,7 @@ export default function EntryScreen() {
   const repos = useRepos();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [drafts, setDrafts] = useState<SetDraft[]>([]);
+  const [initial, setInitial] = useState<SetDraft[]>([]); // 開いたときのセット（保存していない変更があるかを見る）
   const [errors, setErrors] = useState<Map<string, SetError>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
@@ -59,25 +61,30 @@ export default function EntryScreen() {
       const position = entry ? day.findIndex((d) => d.id === entry.id) + 1 : day.length + 1;
       setLoaded({ exercise, entry, previous, best: personalBests(rows, date).get(exerciseId) ?? null, settings, position });
       const unit = settings.weightUnit;
-      setDrafts(
-        entry
-          ? entry.sets.map((s) => ({
-              key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
-              weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
-            }))
-          : Array.from({ length: settings.defaultSetCount }, blank),
-      );
+      const start = entry
+        ? entry.sets.map((s) => ({
+            key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
+            weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
+          }))
+        : Array.from({ length: settings.defaultSetCount }, blank);
+      setDrafts(start);
+      setInitial(start);
     })();
     return () => { alive = false; };
   }, [repos, params.entryId, params.exerciseId, date]);
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
+  // 保存していない変更があれば、戻る前に確かめる（Figma の「入力をやめますか？」）
+  const { dialog, allowLeave } = useConfirmDiscard(hasChanges(initial, drafts), 'まだ追加していないセットは保存されません。');
+
   if (!loaded) return <Screen><Header title="" onBack={() => router.back()} /></Screen>;
 
   const { exercise, entry, previous, best, settings } = loaded;
   const unit = settings.weightUnit;
   const weighted = exercise.recordType === 'weight_reps';
+  // 写すのは、重量か回数が入っている最後のセット。入っているセットがなければ押せない
+  const copySource = lastFilledSet(drafts);
 
   const update = (key: string, patch: Partial<SetDraft>) => {
     setDrafts((ds) => ds.map((d) => (d.key === key ? { ...d, ...patch } : d)));
@@ -113,7 +120,7 @@ export default function EntryScreen() {
   };
 
   const save = async () => {
-    const errs = validateSets(drafts, exercise.recordType);
+    const errs = validateSets(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
     const sets = toSetInputs(drafts, exercise.recordType, unit);
@@ -121,6 +128,7 @@ export default function EntryScreen() {
     setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
+      allowLeave();
       if (router.canGoBack()) router.back();
       else router.replace({ pathname: '/workout', params: { date } });
     } catch (e) {
@@ -147,6 +155,7 @@ export default function EntryScreen() {
         </>
       }
     >
+      {dialog}
       <Header
         title={exercise.name}
         subtitle={`${exercise.bodyPartName} ・ ${isToday ? '今日' : formatJpDate(date)}の${loaded.position}種目目`}
@@ -247,8 +256,11 @@ export default function EntryScreen() {
             variant="secondary"
             small
             style={{ flex: 1 }}
-            disabled={drafts.length === 0}
-            onPress={() => setDrafts((ds) => (ds.length ? [...ds, copyOf(ds[ds.length - 1], newKey())] : ds))}
+            disabled={copySource == null}
+            onPress={() => setDrafts((ds) => {
+              const src = lastFilledSet(ds);
+              return src ? [...ds, copyOf(src, newKey())] : ds;
+            })}
           />
         </View>
       </Card>

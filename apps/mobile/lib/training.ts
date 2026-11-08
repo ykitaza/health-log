@@ -10,9 +10,13 @@ export type TrainingSetRow = SetValues & {
   bodyPartId: string;
 };
 
-/** 推定1RM（Epley 式）：重量 ×（1 ＋ 回数 ÷ 30） */
-export function epley1RM(weightKg: number | null, reps: number | null): number {
+/**
+ * 推定1RM。推定1RM を出すところ（RM計算機、ホーム、その日の画面、自己ベスト、グラフ）はすべてこれを使う。
+ * 1回なら重量そのもの、2回以上は Epley 式：重量 ×（1 ＋ 回数 ÷ 30）
+ */
+export function estimated1RM(weightKg: number | null, reps: number | null): number {
   if (weightKg == null || reps == null || weightKg <= 0 || reps <= 0) return 0;
+  if (reps === 1) return weightKg;
   return weightKg * (1 + reps / 30);
 }
 
@@ -30,7 +34,7 @@ export function totalVolume(sets: SetValues[]): number {
 export function bestSet<T extends SetValues>(sets: T[]): (T & { e1rm: number }) | null {
   let best: (T & { e1rm: number }) | null = null;
   for (const s of sets) {
-    const e1rm = epley1RM(s.weightKg, s.reps);
+    const e1rm = estimated1RM(s.weightKg, s.reps);
     if (e1rm > 0 && (!best || e1rm > best.e1rm)) best = { ...s, e1rm };
   }
   return best;
@@ -108,7 +112,7 @@ export function exerciseDailySeries(rows: TrainingSetRow[], exerciseId: string):
     if (r.exerciseId !== exerciseId) continue;
     const p = map.get(r.date) ?? { date: r.date, volume: 0, max1RM: 0 };
     p.volume += setVolume(r);
-    p.max1RM = Math.max(p.max1RM, epley1RM(r.weightKg, r.reps));
+    p.max1RM = Math.max(p.max1RM, estimated1RM(r.weightKg, r.reps));
     map.set(r.date, p);
   }
   return [...map.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -169,7 +173,7 @@ export function personalBests(rows: TrainingSetRow[], beforeDate?: DateKey): Map
   const map = new Map<string, PersonalBest>();
   for (const r of rows) {
     if (beforeDate && r.date >= beforeDate) continue;
-    const e1rm = epley1RM(r.weightKg, r.reps);
+    const e1rm = estimated1RM(r.weightKg, r.reps);
     if (e1rm <= 0) continue;
     const cur = map.get(r.exerciseId);
     if (!cur || e1rm > cur.e1rm) {
