@@ -48,7 +48,10 @@ export class InfraStack extends cdk.Stack {
       autoVerify: { email: true },
       standardAttributes: { email: { required: true, mutable: true } },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // 勉強用なので cdk destroy で消せるようにする
+      // ユーザーが消えると、sub（食べた人の ID）が変わり、記録がたどれなくなる。
+      // スタックを消しても残し（RETAIN）、コンソールや API からの削除も止める（削除の保護）
+      deletionProtection: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     // ログイン画面のドメイン（/authorize, /token, /logout の入口）
@@ -66,7 +69,9 @@ export class InfraStack extends cdk.Stack {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       billing: dynamodb.Billing.onDemand(),
       timeToLiveAttribute: 'expires_at',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // 中身は期限つきの状態だけだが、リフレッシュトークンの系列も入るので、消えると全員がログインし直しになる
+      deletionProtection: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     // Flask（認可API）・Starlette（食事記録）のアプリを、そのまま Lambda で動かすための仕組み（AWS 公式）
@@ -157,7 +162,9 @@ export class InfraStack extends cdk.Stack {
         sortKey: { name: 'day_key', type: dynamodb.AttributeType.STRING },
       }],
       billing: dynamodb.Billing.onDemand(),
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // 勉強用なので cdk destroy で記録も消える
+      // 記録は本人のデータなので、スタックを消しても残し（RETAIN）、テーブルの削除も止める（削除の保護）
+      deletionProtection: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     const mealsFn = new lambda.Function(this, 'MealsFunction', pythonWebApp('meals', {
