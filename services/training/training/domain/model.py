@@ -3,7 +3,6 @@
   部位（BodyPart）・種目（Exercise）       種目は1つの部位に属する。記録の仕方は「重量×回数」か「回数だけ」
   トレーニング（Workout）                  その日の種目（WorkoutEntry）と、種目ごとのセット（WorkoutSet）
   体組成（BodyRecord）                     1日に複数あり得る（体重計の取り込みと手入力など）
-  設定（Setting）                          weight_unit など
 重さはいつも kg で持つ（表示の単位は設定で変える）。日付は端末の暦の日付（YYYY-MM-DD）。
 """
 
@@ -95,9 +94,3 @@ class BodyRecord:
     memo: str
     source: str  # manual・health_connect
     updated_at: str
-
-
-@dataclass(frozen=True)
-class Setting:
-    id: str
-    value: str | None

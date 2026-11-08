@@ -3,17 +3,13 @@ from datetime import date, time
 import pytest
 
 from domain.errors import MealError
-from domain.values import EatenOn, MealSlot, Nutrition, NutritionGap, Quantity, Unit
+from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Unit
 
 
 def test_栄養は足し算と倍数ができる():
     total = Nutrition(100, 10, 5, 20) + Nutrition(50, 2, 1, 10)
     assert total == Nutrition(150, 12, 6, 30)
     assert total.times(2) == Nutrition(300, 24, 12, 60)
-
-
-def test_栄養の差は負になりうる():
-    assert Nutrition(100, 10, 5, 20).minus(Nutrition(150, 4, 5, 20)) == NutritionGap(-50, 6, 0, 0)
 
 
 def test_栄養は負にできない():

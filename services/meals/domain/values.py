@@ -45,15 +45,6 @@ class Nutrition:
     def times(self, factor: float) -> "Nutrition":
         return Nutrition(self.kcal * factor, self.protein_g * factor, self.fat_g * factor, self.carbs_g * factor)
 
-    def minus(self, other: "Nutrition") -> "NutritionGap":
-        """目標との差など。負になりうるので Nutrition ではなく NutritionGap で返す。"""
-        return NutritionGap(
-            self.kcal - other.kcal,
-            self.protein_g - other.protein_g,
-            self.fat_g - other.fat_g,
-            self.carbs_g - other.carbs_g,
-        )
-
 
 @dataclass(frozen=True)
 class NutritionGap:

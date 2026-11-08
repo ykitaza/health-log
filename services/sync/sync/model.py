@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 
 OPS = ("create", "update", "delete", "restore")
 APP_ORIGINS = ("app", "import")  # アプリが名乗れるもの
-ORIGINS = ("app", "import", "mcp", "migration")
 
 Key = tuple[int, str, int]  # (手入力か, 時刻, seq)
 

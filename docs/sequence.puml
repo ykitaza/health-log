@@ -7,7 +7,7 @@ hide footbox
 
 actor "利用者\n（ブラウザ）" as User
 participant "Claude / ChatGPT\n（MCP クライアント）" as Client
-participant "食事記録\n（MCP サーバー）" as Meals
+participant "MCP サーバー\n（食事・筋トレ）" as Meals
 participant "認可API" as Authz
 participant "Cognito\n（ログイン画面）" as Cognito
 database "DynamoDB" as DB
@@ -26,7 +26,7 @@ User -> Authz : GET /authorize\n（client_id＝CIMD の URL、PKCE の code_chal
 Authz -> Client : クライアント情報（CIMD）を取得
 Client --> Authz : redirect_uris など
 Authz --> User : Cognito のログイン画面へ転送
-User -> Cognito : メールアドレスとパスワードでログイン
+User -> Cognito : パスキーでログイン\n（端末の指紋や PIN で本人確認）
 Cognito --> User : 認可API の /cognito/callback へ転送（Cognito の認可コード）
 User -> Authz : GET /cognito/callback
 Authz -> Cognito : 認可コードを ID トークンに交換（クライアントシークレット）
@@ -46,7 +46,7 @@ Client -> Meals : POST /mcp（Authorization: Bearer アクセストークン）
 Meals -> Authz : GET /.well-known/jwks.json（初回だけ。公開鍵を取得）
 Authz --> Meals : 公開鍵
 Meals -> Meals : 署名・期限・aud（/mcp）・scope を確かめる
-Meals -> DB : 食事を読み書きする（pk＝食べた人）
+Meals -> DB : 今の状態（SYNC#STATE#）を読む\n書くときは変更の記録（SYNC#LOG#）も足す（pk＝本人）
 DB --> Meals : 結果
 Meals --> Client : ツールの結果（JSON）
 Client --> User : 表やグラフで見せる
