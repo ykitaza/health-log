@@ -12,5 +12,6 @@ wheels/
 # 秘密の値
 .env
 .test1-password
+.me-password
 .authz-private-key.pem
 .session-secret
