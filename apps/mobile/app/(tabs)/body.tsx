@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
@@ -145,7 +146,7 @@ export default function BodyScreen() {
         {FIELDS.map((f, i) => (
           <View key={f.key} style={[s.fieldRow, i > 0 && s.line]}>
             <T size={15} color={colors.sub} style={{ flex: 1 }}>{f.label}</T>
-            <TextInput
+            <Input
               value={texts[f.key]}
               onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
               onBlur={() => commit(f.key)}
@@ -163,14 +164,14 @@ export default function BodyScreen() {
         ))}
         <View style={[s.fieldRow, s.line]}>
           <Icon name="pencil" size={16} color={colors.sub} />
-          <TextInput
+          <Input
             value={texts.memo}
             onChangeText={(t) => { editing.current.add('memo'); setTexts((x) => ({ ...x, memo: t })); }}
             onBlur={commitMemo}
             maxLength={MEMO_MAX_LENGTH}
             placeholder="メモ（例：朝・起床後に計測）"
             placeholderTextColor={colors.sub}
-            style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}
+            style={{ flex: 1, minWidth: 0, height: 44, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}
           />
         </View>
       </Card>
