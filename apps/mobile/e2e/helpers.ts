@@ -87,7 +87,7 @@ export async function recordOn(page: Page, date: string, entries: { exercise: st
   await recordToday(page, entries);
 }
 
-/** 設定の画面を開く（ホームの歯車から） */
+/** 設定の画面を開く（ホームか体組成の歯車から） */
 export async function openSettings(page: Page) {
   await button(page, '設定').click();
   await expect(see(page, '重さの単位', { exact: true })).toBeVisible();

@@ -155,7 +155,7 @@ test.describe('重量と回数の入力の確かめ', () => {
       await saveButton(page).click();
       await expect(see(page, c.error, { exact: true })).toBeVisible();
       await expect(see(page, '入力を確かめてください')).toBeVisible();
-      // 入力欄の枠が赤くなる（直すと消える）
+      // 戻ると、何も保存されていない
       await button(page, '戻る').click();
       await expect(see(page, 'まだ種目がありません')).toBeVisible();
     });

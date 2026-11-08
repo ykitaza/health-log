@@ -40,7 +40,13 @@ createServer((req, res) => {
     return;
   }
   // 道を dist/ の中に閉じ込める（../ で外を読ませない）
-  const path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+  let path;
+  try {
+    path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+  } catch {
+    res.writeHead(400).end();
+    return;
+  }
   let file = normalize(join(root, path));
   if (!file.startsWith(root) && file + sep !== root) {
     res.writeHead(403).end();
