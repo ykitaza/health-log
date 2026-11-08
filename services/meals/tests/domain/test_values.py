@@ -2,8 +2,8 @@ from datetime import date, time
 
 import pytest
 
-from domain.errors import MealError
-from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Unit
+from meals.domain.errors import MealError
+from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Unit
 
 
 def test_栄養は足し算と倍数ができる():

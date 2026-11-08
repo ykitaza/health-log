@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field
 
-from domain.values import MealSlot
+from meals.domain.values import MealSlot
 from sync.fields import Day, FieldsModel, Ref, SortOrder, is_date
 from sync.model import Doc
 from sync.registry import EntitySpec, Registry, Rejection

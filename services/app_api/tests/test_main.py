@@ -9,11 +9,11 @@ import boto3
 from moto import mock_aws
 
 import main
-from application.commands import NewItem, NewMeal
-from application.meals import MealService
-from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from infrastructure.sync_repositories import SyncMealRepository
+from meals.application.commands import NewItem, NewMeal
+from meals.application.meals import MealService
+from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.infrastructure.sync_repositories import SyncMealRepository
 from sync.engine import SyncEngine
 from sync.store import BY_DAY_INDEX, InMemorySyncStore
 

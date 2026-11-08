@@ -2,14 +2,14 @@
 
 from dataclasses import astuple
 
-from domain.body_weight import GoalProgress
-from domain.goal_suggestion import BodyProfile
-from domain.meal import Meal
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import DailyTarget, NutritionGoal
-from domain.summary import DailySummary, WeeklyReview
-from domain.nutrition_goal import Target
-from domain.values import DayType, Nutrition, NutritionGap
+from meals.domain.body_weight import GoalProgress
+from meals.domain.goal_suggestion import BodyProfile
+from meals.domain.meal import Meal
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import DailyTarget, NutritionGoal
+from meals.domain.summary import DailySummary, WeeklyReview
+from meals.domain.nutrition_goal import Target
+from meals.domain.values import DayType, Nutrition, NutritionGap
 
 KEYS = ("kcal", "protein_g", "fat_g", "carbs_g")
 

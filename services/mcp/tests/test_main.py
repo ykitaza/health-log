@@ -15,8 +15,8 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.server.auth.provider import AccessToken
 
 import main
-from domain.body_weight import WeightRecord
-from domain.values import EaterId
+from meals.domain.body_weight import WeightRecord
+from meals.domain.values import EaterId
 from sync.engine import SyncEngine
 from sync.model import Change
 from sync.store import InMemorySyncStore

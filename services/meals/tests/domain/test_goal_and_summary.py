@@ -3,11 +3,11 @@ from datetime import date
 
 import pytest
 
-from domain.errors import MealError
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy, Target
-from domain.summary import DailySummary, WeeklyReview
-from domain.values import DayType, EatenOn, MealSlot, Nutrition, NutritionGap, Source
+from meals.domain.errors import MealError
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy, Target
+from meals.domain.summary import DailySummary, WeeklyReview
+from meals.domain.values import DayType, EatenOn, MealSlot, Nutrition, NutritionGap, Source
 from tests.domain.factories import EATER, approx, lunch
 
 GOAL = NutritionGoal(

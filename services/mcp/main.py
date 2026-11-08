@@ -1,6 +1,6 @@
 """MCP サーバーの組み立て（DI）。食事と筋トレのツールを、1つの MCP サーバー（1つのコネクタ）に登録する。
 
-ツールの中身は、それぞれのコンテキストが持つ（食事は services/meals/presentation/mcp_server.py、
+ツールの中身は、それぞれのコンテキストが持つ（食事は services/meals/meals/presentation/mcp_server.py、
 筋トレは services/training/training/presentation/mcp_tools.py）。ここでは次のことだけをする。
 - サーバー（MCPServer）と認証（アクセストークンの検証、scope）を作る。MCP のプロトコルは公式の SDK に任せる
 - 食事と筋トレのリポジトリを、同じ同期の仕組み（変更の記録と今の状態）の上に作る
@@ -18,11 +18,6 @@ from mcp.server.auth.routes import create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 
-from application.goals import GoalService
-from application.meals import MealService
-from application.summaries import SummaryService
-from application.templates import TemplateService
-from application.weights import WeightService
 from composition.registry import create_registry
 from connector.access_token_verifier import AuthzApiTokenVerifier
 from connector.authz_session import AuthzApiSession
@@ -30,11 +25,16 @@ from connector.icons import IconMiddleware, server_icons
 from connector.request_log import JsonRpcLogMiddleware
 from connector.settings import load_settings
 from connector.tools import Session, register_connector_tools
-from domain.body_weight import WeightRecord
-from domain.values import EaterId
-from infrastructure import sync_repositories as synced
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from presentation import mcp_server as meal_tools
+from meals.application.goals import GoalService
+from meals.application.meals import MealService
+from meals.application.summaries import SummaryService
+from meals.application.templates import TemplateService
+from meals.application.weights import WeightService
+from meals.domain.body_weight import WeightRecord
+from meals.domain.values import EaterId
+from meals.infrastructure import sync_repositories as synced
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.presentation import mcp_server as meal_tools
 from sync.engine import SyncEngine
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
 from training.application.commands import TrainingCommands

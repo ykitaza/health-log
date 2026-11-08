@@ -3,9 +3,9 @@
 from dataclasses import dataclass
 from datetime import date
 
-from domain.meal import Meal
-from domain.nutrition_goal import NutritionGoal, Target
-from domain.values import DayType, Nutrition, NutritionGap
+from meals.domain.meal import Meal
+from meals.domain.nutrition_goal import NutritionGoal, Target
+from meals.domain.values import DayType, Nutrition, NutritionGap
 
 
 @dataclass(frozen=True)

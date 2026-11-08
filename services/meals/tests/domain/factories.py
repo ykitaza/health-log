@@ -5,8 +5,8 @@ from datetime import date
 
 import pytest
 
-from domain.meal import FoodItem, Meal
-from domain.values import EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.meal import FoodItem, Meal
+from meals.domain.values import EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 
 EATER = EaterId("eater-1")
 LUNCH = EatenOn(date(2026, 10, 12), MealSlot.LUNCH)

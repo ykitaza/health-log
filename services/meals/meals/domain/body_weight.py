@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from domain.errors import MealError
-from domain.nutrition_goal import NutritionGoal, Policy
-from domain.values import EaterId
+from meals.domain.errors import MealError
+from meals.domain.nutrition_goal import NutritionGoal, Policy
+from meals.domain.values import EaterId
 
 TREND_WINDOW_DAYS = 28  # 1週間あたりの変化は、直近4週間の記録から出す
 

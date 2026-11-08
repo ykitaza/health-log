@@ -2,10 +2,10 @@
 
 from datetime import date, time
 
-from domain.meal import FoodItem, Meal
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from domain.values import Confidence, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.meal import FoodItem, Meal
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
+from meals.domain.values import Confidence, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 
 
 def _nutrition_to_dict(n: Nutrition) -> dict:

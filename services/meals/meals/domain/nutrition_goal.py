@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from domain.errors import MealError
-from domain.values import DayType, EaterId, Nutrition, NutritionGap
+from meals.domain.errors import MealError
+from meals.domain.values import DayType, EaterId, Nutrition, NutritionGap
 
 
 class Policy(Enum):

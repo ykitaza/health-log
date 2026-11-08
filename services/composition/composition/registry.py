@@ -1,4 +1,4 @@
-from infrastructure.sync_entities import register as register_meal_entities
+from meals.infrastructure.sync_entities import register as register_meal_entities
 from sync.registry import Registry
 from training.main import register_sync_entities as register_training_entities
 

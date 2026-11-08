@@ -1,9 +1,9 @@
 import pytest
 
-from domain.errors import MealError
-from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex, suggest_goal
-from domain.nutrition_goal import Policy, Target
-from domain.values import DayType
+from meals.domain.errors import MealError
+from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex, suggest_goal
+from meals.domain.nutrition_goal import Policy, Target
+from meals.domain.values import DayType
 from tests.domain.factories import EATER
 
 PROFILE = BodyProfile(Sex.MALE, age=30, height_cm=172, weight_kg=67, daily_activity=DailyActivity.LOW,

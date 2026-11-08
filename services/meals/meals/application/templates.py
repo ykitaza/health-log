@@ -1,9 +1,9 @@
-from application.commands import IdFactory, new_id
-from domain.errors import NotFound
-from domain.meal import Meal
-from domain.meal_template import MealTemplate
-from domain.ports import EaterResolver, MealRepository, MealTemplateRepository
-from domain.values import EatenOn
+from meals.application.commands import IdFactory, new_id
+from meals.domain.errors import NotFound
+from meals.domain.meal import Meal
+from meals.domain.meal_template import MealTemplate
+from meals.domain.ports import EaterResolver, MealRepository, MealTemplateRepository
+from meals.domain.values import EatenOn
 
 
 class TemplateService:

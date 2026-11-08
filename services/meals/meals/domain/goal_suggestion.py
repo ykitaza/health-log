@@ -14,9 +14,9 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from domain.errors import MealError
-from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from domain.values import EaterId
+from meals.domain.errors import MealError
+from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
+from meals.domain.values import EaterId
 
 KCAL_PER_KG_BODY_WEIGHT = 7700
 TRAINING_METS = 5.0

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
-from domain.body_weight import GoalProgress, WeightRecord
-from domain.ports import EaterResolver, GoalRepository, WeightRepository
+from meals.domain.body_weight import GoalProgress, WeightRecord
+from meals.domain.ports import EaterResolver, GoalRepository, WeightRepository
 
 PROGRESS_DAYS = 90  # 道のりの画面に出す期間
 

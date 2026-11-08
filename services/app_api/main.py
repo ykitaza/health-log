@@ -8,11 +8,11 @@ Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取�
 import logging
 import os
 
-from application.goals import GoalService
 from composition.registry import create_registry
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from infrastructure.sync_repositories import SyncDayTypeRepository, SyncGoalRepository
-from presentation.app_routes import meal_routes
+from meals.application.goals import GoalService
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.infrastructure.sync_repositories import SyncDayTypeRepository, SyncGoalRepository
+from meals.presentation.app_routes import meal_routes
 from sync.engine import SyncEngine
 from sync.presentation.http_api import SyncHttpApi
 from sync.store import DynamoDBSyncStore

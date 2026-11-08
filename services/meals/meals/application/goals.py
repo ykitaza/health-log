@@ -1,10 +1,10 @@
 from dataclasses import replace
 from datetime import date
 
-from domain.goal_suggestion import BodyProfile, GoalPlan, GoalSuggestion, suggest_goal
-from domain.nutrition_goal import NutritionGoal
-from domain.ports import DayTypeRepository, EaterResolver, GoalRepository
-from domain.values import DayType
+from meals.domain.goal_suggestion import BodyProfile, GoalPlan, GoalSuggestion, suggest_goal
+from meals.domain.nutrition_goal import NutritionGoal
+from meals.domain.ports import DayTypeRepository, EaterResolver, GoalRepository
+from meals.domain.values import DayType
 
 
 class GoalService:

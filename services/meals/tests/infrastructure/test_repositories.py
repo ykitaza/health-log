@@ -9,11 +9,11 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from domain.values import DayType, EatenOn, EaterId, MealSlot
-from infrastructure import dynamodb_repositories as dynamo
-from infrastructure import memory_repositories as memory
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
+from meals.domain.values import DayType, EatenOn, EaterId, MealSlot
+from meals.infrastructure import dynamodb_repositories as dynamo
+from meals.infrastructure import memory_repositories as memory
 from tests.domain.factories import EATER, lunch
 
 TABLE = "meals-test"

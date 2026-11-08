@@ -14,7 +14,7 @@ dependencies = [
 mcp = ["mcp>=2.3.0"]
 
 # アプリ用の API の組み立て（services/app_api）から path の依存で使うので、パッケージとして作れるようにする。
-# 食事のサービスは domain・application などをトップレベルに置いているので、ぶつからないよう training の下に入れる
+# 食事（meals）と同じく、層は training の下に入れる（組み立ての場所で、ほかのコンテキストの層とぶつからないように）
 [build-system]
 requires = ["uv_build>=0.10.9,<0.11"]
 build-backend = "uv_build"

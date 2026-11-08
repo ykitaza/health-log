@@ -14,16 +14,16 @@ from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from application.goals import GoalService
-from application.meals import MealService
-from application.summaries import SummaryService
-from application.templates import TemplateService
-from application.weights import WeightService
-from domain.values import EaterId
-from infrastructure import memory_repositories as memory
-from infrastructure import sync_repositories as synced
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from presentation import mcp_server
+from meals.application.goals import GoalService
+from meals.application.meals import MealService
+from meals.application.summaries import SummaryService
+from meals.application.templates import TemplateService
+from meals.application.weights import WeightService
+from meals.domain.values import EaterId
+from meals.infrastructure import memory_repositories as memory
+from meals.infrastructure import sync_repositories as synced
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.presentation import mcp_server
 from sync.model import Change
 from tests.presentation.test_mcp_server import GOALS, LUNCH
 from tests.sync.conftest import REGISTRY, memory_engine

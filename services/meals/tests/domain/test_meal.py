@@ -3,9 +3,9 @@ from datetime import date
 
 import pytest
 
-from domain.errors import MealError, NotFound
-from domain.meal import Meal
-from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.errors import MealError, NotFound
+from meals.domain.meal import Meal
+from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
 from tests.domain.factories import EATER, LUNCH, approx, chicken, lunch, rice
 
 

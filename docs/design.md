@@ -25,7 +25,7 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 |---|---|---|---|
 | 本人確認 | この人は誰か | 外部のシステム（Cognito） | なし |
 | 認可 | どのクライアントに、誰の、何を許したか | `services/authorization/` | なし（Cognito とは OIDC だけでつなぐ） |
-| 食事記録 | この人は何を食べ、目標とどれだけ違うか | `services/meals/`（MCP のツールは `presentation/mcp_server.py`） | 同期 |
+| 食事記録 | この人は何を食べ、目標とどれだけ違うか | `services/meals/`（MCP のツールは `meals/presentation/mcp_server.py`） | 同期 |
 | 筋トレ | この人は何をどれだけ挙げ、体はどう変わったか | `services/training/`（MCP のツールは `training/presentation/mcp_tools.py`） | 同期 |
 | 同期 | 変更をどう記録し、端末とサーバーで同じ状態にするか | `services/sync/`。どのコンテキストにも属さない共通の部品（変更の記録、当てはめ、冪等、カーソル、DynamoDB への保存、同期の API の入口） | なし |
 | アプリ用の API の組み立て | アプリ用の Lambda（`AppApiFunction`）に、何を載せるか | `services/app_api/main.py` | 食事記録、筋トレ、同期 |
@@ -35,7 +35,7 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 
 - 同期は、食事や筋トレのドメインを import しません。対象の種類ごとの決まり（項目、確かめ方、親の種類、並びのキー）は、各コンテキストが `infrastructure/sync_entities.py` で同期の `Registry` に登録します
 - 食事と筋トレは、互いを import しません。またぐもの（筋トレの日、アプリの最後の同期の時刻）は、使う側のポートを組み立てがつなぎます（下の「MCP サーバーの組み立て」）
-- 食事の MCP が変更の記録を通して書く処理は、食事の `infrastructure/sync_repositories.py` に、筋トレの分は `training/infrastructure/sync_repository.py` にあります（同期の部品を使う）
+- 食事の MCP が変更の記録を通して書く処理は、食事の `meals/infrastructure/sync_repositories.py` に、筋トレの分は `training/infrastructure/sync_repository.py` にあります（同期の部品を使う）
 - 食事・筋トレ・同期を組み合わせるのは、2つの組み立て（`services/app_api/main.py`、`services/mcp/main.py`）だけです
 - 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/mobile/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
 
@@ -51,14 +51,14 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 
 | 場所 | 中身 | 知っているもの |
 |---|---|---|
-| `services/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
+| `services/meals/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
 | `services/training/training/presentation/mcp_tools.py` | 筋トレのツール11個を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
 | `services/mcp/connector/` | MCP の入口の部品：アクセストークンの検証（`AuthzApiTokenVerifier`）、連携の取り消しと `logout` のツール、アイコン、診断用のログ、設定 | MCP の SDK、認可API との約束（JWT） |
 | `services/mcp/main.py` | サーバー（`MCPServer`）と認証を作り、3つの登録の関数を呼ぶ。コンテキストをまたぐもののポートをつなぐ | すべて |
 
 - 食事と筋トレは互いを import しません。またぐものは、使う側のコンテキストがポート（インターフェース）を持ち、`services/mcp/main.py` がつなぎます
-  - **筋トレの日**：食事のポート `TrainingDayProvider`（`services/meals/domain/ports.py`）。本人が `set_day_type` で決めた日はそれを、決めていない日は、その日に筋トレのセットの記録があれば筋トレの日にします。実装（`WorkoutTrainingDays`）は筋トレの読み取りのユースケースを呼びます
-  - **体重**：食事のポート `WeightRepository`（`services/meals/domain/ports.py`）。体重は筋トレの体組成（`body_record`）に一本化していて、食事は保存しません。実装（`BodyRecordWeights`）は、`record_weight` を体組成の手入力（`record_body` と同じく、その日の手入力の記録の体重を書き換え、なければ作る）に、`goal_progress` の体重の推移を体組成の日ごとの値（その日のいちばん新しい記録。Health Connect の取り込みも含む）に変えます。`record_weight`・`goal_progress` は食事のツールなので、scope も食事の2つのままです
+  - **筋トレの日**：食事のポート `TrainingDayProvider`（`services/meals/meals/domain/ports.py`）。本人が `set_day_type` で決めた日はそれを、決めていない日は、その日に筋トレのセットの記録があれば筋トレの日にします。実装（`WorkoutTrainingDays`）は筋トレの読み取りのユースケースを呼びます
+  - **体重**：食事のポート `WeightRepository`（`services/meals/meals/domain/ports.py`）。体重は筋トレの体組成（`body_record`）に一本化していて、食事は保存しません。実装（`BodyRecordWeights`）は、`record_weight` を体組成の手入力（`record_body` と同じく、その日の手入力の記録の体重を書き換え、なければ作る）に、`goal_progress` の体重の推移を体組成の日ごとの値（その日のいちばん新しい記録。Health Connect の取り込みも含む）に変えます。`record_weight`・`goal_progress` は食事のツールなので、scope も食事の2つのままです
   - **アプリの最後の同期の時刻**：食事と筋トレの `presentation` の `AppSyncStatus`。同期の仕組みが、アプリ（`app`・`import`）からの変更を受け付けたときの時刻を `SYNC#APP` に残し、ツールの応答の `last_app_sync_at`（日本時間）に出します。それより後にアプリで記録した分は、まだ見えていない可能性があることを、AI が伝えられるようにするためです
 - **認証の部品を `services/mcp/connector/` に置いた理由**：アクセストークンの検証・ログアウト・アイコンは、どのコンテキストのドメインでもなく、Claude・ChatGPT とつなぐ入口の話です。食事に置いたままだと、筋トレのツールが食事のコードに頼ることになります。使うのは MCP の組み立てだけなので、共通の部品（`services/sync` のようなパッケージ）にはせず、組み立ての場所に置きました
 - **scope**：接続（HTTP）のところで必須にするのは、食事の2つ（今までどおり、SDK が足りなければ 403）。筋トレの2つは、筋トレのツールが1つずつ確かめ、なければ「つなぎ直してください」と返します。接続で4つとも必須にすると、筋トレの scope を持たない今のコネクタが、食事のツールまで使えなくなるためです。RFC 9728 の文書（`/.well-known/oauth-protected-resource/mcp`）の `scopes_supported` には4つとも並べ、つなぎ直すと筋トレの scope も求められるようにしています（SDK は必須の scope をそのまま `scopes_supported` にするので、この文書のルートだけ、SDK の同じ関数で作って先に置きます）
@@ -86,13 +86,13 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 
 ## フォルダ
 
-組み立て（DI）は `main.py` で行います（認可API は `services/authorization/main.py`、Lambda に載せる2つは `services/mcp/main.py` と `services/app_api/main.py`、筋トレの中の組み立ては `training/main.py`）。食事記録には `main.py` がなく、層だけを置いています。
+組み立て（DI）は `main.py` で行います（認可API は `services/authorization/main.py`、Lambda に載せる2つは `services/mcp/main.py` と `services/app_api/main.py`、筋トレの中の組み立ては `training/main.py`）。食事記録（パッケージ `meals`）には `main.py` がなく、層だけを置いています。
 食事記録と筋トレは DDD の層（`presentation` → `application` → `domain` ← `infrastructure`）に分けています。
 
 | フォルダ | 中身 |
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
-| `services/meals/` | 食事記録。MCP のツール（記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合の17個）、同期への登録（`infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
+| `services/meals/` | 食事記録（パッケージ `meals`）。MCP のツール（記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合の17個）、同期への登録（`meals/infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`meals/presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
 | `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録、同期された記録の読み書き、MCP のツール（11個） |
 | `services/mcp/` | MCP サーバーの組み立て（`main.py`、Lambda の `MealsFunction`）と、MCP の入口の部品（`connector/`） |
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |

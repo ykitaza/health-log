@@ -4,17 +4,32 @@ version = "0.1.0"
 description = "食事記録コンテキスト（MCP のツール。サーバーの組み立ては services/mcp）"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=2.3.0",
+    "anyio>=4.9",
+    "pydantic>=2.11",
     "sync",
 ]
 
+# MCP のツール（meals.presentation.mcp_server）を使うときだけ要る。アプリ用の API（services/app_api）は入れない
+[project.optional-dependencies]
+mcp = ["mcp>=2.3.0"]
+
+# 組み立ての場所（services/mcp・services/app_api）から path の依存で使うので、パッケージとして作れるようにする（training・sync と同じ形）
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "meals"
+module-root = ""
+
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["."]  # tests と scripts をリポジトリのこのフォルダから読む
 testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
     "boto3>=1.43.111",
+    "mcp>=2.3.0",
     "moto>=5.2.4",
     "pytest>=9.1.1",
 ]

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, time
 from enum import Enum
 
-from domain.errors import MealError
+from meals.domain.errors import MealError
 
 
 @dataclass(frozen=True)

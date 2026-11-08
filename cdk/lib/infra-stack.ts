@@ -224,8 +224,8 @@ export class InfraStack extends cdk.Stack {
       MEALS_TABLE: mealsTable.tableName,
     }));
     const mealsUrl = publicApi('MealsApi', mealsFn);
-    // 同期の仕組み（services/sync/sync/store.py）と体重（services/meals/infrastructure/dynamodb_repositories.py）が使う操作だけ。
-    // 同期の変更は追記で、体重は上書き（PutItem）なので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
+    // 同期の仕組み（services/sync/sync/store.py）が使う操作だけ（体重も筋トレの体組成として、同期の項目に書く）。
+    // 同期の変更は追記なので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
     // TransactWriteItems は、中の操作（Put。条件は Put に付ける）の権限で許される
     mealsFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem'],

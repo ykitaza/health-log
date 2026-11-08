@@ -3,11 +3,11 @@
 import asyncio
 from datetime import date
 
-from application.summaries import SummaryService
-from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
-from domain.values import DayType, EaterId
-from infrastructure import memory_repositories as memory
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.application.summaries import SummaryService
+from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
+from meals.domain.values import DayType, EaterId
+from meals.infrastructure import memory_repositories as memory
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 
 MON, TUE, WED = date(2026, 11, 2), date(2026, 11, 3), date(2026, 11, 4)
 

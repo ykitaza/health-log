@@ -10,11 +10,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from application.goals import GoalService
-from domain.errors import MealError
-from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
-from domain.nutrition_goal import EatingStyle, Policy
-from presentation.views import goal_fields, used_inputs
+from meals.application.goals import GoalService
+from meals.domain.errors import MealError
+from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
+from meals.domain.nutrition_goal import EatingStyle, Policy
+from meals.presentation.views import goal_fields, used_inputs
 from sync.presentation.http_api import Caller, HttpError, Route, field_errors, parse_body
 
 

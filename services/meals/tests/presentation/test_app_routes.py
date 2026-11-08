@@ -7,14 +7,14 @@ from datetime import date
 
 import pytest
 
-from application.commands import NewItem, NewMeal
-from application.goals import GoalService
-from application.meals import MealService
-from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
-from infrastructure import sync_repositories as synced
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from infrastructure.sync_entities import template_id
-from presentation.app_routes import meal_routes
+from meals.application.commands import NewItem, NewMeal
+from meals.application.goals import GoalService
+from meals.application.meals import MealService
+from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.infrastructure import sync_repositories as synced
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.infrastructure.sync_entities import template_id
+from meals.presentation.app_routes import meal_routes
 from sync.model import Change
 from sync.presentation.http_api import SyncHttpApi
 from tests.sync.conftest import REGISTRY, memory_engine
