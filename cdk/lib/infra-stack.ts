@@ -85,7 +85,7 @@ export class InfraStack extends cdk.Stack {
       });
       // 送信元 IP を記録し、ChatGPT・Claude の通信が公開されている IP の範囲から来るかを確かめる
       const accessLogs = new logs.LogGroup(this, `${id}AccessLogs`, {
-        retention: logs.RetentionDays.ONE_WEEK,
+        retention: logs.RetentionDays.ONE_MONTH, // 30日
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       });
       new apigw.HttpStage(this, `${id}DefaultStage`, {
