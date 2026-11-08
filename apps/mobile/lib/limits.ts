@@ -12,6 +12,8 @@ export const LIMITS = {
   bodyFat: { label: '体脂肪率', min: 0, max: 100, unit: '%' },
   muscle: { label: '筋肉率', min: 0, max: 100, unit: '%' },
   waist: { label: 'ウエスト', min: 30, max: 200, unit: 'cm' },
+  // 除脂肪体重は手では入れない（Health Connect の取り込みだけ）。同期のサーバーの body_record.lean_mass_kg と同じ
+  leanMass: { label: '除脂肪体重', min: 0, max: 300, unit: 'kg' },
 } as const satisfies Record<string, Limit>;
 
 /** 種目と部位の名前の長さの上限（前後の空白を取ってから、コードポイントで数える。同期のサーバーの上限 200 の内側） */

@@ -1,5 +1,5 @@
 {
-  "description": "同期の衝突の決まり（docs/sync-design.md）。changes を受け付けた順（received_at の順）に当てはめた結果が expected になる。サーバー（services/training/tests/test_shared_sync_testdata.py）と、アプリ（apps/mobile/db/__tests__/sync-shared.test.ts：偽のサーバーと、端末を通したもの）で同じ結果になることを確かめる。origin が app の変更は端末で記録したもの（端末は create で全部の項目を送る）、mcp は MCP（changed_at はサーバーが受け付けた時刻）、import は取り込み。",
+  "description": "同期の衝突の決まり（docs/sync-design.md）。changes を受け付けた順（received_at の順）に当てはめた結果が expected になる。サーバー（services/training/tests/test_shared_sync_testdata.py）と、アプリ（apps/mobile/db/__tests__/sync-shared.test.ts：偽のサーバーと、端末を通したもの）で同じ結果になることを確かめる。origin が app の変更は端末で記録したもの（端末は create で全部の項目を送る）、mcp は MCP（changed_at はサーバーが受け付けた時刻）、import は取り込み（端末を通すテストでは、端末で取り込んで origin = import で送る。端末に行がある記録の取り込みの create は、ほかの端末の取り込みとして直接サーバーへ送る）。",
   "cases": [
     {
       "name": "同じ記録の違う項目は、両方が残る",
@@ -504,6 +504,86 @@
             "memo": "",
             "source": "health_connect",
             "external_id": "hc-1",
+            "origin_package": "com.example.scale"
+          }
+        }
+      ]
+    },
+    {
+      "name": "取り込みの更新は、MCP で直した項目を上書きしない（ほかの項目と、取り込みどうしの新しい方は入る）",
+      "changes": [
+        {
+          "origin": "import",
+          "op": "create",
+          "entity_type": "body_record",
+          "entity_id": "b9",
+          "changed_at": "2026-11-08T01:00:00.000Z",
+          "received_at": "2026-11-08T01:00:01.000Z",
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-07T22:30:00.000Z",
+            "weight_kg": 70.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": null,
+            "waist_cm": null,
+            "memo": "",
+            "source": "health_connect",
+            "external_id": "hc-9",
+            "origin_package": "com.example.scale"
+          }
+        },
+        {
+          "origin": "mcp",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b9",
+          "changed_at": "2026-11-08T02:00:00.000Z",
+          "received_at": "2026-11-08T02:00:00.000Z",
+          "fields": {
+            "weight_kg": 69.0
+          }
+        },
+        {
+          "origin": "import",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b9",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "received_at": "2026-11-08T03:00:01.000Z",
+          "fields": {
+            "weight_kg": 70.4,
+            "lean_mass_kg": 55.0
+          }
+        },
+        {
+          "origin": "import",
+          "op": "update",
+          "entity_type": "body_record",
+          "entity_id": "b9",
+          "changed_at": "2026-11-08T04:00:00.000Z",
+          "received_at": "2026-11-08T04:00:01.000Z",
+          "fields": {
+            "lean_mass_kg": 55.4
+          }
+        }
+      ],
+      "expected": [
+        {
+          "entity_type": "body_record",
+          "entity_id": "b9",
+          "deleted": false,
+          "fields": {
+            "date": "2026-11-08",
+            "measured_at": "2026-11-07T22:30:00.000Z",
+            "weight_kg": 69.0,
+            "body_fat_pct": null,
+            "muscle_pct": null,
+            "lean_mass_kg": 55.4,
+            "waist_cm": null,
+            "memo": "",
+            "source": "health_connect",
+            "external_id": "hc-9",
             "origin_package": "com.example.scale"
           }
         }

@@ -119,8 +119,8 @@ CREATE TABLE sync_held (
 );
 INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
 `);
-      await backfillOutbox(db, TRAINING_ENTITIES);
-      for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec));
+      await backfillOutbox(db, TRAINING_ENTITIES, false);
+      for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec, false));
     },
   },
   {
@@ -180,7 +180,20 @@ CREATE TABLE day_types (
 ALTER TABLE sync_outbox ADD COLUMN parent_id TEXT;
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
-      for (const spec of MEAL_ENTITIES) await db.execAsync(triggerSql(spec));
+      for (const spec of MEAL_ENTITIES) await db.execAsync(triggerSql(spec, false));
+    },
+  },
+  {
+    // Health Connect の取り込み（docs/sync-design.md の「Health Connect の取り込み」）。
+    // outbox に origin（'app' か 'import'）を足し、トリガーを作り直す。取り込みが書くあいだ（sync_meta に importing があるあいだ）に
+    // 積んだ変更は 'import' になり、サーバーで手入力より弱く当てはめられる。今まで積んだものは、どれも手入力（'app'）
+    version: 4,
+    up: async (db) => {
+      await db.execAsync(`ALTER TABLE sync_outbox ADD COLUMN origin TEXT NOT NULL DEFAULT 'app' CHECK (origin IN ('app', 'import'));`);
+      for (const spec of ENTITIES) {
+        await db.execAsync(`DROP TRIGGER sync_${spec.table}_insert; DROP TRIGGER sync_${spec.table}_update;`);
+        await db.execAsync(triggerSql(spec));
+      }
     },
   },
 ];
@@ -208,25 +221,25 @@ export async function insertSeeds(db: Db, now: string) {
  * - それ以外は、今の値を create で積む。時刻は行の updated_at
  * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
  * - 食事の品目は、親の食事の ID（parent_id）を付けて積む。消した食事の品目は積まない
- * specs は積む種類。版2のマイグレーションは筋トレの種類だけ（食事の表は版3で作るので、まだない）
+ * - Health Connect から取り込んだ行（EntitySpec の imported）は、origin を 'import' で積む（手入力より弱くする）
+ * specs は積む種類。版2のマイグレーションは筋トレの種類だけ（食事の表は版3で作るので、まだない）。
+ * withOrigin は outbox に origin があるか（版4で足した。版2のマイグレーションは false）
  */
-export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES) {
+export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, withOrigin = true) {
   const seeds: Record<string, Map<string, Record<string, Bind>>> = {
     body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
     exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
     }])),
   };
-  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null) =>
-    parentId == null
-      ? db.runAsync(
-        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
-        [type, id, op, fields ? JSON.stringify(fields) : null, at],
-      )
-      : db.runAsync(
-        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, parent_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?, ?)`,
-        [type, id, parentId, op, fields ? JSON.stringify(fields) : null, at],
-      );
+  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null,
+    origin: 'app' | 'import' = 'app') => {
+    const cols = ['entity_type', 'entity_id', ...(parentId == null ? [] : ['parent_id']), 'op', 'fields', 'changed_at', ...(withOrigin ? ['origin'] : [])];
+    const values = [type, id, ...(parentId == null ? [] : [parentId]), op, fields ? JSON.stringify(fields) : null, at, ...(withOrigin ? [origin] : [])];
+    return db.runAsync(
+      `INSERT INTO sync_outbox (change_id, ${cols.join(', ')}) VALUES (${SQL_UUID}, ${cols.map(() => '?').join(', ')})`, values,
+    );
+  };
   for (const spec of specs) {
     const cols = Object.keys(spec.columns);
     const parent = spec.parent;
@@ -246,7 +259,9 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES) {
         if (Object.keys(changed).length > 0) await add(spec.type, id, 'update', changed, row.updated_at as string);
         if (row.deleted_at) await add(spec.type, id, 'delete', null, row.deleted_at as string);
       } else if (!row.deleted_at) {
-        await add(spec.type, id, 'create', values, row.updated_at as string, (row.parent_id as string | undefined) ?? null);
+        const imported = spec.imported && values[spec.imported.column] === spec.imported.equals;
+        await add(spec.type, id, 'create', values, row.updated_at as string, (row.parent_id as string | undefined) ?? null,
+          imported ? 'import' : 'app');
       }
     }
   }

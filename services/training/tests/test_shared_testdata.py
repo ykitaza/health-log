@@ -61,7 +61,7 @@ def test_体組成():
     for case in data["goal_progress"]:
         assert asdict(body.goal_progress(case["current_kg"], case["goal_kg"], case["pace_per_week"])) == case["expected"]
     records = [BodyRecord(f"r{n}", r["date"], r["measured_at"], r["weight_kg"], r["body_fat_pct"], r["muscle_pct"],
-                          r["waist_cm"], r["memo"], "manual", r["updated_at"])
+                          r["waist_cm"], r["memo"], r["source"], r["updated_at"])
                for n, r in enumerate(data["daily_body_values"]["records"])]
     assert [asdict(d) for d in body.daily_body_values(records)] == data["daily_body_values"]["expected"]
 

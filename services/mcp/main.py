@@ -103,7 +103,7 @@ class BodyRecordWeights:
     """食事の WeightRepository の実装。体重は筋トレの体組成（body_record）に一本化していて、そこを読み書きする。
 
     書くとき（record_weight）は、体組成の手入力（record_body）と同じく、その日の手入力の記録の体重だけを書き換える
-    （なければ作る）。読むときは、体組成の日ごとの値（その日のいちばん新しい記録。Health Connect の取り込みも含む）の体重。
+    （なければ作る）。読むときは、体組成の日ごとの値（その日の手入力のいちばん新しい記録。手入力がなければ Health Connect の取り込み）の体重。
     """
 
     def __init__(self, commands: TrainingCommands, queries: TrainingQueries):

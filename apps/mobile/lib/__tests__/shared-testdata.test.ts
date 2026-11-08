@@ -99,14 +99,19 @@ describe('body.json', () => {
     }
   });
 
-  test('1日に1つの値', () => {
+  test('1日に1つの値（手入力が先、取り込みは手入力の値がない項目だけ）', () => {
     const records = data.daily_body_values.records.map((r: any) => ({
       date: r.date, measuredAt: r.measured_at, updatedAt: r.updated_at, weightKg: r.weight_kg,
-      bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo,
+      bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo, source: r.source,
     }));
     const expected = data.daily_body_values.expected.map((d: any) => ({
       date: d.date, weightKg: d.weight_kg, bodyFatPct: d.body_fat_pct, musclePct: d.muscle_pct, waistCm: d.waist_cm, memo: d.memo,
     }));
-    expect(dailyBodyValues(records)).toEqual(expected);
+    const daily = dailyBodyValues(records);
+    expect(daily.map(({ imported: _, ...v }) => v)).toEqual(expected);
+    // 取り込みの値を出している項目（体組成の画面の印）
+    const names: Record<string, string> = { weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct', musclePct: 'muscle_pct', waistCm: 'waist_cm' };
+    expect(Object.fromEntries(daily.filter((d) => d.imported).map((d) => [d.date, d.imported!.map((f) => names[f])])))
+      .toEqual(data.daily_body_values.expected_imported);
   });
 });

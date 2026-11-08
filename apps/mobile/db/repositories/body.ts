@@ -6,14 +6,15 @@ import type { Db, Deps } from '../types';
 type Row = {
   id: string; date: string; measured_at: string; updated_at: string;
   weight_kg: number | null; body_fat_pct: number | null; muscle_pct: number | null; waist_cm: number | null; memo: string;
+  source: 'manual' | 'health_connect';
 };
 
 const toLike = (r: Row): BodyRecordLike => ({
   date: r.date, measuredAt: r.measured_at, updatedAt: r.updated_at,
-  weightKg: r.weight_kg, bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo,
+  weightKg: r.weight_kg, bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo, source: r.source,
 });
 
-const SELECT = `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo
+const SELECT = `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo, source
   FROM body_records WHERE deleted_at IS NULL`;
 
 const COLUMNS: Record<keyof BodyValues | 'memo', string> = {
@@ -23,11 +24,11 @@ const COLUMNS: Record<keyof BodyValues | 'memo', string> = {
 export type BodyPatch = Partial<BodyValues & { memo: string }>;
 
 /**
- * 体組成。1日に複数の記録を持てる。画面に出す1日1つの値は dailyBodyValues の決まりで選ぶ。
- * 第1段階は手入力だけ。手入力は1日1件（その日の手入力の行）を書き換える。
+ * 体組成。1日に複数の記録を持てる。画面に出す1日1つの値は dailyBodyValues の決まり（手入力が先）で選ぶ。
+ * 手入力は1日1件（その日の手入力の行）を書き換える。Health Connect の取り込みは lib/healthConnect/importer.ts が書く
  */
 export function bodyRepository(db: Db, deps: Deps) {
-  return serializeWrites(db, {
+  const repo = {
     /** 日ごとの値（古い順） */
     async listDaily(): Promise<DailyBody[]> {
       const rows = await db.getAllAsync<Row>(`${SELECT} ORDER BY date`, []);
@@ -46,7 +47,7 @@ export function bodyRepository(db: Db, deps: Deps) {
     async saveManual(date: DateKey, patch: BodyPatch): Promise<void> {
       const all = Object.entries(patch).filter(([, v]) => v !== undefined) as [keyof BodyPatch, number | string | null][];
       const existing = await db.getFirstAsync<Row>(
-        `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo
+        `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo, source
          FROM body_records WHERE deleted_at IS NULL AND source = 'manual' AND date = ?
          ORDER BY measured_at DESC LIMIT 1`, [date],
       );
@@ -77,5 +78,20 @@ export function bodyRepository(db: Db, deps: Deps) {
         [deps.newId(), date, measuredAt, p.weightKg, p.bodyFatPct, p.musclePct, p.waistCm, p.memo ?? '', nowIso, nowIso],
       );
     },
-  }, ['saveManual']);
+
+    /**
+     * その日の項目を消す（画面の ×）。手入力の値を消し、その項目を持つ取り込みの行（1件に1つの値）も消す。
+     * 消した取り込みの行は、取り込み直しても戻らない（同じ external_id の行が消えたまま残るため）
+     */
+    async clearField(date: DateKey, field: keyof BodyValues): Promise<void> {
+      await repo.saveManual(date, { [field]: null });
+      const nowIso = deps.now().toISOString();
+      await db.runAsync(
+        `UPDATE body_records SET deleted_at = ?, updated_at = ?
+         WHERE deleted_at IS NULL AND source = 'health_connect' AND date = ? AND ${COLUMNS[field]} IS NOT NULL`,
+        [nowIso, nowIso, date],
+      );
+    },
+  };
+  return serializeWrites(db, repo, ['saveManual', 'clearField']);
 }

@@ -22,6 +22,11 @@ export function onLocalWrite(db: Db, listener: () => void): () => void {
   return () => { set.delete(listener); };
 }
 
+/** 記録を書いたことを、onLocalWrite の聞き手に知らせる（serializeWrites を通らない書き込み：Health Connect の取り込み） */
+export function notifyLocalWrite(db: Db) {
+  for (const listener of listeners.get(db) ?? []) listener();
+}
+
 /**
  * リポジトリの書き込みのメソッド（names）を、同じ DB で1つずつ順に行うように包む。
  * 包んだメソッドの中から、包んだ別のメソッドを呼ばないこと（待ち合って止まる）
@@ -32,7 +37,7 @@ export function serializeWrites<R extends Record<string, unknown>, K extends key
     const method = repo[name] as (...args: unknown[]) => Promise<unknown>;
     out[name] = (async (...args: unknown[]) => {
       const result = await oneAtATime(db, () => method(...args));
-      for (const listener of listeners.get(db) ?? []) listener();
+      notifyLocalWrite(db);
       return result;
     }) as R[K];
   }

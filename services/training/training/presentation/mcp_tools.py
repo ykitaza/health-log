@@ -290,6 +290,7 @@ def register_training_tools(
     async def body_progress(days: Annotated[int, Field(ge=7, le=366, description="今日までの何日分か")] = 90) -> dict:
         """体組成の推移：日ごとの体重・体脂肪率・筋肉率・ウエストと、体脂肪量・除脂肪量、直近28日の体重の週あたりの変化。
 
+        1日の値は、項目ごとに手入力（アプリ・record_body）を先にし、手入力がなければ Health Connect の取り込み（体重計など）を使う。
         推移はグラフで見せる。増減を責めない。
         """
         sub = subject(READ_SCOPE)
