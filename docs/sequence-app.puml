@@ -1,0 +1,46 @@
+@startuml sequence-app
+skinparam defaultFontName "Hiragino Sans"
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+skinparam BoxPadding 8
+hide footbox
+
+actor "利用者" as User
+participant "トレログ\n（スマホアプリ）" as App
+participant "Cognito\n（ログイン画面）" as Cognito
+participant "アプリ用の API\n（HTTP API・JWT のオーソライザー）" as Api
+participant "AppApiFunction\n（services/app_api）" as Fn
+database "DynamoDB\n（MealsTable の SYNC#）" as DB
+
+== 1. ログイン（認可コード＋PKCE。認可API は通さない） ==
+App -> Cognito : /oauth2/authorize\n（client_id＝torelog-app、PKCE の code_challenge、scope＝torelog-api/*）
+Cognito -> User : ログイン画面
+User -> Cognito : パスキーでログイン
+Cognito --> App : torelog://callback へ転送（認可コード）
+App -> Cognito : /oauth2/token（認可コード、code_verifier）
+Cognito --> App : アクセストークン・ID トークン（15分）\nリフレッシュトークン（30日）
+
+== 2. 送る（端末で先に保存した変更） ==
+App -> Api : POST /v1/sync/changes（Bearer アクセストークン、変更を25件まで）
+Api -> Api : iss（Cognito）・client_id（torelog-app）・scope を確かめる
+Api -> Fn : イベント（確かめたクレーム）
+Fn -> Fn : token_use・client_id をもう一度確かめる\n種類ごとの scope と項目を確かめる
+Fn -> DB : 1つのトランザクションで書く\n（SYNC#HEAD・SYNC#LOG#・SYNC#CHANGE#・SYNC#STATE#・SYNC#APP）
+Fn --> App : 1件ごとに accepted・duplicate・rejected
+
+== 3. 受け取る（MCP やほかの端末の変更） ==
+App -> Api : GET /v1/sync/changes?after=<覚えた seq>
+Api -> Fn : イベント（確かめたクレーム）
+Fn -> DB : SYNC#LOG# を seq の順に読む（pk＝本人）
+Fn --> App : 変更と当てはめたあとの状態、next_cursor、has_more
+App -> App : 状態で端末の表を上書きし、まだ届いていない端末の変更を当てはめ直す
+
+note over App, DB
+初めての端末は、先に GET /v1/sync/snapshot で今の状態を全部取る。
+MCP（Claude・ChatGPT）からの変更も同じ変更の記録を通るので、ここで端末に届く。
+end note
+
+== 4. アクセストークンの期限が切れたとき ==
+App -> Cognito : /oauth2/token（grant_type=refresh_token）
+Cognito --> App : 新しいアクセストークンと、新しいリフレッシュトークン\n（古いものは10秒だけ使える）
+@enduml
