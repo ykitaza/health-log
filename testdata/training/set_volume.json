@@ -1,0 +1,40 @@
+{
+  "description": "1セットの負荷量（重量 × 回数）。回数だけの種目（重量なし）や、0以下は 0",
+  "cases": [
+    {
+      "weight_kg": 80,
+      "reps": 8,
+      "expected": 640
+    },
+    {
+      "weight_kg": 62.5,
+      "reps": 3,
+      "expected": 187.5
+    },
+    {
+      "weight_kg": 0.1,
+      "reps": 3,
+      "expected": 0.30000000000000004
+    },
+    {
+      "weight_kg": null,
+      "reps": 10,
+      "expected": 0
+    },
+    {
+      "weight_kg": 80,
+      "reps": 0,
+      "expected": 0
+    },
+    {
+      "weight_kg": 80,
+      "reps": null,
+      "expected": 0
+    },
+    {
+      "weight_kg": -5,
+      "reps": 10,
+      "expected": 0
+    }
+  ]
+}

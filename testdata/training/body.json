@@ -1,0 +1,297 @@
+{
+  "description": "体組成の計算（apps/mobile/lib/body.ts と同じ）",
+  "bmi": [
+    {
+      "weight_kg": 70,
+      "height_cm": 175,
+      "expected": 22.857142857142858
+    },
+    {
+      "weight_kg": 62.4,
+      "height_cm": 160.5,
+      "expected": 24.223367397443734
+    },
+    {
+      "weight_kg": null,
+      "height_cm": 170,
+      "expected": null
+    },
+    {
+      "weight_kg": 70,
+      "height_cm": null,
+      "expected": null
+    },
+    {
+      "weight_kg": 70,
+      "height_cm": 0,
+      "expected": null
+    }
+  ],
+  "fat_mass": [
+    {
+      "weight_kg": 70,
+      "pct": 18.5,
+      "expected": 12.95
+    },
+    {
+      "weight_kg": null,
+      "pct": 20,
+      "expected": null
+    },
+    {
+      "weight_kg": 70,
+      "pct": null,
+      "expected": null
+    }
+  ],
+  "lean_mass": [
+    {
+      "weight_kg": 70,
+      "pct": 18.5,
+      "expected": 57.05
+    },
+    {
+      "weight_kg": null,
+      "pct": 20,
+      "expected": null
+    },
+    {
+      "weight_kg": 70,
+      "pct": null,
+      "expected": null
+    }
+  ],
+  "muscle_mass": [
+    {
+      "weight_kg": 70,
+      "pct": 40.2,
+      "expected": 28.14
+    },
+    {
+      "weight_kg": null,
+      "pct": 40,
+      "expected": null
+    },
+    {
+      "weight_kg": 70,
+      "pct": null,
+      "expected": null
+    }
+  ],
+  "weekly_pace": [
+    {
+      "points": [
+        {
+          "date": "2026-10-10",
+          "weight_kg": 72.0
+        },
+        {
+          "date": "2026-10-16",
+          "weight_kg": 71.5
+        },
+        {
+          "date": "2026-10-30",
+          "weight_kg": 70.8
+        },
+        {
+          "date": "2026-11-11",
+          "weight_kg": 69.9
+        },
+        {
+          "date": "2026-11-12",
+          "weight_kg": 60.0
+        }
+      ],
+      "today": "2026-11-11",
+      "days": 28,
+      "expected": -0.43076923076922924
+    },
+    {
+      "points": [
+        {
+          "date": "2026-10-10",
+          "weight_kg": 72.0
+        },
+        {
+          "date": "2026-10-16",
+          "weight_kg": 71.5
+        },
+        {
+          "date": "2026-10-30",
+          "weight_kg": 70.8
+        },
+        {
+          "date": "2026-11-11",
+          "weight_kg": 69.9
+        },
+        {
+          "date": "2026-11-12",
+          "weight_kg": 60.0
+        }
+      ],
+      "today": "2026-11-11",
+      "days": 60,
+      "expected": -0.45937499999999876
+    },
+    {
+      "points": [
+        {
+          "date": "2026-10-10",
+          "weight_kg": 72.0
+        }
+      ],
+      "today": "2026-11-11",
+      "days": 28,
+      "expected": null
+    },
+    {
+      "points": [
+        {
+          "date": "2026-11-11",
+          "weight_kg": 70.0
+        },
+        {
+          "date": "2026-11-11",
+          "weight_kg": 69.0
+        }
+      ],
+      "today": "2026-11-11",
+      "days": 28,
+      "expected": null
+    }
+  ],
+  "goal_progress": [
+    {
+      "current_kg": 70,
+      "goal_kg": 65,
+      "pace_per_week": -0.5,
+      "expected": {
+        "remaining": 5,
+        "direction": "lose",
+        "weeks": 10
+      }
+    },
+    {
+      "current_kg": 70,
+      "goal_kg": 65,
+      "pace_per_week": 0.3,
+      "expected": {
+        "remaining": 5,
+        "direction": "lose",
+        "weeks": null
+      }
+    },
+    {
+      "current_kg": 70,
+      "goal_kg": 75,
+      "pace_per_week": 0.4,
+      "expected": {
+        "remaining": 5,
+        "direction": "gain",
+        "weeks": 13
+      }
+    },
+    {
+      "current_kg": 70,
+      "goal_kg": 70,
+      "pace_per_week": -0.5,
+      "expected": {
+        "remaining": 0,
+        "direction": "reached",
+        "weeks": null
+      }
+    },
+    {
+      "current_kg": 70,
+      "goal_kg": 65,
+      "pace_per_week": null,
+      "expected": {
+        "remaining": 5,
+        "direction": "lose",
+        "weeks": null
+      }
+    },
+    {
+      "current_kg": 70,
+      "goal_kg": 65,
+      "pace_per_week": 0,
+      "expected": {
+        "remaining": 5,
+        "direction": "lose",
+        "weeks": null
+      }
+    },
+    {
+      "current_kg": 70.2,
+      "goal_kg": 65,
+      "pace_per_week": -0.45,
+      "expected": {
+        "remaining": 5.200000000000003,
+        "direction": "lose",
+        "weeks": 12
+      }
+    }
+  ],
+  "daily_body_values": {
+    "records": [
+      {
+        "date": "2026-11-01",
+        "measured_at": "2026-11-01T07:00:00.000Z",
+        "updated_at": "2026-11-01T07:00:00.000Z",
+        "weight_kg": 70.0,
+        "body_fat_pct": null,
+        "muscle_pct": null,
+        "waist_cm": null,
+        "memo": ""
+      },
+      {
+        "date": "2026-11-01",
+        "measured_at": "2026-11-01T21:00:00.000Z",
+        "updated_at": "2026-11-01T21:00:00.000Z",
+        "weight_kg": null,
+        "body_fat_pct": 18.5,
+        "muscle_pct": null,
+        "waist_cm": null,
+        "memo": "夜"
+      },
+      {
+        "date": "2026-11-02",
+        "measured_at": "2026-11-02T07:00:00.000Z",
+        "updated_at": "2026-11-02T07:00:00.000Z",
+        "weight_kg": 69.6,
+        "body_fat_pct": 18.0,
+        "muscle_pct": 40.1,
+        "waist_cm": 80.0,
+        "memo": ""
+      },
+      {
+        "date": "2026-11-02",
+        "measured_at": "2026-11-02T07:00:00.000Z",
+        "updated_at": "2026-11-02T08:00:00.000Z",
+        "weight_kg": 69.4,
+        "body_fat_pct": null,
+        "muscle_pct": null,
+        "waist_cm": null,
+        "memo": "同じ時刻"
+      }
+    ],
+    "expected": [
+      {
+        "date": "2026-11-01",
+        "weight_kg": 70.0,
+        "body_fat_pct": 18.5,
+        "muscle_pct": null,
+        "waist_cm": null,
+        "memo": "夜"
+      },
+      {
+        "date": "2026-11-02",
+        "weight_kg": 69.4,
+        "body_fat_pct": 18.0,
+        "muscle_pct": 40.1,
+        "waist_cm": 80.0,
+        "memo": "同じ時刻"
+      }
+    ]
+  }
+}

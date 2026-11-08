@@ -1,0 +1,70 @@
+{
+  "description": "推定1RM。1回なら重量そのもの、2回以上は Epley 式（重量 ×（1 ＋ 回数 ÷ 30））。重量か回数がない・0以下なら 0",
+  "cases": [
+    {
+      "weight_kg": 80,
+      "reps": 8,
+      "expected": 101.33333333333333
+    },
+    {
+      "weight_kg": 100,
+      "reps": 2,
+      "expected": 106.66666666666667
+    },
+    {
+      "weight_kg": 100,
+      "reps": 1,
+      "expected": 100
+    },
+    {
+      "weight_kg": 62.5,
+      "reps": 1,
+      "expected": 62.5
+    },
+    {
+      "weight_kg": 60,
+      "reps": 10,
+      "expected": 80.0
+    },
+    {
+      "weight_kg": 102.5,
+      "reps": 5,
+      "expected": 119.58333333333334
+    },
+    {
+      "weight_kg": 20,
+      "reps": 30,
+      "expected": 40.0
+    },
+    {
+      "weight_kg": null,
+      "reps": 8,
+      "expected": 0
+    },
+    {
+      "weight_kg": 80,
+      "reps": null,
+      "expected": 0
+    },
+    {
+      "weight_kg": 80,
+      "reps": 0,
+      "expected": 0
+    },
+    {
+      "weight_kg": 0,
+      "reps": 5,
+      "expected": 0
+    },
+    {
+      "weight_kg": -1,
+      "reps": 5,
+      "expected": 0
+    },
+    {
+      "weight_kg": -1,
+      "reps": 1,
+      "expected": 0
+    }
+  ]
+}

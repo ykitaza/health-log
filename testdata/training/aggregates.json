@@ -1,0 +1,327 @@
+{
+  "description": "集計。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。週は日曜始まり",
+  "today": "2026-11-11",
+  "rows": [
+    {
+      "date": "2026-10-12",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 10
+    },
+    {
+      "date": "2026-10-12",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 72.5,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-20",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 100,
+      "reps": 5
+    },
+    {
+      "date": "2026-10-20",
+      "exercise_id": "pushup",
+      "body_part_id": "chest",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-10-28",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 100,
+      "reps": 1
+    },
+    {
+      "date": "2026-10-28",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 90,
+      "reps": 3
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 102.5,
+      "reps": 5
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 0.1,
+      "reps": 3
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 0.2,
+      "reps": 3
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 80,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-08",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 82.5,
+      "reps": 6
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 60,
+      "reps": 12
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 105,
+      "reps": 3
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 85,
+      "reps": 0
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 200,
+      "reps": 10
+    }
+  ],
+  "expected": {
+    "total_volume": 6833.4,
+    "period_totals": {
+      "last7": 2170.0,
+      "last28": 3553.3999999999996,
+      "total": 4833.4
+    },
+    "weekly_volumes": {
+      "weeks": 6,
+      "result": [
+        1530.0,
+        1153.4,
+        370,
+        500,
+        1280.0,
+        0
+      ]
+    },
+    "weekly_volume_by_body_part": {
+      "weeks": 5,
+      "result": [
+        {
+          "week_start": "2026-10-11",
+          "by_part": {
+            "chest": 1280.0
+          },
+          "total": 1280.0
+        },
+        {
+          "week_start": "2026-10-18",
+          "by_part": {
+            "legs": 500
+          },
+          "total": 500
+        },
+        {
+          "week_start": "2026-10-25",
+          "by_part": {
+            "chest": 370
+          },
+          "total": 370
+        },
+        {
+          "week_start": "2026-11-01",
+          "by_part": {
+            "legs": 512.5,
+            "back": 0.9000000000000001,
+            "chest": 640
+          },
+          "total": 1153.4
+        },
+        {
+          "week_start": "2026-11-08",
+          "by_part": {
+            "chest": 495.0,
+            "back": 720,
+            "legs": 315
+          },
+          "total": 1530.0
+        }
+      ]
+    },
+    "exercise_daily_series": {
+      "bench": [
+        {
+          "date": "2026-10-12",
+          "volume": 1280.0,
+          "max_1rm": 93.33333333333333
+        },
+        {
+          "date": "2026-10-28",
+          "volume": 370,
+          "max_1rm": 100
+        },
+        {
+          "date": "2026-11-07",
+          "volume": 640,
+          "max_1rm": 101.33333333333333
+        },
+        {
+          "date": "2026-11-08",
+          "volume": 495.0,
+          "max_1rm": 99.0
+        },
+        {
+          "date": "2026-11-11",
+          "volume": 0,
+          "max_1rm": 0
+        },
+        {
+          "date": "2026-11-12",
+          "volume": 2000,
+          "max_1rm": 266.66666666666663
+        }
+      ],
+      "squat": [
+        {
+          "date": "2026-10-20",
+          "volume": 500,
+          "max_1rm": 116.66666666666667
+        },
+        {
+          "date": "2026-11-01",
+          "volume": 512.5,
+          "max_1rm": 119.58333333333334
+        },
+        {
+          "date": "2026-11-11",
+          "volume": 315,
+          "max_1rm": 115.50000000000001
+        }
+      ],
+      "pushup": [
+        {
+          "date": "2026-10-20",
+          "volume": 0,
+          "max_1rm": 0
+        }
+      ]
+    },
+    "personal_bests": {
+      "bench": {
+        "exercise_id": "bench",
+        "e1rm": 266.66666666666663,
+        "weight_kg": 200,
+        "reps": 10,
+        "date": "2026-11-12"
+      },
+      "squat": {
+        "exercise_id": "squat",
+        "e1rm": 119.58333333333334,
+        "weight_kg": 102.5,
+        "reps": 5,
+        "date": "2026-11-01"
+      },
+      "row": {
+        "exercise_id": "row",
+        "e1rm": 84.0,
+        "weight_kg": 60,
+        "reps": 12,
+        "date": "2026-11-10"
+      }
+    },
+    "personal_bests_before": {
+      "before": "2026-11-01",
+      "result": {
+        "bench": {
+          "exercise_id": "bench",
+          "e1rm": 100,
+          "weight_kg": 100,
+          "reps": 1,
+          "date": "2026-10-28"
+        },
+        "squat": {
+          "exercise_id": "squat",
+          "e1rm": 116.66666666666667,
+          "weight_kg": 100,
+          "reps": 5,
+          "date": "2026-10-20"
+        }
+      }
+    },
+    "training_dates": [
+      "2026-10-12",
+      "2026-10-20",
+      "2026-10-28",
+      "2026-11-01",
+      "2026-11-07",
+      "2026-11-08",
+      "2026-11-10",
+      "2026-11-11",
+      "2026-11-12"
+    ],
+    "best_set": {
+      "index": 14,
+      "e1rm": 266.66666666666663
+    },
+    "top_set": {
+      "index": 14
+    },
+    "rm_table": {
+      "one_rm": 100,
+      "result": [
+        {
+          "pct": 95,
+          "reps": 2,
+          "weight": 95.0
+        },
+        {
+          "pct": 90,
+          "reps": 4,
+          "weight": 90.0
+        },
+        {
+          "pct": 85,
+          "reps": 6,
+          "weight": 85.0
+        },
+        {
+          "pct": 80,
+          "reps": 8,
+          "weight": 80.0
+        },
+        {
+          "pct": 75,
+          "reps": 10,
+          "weight": 75.0
+        },
+        {
+          "pct": 70,
+          "reps": 12,
+          "weight": 70.0
+        }
+      ]
+    }
+  }
+}
