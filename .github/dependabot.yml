@@ -20,6 +20,12 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # ignore には必ず update-types を付ける。update-types を付けた ignore は版の更新にだけかかり、
+    # セキュリティの更新（脆弱性を直す最小の版への PR）は止めない。名前だけの ignore はセキュリティの更新も止める
+    ignore:
+      # Node 24 で動かしているので、型も 24 に合わせる。Node を上げるときに、この ignore を外す
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Expo のアプリ。Expo の SDK に合わせる版（expo install で決まるもの）があるので、
   # SDK を上げるときは npx expo install --fix で揃える
@@ -30,6 +36,44 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # ignore には必ず update-types を付ける（理由は /cdk の ignore を参照）
+    ignore:
+      # Expo の SDK が版を決めるもの（node_modules/expo/bundledNativeModules.json に載っているもの）は、
+      # 版の更新の PR を作らない。SDK を上げるときに npx expo install --fix で上げる。
+      # 依存を足すときは、bundledNativeModules.json に載っていればここにも足す
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "@expo/*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "jest-expo"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-reanimated"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-safe-area-context"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-screens"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-svg"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-web"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "react-native-worklets"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      # Expo（SDK 58）が TypeScript 7 に未対応で、expo install --check が ~6.0.3 を求める
+      # （https://github.com/expo/expo/issues/47627）。Expo の SDK が TypeScript 7 を求めるようになったら外す
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Node 24 で動かしている（.node-version）ので、型も 24 に合わせる。Node を上げるときに、この ignore を外す
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # ワークフローのアクション（SHA で固定したものも、版のコメントごと更新される）
   - package-ecosystem: github-actions
