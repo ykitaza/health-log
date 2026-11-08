@@ -138,6 +138,15 @@ describe('スマホアプリ用のクライアント', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 2);
   });
 
+  test('監視のスタックが読む関数名を、3つの Lambda について SSM に置く', () => {
+    for (const fnId of ['AuthzFunction', 'MealsFunction', 'AppApiFunction']) {
+      template.hasResourceProperties('AWS::SSM::Parameter', {
+        Name: `/cognito-study-monitoring/${fnId}/function-name`, Type: 'String',
+        Value: { Ref: Match.stringLikeRegexp(`^${fnId}`) },
+      });
+    }
+  });
+
   test('アプリが使う値を SSM と出力に置く', () => {
     for (const name of ['/cognito-study/app/issuer', '/cognito-study/app/client-id', '/cognito-study/app/cognito-domain',
       '/cognito-study/app/api-url']) {

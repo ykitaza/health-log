@@ -74,6 +74,8 @@ export interface MonitoringStackProps extends cdk.StackProps {
   readonly accessLogGroupParams: Record<string, string>;
   // /token の失敗を数える API の ID（認可API）
   readonly tokenEndpointApi: string;
+  // Lambda の ID → 関数名を入れた SSM パラメータの名前（InfraStack.functionNameParams）。エラーを数える関数
+  readonly functionNameParams: Record<string, string>;
 }
 
 // 東京に置く監視。通知の送り先（SNS）、アラーム、CloudTrail の証跡、東京で起きる操作の EventBridge のルール
@@ -167,10 +169,19 @@ export class MonitoringStack extends cdk.Stack {
     alarm('TokenFailuresAlarm', sumPerHour('TokenFailures'), 10,
       '認可API の /token の失敗（4xx）が1時間に10件以上（これまでの最大は1時間1件）。認可コードやリフレッシュトークンの総当たりの兆し');
 
-    // このリージョンのすべての Lambda のエラー（ディメンションなしの集計）。関数ごとに作るとアラームが増えるため
-    alarm('LambdaErrorsAlarm', new cloudwatch.Metric({
-      namespace: 'AWS/Lambda', metricName: 'Errors', statistic: cloudwatch.Stats.SUM, period: cdk.Duration.hours(1),
-    }), 3, '東京リージョンの Lambda のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
+    // このアプリの Lambda（3つ）のエラーの合計。関数ごとの Errors をメトリクスの計算（SUM）でまとめ、アラームは1つにする。
+    // アラームの料金と無料枠は、式の中のメトリクスの数（ここでは3）で数える（docs/monitoring.md の「費用の見込み」）
+    const functionErrors = Object.fromEntries(Object.entries(props.functionNameParams).map(([fnId, paramName], i) => [
+      `e${i}`, new cloudwatch.Metric({
+        namespace: 'AWS/Lambda', metricName: 'Errors', statistic: cloudwatch.Stats.SUM, period: cdk.Duration.hours(1),
+        dimensionsMap: { FunctionName: ssm.StringParameter.valueForStringParameter(this, paramName) },
+        label: fnId,
+      }),
+    ]));
+    alarm('LambdaErrorsAlarm', new cloudwatch.MathExpression({
+      expression: `SUM([${Object.keys(functionErrors).join(', ')}])`, usingMetrics: functionErrors,
+      period: cdk.Duration.hours(1), label: 'Errors',
+    }), 3, 'このアプリの Lambda（認可API・MCP・アプリ用の API）のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
 
     // ---- CloudTrail の証跡 ----
 

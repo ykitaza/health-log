@@ -8,7 +8,7 @@
 | `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム7個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール3個 |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京の既定のイベントバスに転送するルール |
 
-`CognitoStudy` とは、SSM パラメータの名前（`/cognito-study-monitoring/<API>/access-log-group`）だけでつないでいます。スタックをまたぐ Export は作りません。
+`CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group` と、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`）だけでつないでいます。スタックをまたぐ Export は作りません。
 
 ## 何を検知するか
 
@@ -25,7 +25,7 @@
 | `ServerErrorsAlarm` | 5xx（アクセスログ） | 1時間に3件以上 | 30日間0件。1件だけなら一時的な失敗のこともあるので、3件から |
 | `ThrottledAlarm` | 429（流量の制限での拒否。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
 | `TokenFailuresAlarm` | 認可API の `/token` の 4xx（アクセスログ） | 1時間に10件以上 | これまでの最大は1時間1件。認可コードやリフレッシュトークンの総当たりの兆し |
-| `LambdaErrorsAlarm` | 東京リージョンのすべての Lambda の `Errors`（`AWS/Lambda`、ディメンションなし） | 1時間に3件以上 | 30日間0件。関数ごとに作るとアラームが増えるので、リージョンの合計にする |
+| `LambdaErrorsAlarm` | このアプリの3つの Lambda（`AuthzFunction`・`MealsFunction`・`AppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
 
 - 欠けたデータ（リクエストがない時間）は、異常として扱いません（`notBreaching`）
 - 通知はアラームの状態が「アラーム」になったときだけ送ります（戻ったときは送りません）
@@ -145,7 +145,7 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 
 | もの | 量 | 費用 |
 |---|---|---|
-| CloudWatch のアラーム | 7個（ほかに請求のアラームが1個） | 無料枠（標準の解像度で10個）の中 |
+| CloudWatch のアラーム | 7個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は3つの関数の3個なので、合わせて9個（ほかに us-east-1 の請求のアラームが1個で、全部で10個） | 無料枠（標準の解像度のアラームのメトリクス10個）の中。**これ以上アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる** |
 | カスタムメトリクス（メトリクスフィルター） | 6個 | 無料枠（10個）の中 |
 | CloudTrail の証跡 | 管理イベントの1つ目の写し | 無料 |
 | CloudTrail → CloudWatch Logs | 管理イベントは1日 1,200件ほど（東京 1,070件、us-east-1 126件）。月 60MB ほど | 取り込みと保存は無料枠（5GB）の中。CloudTrail の配信の料金（$0.25/GB）が月 $0.02 ほど |

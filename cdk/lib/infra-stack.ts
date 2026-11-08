@@ -47,6 +47,8 @@ export class InfraStack extends cdk.Stack {
   // API の ID（AuthzApi など）→ アクセスログのロググループ名を入れた SSM パラメータの名前。
   // 監視のスタックはこの名前でロググループを引く（スタックをまたぐ Export を作らないため）
   public readonly accessLogGroupParams: Record<string, string> = {};
+  // Lambda の ID（AuthzFunction など）→ 関数名を入れた SSM パラメータの名前。監視のスタックが関数ごとのエラーを数える
+  public readonly functionNameParams: Record<string, string> = {};
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -366,6 +368,13 @@ export class InfraStack extends cdk.Stack {
       });
     }
     new ssm.StringParameter(this, 'AppApiUrlParam', { parameterName: APP_API_URL_PARAM, stringValue: appHttpApi.apiEndpoint });
+
+    // 監視のスタックが読む、関数名の置き場所（アクセスログのロググループ名と同じく、Export を作らない）
+    for (const [fnId, fn] of Object.entries({ AuthzFunction: authzFn, MealsFunction: mealsFn, AppApiFunction: appApiFn })) {
+      const parameterName = `${MONITORING_PARAM_PREFIX}/${fnId}/function-name`;
+      new ssm.StringParameter(this, `${fnId}NameParam`, { parameterName, stringValue: fn.functionName });
+      this.functionNameParams[fnId] = parameterName;
+    }
 
     // services/authorization/.env に入れる値（クライアントシークレットは出力しない）
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });

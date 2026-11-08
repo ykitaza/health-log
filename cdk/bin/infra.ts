@@ -15,6 +15,7 @@ const infra = new InfraStack(app, 'CognitoStudy', {
 const monitoring = new MonitoringStack(app, 'CognitoStudyMonitoring', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
   accessLogGroupParams: infra.accessLogGroupParams,
+  functionNameParams: infra.functionNameParams,
   tokenEndpointApi: 'AuthzApi',
 });
 monitoring.addStackDependency(infra); // SSM パラメータができてから作る

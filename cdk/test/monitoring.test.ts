@@ -8,10 +8,17 @@ const accessLogGroupParams = {
   AuthzApi: '/cognito-study-monitoring/AuthzApi/access-log-group',
   MealsApi: '/cognito-study-monitoring/MealsApi/access-log-group',
 };
+const functionNameParams = {
+  AuthzFunction: '/cognito-study-monitoring/AuthzFunction/function-name',
+  MealsFunction: '/cognito-study-monitoring/MealsFunction/function-name',
+  AppApiFunction: '/cognito-study-monitoring/AppApiFunction/function-name',
+};
 
 const synth = () => {
   const app = newApp();
-  const stack = new MonitoringStack(app, 'Monitoring', { env, accessLogGroupParams, tokenEndpointApi: 'AuthzApi' });
+  const stack = new MonitoringStack(app, 'Monitoring', {
+    env, accessLogGroupParams, functionNameParams, tokenEndpointApi: 'AuthzApi',
+  });
   return { stack, template: Template.fromStack(stack) };
 };
 
@@ -36,10 +43,36 @@ describe('アラーム', () => {
     });
   });
 
-  test('Lambda のエラーは、リージョンのすべての関数の集計（ディメンションなし）', () => {
-    template.hasResourceProperties('AWS::CloudWatch::Alarm', {
-      Namespace: 'AWS/Lambda', MetricName: 'Errors', Threshold: 3, Period: 3600, Dimensions: Match.absent(),
-    });
+  test('Lambda のエラーは、このアプリの3つの関数の Errors の合計（メトリクスの計算）', () => {
+    const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'))
+      .filter((a) => a.Properties.Metrics !== undefined).map((a) => a.Properties);
+    expect(alarms).toHaveLength(1);
+    const [a] = alarms;
+    expect(a.Threshold).toBe(3);
+    expect(a.EvaluationPeriods).toBe(1);
+    const expression = a.Metrics.filter((m: any) => m.Expression !== undefined);
+    expect(expression).toHaveLength(1);
+    expect(expression[0].ReturnData).not.toBe(false);
+    const metrics = a.Metrics.filter((m: any) => m.MetricStat !== undefined);
+    expect(metrics).toHaveLength(3);
+    expect(expression[0].Expression).toBe(`SUM([${metrics.map((m: any) => m.Id).join(', ')}])`);
+    for (const m of metrics) {
+      expect(m.ReturnData).toBe(false);
+      expect(m.MetricStat).toMatchObject({
+        Metric: { Namespace: 'AWS/Lambda', MetricName: 'Errors' }, Period: 3600, Stat: 'Sum',
+      });
+      // 関数名は SSM パラメータから読む（CloudFormation のパラメータ）
+      expect(m.MetricStat.Metric.Dimensions).toEqual([{ Name: 'FunctionName', Value: { Ref: expect.any(String) } }]);
+    }
+    for (const paramName of Object.values(functionNameParams)) {
+      template.hasParameter('*', { Type: 'AWS::SSM::Parameter::Value<String>', Default: paramName });
+    }
+  });
+
+  test('アラームのメトリクスは、無料枠（10個。既存の請求のアラームが1個ある）に収まる9個', () => {
+    const count = Object.values(template.findResources('AWS::CloudWatch::Alarm')).reduce((n, a) => n
+      + (a.Properties.Metrics ? a.Properties.Metrics.filter((m: any) => m.MetricStat).length : 1), 0);
+    expect(count).toBe(9);
   });
 
   test('どのアラームも、欠けたデータを異常にせず、SNS に送る', () => {
