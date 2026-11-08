@@ -18,8 +18,8 @@ ID プロバイダーとロールは、スタック `CognitoStudyCiCd`（`cdk/li
 
 | ロール | 使えるところ（トークンの `sub`） | できること |
 |---|---|---|
-| `meal-log-mcp-github-diff` | `repo:ykitaza/meal-log-mcp:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 3つのスタックのテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
-| `meal-log-mcp-github-deploy` | `repo:ykitaza/meal-log-mcp:environment:aws-prod`（承認のある environment のジョブ） | CDK のブートストラップの `deploy-role` と `file-publishing-role` を引き受けることだけ（東京と us-east-1） |
+| `health-log-github-diff` | `repo:ykitaza/health-log:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 3つのスタックのテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
+| `health-log-github-deploy` | `repo:ykitaza/health-log:environment:aws-prod`（承認のある environment のジョブ） | CDK のブートストラップの `deploy-role` と `file-publishing-role` を引き受けることだけ（東京と us-east-1） |
 
 - どちらも `aud` は `sts.amazonaws.com` だけです。リポジトリは固定で、ワイルドカードは使いません
 - `cdk diff --method template` は、ブートストラップの lookup ロールを引き受けようとします。lookup ロールは `ReadOnlyAccess`（DynamoDB の記録も読める）なので、差分用のロールには引き受けさせません。CDK は「Lookup role … was not assumed」と警告を出し、差分用のロールのままで続けます
@@ -47,7 +47,7 @@ AWS_PROFILE=yuki npx cdk deploy CognitoStudyCiCd
 
 ```sh
 export GH_TOKEN=$(gh auth token --user ykitaza)
-gh api -X PUT repos/ykitaza/meal-log-mcp/environments/aws-prod --input - <<EOF
+gh api -X PUT repos/ykitaza/health-log/environments/aws-prod --input - <<EOF
 {
   "wait_timer": 0,
   "prevent_self_review": false,
@@ -56,7 +56,7 @@ gh api -X PUT repos/ykitaza/meal-log-mcp/environments/aws-prod --input - <<EOF
   "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true }
 }
 EOF
-gh api -X POST repos/ykitaza/meal-log-mcp/environments/aws-prod/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/ykitaza/health-log/environments/aws-prod/deployment-branch-policies -f name=main -f type=branch
 ```
 
 environment に秘密の値は置きません（ロールの ARN は秘密ではないので、ワークフローに書いてあります）。

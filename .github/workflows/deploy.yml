@@ -100,7 +100,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/meal-log-mcp-github-diff
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/health-log-github-diff
           role-session-name: github-diff-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
@@ -163,7 +163,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/meal-log-mcp-github-deploy
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/health-log-github-deploy
           role-session-name: github-deploy-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}

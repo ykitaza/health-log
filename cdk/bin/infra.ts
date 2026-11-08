@@ -29,7 +29,7 @@ const monitoringGlobal = new MonitoringGlobalStack(app, 'CognitoStudyMonitoringG
 // GitHub Actions のデプロイ（.github/workflows/deploy.yml）用の OIDC とロール。このスタックだけは手でデプロイする（docs/cd.md）
 new CiCdStack(app, 'CognitoStudyCiCd', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
-  repository: 'ykitaza/meal-log-mcp',
+  repository: 'ykitaza/health-log',
   diffBranch: 'main',
   deployEnvironment: 'aws-prod',
   targetStacks: [infra, monitoring, monitoringGlobal],

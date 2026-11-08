@@ -15,7 +15,7 @@ const template = (() => {
   for (const s of [tokyo, global]) new cdk.CfnWaitConditionHandle(s, 'Placeholder');
   const stack = new CiCdStack(app, 'CognitoStudyCiCd', {
     env: { account: ACCOUNT, region: 'ap-northeast-1' },
-    repository: 'ykitaza/meal-log-mcp',
+    repository: 'ykitaza/health-log',
     diffBranch: 'main',
     deployEnvironment: 'aws-prod',
     targetStacks: [tokyo, global],
@@ -49,14 +49,14 @@ test('GitHub の OIDC の ID プロバイダーは1つで、aud は sts.amazonaw
 test('ロールは差分用とデプロイ用の2つだけ', () => {
   template.resourceCountIs('AWS::IAM::Role', 2);
   template.resourceCountIs('AWS::IAM::ManagedPolicy', 0);
-  for (const name of ['meal-log-mcp-github-diff', 'meal-log-mcp-github-deploy']) {
+  for (const name of ['health-log-github-diff', 'health-log-github-deploy']) {
     expect(roleNamed(name).ManagedPolicyArns).toBeUndefined();
   }
 });
 
 describe.each([
-  ['meal-log-mcp-github-diff', 'repo:ykitaza/meal-log-mcp:ref:refs/heads/main'],
-  ['meal-log-mcp-github-deploy', 'repo:ykitaza/meal-log-mcp:environment:aws-prod'],
+  ['health-log-github-diff', 'repo:ykitaza/health-log:ref:refs/heads/main'],
+  ['health-log-github-deploy', 'repo:ykitaza/health-log:environment:aws-prod'],
 ])('%s の信頼ポリシー', (name, sub) => {
   const statements = roleNamed(name).AssumeRolePolicyDocument.Statement;
 
@@ -75,7 +75,7 @@ describe.each([
 });
 
 test('差分用のロールは、対象のスタックのテンプレートを読むことだけができる', () => {
-  expect(statementsOf('meal-log-mcp-github-diff')).toEqual([{
+  expect(statementsOf('health-log-github-diff')).toEqual([{
     Effect: 'Allow',
     Action: ['cloudformation:DescribeStacks', 'cloudformation:GetTemplate'],
     Resource: [
@@ -87,7 +87,7 @@ test('差分用のロールは、対象のスタックのテンプレートを�
 
 test('デプロイ用のロールは、CDK のブートストラップの deploy-role と file-publishing-role を引き受けることだけができる', () => {
   const role = (kind: string, region: string) => `arn:aws:iam::${ACCOUNT}:role/cdk-hnb659fds-${kind}-${ACCOUNT}-${region}`;
-  expect(statementsOf('meal-log-mcp-github-deploy')).toEqual([{
+  expect(statementsOf('health-log-github-deploy')).toEqual([{
     Effect: 'Allow',
     Action: 'sts:AssumeRole',
     Resource: [
