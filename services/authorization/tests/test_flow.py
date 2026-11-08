@@ -385,3 +385,51 @@ def test_jwks_publishes_only_the_public_key(client):
 def test_logout_clears_the_login_page_session(client):
     res = client.get("/logout")
     assert res.headers["Location"] == f"https://login.example/logout?logout_uri={ISSUER}/logged-out"
+
+
+# ---- PC と Lambda の違い ----
+
+LOCAL_CLIENT_ID = "http://localhost:3005/client-metadata.json"
+
+
+def app_for(on_lambda: bool, login):
+    settings = Settings(
+        issuer=ISSUER, meals_resource=MEALS, cognito_issuer="", cognito_client_id="", cognito_client_secret="",
+        signing_key_pem=new_private_key_pem(), session_secret="test-secret", state_table=None, on_lambda=on_lambda,
+    )
+    return create_app(settings, store=MemoryStore(), login=login).test_client()  # CIMD の取得は本物（main の組み立て）
+
+
+def test_lambda_does_not_fetch_localhost_client_id(monkeypatch, login):
+    # SSRF の対策：Lambda では、localhost の client_id を取りに行かずにエラー画面にする
+    fetched = []
+    real_client = httpx.Client
+    transport = httpx.MockTransport(lambda request: fetched.append(str(request.url)) or httpx.Response(404))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: real_client(transport=transport, **kwargs))
+    client = app_for(True, login)
+    res = client.get("/authorize", query_string=authorize_params(client_id=LOCAL_CLIENT_ID))
+    assert res.status_code == 400 and fetched == []
+    token = client.post("/token", data=dict(grant_type="authorization_code", code="x", redirect_uri=REDIRECT,
+                                             client_id=LOCAL_CLIENT_ID, code_verifier=VERIFIER),
+                        base_url="https://authz.example")
+    assert token.json["error"] == "invalid_client"
+
+
+def test_local_pc_accepts_localhost_client_id(monkeypatch, login):
+    # PC（README の手順）では、自分の PC の中のクライアント（MCP Inspector など）を http の localhost で使える
+    doc = {"client_id": LOCAL_CLIENT_ID, "client_name": "Local", "redirect_uris": ["http://localhost/callback"]}
+    real_client = httpx.Client
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=doc))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: real_client(transport=transport, **kwargs))
+    client = app_for(False, login)
+    res = client.get("/authorize", query_string=authorize_params(
+        client_id=LOCAL_CLIENT_ID, redirect_uri="http://localhost:6274/callback"))
+    assert res.status_code == 302 and res.headers["Location"].startswith("https://login.example/")
+    client.get("/cognito/callback")
+    consent = client.post("/consent", data={"decision": "allow"})
+    assert consent.headers["Location"].startswith("http://localhost:6274/callback?")
+    code = query_of(consent)["code"]
+    token = client.post("/token", data=dict(grant_type="authorization_code", code=code,
+                                             redirect_uri="http://localhost:6274/callback",
+                                             client_id=LOCAL_CLIENT_ID, code_verifier=VERIFIER, resource=MEALS))
+    assert token.status_code == 200, token.json

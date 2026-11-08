@@ -42,7 +42,10 @@ def create_app(
     # 知っているリソースサーバーと、そこで使える scope。信頼関係は手で設定する。
     # MCP サーバー（食事と筋トレのツールを1つにまとめたもの。resource の URL は食事記録のときのまま）
     resource_servers = [ResourceServer(settings.meals_resource, MCP_SCOPES)]
-    server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers)
+    # localhost の http の client_id（MCP Inspector など）は PC で動かすときだけ認める（Lambda では SSRF になる）
+    local = not settings.on_lambda
+    server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers,
+                                 allow_loopback_http=local)
     if login is None:
         from infrastructure.cognito_login import CognitoLogin
 
@@ -53,5 +56,5 @@ def create_app(
             client_secret=settings.cognito_client_secret,
             redirect_uri=f"{settings.issuer}/cognito/callback",
         )
-    app.register_blueprint(create_blueprint(server, clients or CimdClientDirectory(), store, login))
+    app.register_blueprint(create_blueprint(server, clients or CimdClientDirectory(allow_loopback_http=local), store, login))
     return app
