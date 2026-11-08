@@ -45,10 +45,22 @@ export type SleepImport = {
   originPackage: string | null;
 };
 
-/** 1回の書き込み。upserts は作るか直す。deletes は消えた記録の external_id */
+/** 心拍の1日のまとめ（heart_rate_days の1行。id は日付から決める） */
+export type HeartRateDayImport = {
+  id: string;
+  date: string;
+  restingBpm: number | null;
+  avgBpm: number | null;
+  minBpm: number | null;
+  maxBpm: number | null;
+  samples: number;
+};
+
+/** 1回の書き込み。upserts は作るか直す。deletes は消えた記録の external_id（心拍は、記録がなくなった日付） */
 export type ImportBatch = {
   body?: { upserts: BodyImport[]; deletes: string[] };
   sleep?: { upserts: SleepImport[]; deletes: string[] };
+  heartRate?: { upserts: HeartRateDayImport[]; deletes: string[] };
 };
 
 type BodyRow = { id: string; deleted_at: string | null; date: string; measured_at: string; origin_package: string | null } & Record<string, unknown>;
@@ -136,6 +148,44 @@ export function healthConnectStore(db: Db, deps: Deps) {
     return written + await softDelete('sleep_sessions', sleep.deletes, nowIso);
   }
 
+  /**
+   * 心拍の日のまとめ：集計し直した値で置き換える（日ごとに1行。消えていた日にまた記録があれば戻す）。
+   * 記録がなくなった日は消す
+   */
+  async function writeHeartRate(heartRate: NonNullable<ImportBatch['heartRate']>, nowIso: string): Promise<number> {
+    let written = 0;
+    for (const r of heartRate.upserts) {
+      const row = await db.getFirstAsync<Record<string, string | number | null>>(
+        'SELECT id, deleted_at, resting_bpm, avg_bpm, min_bpm, max_bpm, samples FROM heart_rate_days WHERE id = ?', [r.id],
+      );
+      const next: Record<string, string | number | null> = {
+        resting_bpm: r.restingBpm, avg_bpm: r.avgBpm, min_bpm: r.minBpm, max_bpm: r.maxBpm, samples: r.samples,
+      };
+      if (row) {
+        const changed = Object.entries(next).filter(([k, v]) => row[k] !== v);
+        if (changed.length === 0 && row.deleted_at == null) continue;
+        await db.runAsync(
+          `UPDATE heart_rate_days SET ${[...changed.map(([k]) => `${k} = ?`), 'deleted_at = NULL'].join(', ')}, updated_at = ? WHERE id = ?`,
+          [...changed.map(([, v]) => v), nowIso, row.id],
+        );
+      } else {
+        const cols = Object.keys(next);
+        await db.runAsync(
+          `INSERT INTO heart_rate_days (id, date, ${cols.join(', ')}, created_at, updated_at) VALUES (?, ?, ${cols.map(() => '?').join(', ')}, ?, ?)`,
+          [r.id, r.date, ...Object.values(next), nowIso, nowIso],
+        );
+      }
+      written++;
+    }
+    for (const date of heartRate.deletes) {
+      const res = await db.runAsync(
+        'UPDATE heart_rate_days SET deleted_at = ?, updated_at = ? WHERE date = ? AND deleted_at IS NULL', [nowIso, nowIso, date],
+      ) as { changes?: number };
+      written += res?.changes ?? 0;
+    }
+    return written;
+  }
+
   return {
     getMeta: meta,
 
@@ -152,6 +202,7 @@ export function healthConnectStore(db: Db, deps: Deps) {
             const nowIso = deps.now().toISOString();
             if (batch.body) n += await writeBody(batch.body, nowIso);
             if (batch.sleep) n += await writeSleep(batch.sleep, nowIso);
+            if (batch.heartRate) n += await writeHeartRate(batch.heartRate, nowIso);
             for (const [k, v] of Object.entries(metaUpdates)) await putMeta(k, v);
           } finally {
             await db.runAsync(`DELETE FROM sync_meta WHERE key = 'importing'`, []);

@@ -696,6 +696,45 @@ components:
           - 'null'
           maxLength: 200
       description: '睡眠（Health Connect の SleepSession の1件。アプリの取り込みだけが作る。origin: import）。段階の詳細は持たない。create では date, start_at, end_at, asleep_min, awake_min, source が要る。update では変えた項目だけを送る'
+    HeartRateDayFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+          description: 端末の暦の日付。entity_id は日付から決める（uuid5(取り込みの名前空間, "hc-hr-day:" + 日付)）
+        resting_bpm:
+          type:
+          - number
+          - 'null'
+          minimum: 1
+          maximum: 300
+        avg_bpm:
+          type:
+          - number
+          - 'null'
+          minimum: 1
+          maximum: 300
+        min_bpm:
+          type:
+          - number
+          - 'null'
+          minimum: 1
+          maximum: 300
+        max_bpm:
+          type:
+          - number
+          - 'null'
+          minimum: 1
+          maximum: 300
+        samples:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: その日のサンプルの数。サンプルそのものは送らない
+      description: '心拍の1日のまとめ（Health Connect の HeartRate・RestingHeartRate をその日について集計したもの。アプリの取り込みだけが作る。origin: import）。サンプルがない日は avg_bpm・min_bpm・max_bpm が null。create では date, samples が要る。update では変えた項目だけを送る'
     EntityType:
       type: string
       enum:
@@ -711,6 +750,7 @@ components:
       - body_record
       - setting
       - sleep_session
+      - heart_rate_day
       description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外は training.* の scope で扱う
     MealChange:
       type: object
@@ -1349,6 +1389,59 @@ components:
         fields:
           $ref: '#/components/schemas/SleepSessionFields'
           description: create・update のとき。delete・restore では送らない
+    HeartRateDayChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: heart_rate_day
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/HeartRateDayFields'
+          description: create・update のとき。delete・restore では送らない
     Change:
       oneOf:
       - $ref: '#/components/schemas/MealChange'
@@ -1363,6 +1456,7 @@ components:
       - $ref: '#/components/schemas/BodyRecordChange'
       - $ref: '#/components/schemas/SettingChange'
       - $ref: '#/components/schemas/SleepSessionChange'
+      - $ref: '#/components/schemas/HeartRateDayChange'
       discriminator:
         propertyName: entity_type
         mapping:
@@ -1378,6 +1472,7 @@ components:
           body_record: '#/components/schemas/BodyRecordChange'
           setting: '#/components/schemas/SettingChange'
           sleep_session: '#/components/schemas/SleepSessionChange'
+          heart_rate_day: '#/components/schemas/HeartRateDayChange'
     PushRequest:
       type: object
       additionalProperties: false

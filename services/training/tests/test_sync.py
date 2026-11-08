@@ -110,7 +110,7 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
 
 def test_筋トレの種類は_training_の_scope():
     assert REGISTRY.types_in({"training"}) == {
-        "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session"}
+        "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session", "heart_rate_day"}
     assert REGISTRY.types_in({"meals"}) == set()
 
 
@@ -136,3 +136,22 @@ def test_睡眠_取り込みを受け付ける_24時間までの分_日付と時
     # meals の scope だけでは書けない
     rejection = REGISTRY.parse_change(sleep_change(SLEEP), REGISTRY.types_in({"meals"}), "pixel")
     assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"
+
+
+def test_心拍の日のまとめ_受け付ける範囲():
+    def raw(fields, op="create"):
+        return {"change_id": str(uuid.uuid4()), "entity_type": "heart_rate_day", "entity_id": "x", "op": op,
+                "fields": fields, "changed_at": "2026-11-08T09:00:00Z", "origin": "import"}
+
+    day = {"date": "2026-11-07", "resting_bpm": 55, "avg_bpm": 72.5, "min_bpm": 48, "max_bpm": 160, "samples": 1200}
+    assert isinstance(REGISTRY.parse_change(raw(day), set(REGISTRY.specs), "pixel"), Change)
+    # 安静時心拍しかない日
+    only_resting = {"date": "2026-11-06", "resting_bpm": 57, "avg_bpm": None, "min_bpm": None, "max_bpm": None, "samples": 0}
+    assert isinstance(REGISTRY.parse_change(raw(only_resting), set(REGISTRY.specs), "pixel"), Change)
+    for bad in ({"avg_bpm": 0}, {"max_bpm": 301}, {"samples": -1}, {"samples": 1.5}, {"samples": None}, {"date": "11/07"}):
+        assert isinstance(REGISTRY.parse_change(raw({**day, **bad}), set(REGISTRY.specs), "pixel"), Rejection), bad
+    rejection = REGISTRY.parse_change(raw({"date": "2026-11-07"}), set(REGISTRY.specs), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "missing_fields"
+    # サンプルそのものは受け取らない
+    rejection = REGISTRY.parse_change(raw({**day, "samples_list": [60, 61]}), set(REGISTRY.specs), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "invalid_fields"

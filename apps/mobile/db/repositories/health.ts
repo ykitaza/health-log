@@ -12,6 +12,16 @@ export type SleepDay = {
   sessions: number;
 };
 
+/** その日の心拍のまとめ */
+export type HeartRateDay = {
+  date: DateKey;
+  restingBpm: number | null;
+  avgBpm: number | null;
+  minBpm: number | null;
+  maxBpm: number | null;
+  samples: number;
+};
+
 /** Health Connect から取り込んだ睡眠・心拍を読む（書くのは取り込みだけ：db/repositories/healthConnect.ts） */
 export function healthRepository(db: Db) {
   return {
@@ -29,6 +39,13 @@ export function healthRepository(db: Db) {
         mainEndAt: rows[0].end_at,
         sessions: rows.length,
       };
+    },
+
+    async heartRateDay(date: DateKey): Promise<HeartRateDay | null> {
+      const r = await db.getFirstAsync<{ resting_bpm: number | null; avg_bpm: number | null; min_bpm: number | null; max_bpm: number | null; samples: number }>(
+        'SELECT resting_bpm, avg_bpm, min_bpm, max_bpm, samples FROM heart_rate_days WHERE deleted_at IS NULL AND date = ? LIMIT 1', [date],
+      );
+      return r && { date, restingBpm: r.resting_bpm, avgBpm: r.avg_bpm, minBpm: r.min_bpm, maxBpm: r.max_bpm, samples: r.samples };
     },
   };
 }

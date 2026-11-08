@@ -3,10 +3,10 @@
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { HC_META, healthConnectStore } from '../repositories/healthConnect';
 import { toPushChange } from '../repositories/sync';
-import { formatClock, formatMinutes } from '@/lib/health';
-import { importedId, importHealthConnect, INITIAL_DAYS, sleepMinutes } from '@/lib/healthConnect/importer';
+import { formatClock, formatHeartRate, formatMinutes } from '@/lib/health';
+import { heartRateDayId, importedId, importHealthConnect, INITIAL_DAYS, sleepMinutes } from '@/lib/healthConnect/importer';
 import { uuid5 } from '@/lib/uuid5';
-import { bodyFat, fakeHealthConnect as hc, leanMass, sleep, weight } from '@/test-utils/fakeHealthConnect';
+import { bodyFat, fakeHealthConnect as hc, heartRate, leanMass, restingHeartRate, sleep, weight } from '@/test-utils/fakeHealthConnect';
 import { memoryDb, testDeps } from '@/test-utils/nodeDb';
 import { Device, device } from '@/test-utils/syncHarness';
 
@@ -265,6 +265,84 @@ describe('睡眠', () => {
     expect(await d.r.health.sleepDay('2026-11-07')).toBeNull();
     await runImport(d);
     expect(await d.r.health.sleepDay('2026-11-07')).toMatchObject({ asleepMin: 435 });
+  });
+});
+
+describe('心拍', () => {
+  // 日付は端末の暦（日本時間でも UTC でも同じ日になるよう、UTC の 0〜15時の記録にする）
+  const hrRows = (d: Device) => d.db.raw.prepare(
+    'SELECT id, date, resting_bpm, avg_bpm, min_bpm, max_bpm, samples, deleted_at FROM heart_rate_days ORDER BY date',
+  ).all() as Record<string, unknown>[];
+
+  test('初回は記録を読まず、過去30日を日ごとに集計する。1日1行（ID は日付から）、サンプルは送らない', async () => {
+    const d = await device();
+    hc.put(heartRate('h1', [['2026-11-06T03:00:00Z', 60], ['2026-11-06T03:05:00Z', 80]]));
+    hc.put(heartRate('h2', [['2026-11-06T09:00:00Z', 140]]));
+    hc.put(restingHeartRate('r1', '2026-11-06T01:00:00Z', 55));
+    hc.put(restingHeartRate('r2', '2026-11-05T01:00:00Z', 57)); // 安静時だけの日
+    hc.put(heartRate('h-old', [['2026-09-01T03:00:00Z', 70]])); // 30日より前
+    await runImport(d);
+    expect(hc.calls.filter((c) => c.fn === 'readRecords' && ['HeartRate', 'RestingHeartRate'].includes(c.args[0] as string))).toEqual([]);
+    expect(hrRows(d)).toEqual([
+      { id: heartRateDayId('2026-11-05'), date: '2026-11-05', resting_bpm: 57, avg_bpm: null, min_bpm: null, max_bpm: null, samples: 0, deleted_at: null },
+      { id: heartRateDayId('2026-11-06'), date: '2026-11-06', resting_bpm: 55, avg_bpm: 93, min_bpm: 60, max_bpm: 140, samples: 3, deleted_at: null },
+    ]);
+    const changes = outbox(d).filter((c) => c.type === 'heart_rate_day');
+    expect(changes.map((c) => [c.op, c.origin])).toEqual([['create', 'import'], ['create', 'import']]);
+    expect(changes[1].fields).toEqual({ date: '2026-11-06', resting_bpm: 55, avg_bpm: 93, min_bpm: 60, max_bpm: 140, samples: 3 });
+    expect(heartRateDayId('2026-11-06')).toBe(uuid5('08e139e3-1bcd-47c7-af17-1a18a473f1c3', 'hc-hr-day:2026-11-06'));
+    expect(formatHeartRate((await d.r.health.heartRateDay('2026-11-06'))!)).toBe('安静時 55 ・ 平均 93（60〜140） 拍/分');
+    expect(formatHeartRate((await d.r.health.heartRateDay('2026-11-05'))!)).toBe('安静時 57 拍/分');
+  });
+
+  test('差分：変わった記録の日だけ集計し直す。記録がなくなった日は消し、また記録があれば戻す', async () => {
+    const d = await device();
+    hc.put(heartRate('h1', [['2026-11-06T03:00:00Z', 60]]));
+    hc.put(heartRate('h2', [['2026-11-07T03:00:00Z', 70]]));
+    await runImport(d);
+    await d.engine.run();
+
+    hc.calls.length = 0;
+    hc.put(heartRate('h3', [['2026-11-07T04:00:00Z', 90]]));
+    hc.put(restingHeartRate('r1', '2026-11-07T01:00:00Z', 52));
+    await runImport(d);
+    // 変わった日（11/7）だけ、心拍と安静時心拍を1回ずつ集計（2つの型の変更で2回）
+    const aggregated = hc.calls.filter((c) => c.fn === 'aggregateRecord')
+      .map((c) => (c.args[0] as { timeRangeFilter: { startTime: string } }).timeRangeFilter.startTime);
+    expect(new Set(aggregated)).toEqual(new Set([new Date(2026, 10, 7).toISOString()]));
+    expect(outbox(d).map((c) => [c.op, c.origin, c.fields])).toEqual([
+      ['update', 'import', { resting_bpm: 52, avg_bpm: 80, max_bpm: 90, samples: 2 }],
+    ]);
+    await d.engine.run();
+
+    hc.remove('h1'); // どの日のものか分からないので、過去30日を集計し直す
+    await runImport(d);
+    expect(outbox(d).map((c) => [c.id, c.op, c.origin])).toEqual([[heartRateDayId('2026-11-06'), 'delete', 'import']]);
+    expect(await d.r.health.heartRateDay('2026-11-06')).toBeNull();
+    await d.engine.run();
+
+    hc.put(heartRate('h4', [['2026-11-06T05:00:00Z', 65]]));
+    await runImport(d);
+    expect(outbox(d).map((c) => [c.op, c.origin, c.fields])).toEqual([
+      ['restore', 'import', null], ['update', 'import', { avg_bpm: 65, min_bpm: 65, max_bpm: 65 }],
+    ]);
+    expect(await d.r.health.heartRateDay('2026-11-06')).toMatchObject({ avgBpm: 65, samples: 1 });
+  });
+
+  test('トークンが切れたら、最後に読んだ時刻の日から集計し直す', async () => {
+    const d = await device();
+    hc.put(heartRate('h1', [['2026-11-07T03:00:00Z', 60]]));
+    await runImport(d);
+    d.deps.advance(2 * 86_400_000);
+    hc.put(heartRate('h2', [['2026-11-09T03:00:00Z', 75]]));
+    hc.expireTokens('HeartRate');
+    hc.calls.length = 0;
+    await runImport(d);
+    const days = hc.calls.filter((c) => c.fn === 'aggregateRecord' && (c.args[0] as { recordType: string }).recordType === 'HeartRate')
+      .map((c) => (c.args[0] as { timeRangeFilter: { startTime: string } }).timeRangeFilter.startTime);
+    // 読んだ時刻（11/8 0時 UTC）の日から今日（11/10）まで
+    expect(days).toEqual([8, 9, 10].map((d) => new Date(2026, 10, d).toISOString()));
+    expect(hrRows(d).map((r) => [r.date, r.avg_bpm])).toEqual([['2026-11-07', 60], ['2026-11-09', 75]]);
   });
 });
 
