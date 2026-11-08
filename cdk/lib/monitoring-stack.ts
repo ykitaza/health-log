@@ -160,7 +160,8 @@ export class MonitoringStack extends cdk.Stack {
       }
     }
 
-    // しきい値は、2026-11-08 までの30日のアクセスログ（2つの API の合計）をもとに、本人1人の利用ではありえない量にする
+    // しきい値は、2026-11-08 までの30日のアクセスログ（3つの API の合計。アプリ用の API はまだ使っていないので、
+    // 数は認可API と MCP のもの）をもとに、本人1人の利用ではありえない量にする
     alarm('RequestsAlarm', sumPerHour('Requests'), 300,
       'API へのリクエストが1時間に300件以上（これまでの最大は1時間32件）。費用の兆し。アクセスログで送信元 IP と path を見る');
     alarm('ClientErrorsAlarm', sumPerHour('ClientErrors'), 50,
@@ -168,7 +169,7 @@ export class MonitoringStack extends cdk.Stack {
     alarm('ServerErrorsAlarm', sumPerHour('ServerErrors'), 3,
       'API の 5xx が1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
     alarm('ThrottledAlarm', sumPerHour('Throttled'), 10,
-      '流量の制限（1秒1回・瞬間5回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP を見る');
+      '流量の制限（認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒10回・瞬間20回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP と API を見る');
     alarm('TokenFailuresAlarm', sumPerHour('TokenFailures'), 10,
       '認可API の /token の失敗（4xx）が1時間に10件以上（これまでの最大は1時間1件）。認可コードやリフレッシュトークンの総当たりの兆し');
 
