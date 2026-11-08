@@ -295,13 +295,13 @@ export class InfraStack extends cdk.Stack {
 
     // ---- スマホアプリ用の API（同期）。仕様は docs/api/app-api.yaml ----
 
-    // MCP の Lambda とは別の関数にする。Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取り、
-    // オーソライザーが確かめたクレームをイベントから読む
+    // MCP の Lambda とは別の関数にする（services/app_api：同期の入口に、食事と筋トレを登録したもの）。
+    // Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取り、オーソライザーが確かめたクレームをイベントから読む
     const appApiFn = new lambda.Function(this, 'AppApiFunction', {
       runtime: lambda.Runtime.PYTHON_3_12,
       architecture: lambda.Architecture.ARM_64,
-      code: lambda.Code.fromAsset(path.join(__dirname, '..', 'build', 'meals')),
-      handler: 'app_api_main.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '..', 'build', 'app_api')),
+      handler: 'main.handler',
       memorySize: 512,
       timeout: cdk.Duration.seconds(15),
       environment: { MEALS_TABLE: mealsTable.tableName, APP_CLIENT_ID: appClient.userPoolClientId },

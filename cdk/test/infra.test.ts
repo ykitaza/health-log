@@ -5,7 +5,7 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import { InfraStack } from '../lib/infra-stack';
 
 // Lambda のコードは build-lambda.sh が作る。CI ではテストのために作らないので、空のフォルダで代える
-for (const dir of ['authorization', 'meals']) {
+for (const dir of ['authorization', 'meals', 'app_api']) {
   fs.mkdirSync(path.join(__dirname, '..', 'build', dir), { recursive: true });
 }
 
@@ -200,7 +200,7 @@ describe('アプリ用の API（同期）', () => {
 
   test('Lambda は MCP とは別の関数で、Web Adapter を通さない', () => {
     const fn = resources[logicalId('AWS::Lambda::Function', 'AppApiFunction')].Properties;
-    expect(fn.Handler).toBe('app_api_main.handler');
+    expect(fn.Handler).toBe('main.handler');
     expect(fn.Layers).toBeUndefined();
     expect(Object.keys(fn.Environment.Variables).sort()).toEqual(['APP_CLIENT_ID', 'MEALS_TABLE']);
     expect(fn.Environment.Variables.APP_CLIENT_ID).toEqual({ Ref: appClientId });
