@@ -26,7 +26,7 @@ export const NATIVE_LOGOUT_URI = 'torelog://signout';
  * マネージドログインのセッションの Cookie を消す URL（/logout）。
  * Cookie が生きているあいだ（最後に画面でログインしてから1時間）は、/oauth2/authorize が画面なしでコードを出すので、
  * 同じ torelog:// を登録した別のアプリが、自分の PKCE でコードを受け取ってトークンに換えられてしまう。
- * 正規のアプリの prompt=login は、そのアプリの要求には効かないため、ログインのたびにすぐ消す
+ * 正規のアプリの prompt=login は、攻撃者のアプリの要求には付かないので効かない。そこで、ログインのたびにすぐ消す
  */
 export const logoutUrl = (config: AuthConfig, logoutUri = NATIVE_LOGOUT_URI) =>
   `${config.cognitoDomain}/logout?${new URLSearchParams({ client_id: config.clientId, logout_uri: logoutUri }).toString()}`;
