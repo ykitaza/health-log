@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { MonthCalendar } from '@/components/MonthCalendar';
+import { PressableScale } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
@@ -123,7 +124,7 @@ export default function HomeScreen() {
         {dayEntries?.map((e) => {
           const best = bestSet(e.sets);
           return (
-            <Pressable key={e.id} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
+            <PressableScale key={e.id} scaleTo={0.98} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
               <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>
@@ -144,7 +145,7 @@ export default function HomeScreen() {
                   </View>
                 ))}
               </Card>
-            </Pressable>
+            </PressableScale>
           );
         })}
       </View>

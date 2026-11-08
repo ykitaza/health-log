@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } 
 import { formatJpDate } from '@/lib/date';
 import { colors, radius } from '@/theme';
 import { Icon, IconName } from './Icon';
+import { PressableScale } from './motion';
 import { T } from './Text';
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -23,20 +24,20 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, st
   const bg = { primary: colors.accent, secondary: colors.input, danger: colors.dangerDark, outline: 'transparent' }[variant];
   const fg = { primary: colors.onAccent, secondary: colors.text, danger: colors.danger, outline: colors.text }[variant];
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={[
         s.button,
-        { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.8 : 1, minHeight: small ? 44 : 56 },
+        { backgroundColor: bg, opacity: disabled ? 0.45 : 1, minHeight: small ? 44 : 56 },
         variant === 'outline' && { borderWidth: 1, borderColor: colors.line },
         style,
       ]}
     >
       {icon && <Icon name={icon} color={fg} size={small ? 18 : 20} />}
       <T bold size={small ? 13 : 15} color={fg} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>{label}</T>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -44,15 +45,16 @@ export function IconButton({ name, onPress, label, color = colors.text, bg = col
   name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number;
 }) {
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 }]}
+      scaleTo={0.92}
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}
     >
       <Icon name={name} color={color} size={Math.round(size * 0.48)} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -92,14 +94,14 @@ export function DayNote({ date, today }: { date: string; today: string }) {
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       aria-selected={!!active}
       onPress={onPress}
       style={[s.chip, active ? { backgroundColor: colors.accentDark, borderColor: colors.accent } : { backgroundColor: colors.input, borderColor: colors.input }]}
     >
       <T size={13} bold={active} color={active ? colors.accent : colors.sub}>{label}</T>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -170,11 +172,12 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
 }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      style={({ pressed }) => [s.row, !first && s.rowLine, { opacity: pressed ? 0.7 : 1 }]}
+      scaleTo={0.98}
+      style={[s.row, !first && s.rowLine]}
     >
       <View style={{ flex: 1, opacity: dim ? 0.45 : 1 }}>
         <T bold size={16}>{title}</T>
@@ -182,7 +185,7 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
       </View>
       {right}
       {onPress && chevron && <Icon name="chevron" color={colors.sub} size={18} />}
-    </Pressable>
+    </PressableScale>
   );
 }
 
