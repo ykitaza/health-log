@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, goTab, openApp, openBody, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -13,7 +13,10 @@ async function captureShare(page: Page) {
 }
 const shared = (page: Page) => page.evaluate(() => (window as unknown as { __shared: ShareData[] }).__shared);
 
-test('kg と lb の切り替え：記録・体重・目標体重の表示が換算され、保存は kg のまま', async ({ page }) => {
+// CSV の中身（くくり方、外した記録、完了）、lb と kg の換算と丸め、範囲の確かめは jest
+//（lib/__tests__/screen-logic.test.ts、limits.test.ts、units-sets-csv.test.ts）。ここは画面の切り替えと保存、共有に渡すこと
+
+test('kg と lb の切り替え：記録・体重・目標体重の表示が換算され、保存は kg のまま（lb で開いて変えずに保存しても）', async ({ page }) => {
   await captureShare(page);
   await openApp(page);
   await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
@@ -50,6 +53,11 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await page.getByLabel('セット1の回数').fill('5');
   await saveButton(page).click();
   await expect(see(page, '100.0 lb × 5 回')).toBeVisible();
+  // 80kg の記録を lb（176.37）で開いて、変えずに保存しても 80kg のまま（下の CSV で確かめる）
+  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
+  await expect(page.getByLabel('セット1の重量')).toHaveValue('176.37');
+  await saveButton(page).click();
+  await expect(see(page, '176.4 lb × 8 回')).toBeVisible();
   await button(page, '戻る').click();
 
   // kg に戻すと元の値
@@ -59,6 +67,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   // CSV は kg のまま書き出す
   await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
   await expect.poll(async () => (await shared(page)).length).toBe(1);
+  expect((await shared(page))[0].title).toBe('トレログの記録（CSV）');
   const csv = (await shared(page))[0].text!;
   expect(csv.split('\r\n')[0]).toBe('日付,部位,種目,セット,重量(kg),回数,メモ,完了');
   expect(csv).toContain('2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n');
@@ -96,176 +105,67 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
   await expect(button(page, '1セット')).toHaveAttribute('aria-selected', 'true');
 });
 
-test('身長と目標体重の不正な値', async ({ page }) => {
+test('身長と目標体重の不正な値はエラーを出し、空にすると消える。lb の表示では範囲を lb で出す', async ({ page }) => {
   await openApp(page);
   await openSettings(page);
-  for (const bad of ['99.9', '251', '0', '-170', 'abc']) {
-    await enter(page, '身長', bad);
-    await expect(see(page, '身長は 100〜250cm で入れてください')).toBeVisible();
-  }
-  await enter(page, '身長', '100');
-  await expect(see(page, '身長は 100〜250cm で入れてください')).toBeHidden();
+  await enter(page, '身長', '99.9');
+  await expect(see(page, '身長は 100〜250cm で入れてください')).toBeVisible();
   await enter(page, '身長', '250');
-  for (const bad of ['0', '-60', 'abc', '29.9', '300.1']) {
-    await enter(page, '目標体重', bad);
-    await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeVisible();
-  }
+  await expect(see(page, '身長は 100〜250cm で入れてください')).toBeHidden();
+  await enter(page, '目標体重', 'abc');
+  await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeVisible();
   await enter(page, '目標体重', '60.5');
   await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeHidden();
-  await button(page, '戻る').click();
-  await openBody(page);
-  await expect(see(page, '自動で計算（身長 250cm）')).toBeVisible();
 
-  // 空にすると消える
-  await setBodyInfo(page, { height: '' });
-  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
-});
-
-test('lb の表示では、kg に直して範囲を確かめ、範囲を lb で出す', async ({ page }) => {
-  await openApp(page);
-  await openSettings(page);
+  // lb にすると、範囲を lb で出す（30〜300kg = 66.14〜661.39lb を、範囲の内側に丸める）
   await chooseUnit(page, 'lb');
-  // 目標体重 30〜300kg = 66.14〜661.39lb（範囲の内側に丸めて出す）
-  for (const bad of ['66.1', '661.4']) {
-    await enter(page, '目標体重', bad);
-    await expect(see(page, '目標体重は 66.2〜661.3lb で入れてください')).toBeVisible();
-  }
+  await enter(page, '目標体重', '661.4');
+  await expect(see(page, '目標体重は 66.2〜661.3lb で入れてください')).toBeVisible();
   await enter(page, '目標体重', '661.3');
   await expect(see(page, /目標体重は .*で入れてください/)).toHaveCount(0);
   await button(page, '戻る').click();
 
   await openBody(page);
+  await expect(see(page, '自動で計算（身長 250cm）')).toBeVisible();
   await enter(page, '体重', '661.4');
   await expect(see(page, '体重は 66.2〜661.3lb で入れてください')).toBeVisible();
-  await enter(page, '体重', '150');
-  await expect(see(page, /体重は .*で入れてください/)).toHaveCount(0);
 
-  // 記録の重量：500kg = 1102.31lb
-  await goTab(page, 'ホーム');
-  await button(page, '本日のトレーニングを追加').click();
-  await button(page, '種目を追加').click();
-  await chooseExercise(page, 'デッドリフト');
-  await fillSets(page, [{ weight: '1102.4', reps: '1' }]);
-  await saveButton(page).click();
-  await expect(see(page, '重量は 1102.3lb までの正の数で入れてください')).toBeVisible();
-  await fillSets(page, [{ weight: '1102.3', reps: '1' }]);
-  await saveButton(page).click();
-  await expect(see(page, '1102.3 lb × 1 回')).toBeVisible();
+  // 身長を空にすると消える
+  await setBodyInfo(page, { height: '' });
+  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
 });
 
-test('CSV：記録がなければ見出しだけ', async ({ page }) => {
-  await captureShare(page);
-  await openApp(page);
-  await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect.poll(async () => (await shared(page)).length).toBe(1);
-  const s = (await shared(page))[0];
-  expect(s.title).toBe('トレログの記録（CSV）');
-  expect(s.text).toBe('日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n');
-});
-
-test('CSV：共有のメニューが使えないときは、エラーを出す', async ({ page }) => {
-  // web で navigator.share がないとき（Android ではまず起きない）。今までは何も起きなかった
+test('CSV：共有のメニューに渡す。閉じただけならエラーを出さず、共有が使えないときはエラーを出す', async ({ page }) => {
+  // navigator.share を差し替える：初めは渡した中身を残し、次は閉じたとき（AbortError）にする
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
-  });
-  await openApp(page);
-  await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect(see(page, '共有のメニューを開けなかったため、CSV を書き出せませんでした。')).toBeVisible();
-});
-
-test('CSV：共有のメニューを閉じただけなら、エラーを出さない', async ({ page }) => {
-  await page.addInitScript(() => {
-    (window as unknown as { __calls: number }).__calls = 0;
+    const w = window as unknown as { __shared: ShareData[]; __abort: boolean };
+    w.__shared = [];
+    w.__abort = false;
     Object.defineProperty(navigator, 'share', {
       configurable: true,
-      value: async () => {
-        (window as unknown as { __calls: number }).__calls++;
-        throw new DOMException('Share canceled', 'AbortError');
+      value: async (data: ShareData) => {
+        w.__shared.push(data);
+        if (w.__abort) throw new DOMException('Share canceled', 'AbortError');
       },
     });
   });
   await openApp(page);
   await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __calls: number }).__calls)).toBe(1);
+  const exportButton = page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ });
+  await exportButton.click();
+  await expect.poll(async () => (await shared(page)).length).toBe(1);
+  // 記録がなければ見出しだけ
+  expect((await shared(page))[0]).toMatchObject({ title: 'トレログの記録（CSV）', text: '日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n' });
+
+  await page.evaluate(() => { (window as unknown as { __abort: boolean }).__abort = true; });
+  await exportButton.click();
+  await expect.poll(async () => (await shared(page)).length).toBe(2);
   await expect(see(page, /CSV を書き出せませんでした/)).toHaveCount(0);
-});
 
-test('CSV：メモの「,」と「"」はくくって書き出し、消した記録と完了を反映する', async ({ page }) => {
-  await captureShare(page);
-  await openApp(page);
-  await recordToday(page, [
-    { exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8', memo: 'フォーム "良い", 重い', done: true }, { weight: '82.5', reps: '5' }] },
-    { exercise: '懸垂', sets: [{ reps: '10' }] },
-    { exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] },
-  ]);
-  // スクワットを外す
-  await button(page, '本日のトレーニングを追加').click();
-  await button(page, 'スクワットを外す').click();
-  await button(page.getByRole('dialog'), '外す').click();
-  await expect(page.getByRole('button', { name: 'スクワットを直す' })).toHaveCount(0);
-  await button(page, '戻る').click();
-  await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect.poll(async () => (await shared(page)).length).toBe(1);
-  expect((await shared(page))[0].text).toBe(
-    '日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n' +
-    '2026-11-08,胸,ベンチプレス,1,80,8,"フォーム ""良い"", 重い",1\r\n' +
-    '2026-11-08,胸,ベンチプレス,2,82.5,5,,0\r\n' +
-    '2026-11-08,背中,懸垂,1,,10,,0\r\n',
-  );
-});
-
-test('lb の表示で記録を開いて変えずに保存しても、kg の値は変わらない', async ({ page }) => {
-  // 80kg は 176.37lb と出る。これを kg に戻すと 80.0000863kg になっていた（CSV で見える）
-  await captureShare(page);
-  await openApp(page);
-  await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
-  await openSettings(page);
-  await chooseUnit(page, 'lb');
-  await button(page, '戻る').click();
-
-  await button(page, '本日のトレーニングを追加').click();
-  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
-  await expect(page.getByLabel('セット1の重量')).toHaveValue('176.37');
-  await saveButton(page).click();
-  await expect(see(page, '176.4 lb × 8 回')).toBeVisible();
-  await button(page, '戻る').click();
-
-  await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect.poll(async () => (await shared(page)).length).toBe(1);
-  expect((await shared(page))[0].text).toContain('2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n');
-});
-
-test('lb の表示で「前回をコピー」しても、kg の値は前回と同じ', async ({ page }) => {
-  await captureShare(page);
-  await recordOn(page, '2026-11-07', [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
-  await moveToDate(page, '2026-11-08');
-  await openSettings(page);
-  await chooseUnit(page, 'lb');
-  await button(page, '戻る').click();
-  await button(page, '本日のトレーニングを追加').click();
-  await button(page, '種目を追加').click();
-  await chooseExercise(page, 'ベンチプレス');
-  await button(page, '前回をコピー').click();
-  await expect(page.getByLabel('セット1の重量')).toHaveValue('176.37');
-  // 上のセットをコピーしても同じ
-  await button(page, '上のセットをコピー').click();
-  await saveButton(page).click();
-  // 保存が終わって、その日のトレーニングの画面に戻るまで待つ。保存の途中で押した「戻る」は
-  // 記録の入力の画面のものになり、保存のあとの戻りと合わせても1画面しか戻らない（ホームに着かない）
-  await expect(see(page, '176.4 lb × 8 回')).toHaveCount(2);
-  await button(page, '戻る').click();
-
-  await openSettings(page);
-  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
-  await expect.poll(async () => (await shared(page)).length).toBe(1);
-  expect((await shared(page))[0].text).toContain(
-    '2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n2026-11-08,胸,ベンチプレス,2,80,8,,0\r\n',
-  );
+  // web で navigator.share がないとき（Android ではまず起きない）。今までは何も起きなかった
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }));
+  await exportButton.click();
+  await expect(see(page, '共有のメニューを開けなかったため、CSV を書き出せませんでした。')).toBeVisible();
 });
 
 test('身長を入れたまま単位を押しても、身長と単位の両方を保存する', async ({ page }) => {

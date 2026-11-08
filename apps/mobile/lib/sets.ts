@@ -54,6 +54,14 @@ export function validateSets(drafts: SetDraft[], recordType: RecordType, unit: W
 
 export type SetInput = { id?: string; weightKg: number | null; reps: number; memo: string; done: boolean };
 
+/** 保存済みのセットから、入力の行を作る（重量は単位に直し、元の kg も持つ） */
+export function draftFromSet(s: { id: string; weightKg: number | null; reps: number; memo: string; done: boolean }, unit: WeightUnit, key: string): SetDraft {
+  return {
+    key, id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
+    weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
+  };
+}
+
 /** 保存用に変換する（空の行は落とす）。先に validateSets で確かめておく */
 export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: WeightUnit): SetInput[] {
   return drafts
@@ -65,6 +73,14 @@ export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: We
       memo: d.memo.trim(),
       done: d.done,
     }));
+}
+
+/** 保存のボタンを押したとき：行ごとのエラー、画面の下に出す文言、保存するセット（formError があれば保存しない） */
+export function prepareSave(drafts: SetDraft[], recordType: RecordType, unit: WeightUnit) {
+  const errors = validateSets(drafts, recordType, unit);
+  if (errors.size > 0) return { errors, formError: '入力を確かめてください', sets: [] as SetInput[] };
+  const sets = toSetInputs(drafts, recordType, unit);
+  return { errors, formError: sets.length === 0 ? 'セットを1つ以上入れてください' : null, sets };
 }
 
 /** 保存したときに変わる中身（空の行は保存しないので含めない。画面の key も含めない） */

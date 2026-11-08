@@ -1,4 +1,5 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
+import { parseNumber } from './units';
 
 /** 1セット分の値（重さは kg。回数だけの種目は weightKg が null） */
 export type SetValues = { weightKg: number | null; reps: number | null };
@@ -186,6 +187,14 @@ export function weeklyVolumeByBodyPart(rows: TrainingSetRow[], today: DateKey, w
   return out;
 }
 
+/** 週ごとの総負荷量の見出しの数字：今週、先週、期間の週の平均 */
+export function weeklySummary(weeks: WeeklyByPart[]) {
+  const thisWeek = weeks[weeks.length - 1].total;
+  const lastWeek = weeks[weeks.length - 2]?.total ?? 0;
+  const avg = weeks.reduce((a, w) => a + w.total, 0) / weeks.length;
+  return { thisWeek, lastWeek, avg };
+}
+
 export type PersonalBest = { exerciseId: string; e1rm: number; weightKg: number; reps: number; date: DateKey };
 
 /** 種目ごとの自己ベスト（推定1RM が最大のセット）。beforeDate を渡すと、その日より前だけで見る */
@@ -215,4 +224,10 @@ export const RM_TABLE = [
 
 export function rmTable(oneRm: number) {
   return RM_TABLE.map((r) => ({ ...r, weight: (oneRm * r.pct) / 100 }));
+}
+
+/** RM計算機の入力（文字列）から推定1RM。数でない・0 以下・回数が整数でないときは 0 */
+export function rmFromInput(weight: string, reps: string): number {
+  const r = parseNumber(reps);
+  return estimated1RM(parseNumber(weight), r != null && Number.isInteger(r) ? r : null);
 }

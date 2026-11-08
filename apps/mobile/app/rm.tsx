@@ -6,7 +6,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Header } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { estimated1RM, rmTable } from '@/lib/training';
+import { rmFromInput, rmTable } from '@/lib/training';
 import { fmt1, parseNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -16,9 +16,8 @@ export default function RmScreen() {
   const unit = data?.weightUnit ?? 'kg';
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
-  const w = parseNumber(weight);
   const r = parseNumber(reps);
-  const oneRm = estimated1RM(w, r != null && Number.isInteger(r) ? r : null);
+  const oneRm = rmFromInput(weight, reps);
 
   return (
     <Screen>
