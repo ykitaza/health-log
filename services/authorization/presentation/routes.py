@@ -7,7 +7,7 @@ from typing import Protocol
 
 from authlib.common.errors import AuthlibBaseError as LoginError
 from authlib.oauth2 import OAuth2Error
-from flask import Blueprint, Response, jsonify, redirect, request, session
+from flask import Blueprint, Response, current_app, jsonify, redirect, request, session
 
 from infrastructure.cimd_client_directory import CimdClientDirectory, ClientRejected
 from infrastructure.stores import Store
@@ -39,6 +39,12 @@ def error_page(description: str) -> Response:
     return Response(render_error_page(description), status=400, mimetype="text/html")
 
 
+def rejected(description: str, error: Exception) -> Response:
+    """例外の中身は画面に出さず、ログ（CloudWatch Logs）にだけ残す。内部の情報を外に見せないため。"""
+    current_app.logger.warning("%s: %r", request.path, error)
+    return error_page(description)
+
+
 def create_blueprint(
     server: AuthorizationServer, clients: CimdClientDirectory, store: Store, login: LoginGateway,
 ) -> Blueprint:
@@ -52,14 +58,14 @@ def create_blueprint(
             try:
                 use_client(clients.find(client_id))
             except ClientRejected as e:
-                return error_page(str(e))
+                return rejected("クライアントを確かめられません（client_id の URL と、その文書を確かめてください）", e)
         try:
             grant = server.get_consent_grant(end_user=None)
         except OAuth2Error as e:
             # redirect_uri を確かめられたエラーだけを、クライアントへ返す
             if e.redirect_uri:
                 return server.authorization_error_response(e)
-            return error_page(f"リクエストを受け付けられません（{e.error}: {e.description}）")
+            return rejected("リクエストを受け付けられません（client_id か redirect_uri が正しくありません）", e)
         request_id = new_id()
         store.put("request", request_id, {
             "params": request.args.to_dict(),  # 同意のあと、Authlib にもう一度確かめさせる
@@ -78,7 +84,7 @@ def create_blueprint(
         try:
             subject = login.subject_from_callback()
         except LoginError as e:
-            return error_page(f"ログインを確かめられません: {e}")
+            return rejected("ログインを確かめられません（最初からやり直してください）", e)
         pending = store.get("request", request_id)
         if pending is None:
             return error_page(EXPIRED)
@@ -107,7 +113,7 @@ def create_blueprint(
         try:
             grant = server.get_consent_grant(authorization_request, end_user=subject)
         except OAuth2Error as e:
-            return error_page(f"リクエストを受け付けられません（{e.error}: {e.description}）")
+            return rejected("リクエストを受け付けられません（最初からやり直してください）", e)
         approved = request.form.get("decision") == "allow"
         # 許可なら認可コード、拒否なら access_denied を、iss（RFC 9207）を付けて redirect_uri へ返す
         response = server.create_authorization_response(
