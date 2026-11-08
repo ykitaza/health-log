@@ -88,27 +88,35 @@ export function goalProgress(currentKg: number, goalKg: number, pacePerWeek: num
   return { remaining, direction: diff < 0 ? 'lose' : diff > 0 ? 'gain' : 'reached', weeks } as const;
 }
 
-/** 体組成の1件（1日に複数あり得る） */
+/** 体組成の1件（1日に複数あり得る）。source は手入力（manual）か Health Connect の取り込み（health_connect） */
 export type BodyRecordLike = BodyValues & {
   date: DateKey;
   measuredAt: string; // ISO 8601
   updatedAt: string;
   memo: string;
+  source?: 'manual' | 'health_connect'; // 省くと手入力
 };
 
-export type DailyBody = BodyValues & { date: DateKey; memo: string };
+export type BodyField = 'weightKg' | 'bodyFatPct' | 'musclePct' | 'waistCm';
 
-const FIELDS = ['weightKg', 'bodyFatPct', 'musclePct', 'waistCm'] as const;
+/** imported：取り込みの値を出している項目（手入力の値がない項目だけ。どれもなければ省く） */
+export type DailyBody = BodyValues & { date: DateKey; memo: string; imported?: BodyField[] };
+
+const FIELDS: BodyField[] = ['weightKg', 'bodyFatPct', 'musclePct', 'waistCm'];
+
+const isManual = (r: BodyRecordLike) => (r.source ?? 'manual') === 'manual';
 
 /**
- * 1日に1つの値を出すときの選び方：項目ごとに、その日のいちばん新しい記録（measured_at、同じなら updated_at）の、
- * 空でない値を使う。朝に体重計で体重だけ、夜に手で体脂肪率を入れた、という日でも両方が出る。
- * 手入力と取り込みのどちらを優先するかは第2段階で決める（今は時刻だけで選ぶ）。
+ * 1日に1つの値を出すときの選び方：項目ごとに、その日の手入力の記録のうち、いちばん新しいもの（measured_at、同じなら updated_at）の
+ * 空でない値を使う。手入力の値がない項目だけ、取り込み（Health Connect）の同じ決まりの値を使う。
+ * 朝に体重計で体重だけ、夜に手で体脂肪率を入れた、という日でも両方が出る。体重計の値を手で直したら、手の値が出る。
+ * サーバー（services/training/training/domain/body.py の daily_body_values）と同じ（testdata/training/body.json）
  */
 export function dailyBodyValues(records: BodyRecordLike[]): DailyBody[] {
-  const sorted = [...records].sort((a, b) =>
-    a.measuredAt === b.measuredAt ? (a.updatedAt < b.updatedAt ? 1 : -1) : a.measuredAt < b.measuredAt ? 1 : -1,
-  ); // 新しい順
+  const sorted = [...records].sort((a, b) => {
+    if (isManual(a) !== isManual(b)) return isManual(a) ? -1 : 1;
+    return a.measuredAt === b.measuredAt ? (a.updatedAt < b.updatedAt ? 1 : -1) : a.measuredAt < b.measuredAt ? 1 : -1;
+  }); // 手入力が先、その中で新しい順
   const byDate = new Map<DateKey, DailyBody>();
   for (const r of sorted) {
     let d = byDate.get(r.date);
@@ -116,7 +124,11 @@ export function dailyBodyValues(records: BodyRecordLike[]): DailyBody[] {
       d = { date: r.date, weightKg: null, bodyFatPct: null, musclePct: null, waistCm: null, memo: '' };
       byDate.set(r.date, d);
     }
-    for (const f of FIELDS) if (d[f] == null && r[f] != null) d[f] = r[f];
+    for (const f of FIELDS) {
+      if (d[f] != null || r[f] == null) continue;
+      d[f] = r[f];
+      if (!isManual(r)) d.imported = FIELDS.filter((x) => x === f || d!.imported?.includes(x));
+    }
     if (d.memo === '' && r.memo !== '') d.memo = r.memo;
   }
   return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));

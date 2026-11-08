@@ -88,9 +88,10 @@ export default function BodyScreen() {
     await repos.body.saveManual(date, { [f]: value });
     reload();
   };
+  // 手入力の値と、その項目の取り込み（Health Connect）の行を消す（消した取り込みは、取り込み直しても戻らない）
   const clear = async (f: Field) => {
     setTexts((x) => ({ ...x, [f]: '' }));
-    await repos.body.saveManual(date, { [f]: null });
+    await repos.body.clearField(date, f);
     reload();
   };
   const commitMemo = async () => {
@@ -142,7 +143,12 @@ export default function BodyScreen() {
       <Card style={{ marginTop: 12, padding: 0 }}>
         {FIELDS.map((f, i) => (
           <View key={f.key} style={[s.fieldRow, i > 0 && s.line]}>
-            <T size={15} color={colors.sub} style={{ flex: 1 }}>{f.label}</T>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T size={15} color={colors.sub}>{f.label}</T>
+              {day?.imported?.includes(f.key) && texts[f.key] === savedTexts[f.key] && (
+                <T size={10} color={colors.accent} testID={`imported-${f.key}`}>取り込み</T>
+              )}
+            </View>
             <Input
               value={texts[f.key]}
               onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}

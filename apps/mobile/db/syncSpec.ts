@@ -26,6 +26,11 @@ export type EntitySpec = {
    * 端末の行は (親の列, id) で指し、変更には parent_id を付ける。親が端末にないうちは当てはめない
    */
   parent?: { column: string; table: string };
+  /**
+   * Health Connect から取り込む行の見分け方（ログインの前の記録を outbox に積むときに、origin を 'import' にする）。
+   * column の値が equals の行が取り込み
+   */
+  imported?: { column: string; equals: string };
 };
 
 /** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類） */
@@ -60,6 +65,7 @@ export const TRAINING_ENTITIES: EntitySpec[] = [
       lean_mass_kg: 'real', waist_cm: 'real', memo: 'text', source: 'text', external_id: 'text', origin_package: 'text',
     },
     required: ['date', 'measured_at', 'source'],
+    imported: { column: 'source', equals: 'health_connect' },
   },
   {
     type: 'setting', table: 'settings',
@@ -132,18 +138,24 @@ export function toDbFields(spec: EntitySpec, fields: Record<string, unknown>): R
 export const SQL_UUID = `lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' ||
   substr('89AB', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))`;
 
+/** 取り込みが書いているあいだは 'import'、ほかは 'app'（トリガーと backfillOutbox で使う） */
+export const SQL_ORIGIN = `CASE WHEN EXISTS (SELECT 1 FROM sync_meta WHERE key = 'importing') THEN 'import' ELSE 'app' END`;
+
 /**
  * 表を変えるたびに、変更を outbox に積むトリガー。項目ごとに、変わったものだけを積む。
  * changed_at は行の updated_at（削除は deleted_at）。サーバーから受け取った状態を当てはめるあいだ
- * （sync_meta に applying があるあいだ）は積まない
+ * （sync_meta に applying があるあいだ）は積まない。
+ * origin（版4で outbox に足した）は、Health Connect の取り込みが書くあいだ（sync_meta に importing があるあいだ）は
+ * 'import'、ほかは 'app'。版3までのマイグレーションは、その版の形（withOrigin = false）で作る
  */
-export function triggerSql(spec: EntitySpec): string {
+export function triggerSql(spec: EntitySpec, withOrigin = true): string {
   const cols = Object.keys(spec.columns);
   const t = `'${spec.type}'`;
   const notApplying = `NOT EXISTS (SELECT 1 FROM sync_meta WHERE key = 'applying')`;
   // 親の中でだけ一意な種類（食事の品目）は、親の ID も積む（版3で outbox に parent_id を足した。版2の種類は今のまま）
   const parent = spec.parent ? `NEW.${spec.parent.column}, ` : '';
-  const insert = `INSERT INTO sync_outbox (change_id, entity_type, entity_id, ${spec.parent ? 'parent_id, ' : ''}op, fields, changed_at)`;
+  const insert = `INSERT INTO sync_outbox (change_id, entity_type, entity_id, ${spec.parent ? 'parent_id, ' : ''}op, fields, changed_at${withOrigin ? ', origin' : ''})`;
+  const origin = withOrigin ? `, ${SQL_ORIGIN}` : '';
   const allFields = `json_object(${cols.map((c) => `'${c}', NEW.${c}`).join(', ')})`;
   const changed = cols.map((c) => `OLD.${c} IS NOT NEW.${c}`).join(' OR ');
   const diff = `(SELECT json_group_object(k, v) FROM (${cols
@@ -151,15 +163,15 @@ export function triggerSql(spec: EntitySpec): string {
   return `
 CREATE TRIGGER sync_${spec.table}_insert AFTER INSERT ON ${spec.table} WHEN ${notApplying}
 BEGIN
-  ${insert} VALUES (${SQL_UUID}, ${t}, NEW.id, ${parent}'create', ${allFields}, NEW.updated_at);
-  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'delete', NULL, NEW.deleted_at WHERE NEW.deleted_at IS NOT NULL;
+  ${insert} VALUES (${SQL_UUID}, ${t}, NEW.id, ${parent}'create', ${allFields}, NEW.updated_at${origin});
+  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'delete', NULL, NEW.deleted_at${origin} WHERE NEW.deleted_at IS NOT NULL;
 END;
 CREATE TRIGGER sync_${spec.table}_update AFTER UPDATE ON ${spec.table} WHEN ${notApplying}
 BEGIN
-  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'restore', NULL, NEW.updated_at
+  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'restore', NULL, NEW.updated_at${origin}
     WHERE OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL;
-  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'update', ${diff}, NEW.updated_at WHERE ${changed};
-  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'delete', NULL, NEW.deleted_at
+  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'update', ${diff}, NEW.updated_at${origin} WHERE ${changed};
+  ${insert} SELECT ${SQL_UUID}, ${t}, NEW.id, ${parent}'delete', NULL, NEW.deleted_at${origin}
     WHERE OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL;
 END;`;
 }

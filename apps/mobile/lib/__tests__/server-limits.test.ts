@@ -44,6 +44,7 @@ describe('同期のサーバーの決まりと合っている', () => {
     expect(fieldArgs(entities, 'BodyRecordFields', 'body_fat_pct')).toEqual(ge(LIMITS.bodyFat));
     expect(fieldArgs(entities, 'BodyRecordFields', 'muscle_pct')).toEqual(ge(LIMITS.muscle));
     expect(fieldArgs(entities, 'BodyRecordFields', 'waist_cm')).toEqual(ge(LIMITS.waist));
+    expect(fieldArgs(entities, 'BodyRecordFields', 'lean_mass_kg')).toEqual(ge(LIMITS.leanMass));
   });
 
   test('種目と部位の名前は、サーバーの上限（コードポイント）の内側', () => {

@@ -44,12 +44,24 @@ describe('conflicts.json：偽のサーバー', () => {
   });
 });
 
-/** 端末の表を、画面の書き込みと同じように直接変える（トリガーが outbox に積む） */
+/**
+ * 端末の表を、画面の書き込みと同じように直接変える（トリガーが outbox に積む）。
+ * 取り込み（import）は、取り込みと同じく sync_meta に importing を置いて書く（origin = import で積まれる）
+ */
 function localWrite(d: Device, c: CaseChange) {
   const spec = SPEC_BY_TYPE.get(c.entity_type as SyncType)!;
   const values = toDbFields(spec, c.fields ?? {});
   const cols = Object.keys(values);
   const run = (sql: string, params: Bind[]) => d.db.raw.prepare(sql).run(...params);
+  if (c.origin === 'import') {
+    run(`INSERT INTO sync_meta (key, value) VALUES ('importing', '1')`, []);
+    try {
+      localWrite(d, { ...c, origin: 'app' });
+    } finally {
+      run(`DELETE FROM sync_meta WHERE key = 'importing'`, []);
+    }
+    return;
+  }
   if (c.op === 'create') {
     run(`INSERT INTO ${spec.table} (id, ${cols.join(', ')}, created_at, updated_at) VALUES (?, ${cols.map(() => '?').join(', ')}, ?, ?)`,
       [c.entity_id, ...cols.map((k) => values[k]), c.changed_at, c.changed_at]);
@@ -62,7 +74,7 @@ function localWrite(d: Device, c: CaseChange) {
   }
 }
 
-describe('conflicts.json：端末を通す（端末の変更は端末で記録して送り、ほかは直接サーバーへ。最後に受け取った端末の表がサーバーと同じ）', () => {
+describe('conflicts.json：端末を通す（端末の変更と取り込みは端末で記録して送り、MCP は直接サーバーへ。最後に受け取った端末の表がサーバーと同じ）', () => {
   test.each(cases)('$name', async ({ changes, expected }) => {
     const server = createFakeSyncServer();
     const d = await device(server);
@@ -70,14 +82,18 @@ describe('conflicts.json：端末を通す（端末の変更は端末で記録�
     for (let i = 0; i < changes.length;) {
       const c = changes[i];
       server.setClock(() => c.received_at);
-      if (c.origin !== 'app') {
+      // 端末に行がある記録の取り込みの create（消した記録をもう一度取り込む）は、端末の取り込みは書かないので（消した行は戻さない）、
+      // ほかの端末の取り込みとして直接サーバーへ送る
+      const exists = (x: CaseChange) => d.db.raw.prepare(`SELECT 1 FROM ${SPEC_BY_TYPE.get(x.entity_type as SyncType)!.table} WHERE id = ?`).get(x.entity_id);
+      const local = (x: CaseChange) => x.origin === 'app' || (x.origin === 'import' && !(x.op === 'create' && exists(x)));
+      if (!local(c)) {
         server.append([serverChange(c)]);
         i++;
         continue;
       }
       // 同じ時刻に届いた端末の変更は、つながらないあいだにまとめて記録したもの。記録する前に、それまでの変更を受け取る
       expect(await d.engine.run()).toMatchObject({ ok: true, sent: 0 });
-      for (; i < changes.length && changes[i].origin === 'app' && changes[i].received_at === c.received_at; i++) localWrite(d, changes[i]);
+      for (; i < changes.length && local(changes[i]) && changes[i].received_at === c.received_at; i++) localWrite(d, changes[i]);
       expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
     }
     await d.engine.run();

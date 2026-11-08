@@ -1,6 +1,7 @@
 import type { EntityState, PushChange } from '@/lib/api';
 import { backfillOutbox, insertSeeds } from '../migrations';
 import { oneAtATime } from '../serial';
+import { SQL_DELETE_HC_TOKENS } from './healthConnect';
 import { ENTITIES, EntitySpec, SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Db } from '../types';
 
@@ -13,15 +14,17 @@ export type OutboxRow = {
   op: PushChange['op'];
   fields: string | null;
   changed_at: string;
+  /** 手入力（'app'）か、Health Connect の取り込み（'import'）。版4で足した */
+  origin: 'app' | 'import';
 };
 
-/** outbox の1行を、送る形にする（真偽値を true/false に。delete・restore には fields を付けない） */
+/** outbox の1行を、送る形にする（真偽値を true/false に。delete・restore には fields を付けない。origin は積んだときのまま） */
 export function toPushChange(row: OutboxRow): PushChange {
   const spec = SPEC_BY_TYPE.get(row.entity_type as SyncType);
   const base: PushChange = {
     change_id: row.change_id, entity_type: row.entity_type, entity_id: row.entity_id,
     ...(row.parent_id != null ? { parent_id: row.parent_id } : {}),
-    op: row.op, changed_at: row.changed_at, origin: 'app' as const,
+    op: row.op, changed_at: row.changed_at, origin: row.origin,
   };
   if (row.op === 'delete' || row.op === 'restore' || !row.fields || !spec) return base;
   return { ...base, fields: toApiFields(spec, JSON.parse(row.fields)) };
@@ -152,7 +155,7 @@ export function syncStore(db: Db) {
 
     /** まだ送っていない変更（積んだ順） */
     pending: (limit: number) => db.getAllAsync<OutboxRow>(
-      `SELECT seq, change_id, entity_type, entity_id, parent_id, op, fields, changed_at FROM sync_outbox
+      `SELECT seq, change_id, entity_type, entity_id, parent_id, op, fields, changed_at, origin FROM sync_outbox
        WHERE status = 'pending' ORDER BY seq LIMIT ?`, [limit],
     ),
 
@@ -179,7 +182,8 @@ export function syncStore(db: Db) {
 
     /**
      * 新しいアカウント（sub）に切り替える。前のアカウントの受け取りの位置・当てはめた印・送っていない変更は捨てる。
-     * send は端末の今の記録を outbox に積み直し、replace は端末の記録を消して初期の部位と種目だけにする
+     * send は端末の今の記録を outbox に積み直し（取り込んだ記録は origin = 'import'）、replace は端末の記録を消して
+     * 初期の部位と種目だけにし、Health Connect のトークンも消す
      */
     switchAccount: (sub: string, mode: AccountSwitch, nowIso: string) => oneAtATime(db, () => db.withTransactionAsync(async () => {
       await putMeta('applying', '1'); // 消す・入れ直すのを outbox に積まない
@@ -190,6 +194,8 @@ export function syncStore(db: Db) {
           // 子から消す（ENTITIES は親が先）
           for (const spec of [...ENTITIES].reverse()) await db.runAsync(`DELETE FROM ${spec.table}`, []);
           await insertSeeds(db, nowIso);
+          // Health Connect の取り込みも、初めからやり直す（消した取り込みの記録を、次の取り込みで過去30日から読み直す）
+          await db.runAsync(SQL_DELETE_HC_TOKENS, []);
         } else {
           await backfillOutbox(db);
         }

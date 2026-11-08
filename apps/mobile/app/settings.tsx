@@ -84,6 +84,7 @@ export default function SettingsScreen() {
           right={authStatus === 'signedIn' ? <Badge label="ログイン中" /> : undefined}
           onPress={() => router.push('/account')}
         />
+        <ListRow title="Health Connect" subtitle="体重計・睡眠・心拍の取り込み（Android）" onPress={() => router.push('/health-connect')} />
       </Card>
 
       <SectionTitle title="記録の初期値" />

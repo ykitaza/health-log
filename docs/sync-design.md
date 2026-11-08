@@ -144,14 +144,14 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## アプリの同期（apps/mobile）
 
-アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。
+アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4。下の「Health Connect の取り込み」）。
 種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）
 
 - 表ごとの SQLite のトリガーが、記録・編集・削除のたびに `sync_outbox` に変更を積みます。書き込みの入口（リポジトリのメソッド）がいくつあっても、積み忘れが起きないようにするためです
   - 行を足したら `create`（全部の項目）、変えたら `update`（値が変わった項目だけ）、`deleted_at` を入れたら `delete`、消したものを戻したら `restore`。`updated_at` だけが変わった書き込みは積みません
-  - `change_id` は SQLite で作る UUID（v4 の形）、`changed_at` は行の `updated_at`（削除は `deleted_at`）。`origin` は `app` です（Health Connect の取り込みの段階で `import` を足す）
+  - `change_id` は SQLite で作る UUID（v4 の形）、`changed_at` は行の `updated_at`（削除は `deleted_at`）。`origin` は、Health Connect の取り込みが書くあいだ（`sync_meta` に `importing` があるあいだ）は `import`、ほかは `app` です（版4で `sync_outbox.origin` を足した。下の「Health Connect の取り込み」）
   - 真偽値は SQLite の 0/1 のまま積み、送るときに `true`/`false` にします
 - **ログインの前の記録**：マイグレーション（版2）で、それまでの行を outbox に積みます。初期の部位と種目は、初期の値から変えた項目だけを `update` で積みます（変えていないものを送ると、ほかの端末や MCP で変えた値を、この端末を入れた時刻で上書きするため）。同期の前に消した行は、サーバーが知らないので積みません
 - 端末の ID（`device_id`）は、版2のマイグレーションで作る UUID です
@@ -194,6 +194,23 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
   - **ログアウトする**：何も変えずにログアウトします
 - 消す・積み直すあいだは `applying` を置き、トリガーが outbox に積まないようにします。どちらもトランザクションの中で行います
 - この仕組みを入れる前に同期していた端末は、`account` がないので、次に同期したアカウントを覚えます（それより前のアカウントが同じだったかは、見分けられません）
+
+### Health Connect の取り込み
+
+Android の端末で、Health Connect から体組成（体重・体脂肪率・除脂肪体重）を取り込みます（`lib/healthConnect/importer.ts`、`db/repositories/healthConnect.ts`、`hooks/healthConnect.tsx`）。
+権限は読み取りだけ（`READ_WEIGHT`・`READ_BODY_FAT`・`READ_LEAN_BODY_MASS`・`READ_SLEEP`・`READ_HEART_RATE`・`READ_RESTING_HEART_RATE`）で、書き込み・過去のデータ（HISTORY）・バックグラウンドの権限は求めません。睡眠と心拍の権限は、あとで取り込みを足したときに APK を作り直さないよう、先に求めています。
+
+- **いつ読むか**：連携しているとき（設定 → Health Connect →「連携する」）だけ、アプリを開いたとき・前面に戻ったとき・「今すぐ取り込む」で読みます。web と iOS では呼びません（`lib/healthConnect/client.web.ts`、`Platform.OS`）
+- **差分**：型ごとに `getChanges` の `changesToken` を `sync_meta` に持ち、変わったものだけを読みます。初めての型は、先にトークンを取ってから過去30日を `readRecords` で全ページ読みます（読んでいるあいだの変更は、次の差分で届く）。トークンが切れていたら、最後に読んだ時刻（なければ30日前）から読み直します
+- **書き込みの入口は1つ**：取り込みは `healthConnectStore` の `write` だけで書きます。書き込みの列（`oneAtATime`）に並び、トランザクションの中で `sync_meta` に `importing` を置いて書くので、トリガーは `origin = import` で積みます。トークンと読んだ時刻も同じトランザクションで書き、書けなかったら次は同じところから読みます
+- **ID**：`id = uuid5(08e139e3-1bcd-47c7-af17-1a18a473f1c3, "hc:" + Health Connect の記録の ID)`、`external_id` は Health Connect の記録の ID、`origin_package` は記録を書いたアプリ。同じ記録を別の端末で取り込んでも同じ行になり、`body_records` の `UNIQUE (source, external_id)` ともぶつかりません
+- **体組成**：Health Connect の1件を `body_records` の1行にします（体重と体脂肪率は別の行。`source = 'health_connect'`）。日付は記録の `zoneOffset` でのその土地の日付です。値は `lib/limits.ts`（サーバーの範囲と同じ）で確かめ、範囲の外は取り込みません。筋肉率は Health Connect に型がないので、手入力だけです
+- **消したもの**：Health Connect で消えた記録は、端末の行も消します（`delete`、`import`）。アプリで消した取り込みの行（体組成の画面の ×）は、Health Connect で直されても戻しません（同じ `external_id` の行が消えたまま残るため。サーバーでも、取り込みの `create` で消えた記録は戻らない）
+- **手入力が先**：1日の値は、項目ごとに手入力の記録（いちばん新しいもの）を使い、手入力がない項目だけ取り込みを使います（`lib/body.ts` の `dailyBodyValues`、サーバーの `daily_body_values`、`testdata/training/body.json`）。体組成の画面では、取り込みの値に「取り込み」の印を付けます。同じ記録の同じ項目を手（アプリ・MCP）で直した値も、サーバーで取り込みより強く当てはめるので、次の取り込みで負けません
+- **ログインの前の記録・アカウントを変えたとき**：`backfillOutbox` は、`source = 'health_connect'` の行を `import` で積みます。「端末の記録を消して受け取り直す」では、Health Connect のトークンと読んだ時刻も消し、次の取り込みで過去30日から読み直します。ログアウトではトークンを残します
+- **連携を切る**：`revokeAllPermissions` を呼び（Health Connect の決まりで、効くのはアプリを起動し直したとき）、連携の印・トークン・読んだ時刻を消して、すぐに取り込みをやめます。取り込んだ記録は残します
+- **権限の説明の画面**：Health Connect の権限の画面の「プライバシー ポリシー」は、`react-native-health-connect` の config plugin が MainActivity に登録する intent（Android 13 までは `ACTION_SHOW_PERMISSIONS_RATIONALE`、14 からは `VIEW_PERMISSION_USAGE` の alias）で開きます。どちらも URL を持たないので、`plugins/withHealthPrivacyIntent.js` が MainActivity でそれを `torelog://health-privacy` に変え、expo-router が `app/health-privacy.tsx` を開きます
+- **確かめ方**：取り込み（ID、`import` で積まれる、差分と削除、トークンが切れたとき、範囲の外、手で直した値が負けない、アカウントを変えたとき）は jest（`db/__tests__/healthConnect.test.ts`。Health Connect は `test-utils/fakeHealthConnect.ts` の偽物）。`testdata/sync/conflicts.json` の取り込みの場合は、端末を通すテストで、端末で取り込んで送ります。E2E は、web で Health Connect の画面が壊れないことだけを見ます
 
 ### 食事
 

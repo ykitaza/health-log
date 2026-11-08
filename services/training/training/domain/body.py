@@ -77,10 +77,12 @@ FIELDS = ("weight_kg", "body_fat_pct", "muscle_pct", "waist_cm")
 
 
 def daily_body_values(records: list[BodyRecord]) -> list[DailyBody]:
-    """1日に1つの値：項目ごとに、その日のいちばん新しい記録（measured_at、同じなら updated_at）の、空でない値。"""
+    """1日に1つの値：項目ごとに、その日の手入力の記録のうちいちばん新しいもの（measured_at、同じなら updated_at）の、
+    空でない値。手入力の値がない項目だけ、取り込み（Health Connect）の記録から同じ決まりで選ぶ。"""
     newest_first = sorted(records, key=lambda r: (r.measured_at, r.updated_at), reverse=True)
+    manual_first = sorted(newest_first, key=lambda r: r.source != "manual")  # 安定な並べ替えなので、中は新しい順のまま
     days: dict[str, dict] = {}
-    for r in newest_first:
+    for r in manual_first:
         d = days.setdefault(r.date, {"date": r.date, **{f: None for f in FIELDS}, "memo": ""})
         for f in FIELDS:
             if d[f] is None and getattr(r, f) is not None:
