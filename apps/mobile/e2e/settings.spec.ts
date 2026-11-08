@@ -232,3 +232,10 @@ test('身長と目標体重の保存が終わる前に単位を変えても、�
   await expect(goal).toHaveValue('154.32');
   await expect(height).toHaveValue('170');
 });
+
+test('設定のいちばん下にアプリの版が出る（web は開発版）', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  await expect(see(page, /^バージョン /)).toBeVisible();
+  await expect(see(page, 'アップデート：開発版')).toBeVisible();
+});

@@ -1,12 +1,15 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useEffect, useRef, useState } from 'react';
-import { Share, View } from 'react-native';
+import { Platform, Pressable, Share, View } from 'react-native';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useFocusData } from '@/hooks/data';
+import { versionLines } from '@/lib/appVersion';
 import { workoutCsv } from '@/lib/csv';
 import { LIMITS, parseInRange } from '@/lib/limits';
 import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
@@ -132,6 +135,8 @@ export default function SettingsScreen() {
       <Card style={{ padding: 0 }}>
         <ListRow first title="チャットとの連携" dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
       </Card>
+
+      <AppVersion />
     </Screen>
   );
 }
@@ -153,5 +158,27 @@ function Field({ label, unit, value, onChange, onDone }: { label: string; unit: 
       />
       <T size={13} color={colors.sub} style={{ width: 24 }}>{unit}</T>
     </View>
+  );
+}
+
+/** アプリの版とアップデートの情報。長押しで共有のメニューに出す（不具合の報告用） */
+function AppVersion() {
+  const dev = __DEV__ || Platform.OS === 'web' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const lines = versionLines({
+    dev,
+    appVersion: Constants.nativeApplicationVersion,
+    buildVersion: Constants.nativeBuildVersion,
+    fallbackVersion: Constants.expoConfig?.version,
+    updateId: Updates.updateId,
+    createdAt: Updates.createdAt,
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+    channel: Updates.channel,
+    runtimeVersion: Updates.runtimeVersion,
+  });
+  const share = () => { Share.share({ message: lines.join('\n') }).catch(() => {}); };
+  return (
+    <Pressable onLongPress={share} accessibilityLabel="アプリのバージョン" accessibilityHint="長押しで共有" style={{ marginTop: 24, gap: 2, alignItems: 'center' }}>
+      {lines.map((l) => <T key={l} size={11} color={colors.sub}>{l}</T>)}
+    </Pressable>
   );
 }
