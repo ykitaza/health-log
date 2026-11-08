@@ -116,7 +116,7 @@ export default function HistoryScreen() {
                   <T num bold size={24}>{MONTH_NAMES_EN[m - 1]} {year}</T>
                   <IconButton name="next" label="次の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
                 </View>
-                <MonthCalendar year={year} month={m} today={today} marked={marked} selected={selectedDay} onPressDay={(d) => marked.has(d) && setSelectedDay(d)} cell={38} />
+                <MonthCalendar year={year} month={m} today={today} marked={marked} selected={selectedDay} onPressDay={(d) => marked.has(d) && setSelectedDay(d)} cell={38} testID="history-calendar" />
                 <T size={12} color={colors.sub} style={{ marginTop: 10 }}>
                   {exercise ? `${exercise.name}をした日` : 'トレーニングした日'}：今月 {monthCount}回
                 </T>

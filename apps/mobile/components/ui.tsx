@@ -76,7 +76,7 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected: !!active }}
+      aria-selected={!!active}
       onPress={onPress}
       style={[s.chip, active ? { backgroundColor: colors.accentDark, borderColor: colors.accent } : { backgroundColor: colors.input, borderColor: colors.input }]}
     >
@@ -103,7 +103,7 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
           <Pressable
             key={o.key}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            aria-selected={active}
             onPress={() => onChange(o.key)}
             style={[s.segmentItem, active && { backgroundColor: colors.input }]}
           >

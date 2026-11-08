@@ -64,7 +64,7 @@ export default function NewExerciseScreen() {
           <Pressable
             key={t.key}
             accessibilityRole="radio"
-            accessibilityState={{ checked: type === t.key }}
+            aria-checked={type === t.key}
             onPress={() => setType(t.key)}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}
           >

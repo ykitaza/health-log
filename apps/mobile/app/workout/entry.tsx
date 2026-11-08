@@ -210,7 +210,7 @@ export default function EntryScreen() {
                 />
                 <Pressable
                   accessibilityRole="checkbox"
-                  accessibilityState={{ checked: d.done }}
+                  aria-checked={d.done}
                   accessibilityLabel={`セット${i + 1}の完了`}
                   onPress={() => update(d.key, { done: !d.done })}
                   style={[s.done, d.done ? { backgroundColor: colors.accent } : { backgroundColor: colors.input }]}
