@@ -13,7 +13,8 @@
     },
     "updates": {
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/2a651658-41c1-4568-b30f-56edccf5df13"
     },
     "ios": {
       "supportsTablet": true
@@ -44,6 +45,12 @@
         }
       ],
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2a651658-41c1-4568-b30f-56edccf5df13"
+      }
+    },
+    "owner": "ponchulove"
   }
 }
