@@ -8,6 +8,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
+import { useToday } from '@/hooks/today';
 import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
@@ -30,8 +31,7 @@ const FIELD_LIMITS: Record<Field, Limit> = {
 
 /** 体組成（日付ごとの入力、自動の計算、目標体重、体重の推移） */
 export default function BodyScreen() {
-  const today = todayKey();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayKey);
   const { data, reload, repos } = useFocusData(async (r) => {
     const [daily, settings] = await Promise.all([r.body.listDaily(), r.settings.get()]);
     return { daily, settings };
@@ -110,6 +110,8 @@ export default function BodyScreen() {
     }
     setDate(next);
   };
+  // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）。保存していない欄は元の日に保存する
+  const today = useToday((next, prev) => { if (date === prev) changeDate(next); });
 
   const height = data?.settings.heightCm ?? null;
   const w = day?.weightKg ?? null;

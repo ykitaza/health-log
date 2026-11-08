@@ -7,7 +7,8 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, todayKey, yearMonth } from '@/lib/date';
+import { useToday } from '@/hooks/today';
+import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, yearMonth } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { bestSet, daysInMonth, periodTotals, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -17,7 +18,8 @@ const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週
 const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo: 'plane' };
 
 export default function HomeScreen() {
-  const today = todayKey();
+  // 開いたまま日をまたいでも、前の日を「今日」として出さない（前の日に記録を足してしまうため）
+  const today = useToday();
   // カレンダーで選んだ日（過去の日の記録を見る・足す）。null なら今日。未来の日は選べない
   const [picked, setPicked] = useState<DateKey | null>(null);
   const selected = pickedDayOrToday(picked, today);

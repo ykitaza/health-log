@@ -13,6 +13,11 @@ export function todayKey(now: Date = new Date()): DateKey {
   return toDateKey(now);
 }
 
+/** 端末の暦で、次の日の0時までのミリ秒 */
+export function msUntilNextDay(now: Date): number {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+}
+
 function parts(key: DateKey): [number, number, number] {
   const [y, m, d] = key.split('-').map(Number);
   return [y, m, d];
