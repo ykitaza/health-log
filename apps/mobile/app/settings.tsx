@@ -66,7 +66,7 @@ export default function SettingsScreen() {
     setExportError(null);
     const csv = workoutCsv(await repos.workouts.exportRows());
     try {
-      await Share.share({ title: 'トレログの記録（CSV）', message: csv });
+      await Share.share({ title: 'hlog の記録（CSV）', message: csv });
     } catch (e) {
       // 共有のメニューを自分で閉じただけ（web の AbortError）なら知らせない
       if ((e as { name?: string } | null)?.name === 'AbortError') return;

@@ -35,5 +35,5 @@ test('推定1RM と割合の表、不正な値は「—」。単位は設定に�
   await input(page, '225', '5');
   await expect(oneRm(page)).toContainText('262.5lb');
   await button(page, '戻る').click();
-  await expect(see(page, 'トレログ', { exact: true })).toBeVisible();
+  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 });

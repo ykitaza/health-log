@@ -14,14 +14,14 @@ export async function setDate(page: Page, date: string) {
 export async function openApp(page: Page, date = TODAY) {
   await setDate(page, date);
   await page.goto('/');
-  await expect(see(page, 'トレログ', { exact: true })).toBeVisible();
+  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 }
 
 /** 日付を変えて、ホームを開き直す（保存したデータは残る） */
 export async function moveToDate(page: Page, date: string) {
   await setDate(page, date);
   await page.goto('/');
-  await expect(see(page, 'トレログ', { exact: true })).toBeVisible();
+  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 }
 
 export const tab = (page: Page, name: 'ホーム' | '食事' | '履歴／分析' | '体組成') => page.getByRole('tab', { name });
