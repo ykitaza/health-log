@@ -5,7 +5,7 @@
   EATER#<食べた人>          TEMPLATE#<名前>          いつもの
   EATER#<食べた人>          GOAL                     目標
   EATER#<食べた人>          DAYTYPE#<日付>           日の種類
-  EATER#<食べた人>          WEIGHT#<日付>            体重の記録（sk が日付順に並ぶので、期間で探せる）
+  EATER#<食べた人>          WEIGHT#<日付>            体重の記録（今は書かない。体重は筋トレの体組成に一本化した）
 
 pk が食べた人なので、どの読み書きも本人の項目にしか届かない。
 期間で食事を探すときは、ローカルセカンダリインデックス by_day（ソートキーは day_key）を使う。
@@ -20,7 +20,6 @@ from functools import partial
 
 import anyio
 
-from domain.body_weight import WeightRecord
 from domain.meal import Meal
 from domain.meal_template import MealTemplate
 from domain.nutrition_goal import NutritionGoal
@@ -133,24 +132,6 @@ class DynamoDBGoalRepository:
     async def get(self, eater_id: EaterId) -> NutritionGoal | None:
         data = await self.table.get(eater_id, "GOAL")
         return None if data is None else goal_from_dict(data)
-
-
-class DynamoDBWeightRepository:
-    def __init__(self, table_name: str):
-        self.table = _Table(table_name)
-
-    async def save(self, record: WeightRecord) -> None:
-        await self.table.put(record.eater_id, f"WEIGHT#{record.day.isoformat()}", {"kg": record.kg})
-
-    async def find(self, eater_id: EaterId, start: date, end: date) -> list[WeightRecord]:
-        from boto3.dynamodb.conditions import Key
-
-        condition = Key("pk").eq(_pk(eater_id)) & Key("sk").between(
-            f"WEIGHT#{start.isoformat()}", f"WEIGHT#{end.isoformat()}")
-        # data に日付を入れていないので、sk から読む
-        items = await self.table.query_items(KeyConditionExpression=condition)
-        return [WeightRecord(eater_id, date.fromisoformat(item["sk"].removeprefix("WEIGHT#")),
-                             json.loads(item["data"])["kg"]) for item in items]
 
 
 class DynamoDBDayTypeRepository:

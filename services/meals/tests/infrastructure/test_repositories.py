@@ -9,7 +9,6 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from domain.body_weight import WeightRecord
 from domain.meal_template import MealTemplate
 from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from domain.values import DayType, EatenOn, EaterId, MealSlot
@@ -25,7 +24,7 @@ OTHER = EaterId("someone-else")
 def repos(request, monkeypatch):
     if request.param == "memory":
         yield memory.InMemoryMealRepository(), memory.InMemoryMealTemplateRepository(), \
-            memory.InMemoryGoalRepository(), memory.InMemoryDayTypeRepository(), memory.InMemoryWeightRepository()
+            memory.InMemoryGoalRepository(), memory.InMemoryDayTypeRepository()
         return
     monkeypatch.setenv("AWS_DEFAULT_REGION", "ap-northeast-1")
     with mock_aws():
@@ -43,8 +42,7 @@ def repos(request, monkeypatch):
             }],
         )
         yield dynamo.DynamoDBMealRepository(TABLE), dynamo.DynamoDBMealTemplateRepository(TABLE), \
-            dynamo.DynamoDBGoalRepository(TABLE), dynamo.DynamoDBDayTypeRepository(TABLE), \
-            dynamo.DynamoDBWeightRepository(TABLE)
+            dynamo.DynamoDBGoalRepository(TABLE), dynamo.DynamoDBDayTypeRepository(TABLE)
 
 
 @pytest.mark.anyio
@@ -106,14 +104,3 @@ async def test_目標と日の種類(repos):
     assert await day_types.get(EATER, date(2026, 10, 12)) == DayType.TRAINING
     assert await day_types.get(EATER, date(2026, 10, 13)) is None
 
-
-@pytest.mark.anyio
-async def test_体重は日付ごとに上書きし_期間で日付の順に返す(repos):
-    weights = repos[4]
-    await weights.save(WeightRecord(EATER, date(2026, 10, 12), 67.0))
-    await weights.save(WeightRecord(EATER, date(2026, 10, 1), 66.0))
-    await weights.save(WeightRecord(EATER, date(2026, 10, 12), 67.4))  # 同じ日は上書き
-    await weights.save(WeightRecord(OTHER, date(2026, 10, 5), 80.0))
-    found = await weights.find(EATER, date(2026, 10, 1), date(2026, 10, 12))
-    assert [(r.day.day, r.kg) for r in found] == [(1, 66.0), (12, 67.4)]
-    assert await weights.find(EATER, date(2026, 10, 2), date(2026, 10, 11)) == []

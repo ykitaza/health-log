@@ -4,7 +4,8 @@
 筋トレは services/training/training/presentation/mcp_tools.py）。ここでは次のことだけをする。
 - サーバー（MCPServer）と認証（アクセストークンの検証、scope）を作る。MCP のプロトコルは公式の SDK に任せる
 - 食事と筋トレのリポジトリを、同じ同期の仕組み（変更の記録と今の状態）の上に作る
-- コンテキストをまたぐもの（食事の目標の「筋トレの日」、アプリの最後の同期の時刻）を、各コンテキストのポートにつなぐ
+- コンテキストをまたぐもの（食事の目標の「筋トレの日」、食事の目標体重までの進み具合に使う体重、アプリの最後の同期の時刻）を、
+  各コンテキストのポートにつなぐ
 食事と筋トレは互いを import しない。すべてを知っているのはこのファイルだけ（アプリ用の API の services/app_api/main.py と同じ）。
 """
 
@@ -29,15 +30,14 @@ from connector.icons import IconMiddleware, server_icons
 from connector.request_log import JsonRpcLogMiddleware
 from connector.settings import load_settings
 from connector.tools import Session, register_connector_tools
-from domain.ports import WeightRepository
+from domain.body_weight import WeightRecord
 from domain.values import EaterId
-from infrastructure import dynamodb_repositories as dynamo
-from infrastructure import memory_repositories as memory
 from infrastructure import sync_repositories as synced
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from presentation import mcp_server as meal_tools
 from sync.engine import SyncEngine
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
+from training.application.commands import TrainingCommands
 from training.application.queries import TrainingQueries
 from training.main import create_commands, create_queries
 from training.presentation import mcp_tools as training_tools
@@ -99,9 +99,27 @@ class WorkoutTrainingDays:
         return {date.fromisoformat(d) for d in days}
 
 
+class BodyRecordWeights:
+    """食事の WeightRepository の実装。体重は筋トレの体組成（body_record）に一本化していて、そこを読み書きする。
+
+    書くとき（record_weight）は、体組成の手入力（record_body）と同じく、その日の手入力の記録の体重だけを書き換える
+    （なければ作る）。読むときは、体組成の日ごとの値（その日のいちばん新しい記録。Health Connect の取り込みも含む）の体重。
+    """
+
+    def __init__(self, commands: TrainingCommands, queries: TrainingQueries):
+        self.commands, self.queries = commands, queries
+
+    async def save(self, record: WeightRecord) -> None:
+        await self.commands.record_body(record.eater_id.value, record.day.isoformat(), {"weight_kg": record.kg}, None)
+
+    async def find(self, eater_id: EaterId, start: date, end: date) -> list[WeightRecord]:
+        days = await self.queries.daily_body(eater_id.value)
+        return [WeightRecord(eater_id, date.fromisoformat(d.date), d.weight_kg) for d in days
+                if start.isoformat() <= d.date <= end.isoformat() and d.weight_kg is not None]
+
+
 def create_server(
     engine: SyncEngine,
-    weights: WeightRepository,
     token_verifier: TokenVerifier,
     trusted_issuer: str,
     resource_url: str,
@@ -123,9 +141,9 @@ def create_server(
         ),
     )
     sync_status = EngineAppSyncStatus(engine)
-    training_queries = create_queries(engine)
+    training_queries, training_commands = create_queries(engine), create_commands(engine, now)
 
-    # 食事：食事・いつもの・目標・日の種類は同期の仕組みで読み書きする。体重は、体組成に一本化するまで今のまま
+    # 食事：食事・いつもの・目標・日の種類は同期の仕組みで読み書きする。体重は筋トレの体組成を、ポートを通して読み書きする
     eaters = SubjectAsEaterId()
     meals, templates = synced.SyncMealRepository(engine), synced.SyncMealTemplateRepository(engine)
     goals, day_types = synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine)
@@ -134,11 +152,11 @@ def create_server(
         templates=TemplateService(eaters, meals, templates),
         goals=GoalService(eaters, goals, day_types),
         summaries=SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries)),
-        weights=WeightService(eaters, weights, goals),
+        weights=WeightService(eaters, BodyRecordWeights(training_commands, training_queries), goals),
     ), today=today, sync_status=sync_status)
 
     training_tools.register_training_tools(
-        mcp, create_commands(engine, now), training_queries, today=today, sync_status=sync_status)
+        mcp, training_commands, training_queries, today=today, sync_status=sync_status)
     register_connector_tools(mcp, session)
     return mcp
 
@@ -159,14 +177,11 @@ settings = load_settings()
 registry = create_registry()
 if settings.table_name:
     _engine = SyncEngine(DynamoDBSyncStore(settings.table_name, registry.index_key), registry)
-    _weights = dynamo.DynamoDBWeightRepository(settings.table_name)
 else:  # PC：メモリーに置く（止めると消える）
     _engine = SyncEngine(InMemorySyncStore(registry.index_key), registry)
-    _weights = memory.InMemoryWeightRepository()
 
 mcp = create_server(
     _engine,
-    _weights,
     token_verifier=AuthzApiTokenVerifier(settings.trusted_issuer, settings.resource_url),
     trusted_issuer=settings.trusted_issuer,
     resource_url=settings.resource_url,

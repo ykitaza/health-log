@@ -42,8 +42,8 @@ def _repos(engine: SyncEngine):
 
 @pytest.fixture
 def repos(sync_engine):
-    """test_repositories 用。体重は同期しないので、今のメモリー版のまま。"""
-    return (*_repos(sync_engine), memory.InMemoryWeightRepository())
+    """test_repositories 用。"""
+    return _repos(sync_engine)
 
 
 @pytest.fixture

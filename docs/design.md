@@ -58,6 +58,7 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 
 - 食事と筋トレは互いを import しません。またぐものは、使う側のコンテキストがポート（インターフェース）を持ち、`services/mcp/main.py` がつなぎます
   - **筋トレの日**：食事のポート `TrainingDayProvider`（`services/meals/domain/ports.py`）。本人が `set_day_type` で決めた日はそれを、決めていない日は、その日に筋トレのセットの記録があれば筋トレの日にします。実装（`WorkoutTrainingDays`）は筋トレの読み取りのユースケースを呼びます
+  - **体重**：食事のポート `WeightRepository`（`services/meals/domain/ports.py`）。体重は筋トレの体組成（`body_record`）に一本化していて、食事は保存しません。実装（`BodyRecordWeights`）は、`record_weight` を体組成の手入力（`record_body` と同じく、その日の手入力の記録の体重を書き換え、なければ作る）に、`goal_progress` の体重の推移を体組成の日ごとの値（その日のいちばん新しい記録。Health Connect の取り込みも含む）に変えます。`record_weight`・`goal_progress` は食事のツールなので、scope も食事の2つのままです
   - **アプリの最後の同期の時刻**：食事と筋トレの `presentation` の `AppSyncStatus`。同期の仕組みが、アプリ（`app`・`import`）からの変更を受け付けたときの時刻を `SYNC#APP` に残し、ツールの応答の `last_app_sync_at`（日本時間）に出します。それより後にアプリで記録した分は、まだ見えていない可能性があることを、AI が伝えられるようにするためです
 - **認証の部品を `services/mcp/connector/` に置いた理由**：アクセストークンの検証・ログアウト・アイコンは、どのコンテキストのドメインでもなく、Claude・ChatGPT とつなぐ入口の話です。食事に置いたままだと、筋トレのツールが食事のコードに頼ることになります。使うのは MCP の組み立てだけなので、共通の部品（`services/sync` のようなパッケージ）にはせず、組み立ての場所に置きました
 - **scope**：接続（HTTP）のところで必須にするのは、食事の2つ（今までどおり、SDK が足りなければ 403）。筋トレの2つは、筋トレのツールが1つずつ確かめ、なければ「つなぎ直してください」と返します。接続で4つとも必須にすると、筋トレの scope を持たない今のコネクタが、食事のツールまで使えなくなるためです。RFC 9728 の文書（`/.well-known/oauth-protected-resource/mcp`）の `scopes_supported` には4つとも並べ、つなぎ直すと筋トレの scope も求められるようにしています（SDK は必須の scope をそのまま `scopes_supported` にするので、この文書のルートだけ、SDK の同じ関数で作って先に置きます）
@@ -242,7 +243,7 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 | Lambda | MCP と別の関数。Lambda Web Adapter を通さない。権限は食事のテーブルの読み取りと追記だけ |
 | 流量の制限・ログ | 1秒10回・瞬間20回。アクセスログは30日（監視のスタックも読む） |
 
-体重は、体組成に一本化するまで同期しません（MCP の `record_weight` のまま）。
+体重は体組成（`body_record`）として同期します。MCP の `record_weight` で記録した体重も、体組成の記録としてアプリに届きます。
 
 ## 筋トレのアプリとの関係
 

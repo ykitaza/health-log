@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from domain.body_weight import WeightRecord
 from domain.meal_template import MealTemplate
 from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
 from domain.values import DayType, EatenOn, EaterId, MealSlot
@@ -31,7 +30,7 @@ async def _old_data():
     await dynamo.DynamoDBMealTemplateRepository(TABLE).save(MealTemplate.from_meal(lunch(), "いつもの昼"))
     await dynamo.DynamoDBGoalRepository(TABLE).save(GOAL)
     await dynamo.DynamoDBDayTypeRepository(TABLE).set(EATER, date(2026, 10, 12), DayType.TRAINING)
-    await dynamo.DynamoDBWeightRepository(TABLE).save(WeightRecord(EATER, date(2026, 10, 12), 67.0))  # 移さない
+    await dynamo._Table(TABLE).put(EATER, "WEIGHT#2026-10-12", {"kg": 67.0})  # 体重（今は書かない形）は移さない
 
 
 @pytest.mark.anyio

@@ -58,6 +58,8 @@ class InMemoryGoalRepository:
 
 
 class InMemoryWeightRepository:
+    """テスト用。動かすときの体重は、組み立ての場所が筋トレの体組成につなぐ（services/mcp/main.py）。"""
+
     def __init__(self):
         self._records: dict[tuple[EaterId, date], WeightRecord] = {}
 

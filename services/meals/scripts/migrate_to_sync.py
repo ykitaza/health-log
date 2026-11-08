@@ -6,7 +6,7 @@
   AWS_PROFILE=yuki AWS_REGION=ap-northeast-1 PYTHONPATH=. uv run python scripts/migrate_to_sync.py --table <MealsTable の名前>
   AWS_PROFILE=yuki AWS_REGION=ap-northeast-1 PYTHONPATH=. uv run python scripts/migrate_to_sync.py --table <名前> --apply
 
-- 古い項目は消さない（もとに戻すときのため）。体重（WEIGHT#）は移さない
+- 古い項目は消さない（もとに戻すときのため）。体重（WEIGHT#）は移さない（体重は筋トレの体組成に一本化し、WEIGHT# はもう読まない）
 - change_id は「pk・sk・中身」から決めるので、何度動かしても、中身が同じものは duplicate になる
 - 画面に出すのは件数だけ（利用者の ID や記録の中身は出さない）
 """
