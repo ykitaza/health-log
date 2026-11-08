@@ -1,0 +1,181 @@
+name: deploy
+
+# サーバー（CDK の CognitoStudy と監視の2つ）を AWS にデプロイする（docs/cd.md）。
+# 手で動かす（main だけ）→ テスト → cdk diff → environment aws-prod の承認 → デプロイ。
+# AWS へは OIDC で入る（アクセスキーは置かない）。ロールは CognitoStudyCiCd のスタックにあり、そのスタックはここではデプロイしない
+on:
+  workflow_dispatch:
+
+# 初期の権限はなし。ジョブごとに必要なものだけを与える
+permissions: {}
+
+# デプロイは1つずつ。途中で止めると CloudFormation の更新が半端になるので、実行中のものは止めない
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  AWS_ACCOUNT_ID: '969624666976'
+  AWS_REGION: ap-northeast-1
+  # 差分を見て、デプロイするスタック（CognitoStudyCiCd は入れない）
+  STACKS: CognitoStudy CognitoStudyMonitoring CognitoStudyMonitoringGlobal
+
+jobs:
+  # test.yml と同じテスト。必須のチェックの名前（python (…)・cdk）と重ならないように、名前に test- を付ける
+  test-python:
+    name: test-python (${{ matrix.service }})
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [authorization, meals, sync, training, app_api, mcp]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          working-directory: services/${{ matrix.service }}
+          enable-cache: true
+          cache-dependency-glob: services/${{ matrix.service }}/uv.lock
+      - run: uv sync --locked
+      - run: uv run pytest
+
+  test-cdk:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: cdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cdk/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  # 差分を見る。読み取りだけのロール（main のブランチからだけ使える）で入る。
+  # 合成したもの（cdk.out）を残し、承認のあとはそれをそのままデプロイする（承認で見た差分と、デプロイするものを同じにする）
+  diff:
+    needs: [test-python, test-cdk]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # AWS の認証情報を使うジョブなので、キャッシュは使わない（ほかのワークフローと共有しないため）
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      # 依存の install script は動かさない。認証情報を得る前に入れる
+      - run: npm ci --ignore-scripts
+      - run: ./build-lambda.sh
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/meal-log-mcp-github-diff
+          role-session-name: github-diff-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: アカウントを確かめる
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          if [ "$account" != "$AWS_ACCOUNT_ID" ]; then
+            echo "::error::アカウントが違います（$account）"
+            exit 1
+          fi
+
+      # アカウントは認証情報から決まる（bin/infra.ts の CDK_DEFAULT_ACCOUNT）
+      - run: npx cdk synth --quiet $STACKS
+
+      # template の方法は、ブートストラップの lookup ロールを引き受けようとして断られ、このロールのままで続ける（警告が出る）
+      - name: cdk diff
+        run: |
+          npx cdk diff --app cdk.out --method template $STACKS 2>&1 | tee diff.txt
+          {
+            echo '## cdk diff'
+            echo '```'
+            cat diff.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cdk-out
+          path: cdk/cdk.out/
+          retention-days: 1
+          if-no-files-found: error
+
+  # デプロイする。environment aws-prod の承認のあとに動く。デプロイ用のロールは、この environment からだけ使える
+  deploy:
+    needs: diff
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: aws-prod
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdk-out
+          path: cdk/cdk.out
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/meal-log-mcp-github-deploy
+          role-session-name: github-deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: アカウントを確かめる
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          if [ "$account" != "$AWS_ACCOUNT_ID" ]; then
+            echo "::error::アカウントが違います（$account）"
+            exit 1
+          fi
+
+      # 承認は environment で済んでいるので、CDK の確認は出さない。CognitoStudy → 監視の2つの順
+      - run: npx cdk deploy --app cdk.out --require-approval never CognitoStudy
+      - run: npx cdk deploy --app cdk.out --require-approval never --exclusively CognitoStudyMonitoring CognitoStudyMonitoringGlobal

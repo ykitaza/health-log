@@ -13,10 +13,10 @@ Claude や ChatGPT に、食事の写真か一言を送るだけで記録でき�
 | `services/training/` | 筋トレと体組成（MCP のツール、計算、同期の種類） |
 | `services/sync/`・`services/app_api/` | アプリとの同期の共通の部品と、アプリ用の API の組み立て |
 | `apps/mobile/` | 筋トレのアプリ（Expo）。今は端末の中だけで動く（[README](apps/mobile/README.md)） |
-| `cdk/` | AWS の構成（CDK）。スタックは `CognitoStudy` と、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal` の3つ |
+| `cdk/` | AWS の構成（CDK）。スタックは `CognitoStudy` と、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`、GitHub Actions のデプロイ用の `CognitoStudyCiCd` の4つ |
 | `docs/` | 構成図、シーケンス図、設計、監視の説明 |
 | `tools/inspector/` | MCP Inspector で試すときの CIMD の文書 |
-| `.github/` | CI（テスト、アプリの配信）と Dependabot の設定 |
+| `.github/` | CI（テスト、アプリの配信、サーバーのデプロイ）と Dependabot の設定 |
 
 ## 背景
 
@@ -106,13 +106,15 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 AWS の認証情報は、環境変数（`AWS_PROFILE` など）で指定しておきます。
 
-スタックは3つで、`npx cdk deploy --all` でまとめてデプロイします。
+スタックは4つで、`npx cdk deploy --all` でまとめてデプロイします。
+ふだんのデプロイは、GitHub Actions の deploy のワークフローから、承認をはさんで行います（[サーバーの CD](docs/cd.md)）。
 
 | スタック | リージョン | 中身 |
 |---|---|---|
 | `CognitoStudy` | ap-northeast-1 | Cognito、認可API と MCP サーバー（食事と筋トレ）とアプリ用の API の API Gateway・Lambda・DynamoDB |
 | `CognitoStudyMonitoring` | ap-northeast-1 | 監視（アラーム、CloudTrail、EventBridge、SNS）。`CognitoStudy` のあとに作られる |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京に転送する EventBridge のルール |
+| `CognitoStudyCiCd` | ap-northeast-1 | GitHub Actions から入るための OIDC の ID プロバイダーと、差分用・デプロイ用のロール。ワークフローからはデプロイせず、手でデプロイする（[サーバーの CD](docs/cd.md)） |
 
 us-east-1 にもスタックがあるので、初めてのときは、東京と us-east-1 の両方に CDK の bootstrap をします（1回だけ）。
 
@@ -171,7 +173,7 @@ PR と main への push では、GitHub Actions（`.github/workflows/test.yml`�
 
 ### 片付け
 
-`cdk destroy --all` で3つのスタックを消します。
+`cdk destroy --all` で4つのスタックを消します。
 次のものは、スタックを消しても残ります。
 
 | 残るもの | 理由 | 消し方 |
