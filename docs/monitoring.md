@@ -5,10 +5,10 @@
 
 | スタック | リージョン | 中身 |
 |---|---|---|
-| `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム7個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール6個 |
+| `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム9個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール6個 |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京の既定のイベントバスに転送するルール |
 
-`CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group` と、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`）だけでつないでいます。スタックをまたぐ Export は作りません。
+`CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group`、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`、DynamoDB のテーブル名 `/cognito-study-monitoring/<テーブル>/table-name`、アプリ用の API の Lambda のロググループ名 `/cognito-study-monitoring/AppApiFunction/log-group`）だけでつないでいます。スタックをまたぐ Export は作りません。
 
 ## 何を検知するか
 
@@ -26,6 +26,15 @@
 | `ThrottledAlarm` | 429（流量の制限での拒否。認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒2回・瞬間10回。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
 | `TokenFailuresAlarm` | 認可API の `/token` の 4xx（アクセスログ） | 1時間に10件以上 | これまでの最大は1時間1件。認可コードやリフレッシュトークンの総当たりの兆し |
 | `LambdaErrorsAlarm` | このアプリの3つの Lambda（`AuthzFunction`・`MealsFunction`・`AppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
+
+### DynamoDB とデータ（CloudWatch のアラーム）
+
+| アラーム | 数えるもの | しきい値 | 根拠 |
+|---|---|---|---|
+| `DynamoDbWritesAlarm` | `MealsTable` と `StateTable` の `ConsumedWriteCapacityUnits` の合計（`AWS/DynamoDB`。メトリクスの計算 `SUM` でまとめる） | 1時間に 3,000 WCU 以上 | 2026-11-08 までの30日で、2つのテーブルの合計の最大は1時間886（11-08 の18時台。同期の仕組みへの移行の書き込み）、ほかの時間は206以下。普段の最大の10倍以上、移行の3倍ほど。盗まれたトークンで送信を続けると費用が膨らむ（Denial of Wallet）ので、その兆し。予算の通知は月の合計でしか知らせないので、1時間ごとに見る。3,000 WCU は $0.002 ほど（東京のオンデマンドの書き込みは100万で $0.715 ほど）。アプリで大きな取り込み（CSV など）をした時間には鳴ることがある |
+| `BulkDeletesAlarm` | アプリ用の API の1回の送信で `delete` が10件以上あった回数。Lambda（`AppApiFunction`）がログに `bulk_delete deletes=<数> changes=<数>` を出し（`services/sync/sync/presentation/http_api.py` の `BULK_DELETE_THRESHOLD`）、メトリクスフィルター `BulkDeletes` が数える | 1時間に1回以上 | アプリはまだ同期を使っておらず、手で10件以上をまとめて消すことはまずない。データを壊す操作の兆し。ログには数だけを出す（利用者の ID と中身は出さない） |
+
+送信の本文は 64KB まで（超えると 413）にして、1回の送信で書ける量も抑えています（`MAX_PUSH_BYTES`）。品目50件のいつもの（名前が最大の200文字）でも、1件は 40KB ほどに収まります。
 
 - 欠けたデータ（リクエストがない時間）は、異常として扱いません（`notBreaching`）
 - 通知はアラームの状態が「アラーム」になったときだけ送ります（戻ったときは送りません）
@@ -68,6 +77,8 @@
 |---|---|
 | API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
 | ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）。90日残す |
+| DynamoDbWrites | アプリ用の API のアクセスログ `CognitoStudy-AppApiAccessLogs...` で、`POST /v1/sync/changes` の送信元 IP と回数。MCP のアクセスログも見る。トークンが盗まれていそうなら、下の「データを壊されたときの戻し方」の手順1でトークンを止める |
+| BulkDeletes | Lambda のログ `/aws/lambda/CognitoStudy-AppApiFunction...` の `bulk_delete` と、同じ時刻のアクセスログの送信元 IP。本人の操作でなければ、下の「データを壊されたときの戻し方」 |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail・CloudFormation・監視の改ざん・データを壊す操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
@@ -107,6 +118,14 @@ fields @timestamp, @message
 | limit 50
 ```
 
+delete の多い送信（アプリ用の API の Lambda のロググループ）：
+
+```
+fields @timestamp, @message
+| filter @message like /bulk_delete/
+| sort @timestamp desc
+```
+
 ログイン（証跡のロググループ）：
 
 ```
@@ -123,6 +142,80 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 | filter sourceIPAddress = "192.0.2.1" or userIdentity.accessKeyId = "AKIA..."
 | sort eventTime desc
 ```
+
+## データを壊されたときの戻し方
+
+同期の項目（`SYNC#`）は、消しても項目が残ります（`delete` は「消えた」の印を付けるだけで、値は残る）。変更の記録（`SYNC#LOG#`）も追記だけで、アプリ用の API と MCP の Lambda には、消す・書き換える権限（`DeleteItem`・`UpdateItem`）がありません。
+そのため、アプリや MCP から壊されたものは、変更の記録から戻せます。変更の記録ごと壊された（管理者の資格情報が盗まれた）ときは、ポイントインタイムリカバリ（35日前まで）から戻します。
+
+### 1. 止める
+
+1. トークンを止める。リフレッシュトークンが無効になり、新しいアクセストークンは出なくなる（今のアクセストークンは期限が来るまで使える）
+
+   ```sh
+   aws cognito-idp admin-user-global-sign-out --profile yuki --region ap-northeast-1 \
+     --user-pool-id <UserPoolId> --username <ユーザー名>
+   ```
+
+2. 壊され始めた時刻を調べる。上の「delete の多い送信」のクエリで `bulk_delete` の時刻を、アクセスログで送信元 IP を見る。Lambda のログには利用者の ID が出ないので、対象の利用者（sub）は Cognito で調べる
+
+### 2. 変更の記録から戻す（消されたもの）
+
+消されたもの（`delete`）は、`restore` の変更を足せば戻ります。消した変更の端末（`device_id`）が分かれば、それで絞ります。
+管理者の資格情報で、`services/app_api` で動かします（Lambda には載せない）。`APPLY = False` のまま動かして件数を確かめ、合っていれば `True` にして動かします。
+
+```sh
+cd services/app_api
+AWS_PROFILE=yuki AWS_REGION=ap-northeast-1 MEALS_TABLE=<MealsTable の名前> PYTHONPATH=../composition uv run python - <<'EOF'
+import os, uuid
+from composition.registry import create_registry
+from sync.engine import SyncEngine
+from sync.model import Change, utc_now
+from sync.store import DynamoDBSyncStore
+
+USER = "<利用者の sub>"
+SINCE = "2026-11-08T09:00:00.000Z"  # 壊され始めた時刻（UTC）。bulk_delete のログの時刻より少し前にする
+DEVICE = None  # 消した端末の device_id が分かれば入れる（None なら端末で絞らない）
+APPLY = False
+
+registry = create_registry()
+engine = SyncEngine(DynamoDBSyncStore(os.environ["MEALS_TABLE"], registry.index_key), registry)
+deleted, after, more = {}, 0, True
+while more:
+    entries, after, more = engine.pull(USER, after, 500, set(registry.specs))
+    for e in entries:
+        c = e.change
+        if c.op == "delete" and c.received_at >= SINCE and DEVICE in (None, c.device_id):
+            deleted[(c.entity_type, c.entity_id)] = c
+print(f"{len(deleted)} 件の delete")
+if APPLY:
+    now = utc_now()
+    engine.append(USER, [Change(str(uuid.uuid4()), c.entity_type, c.entity_id, c.parent_id, "restore", None, now, "mcp")
+                         for c in deleted.values()])
+    print("restore を書いた")
+EOF
+```
+
+- `restore` は消したときより新しい時刻なので、消したものが戻ります（`docs/sync-design.md` の「今の状態への当てはめ」）。変更として記録されるので、端末にも次の同期で届きます
+- 値を書き換えられたもの（`update`）は、変更の記録の `state`（当てはめたあとの状態）で、壊される前の値が分かります。同じように、その値の `update` の変更を足して戻します
+- 項目を直接書き換えない（端末はカーソルで変更を受け取るので、変更の記録にないものは届かない）
+
+### 3. ポイントインタイムリカバリから戻す（変更の記録ごと壊されたとき）
+
+1. 壊される前の時刻で、別のテーブルに戻す（もとのテーブルは変わらない）
+
+   ```sh
+   aws dynamodb restore-table-to-point-in-time --profile yuki --region ap-northeast-1 \
+     --source-table-name <MealsTable の名前> --target-table-name <MealsTable の名前>-restored \
+     --restore-date-time 2026-11-08T09:00:00Z
+   ```
+
+   戻したテーブルには、ポイントインタイムリカバリと削除の保護が付きません。中身を見るだけに使い、終わったら消す
+2. 戻したテーブルの `pk = EATER#<sub>` の `SYNC#STATE#` を読み、今のテーブルと比べる
+3. 違うものを、上の手順2と同じやり方で、`restore`・`update` の変更として今のテーブルに書く（テーブルを差し替えない。テーブル名は CDK が決めていて、差し替えると端末のカーソルも合わなくなるため）
+4. 戻したテーブルを消す（`aws dynamodb delete-table`。`DataDestructionRule` から通知が来る）
+
+`StateTable`（ログイン途中の状態とリフレッシュトークンの系列）は戻しません。消えても、ログインし直せば作り直されます。
 
 ## デプロイと、メールの購読の足し方
 
@@ -152,12 +245,12 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 
 ## 費用の見込み
 
-月に数十円ほどです（多くは S3 のリクエスト）。
+月に数十円ほどです（多くは S3 のリクエストと、無料枠を超えたアラーム）。
 
 | もの | 量 | 費用 |
 |---|---|---|
-| CloudWatch のアラーム | 7個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は3つの関数の3個なので、合わせて9個（ほかに us-east-1 の請求のアラームが1個で、全部で10個） | 無料枠（標準の解像度のアラームのメトリクス10個）の中。**これ以上アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる** |
-| カスタムメトリクス（メトリクスフィルター） | 6個 | 無料枠（10個）の中 |
+| CloudWatch のアラーム | 9個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は3つの関数の3個、`DynamoDbWritesAlarm` は2つのテーブルの2個なので、合わせて12個（ほかに us-east-1 の請求のアラームが1個で、全部で13個） | 無料枠（標準の解像度のアラームのメトリクス10個）を3個超えるので、月 $0.30。アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる |
+| カスタムメトリクス（メトリクスフィルター） | 7個 | 無料枠（10個）の中 |
 | CloudTrail の証跡 | 管理イベントの1つ目の写し | 無料 |
 | CloudTrail → CloudWatch Logs | 管理イベントは1日 1,200件ほど（東京 1,070件、us-east-1 126件）。月 60MB ほど | 取り込みと保存は無料枠（5GB）の中。CloudTrail の配信の料金（$0.25/GB）が月 $0.02 ほど |
 | S3 | 17のリージョンのダイジェスト（1時間ごと）とログのファイルで、PUT が月 2〜3万回。保存は1GB 未満 | PUT は $0.0047/1,000回で月 $0.10〜0.15。保存は $0.025/GB |

@@ -14,10 +14,16 @@ const functionNameParams = {
   AppApiFunction: '/cognito-study-monitoring/AppApiFunction/function-name',
 };
 
+const tableNameParams = {
+  MealsTable: '/cognito-study-monitoring/MealsTable/table-name',
+  StateTable: '/cognito-study-monitoring/StateTable/table-name',
+};
+const appApiLogGroupParam = '/cognito-study-monitoring/AppApiFunction/log-group';
+
 const synth = () => {
   const app = newApp();
   const stack = new MonitoringStack(app, 'Monitoring', {
-    env, accessLogGroupParams, functionNameParams, tokenEndpointApi: 'AuthzApi',
+    env, accessLogGroupParams, functionNameParams, tableNameParams, appApiLogGroupParam, tokenEndpointApi: 'AuthzApi',
   });
   return { stack, template: Template.fromStack(stack) };
 };
@@ -25,8 +31,8 @@ const synth = () => {
 describe('アラーム', () => {
   const { template } = synth();
 
-  test('無料枠（10個。既存の請求のアラームが1個ある）に収まる7個', () => {
-    template.resourceCountIs('AWS::CloudWatch::Alarm', 7);
+  test('アラームは9個', () => {
+    template.resourceCountIs('AWS::CloudWatch::Alarm', 9);
   });
 
   test.each([
@@ -36,6 +42,7 @@ describe('アラーム', () => {
     ['Throttled', 10, 3600],
     ['TokenFailures', 10, 3600],
     ['SuspiciousConsoleLogins', 1, 300],
+    ['BulkDeletes', 1, 3600],
   ])('%s：%d 件以上で通知する', (metricName, threshold, period) => {
     template.hasResourceProperties('AWS::CloudWatch::Alarm', {
       Namespace: 'CognitoStudy/Monitoring', MetricName: metricName, Statistic: 'Sum', Period: period,
@@ -43,11 +50,16 @@ describe('アラーム', () => {
     });
   });
 
+  const expressionAlarms = () => Object.values(template.findResources('AWS::CloudWatch::Alarm'))
+    .filter((a) => a.Properties.Metrics !== undefined).map((a) => a.Properties);
+
+  test('メトリクスの計算のアラームは、Lambda のエラーと DynamoDB の書き込みの2つ', () => {
+    expect(expressionAlarms().map((a) => a.Metrics.find((m: any) => m.Expression).Label).sort())
+      .toEqual(['ConsumedWriteCapacityUnits', 'Errors']);
+  });
+
   test('Lambda のエラーは、このアプリの3つの関数の Errors の合計（メトリクスの計算）', () => {
-    const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'))
-      .filter((a) => a.Properties.Metrics !== undefined).map((a) => a.Properties);
-    expect(alarms).toHaveLength(1);
-    const [a] = alarms;
+    const a = expressionAlarms().find((x) => x.Metrics.some((m: any) => m.Label === 'Errors'));
     expect(a.Threshold).toBe(3);
     expect(a.EvaluationPeriods).toBe(1);
     const expression = a.Metrics.filter((m: any) => m.Expression !== undefined);
@@ -69,10 +81,39 @@ describe('アラーム', () => {
     }
   });
 
-  test('アラームのメトリクスは、無料枠（10個。既存の請求のアラームが1個ある）に収まる9個', () => {
+  test('DynamoDB の書き込みは、MealsTable と StateTable の ConsumedWriteCapacityUnits の合計で、1時間に3,000以上', () => {
+    const a = expressionAlarms().find((x) => x.Metrics.some((m: any) => m.Label === 'ConsumedWriteCapacityUnits'));
+    expect(a.Threshold).toBe(3000);
+    expect(a.EvaluationPeriods).toBe(1);
+    expect(a.ComparisonOperator).toBe('GreaterThanOrEqualToThreshold');
+    const metrics = a.Metrics.filter((m: any) => m.MetricStat !== undefined);
+    expect(metrics.map((m: any) => m.Label).sort()).toEqual(['MealsTable', 'StateTable']);
+    const expression = a.Metrics.find((m: any) => m.Expression !== undefined);
+    expect(expression.Expression).toBe(`SUM([${metrics.map((m: any) => m.Id).join(', ')}])`);
+    for (const m of metrics) {
+      expect(m.ReturnData).toBe(false);
+      expect(m.MetricStat).toMatchObject({
+        Metric: { Namespace: 'AWS/DynamoDB', MetricName: 'ConsumedWriteCapacityUnits' }, Period: 3600, Stat: 'Sum',
+      });
+      expect(m.MetricStat.Metric.Dimensions).toEqual([{ Name: 'TableName', Value: { Ref: expect.any(String) } }]);
+    }
+    for (const paramName of Object.values(tableNameParams)) {
+      template.hasParameter('*', { Type: 'AWS::SSM::Parameter::Value<String>', Default: paramName });
+    }
+  });
+
+  test('delete の多い送信は、アプリ用の API の Lambda のログから数える', () => {
+    const filters = Object.values(template.findResources('AWS::Logs::MetricFilter'))
+      .filter((f) => f.Properties.MetricTransformations[0].MetricName === 'BulkDeletes');
+    expect(filters).toHaveLength(1);
+    expect(filters[0].Properties.FilterPattern).toBe('"bulk_delete deletes="');
+    template.hasParameter('*', { Type: 'AWS::SSM::Parameter::Value<String>', Default: appApiLogGroupParam });
+  });
+
+  test('アラームのメトリクスは12個（無料枠の10個を、既存の請求のアラームと合わせて3個超える。月 $0.30）', () => {
     const count = Object.values(template.findResources('AWS::CloudWatch::Alarm')).reduce((n, a) => n
       + (a.Properties.Metrics ? a.Properties.Metrics.filter((m: any) => m.MetricStat).length : 1), 0);
-    expect(count).toBe(9);
+    expect(count).toBe(12);
   });
 
   test('どのアラームも、欠けたデータを異常にせず、SNS に送る', () => {
@@ -84,11 +125,11 @@ describe('アラーム', () => {
     }
   });
 
-  test('カスタムメトリクスは無料枠（10個）に収まる6個', () => {
+  test('カスタムメトリクスは無料枠（10個）に収まる7個', () => {
     const names = new Set(Object.values(template.findResources('AWS::Logs::MetricFilter'))
       .map((f) => f.Properties.MetricTransformations[0].MetricName));
     expect([...names].sort()).toEqual(
-      ['ClientErrors', 'Requests', 'ServerErrors', 'SuspiciousConsoleLogins', 'Throttled', 'TokenFailures']);
+      ['BulkDeletes', 'ClientErrors', 'Requests', 'ServerErrors', 'SuspiciousConsoleLogins', 'Throttled', 'TokenFailures']);
     // ディメンションを付けない（API ごとに別のメトリクスにしない）
     for (const f of Object.values(template.findResources('AWS::Logs::MetricFilter'))) {
       expect(f.Properties.MetricTransformations[0].Dimensions).toBeUndefined();

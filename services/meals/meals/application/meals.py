@@ -1,8 +1,8 @@
 from datetime import date
 
 from meals.application.commands import IdFactory, MealChanges, NewMeal, new_id
-from meals.domain.errors import NotFound
-from meals.domain.meal import Meal
+from meals.domain.errors import MealError, NotFound
+from meals.domain.meal import MAX_ITEMS, Meal
 from meals.domain.ports import EaterResolver, MealRepository
 from meals.domain.values import EatenOn, EaterId, MealSlot
 
@@ -43,6 +43,8 @@ class MealService:
             meal = meal.add_item(new_item.to_item(self.ids))
         for item_id in changes.remove:
             meal = meal.remove_item(item_id)
+        if changes.add and len(meal.items) > MAX_ITEMS:
+            raise MealError(f"品目は1回の食事に{MAX_ITEMS}件までです")
         if changes.eaten_on:
             meal = meal.move_to(changes.eaten_on)
         await self.meals.save(meal)
@@ -61,6 +63,8 @@ class MealService:
         return copy
 
     def _create(self, eater: EaterId, new: NewMeal) -> Meal:
+        if len(new.items) > MAX_ITEMS:
+            raise MealError(f"品目は1回の食事に{MAX_ITEMS}件までです")
         items = tuple(item.to_item(self.ids) for item in new.items)
         return Meal(self.ids(), eater, new.eaten_on, items, new.description, new.source)
 

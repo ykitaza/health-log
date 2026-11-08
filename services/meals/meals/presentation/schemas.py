@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, Field
 
 from meals.application.commands import NewItem, NewMeal
+from meals.domain.meal import MAX_ITEMS
 from meals.domain.values import Confidence, EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
 
 SlotName = Literal["breakfast", "lunch", "dinner", "snack"]
@@ -58,7 +59,7 @@ class WhenInput(BaseModel):
 
 
 class MealInput(WhenInput):
-    items: list[ItemInput] = Field(min_length=1)
+    items: list[ItemInput] = Field(min_length=1, max_length=MAX_ITEMS, description=f"品目。{MAX_ITEMS}件まで")
     description: str = Field(max_length=2000, description="写真や言葉から読み取った食事の説明。画像は保存しないので、ここに残す")
     source: Literal["photo", "text", "numbers"] = Field(description="写真から／言葉から／kcal・PFC の数値だけ")
 

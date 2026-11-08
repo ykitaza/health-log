@@ -27,7 +27,8 @@ def engine():
 def api(engine):
     app = SyncHttpApi(engine, REGISTRY, APP_CLIENT, routes={("GET", "/v1/extra"): lambda caller, event: {"user": caller.user}})
 
-    def call(method, path, body=None, query=None, sub="alice", scope=ALL_SCOPES, claims=None, raw_body=None):
+    def call(method, path, body=None, query=None, sub="alice", scope=ALL_SCOPES, claims=None, raw_body=None,
+             base64=False):
         if claims is None:
             claims = {"sub": sub, "scope": scope, "client_id": APP_CLIENT, "token_use": "access"}
         event = {
@@ -35,6 +36,7 @@ def api(engine):
             "requestContext": {"http": {"method": method}, "authorizer": {"jwt": {"claims": claims}}},
             "queryStringParameters": query,
             "body": raw_body if raw_body is not None else (json.dumps(body) if body is not None else None),
+            "isBase64Encoded": base64,
         }
         res = app.handle(event)
         return res["statusCode"], json.loads(res["body"]), res["headers"]["content-type"]
@@ -175,9 +177,51 @@ def test_JSON_でなければ_400(api, raw):
     assert api("POST", "/v1/sync/changes", raw_body=raw)[0] == 400
 
 
-@pytest.mark.parametrize("query", [{"after": "-1"}, {"after": "x"}, {"limit": "0"}, {"limit": "501"}])
+@pytest.mark.parametrize("query", [{"after": "-1"}, {"after": "x"}, {"limit": "0"}, {"limit": "501"},
+                                   {"after": "²"}, {"limit": "１０"}, {"after": "٣"}, {"after": "9" * 5000}])
 def test_カーソルと件数が範囲の外なら_400(api, query):
-    assert api("GET", "/v1/sync/changes", query=query)[0] == 400
+    status, problem, content_type = api("GET", "/v1/sync/changes", query=query)
+    assert status == 400 and content_type == "application/problem+json"
+
+
+@pytest.mark.parametrize("query", [{"limit": "²"}, {"limit": "１０"}, {"limit": "9" * 5000}])
+def test_スナップショットの件数が数字でなければ_400(api, query):
+    assert api("GET", "/v1/sync/snapshot", query=query)[0] == 400
+
+
+def test_本文が_64KB_を超えると_413_で1件も受け付けない(api):
+    big = {"device_id": "pixel", "changes": [change()], "pad": "x" * (64 * 1024)}
+    status, problem, content_type = api("POST", "/v1/sync/changes", raw_body=json.dumps(big))
+    assert status == 413 and content_type == "application/problem+json" and problem["status"] == 413
+    assert api("GET", "/v1/sync/changes")[1]["entries"] == []
+
+
+def test_本文の大きさは_base64_を戻してから数える(api):
+    body = json.dumps({"device_id": "pixel", "changes": [change()]}).encode()
+    event_body = base64.b64encode(body).decode()
+    assert api("POST", "/v1/sync/changes", raw_body=event_body, base64=True)[0] == 200
+    big = base64.b64encode(b" " * (64 * 1024) + body).decode()
+    assert api("POST", "/v1/sync/changes", raw_body=big, base64=True)[0] == 413
+
+
+def test_64KB_ちょうどの本文は受け付ける(api):
+    body = json.dumps({"device_id": "pixel", "changes": [change()]})
+    raw = body + " " * (64 * 1024 - len(body.encode()))
+    assert api("POST", "/v1/sync/changes", raw_body=raw)[0] == 200
+
+
+def test_delete_が多い送信はログに数を出す(api, caplog):
+    push(api, *[change(entity_id=f"s{n}") for n in range(12)])
+    with caplog.at_level("WARNING", logger="sync.http_api"):
+        push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(9)])
+        assert not [r for r in caplog.records if "bulk_delete" in r.getMessage()]
+        push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(9, 12)],
+             *[change(entity_id=f"s{n}", op="restore") for n in range(9)])
+        assert not [r for r in caplog.records if "bulk_delete" in r.getMessage()]
+        push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(10)])
+    [record] = [r for r in caplog.records if "bulk_delete" in r.getMessage()]
+    assert record.getMessage() == "bulk_delete deletes=10 changes=10"
+    assert "alice" not in record.getMessage()
 
 
 @pytest.mark.parametrize("token", ["!!!", base64.urlsafe_b64encode(b'{"after": "SYNC#LOG#1"}').decode(),

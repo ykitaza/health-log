@@ -50,6 +50,10 @@ export class InfraStack extends cdk.Stack {
   public readonly accessLogGroupParams: Record<string, string> = {};
   // Lambda の ID（AuthzFunction など）→ 関数名を入れた SSM パラメータの名前。監視のスタックが関数ごとのエラーを数える
   public readonly functionNameParams: Record<string, string> = {};
+  // テーブルの ID（MealsTable など）→ テーブル名を入れた SSM パラメータの名前。監視のスタックが書き込みの量を数える
+  public readonly tableNameParams: Record<string, string> = {};
+  // アプリ用の API の Lambda のロググループ名を入れた SSM パラメータの名前。監視のスタックが、delete の多い送信を数える
+  public readonly appApiLogGroupParam = `${MONITORING_PARAM_PREFIX}/AppApiFunction/log-group`;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -387,6 +391,15 @@ export class InfraStack extends cdk.Stack {
       const parameterName = `${MONITORING_PARAM_PREFIX}/${fnId}/function-name`;
       new ssm.StringParameter(this, `${fnId}NameParam`, { parameterName, stringValue: fn.functionName });
       this.functionNameParams[fnId] = parameterName;
+    }
+    new ssm.StringParameter(this, 'AppApiFunctionLogGroupParam', {
+      parameterName: this.appApiLogGroupParam,
+      stringValue: (appApiFn.node.findChild('LogGroup') as logs.ILogGroup).logGroupName,
+    });
+    for (const [tableId, table] of Object.entries({ MealsTable: mealsTable, StateTable: stateTable })) {
+      const parameterName = `${MONITORING_PARAM_PREFIX}/${tableId}/table-name`;
+      new ssm.StringParameter(this, `${tableId}NameParam`, { parameterName, stringValue: table.tableName });
+      this.tableNameParams[tableId] = parameterName;
     }
 
     // services/authorization/.env に入れる値（クライアントシークレットは出力しない）

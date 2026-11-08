@@ -149,6 +149,10 @@ export interface MonitoringStackProps extends cdk.StackProps {
   readonly tokenEndpointApi: string;
   // Lambda の ID → 関数名を入れた SSM パラメータの名前（InfraStack.functionNameParams）。エラーを数える関数
   readonly functionNameParams: Record<string, string>;
+  // テーブルの ID → テーブル名を入れた SSM パラメータの名前（InfraStack.tableNameParams）。書き込みの量を数えるテーブル
+  readonly tableNameParams: Record<string, string>;
+  // アプリ用の API の Lambda のロググループ名を入れた SSM パラメータの名前（InfraStack.appApiLogGroupParam）
+  readonly appApiLogGroupParam: string;
 }
 
 // 東京に置く監視。通知の送り先（SNS）、アラーム、CloudTrail の証跡、東京で起きる操作の EventBridge のルール
@@ -256,6 +260,35 @@ export class MonitoringStack extends cdk.Stack {
       expression: `SUM([${Object.keys(functionErrors).join(', ')}])`, usingMetrics: functionErrors,
       period: cdk.Duration.hours(1), label: 'Errors',
     }), 3, 'このアプリの Lambda（認可API・MCP・アプリ用の API）のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
+
+    // ---- DynamoDB とデータ ----
+
+    // 書き込みの量（MealsTable と StateTable の ConsumedWriteCapacityUnits の合計）。盗まれたトークンで送信を続けられ、
+    // 費用が膨らむ（Denial of Wallet）兆し。予算の通知は月の合計でしか知らせないので、1時間ごとに見る。
+    // しきい値は、2026-11-08 までの30日の実際の量（2つのテーブルの合計で、最大は11-08 の18時台の1時間886。ほかの時間は206以下）から余裕をとる
+    const tableWrites = Object.fromEntries(Object.entries(props.tableNameParams).map(([tableId, paramName], i) => [
+      `w${i}`, new cloudwatch.Metric({
+        namespace: 'AWS/DynamoDB', metricName: 'ConsumedWriteCapacityUnits', statistic: cloudwatch.Stats.SUM,
+        period: cdk.Duration.hours(1),
+        dimensionsMap: { TableName: ssm.StringParameter.valueForStringParameter(this, paramName) },
+        label: tableId,
+      }),
+    ]));
+    alarm('DynamoDbWritesAlarm', new cloudwatch.MathExpression({
+      expression: `SUM([${Object.keys(tableWrites).join(', ')}])`, usingMetrics: tableWrites,
+      period: cdk.Duration.hours(1), label: 'ConsumedWriteCapacityUnits',
+    }), 3000, 'DynamoDB（MealsTable と StateTable）の書き込みが1時間に3,000 WCU 以上（これまでの最大は1時間886）。費用を膨らませる攻撃の兆し。アプリ用の API のアクセスログで送信元 IP と回数を見る');
+
+    // 1回の送信で delete が多い（services/sync の BULK_DELETE_THRESHOLD 件以上）。データを壊す操作の兆し。
+    // アプリ用の API の Lambda が「bulk_delete deletes=<数> changes=<数>」をログに出す
+    const appApiLogGroup = logs.LogGroup.fromLogGroupName(
+      this, 'AppApiFunctionLogs', ssm.StringParameter.valueForStringParameter(this, props.appApiLogGroupParam));
+    new logs.MetricFilter(this, 'BulkDeletesFilter', {
+      logGroup: appApiLogGroup, metricNamespace: METRIC_NAMESPACE, metricName: 'BulkDeletes', metricValue: '1',
+      filterPattern: logs.FilterPattern.literal('"bulk_delete deletes="'),
+    });
+    alarm('BulkDeletesAlarm', sumPerHour('BulkDeletes'), 1,
+      'アプリからの1回の送信で、delete が10件以上あった。データを壊す操作の兆し。Lambda のログの bulk_delete と、変更の記録を見る（戻し方は docs/monitoring.md）');
 
     // ---- CloudTrail の証跡 ----
 
