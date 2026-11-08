@@ -46,6 +46,9 @@ export default function BodyScreen() {
 
   const commit = async (f: Field) => {
     const t = texts[f];
+    // 出した値のままなら保存しない（lb で出した体重を kg に戻すと、丸めで値が変わるため）
+    const saved = day?.[f];
+    if (t.trim() === (saved == null ? '' : trimNumber(f === 'weightKg' ? kgToUnit(saved, unit) : saved))) { setError(null); return; }
     const n = parseNumber(t);
     if (t.trim() !== '' && (n == null || n <= 0)) { setError('数を入れてください'); return; }
     if ((f === 'bodyFatPct' || f === 'musclePct') && n != null && n >= 100) { setError('割合は 100 より小さく入れてください'); return; }

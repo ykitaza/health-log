@@ -63,7 +63,7 @@ export default function EntryScreen() {
         entry
           ? entry.sets.map((s) => ({
               key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
-              reps: String(s.reps), memo: s.memo, done: s.done,
+              weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
             }))
           : Array.from({ length: settings.defaultSetCount }, blank),
       );
@@ -92,7 +92,8 @@ export default function EntryScreen() {
   const copyPrevious = () => {
     if (!previous) return;
     setDrafts(previous.sets.map((s) => ({
-      key: newKey(), weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)), reps: String(s.reps), memo: '', done: false,
+      key: newKey(), weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)), weightKg: s.weightKg ?? undefined,
+      reps: String(s.reps), memo: '', done: false,
     })));
     setErrors(new Map());
   };
