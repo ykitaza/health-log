@@ -4,7 +4,9 @@ import { SEED_BODY_PARTS, SEED_EXERCISES } from '../seed';
 import { createFakeSyncServer } from '@/test-utils/fakeSyncServer';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
 import { device } from '@/test-utils/syncHarness';
-import { MAX_PUSH_BYTES, utf8Length } from '@/lib/sync/engine';
+import { createApiClient } from '@/lib/api';
+import { createSyncEngine, MAX_PUSH_BYTES, utf8Length } from '@/lib/sync/engine';
+import { fakeAccessToken } from '@/test-utils/fakeToken';
 
 const BENCH = SEED_EXERCISES[0].id;
 const SQUAT = SEED_EXERCISES.find((e) => e.name === 'スクワット')!.id;
@@ -298,6 +300,92 @@ describe('同期の1回分（送る → 受け取る → 当てはめる）', ()
     expect((await b.r.workouts.getEntry(id))?.sets.map((s) => [s.weightKg, s.reps])).toEqual([[120, 3]]);
     expect((await b.r.catalog.listExercises()).some((e) => e.id === BENCH)).toBe(false);
     expect((await b.r.catalog.listBodyParts()).map((p) => p.id)).toContain(CHEST);
+  });
+});
+
+describe('別のアカウントでログインし直したとき（docs/sync-design.md の「アカウントが変わったとき」）', () => {
+  /** 新しいアカウント（user-b）のサーバーにつなぐ同期 */
+  const engineFor = (d: Awaited<ReturnType<typeof device>>, server: ReturnType<typeof createFakeSyncServer>) => createSyncEngine({
+    store: d.store, now: d.deps.now,
+    api: createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: async () => fakeAccessToken('user-b'), fetch: server.fetch }),
+  });
+
+  test('初めて同期したアカウントを覚え、同じアカウントなら今までどおり同期する（ログアウトしてもそのまま）', async () => {
+    const d = await device();
+    expect(await d.store.account()).toBeNull();
+    expect(await d.engine.run()).toMatchObject({ ok: true });
+    expect(await d.store.account()).toBe('user-a');
+    await d.r.settings.update({ weightUnit: 'lb' });
+    expect(await d.engine.run()).toMatchObject({ ok: true, sent: 1 });
+  });
+
+  test('違うアカウントなら、送らず受け取らずに止める。送っていない変更と受け取りの位置は残す', async () => {
+    const d = await device();
+    await d.r.settings.update({ weightUnit: 'lb' });
+    await d.engine.run();
+    await d.r.body.saveManual('2026-11-08', { weightKg: 70 });
+    const cursor = await d.store.getMeta('cursor');
+    const before = d.server.requests.length;
+    d.login.sub = 'user-b';
+    expect(await d.engine.run()).toEqual({ ok: false, error: 'accountChanged', retry: false });
+    expect(await d.engine.run()).toEqual({ ok: false, error: 'accountChanged', retry: false });
+    expect(d.server.requests.length).toBe(before);
+    expect(d.outbox()).toHaveLength(1);
+    expect(await d.store.getMeta('cursor')).toBe(cursor);
+    expect(await d.store.account()).toBe('user-a');
+    // 前のアカウントに戻れば、続きから同期する
+    d.login.sub = 'user-a';
+    expect(await d.engine.run()).toMatchObject({ ok: true, sent: 1 });
+  });
+
+  test('「新しいアカウントに送る」：端末の今の記録（前のアカウントから受け取ったものも）を送り、新しいアカウントの記録を受け取る', async () => {
+    const serverA = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
+    serverA.append([mcp('body_record', 'b-mcp', 'create', { date: '2026-11-07', measured_at: '2026-11-07T03:00:00.000Z', weight_kg: 71.5, memo: '', source: 'manual' })]);
+    const d = await device(serverA);
+    const id = await d.r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: sets([80, 8]) });
+    await d.engine.run();
+    await d.r.settings.update({ weightUnit: 'lb' }); // 前のアカウントに送っていない変更
+
+    const serverB = createFakeSyncServer({ clock: () => '2026-11-08T04:00:00.000Z' });
+    serverB.append([mcp('body_record', 'b-other', 'create', { date: '2026-11-06', measured_at: '2026-11-06T03:00:00.000Z', weight_kg: 60, memo: '', source: 'manual' })]);
+    await d.store.switchAccount('user-b', 'send', '2026-11-08T05:00:00.000Z');
+    expect(await d.store.account()).toBe('user-b');
+    expect(await d.store.getMeta('cursor')).toBeNull();
+    // 初期の部位と種目は送らない（変えていないので）
+    expect(d.outbox().map((o) => o.entity_type).sort()).toEqual(['body_record', 'setting', 'workout_entry', 'workout_set']);
+
+    expect(await engineFor(d, serverB).run()).toMatchObject({ ok: true, sent: 4 });
+    expect(serverB.state('workout_entry', id)?.fields.exercise_id).toBe(BENCH);
+    expect(serverB.state('body_record', 'b-mcp')?.fields.weight_kg).toBe(71.5);
+    expect((await d.r.body.getDay('2026-11-06'))?.weightKg).toBe(60);
+    expect(await d.store.getMeta('cursor')).toBe(String(serverB.head));
+    // 前のアカウントのサーバーには、何も足さない
+    expect(serverA.states('setting')).toEqual([]);
+  });
+
+  test('「消して受け取り直す」：端末の記録と送っていない変更を消し、新しいアカウントの記録だけにする（初期の種目は残す）', async () => {
+    const d = await device();
+    await d.r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: sets([80, 8]) });
+    await d.engine.run();
+    await d.r.body.saveManual('2026-11-08', { weightKg: 70 });
+    await d.r.settings.update({ weightUnit: 'lb' });
+
+    const serverB = createFakeSyncServer({ clock: () => '2026-11-08T04:00:00.000Z' });
+    serverB.append([
+      mcp('workout_entry', 'e-b', 'create', { date: '2026-11-07', exercise_id: SQUAT, sort_order: 0 }),
+      mcp('workout_set', 's-b', 'create', { entry_id: 'e-b', set_index: 0, weight_kg: 100, reps: 5, memo: '', done: false }),
+    ]);
+    await d.store.switchAccount('user-b', 'replace', '2026-11-08T05:00:00.000Z');
+    expect(d.outbox()).toEqual([]);
+    expect(await d.r.workouts.getDay('2026-11-08')).toEqual([]);
+    expect(await d.r.body.getDay('2026-11-08')).toBeNull();
+    expect((await d.r.settings.get()).weightUnit).toBe('kg');
+    expect((await d.r.catalog.listExercises()).length).toBe(SEED_EXERCISES.length);
+
+    expect(await engineFor(d, serverB).run()).toMatchObject({ ok: true, sent: 0, applied: 2 });
+    expect(serverB.requests.some((q) => q.method === 'POST')).toBe(false);
+    const [entry] = await d.r.workouts.getDay('2026-11-07');
+    expect([entry.exerciseName, entry.sets.map((s) => [s.weightKg, s.reps])]).toEqual(['スクワット', [[100, 5]]]);
   });
 });
 

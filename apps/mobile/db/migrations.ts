@@ -79,18 +79,7 @@ CREATE TABLE settings (
   value TEXT,${SYNC_COLUMNS}
 );
 `);
-      for (const [i, p] of SEED_BODY_PARTS.entries()) {
-        await db.runAsync(
-          'INSERT INTO body_parts (id, name, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)',
-          [p.id, p.name, i, now, now],
-        );
-      }
-      for (const [i, e] of SEED_EXERCISES.entries()) {
-        await db.runAsync(
-          'INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-          [e.id, e.bodyPartId, e.name, e.recordType, i, now, now],
-        );
-      }
+      await insertSeeds(db, now);
     },
   },
   {
@@ -136,14 +125,30 @@ INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
   },
 ];
 
+/** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
+export async function insertSeeds(db: Db, now: string) {
+  for (const [i, p] of SEED_BODY_PARTS.entries()) {
+    await db.runAsync(
+      'INSERT INTO body_parts (id, name, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)',
+      [p.id, p.name, i, now, now],
+    );
+  }
+  for (const [i, e] of SEED_EXERCISES.entries()) {
+    await db.runAsync(
+      'INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+      [e.id, e.bodyPartId, e.name, e.recordType, i, now, now],
+    );
+  }
+}
+
 /**
- * ログインの前に端末で作った記録を、最初の同期で送れるように outbox に積む。
+ * ログインの前に端末で作った記録を、最初の同期で送れるように outbox に積む（別のアカウントに送り直すときにも使う）。
  * - 初期の部位と種目は、初期の値から変えた項目だけを update で積む（変えていないものを送ると、
  *   ほかの端末や MCP で変えた値を、この端末を入れた時刻で上書きしてしまうため）
  * - それ以外は、今の値を create で積む。時刻は行の updated_at
  * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
  */
-async function backfillOutbox(db: Db) {
+export async function backfillOutbox(db: Db) {
   const seeds: Record<string, Map<string, Record<string, Bind>>> = {
     body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
     exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
