@@ -1,38 +1,31 @@
-"""アプリ用の API の入口。API Gateway（HTTP API、形式 2.0）のイベントを作って呼ぶ。"""
+"""同期の API の入口。API Gateway（HTTP API、形式 2.0）のイベントを作って呼ぶ。種類はテスト用のもの（conftest）。"""
 
-import asyncio
 import base64
 import json
 import uuid
-from datetime import date
 
 import pytest
 
-from application.commands import NewItem, NewMeal
-from application.goals import GoalService
-from application.meals import MealService
-from domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
-from infrastructure import sync_repositories as synced
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from presentation.app_api import AppApi
 from sync.engine import SyncEngine
+from sync.presentation.http_api import SyncHttpApi
 from sync.store import InMemorySyncStore
+from tests.conftest import REGISTRY
 
 APP_CLIENT = "app-client-id"
 ALL_SCOPES = "openid torelog-api/meals.read torelog-api/meals.write torelog-api/training.read torelog-api/training.write"
 SET = {"entry_id": "e1", "set_index": 0, "weight_kg": 60, "reps": 10, "memo": "", "done": False}
 MEAL = {"date": "2026-11-08", "slot": "lunch", "time": "12:30", "description": "定食", "source": "text"}
+ITEM = {"name": "白米", "amount": 200, "kcal": 312}
 
 
 @pytest.fixture
 def engine():
-    return SyncEngine(InMemorySyncStore(), clock=lambda: "2026-11-08T10:00:00.000Z")
+    return SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY, clock=lambda: "2026-11-08T10:00:00.000Z")
 
 
 @pytest.fixture
 def api(engine):
-    goals = GoalService(SubjectAsEaterId(), synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine))
-    app = AppApi(engine, goals, APP_CLIENT)
+    app = SyncHttpApi(engine, REGISTRY, APP_CLIENT, routes={("GET", "/v1/extra"): lambda caller, event: {"user": caller.user}})
 
     def call(method, path, body=None, query=None, sub="alice", scope=ALL_SCOPES, claims=None, raw_body=None):
         if claims is None:
@@ -101,10 +94,8 @@ def test_スナップショットのページ送り(api):
     assert {s["entity_id"]: s["deleted"] for s in states} == {"s0": False, "s1": True, "s2": False}
 
 
-def test_品目は_parent_id_つきで受け取れる(api):
-    item = {"name": "白米", "amount": 200, "unit": "g", "kcal": 312, "protein_g": 5, "fat_g": 0.6, "carbs_g": 74,
-            "confidence": "medium", "sort_order": 0}
-    push(api, change("meal", "m1", fields=MEAL), change("meal_item", "rice", fields=item, parent_id="m1"))
+def test_親と一緒に保存する種類は_parent_id_つきで受け取れる(api):
+    push(api, change("meal", "m1", fields=MEAL), change("meal_item", "rice", fields=ITEM, parent_id="m1"))
     _, snap, _ = api("GET", "/v1/sync/snapshot")
     assert [(s["entity_type"], s["parent_id"]) for s in snap["states"]] == [("meal", None), ("meal_item", "m1")]
 
@@ -139,29 +130,19 @@ def test_項目の誤りは場所つきで返す(api):
     assert body["results"][0]["error"]["errors"][0]["field"] == "changes[0].fields.reps"
 
 
-def test_品目に_parent_id_がないと断る_null_にできない項目に_null_も断る(api):
+def test_親の要る種類に_parent_id_がないと断る_null_にできない項目に_null_も断る(api):
     item = {"name": "白米"}
     _, body, _ = push(api, change("meal_item", "rice", op="update", fields=item),
                       change("meal", "m1", op="update", fields={"slot": None}))
     assert [r["error"]["code"] for r in body["results"]] == ["missing_parent_id", "invalid_fields"]
 
 
-def test_目標と日の種類の_ID_は決まった形だけ(api):
+def test_種類ごとの_ID_の決まりと_項目の組み合わせの決まり(api):
     _, body, _ = push(api, change("nutrition_goal", "other", fields={"policy": "bulk"}),
-                      change("day_type", "2026-13-01", fields={"day_type": "rest"}),
-                      change("day_type", "2026-11-08", fields={"day_type": "rest"}))
-    assert [r["status"] for r in body["results"]] == ["rejected", "rejected", "accepted"]
-
-
-def test_いつものの_ID_は名前から決めたものだけ(api):
-    from sync.entities import template_id
-
-    item = {"name": "白米", "amount": 200, "unit": "g", "kcal": 312, "protein_g": 5, "fat_g": 0.6, "carbs_g": 74,
-            "confidence": "medium"}
-    fields = {"name": "いつもの昼", "items": [item]}
-    _, body, _ = push(api, change("meal_template", str(uuid.uuid4()), fields=fields),
-                      change("meal_template", template_id("いつもの昼"), fields=fields))
-    assert [r["status"] for r in body["results"]] == ["rejected", "accepted"]
+                      change("nutrition_goal", "current", fields={"policy": "bulk"}),
+                      change("named", "named-x", fields={"name": "y"}),
+                      change("named", "named-y", fields={"name": "y"}))
+    assert [r["status"] for r in body["results"]] == ["rejected", "accepted", "rejected", "accepted"]
 
 
 def test_削除に_fields_は入れない(api):
@@ -258,51 +239,11 @@ def test_別のリソースサーバーの_scope_は数えない(api):
     assert body["results"][0]["error"]["code"] == "insufficient_scope"
 
 
-# --- MCP との行き来 ---
-
-def test_MCP_で記録した食事を_同期で受け取れる(api, engine):
-    meals = MealService(SubjectAsEaterId(), synced.SyncMealRepository(engine))
-    rice = NewItem("白米", Quantity(200, Unit.GRAM), Nutrition(312, 5, 0.6, 74))
-    meal = asyncio.run(meals.record("alice", NewMeal(EatenOn(date(2026, 11, 8), MealSlot.LUNCH), (rice,), "白米", Source.TEXT)))
-    _, page, _ = api("GET", "/v1/sync/changes", sub="alice")
-    assert [(e["change"]["entity_type"], e["change"]["origin"]) for e in page["entries"]] == [
-        ("meal", "mcp"), ("meal_item", "mcp")]
-    assert page["entries"][0]["state"]["entity_id"] == meal.id
-    assert page["entries"][1]["state"]["parent_id"] == meal.id
-    assert api("GET", "/v1/sync/changes", sub="bob")[1]["entries"] == []
+def test_コンテキストが足したルートも_クレームで利用者を決める(api):
+    assert api("GET", "/v1/extra", sub="alice")[1] == {"user": "alice"}
+    assert api("GET", "/v1/extra", claims={})[0] == 401
 
 
-def test_アプリで変えた量が_MCP_に見える(api, engine):
-    meals = MealService(SubjectAsEaterId(), synced.SyncMealRepository(engine))
-    rice = NewItem("白米", Quantity(200, Unit.GRAM), Nutrition(312, 5, 0.6, 74))
-    meal = asyncio.run(meals.record("alice", NewMeal(EatenOn(date(2026, 11, 8), MealSlot.LUNCH), (rice,), "白米", Source.TEXT)))
-    later = {"change_id": str(uuid.uuid4()), "entity_type": "meal_item", "entity_id": meal.items[0].id,
-             "parent_id": meal.id, "op": "update", "fields": {"amount": 100, "kcal": 156},
-             "changed_at": "2026-11-08T10:00:00.000Z"}
-    assert push(api, later)[1]["results"][0]["status"] == "accepted"
-    again = asyncio.run(meals.get("alice", meal.id))
-    assert (again.items[0].quantity.amount, again.items[0].nutrition.kcal) == (100, 156)
-    asyncio.run(meals.delete("alice", meal.id))
-    _, page, _ = api("GET", "/v1/sync/changes", query={"after": "3"})
-    assert page["entries"][0]["state"]["deleted"] is True
-
-
-# --- 目標の案 ---
-
-def test_目標の案を計算する_保存はしない(api, engine):
-    body = {"policy": "bulk", "pace_kg_per_week": 0.25, "sex": "male", "age": 30, "height_cm": 172,
-            "weight_kg": 67, "daily_activity": "low", "training_minutes": 60}
-    status, result, _ = api("POST", "/v1/meals/goal-suggestions", body)
-    assert status == 200 and result["goal"]["targets"]["rest_day"]["kcal"] == 2200
-    assert result["used"]["age"] == 30
-    assert engine.head("alice") == 0
-
-
-@pytest.mark.parametrize("body,status", [
-    ({"policy": "gain"}, 400), ({"policy": "bulk", "age": "30"}, 400), ({"policy": "bulk", "extra": 1}, 400),
-    ({"policy": "maintain", "pace_kg_per_week": 0.5}, 422), ({"policy": "bulk", "pace_kg_per_week": 0.25, "age": 5}, 422),
-    ({"policy": "bulk"}, 422),  # 増量なのにペースがない
-])
-def test_目標の案の不正な入力(api, body, status):
-    code, problem, content_type = api("POST", "/v1/meals/goal-suggestions", body)
-    assert code == status and content_type == "application/problem+json"
+def test_同じルートを2回足すと断る(engine):
+    with pytest.raises(ValueError):
+        SyncHttpApi(engine, REGISTRY, APP_CLIENT, routes={("GET", "/v1/sync/changes"): lambda c, e: {}})

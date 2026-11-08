@@ -1,10 +1,11 @@
 """変更の記録と今の状態の保存先。メモリー版（PC とテスト）と DynamoDB 版（Lambda）。
 
-DynamoDB のキー（pk は利用者。食事のテーブルの今の項目と同じ EATER#<sub>）：
+DynamoDB のキー（pk は利用者。今の MealsTable の項目と同じ EATER#<sub>）：
   SYNC#HEAD                    今の seq
   SYNC#LOG#<seq を12桁>        変更の記録と、当てはめたあとの対象の状態
   SYNC#CHANGE#<change_id>      受け付けた印（冪等のため）
-  SYNC#STATE#<種類>#<ID>       今の状態（Doc）。食事は day_key も持ち、LSI by_day で期間を探せる
+  SYNC#STATE#<種類>#<ID>       今の状態（Doc）。並びのキー（Registry の index_key）があれば day_key に入れ、
+                               LSI by_day で範囲を探せる（今は食事の日付と区分）
 
 書き込みは commit の1回のトランザクションだけで、先頭の seq が読んだ値のままのときだけ通る（楽観的ロック）。
 どれも同期の呼び出し（boto3 が同期のため）。async の側からはスレッドに逃がして呼ぶ。
@@ -14,9 +15,11 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Protocol
+from typing import Callable, Protocol
 
 from sync.model import Doc, LogEntry
+
+IndexKey = Callable[[Doc], str | None]
 
 HEAD_SK = "SYNC#HEAD"
 LOG_PREFIX = "SYNC#LOG#"
@@ -40,16 +43,6 @@ def log_sk(seq: int) -> str:
 
 def state_sk(entity_type: str, entity_id: str) -> str:
     return f"{STATE_PREFIX}{entity_type}#{entity_id}"
-
-
-def day_key_of(doc: Doc) -> str | None:
-    """食事の日付と区分の順番（今の MEAL# の項目と同じ形）。"""
-    if doc.entity_type != "meal" or doc.own is None:
-        return None
-    day, slot = doc.own.values.get("date"), doc.own.values.get("slot")
-    if day is None or slot is None:
-        return None
-    return f"{day}#{['breakfast', 'lunch', 'dinner', 'snack'].index(slot)}"
 
 
 class SyncStore(Protocol):
@@ -76,11 +69,14 @@ class SyncStore(Protocol):
 
     def docs_of_type(self, user: str, entity_type: str) -> list[Doc]: ...
 
-    def meal_docs_between(self, user: str, start_day_key: str, end_day_key: str) -> list[Doc]: ...
+    def docs_by_index(self, user: str, entity_type: str, start: str, end: str) -> list[Doc]:
+        """並びのキーが start から end まで（両端を含む）の対象。"""
+        ...
 
 
 class InMemorySyncStore:
-    def __init__(self):
+    def __init__(self, index_key: IndexKey = lambda doc: None):
+        self.index_key = index_key
         self._users: dict[str, dict] = {}
         self._lock = threading.Lock()
 
@@ -133,19 +129,20 @@ class InMemorySyncStore:
             prefix = state_sk(entity_type, "")
             return [Doc.from_json(json.loads(v)) for sk, v in sorted(docs.items()) if sk.startswith(prefix)]
 
-    def meal_docs_between(self, user, start_day_key, end_day_key):
+    def docs_by_index(self, user, entity_type, start, end):
         found = []
-        for doc in self.docs_of_type(user, "meal"):
-            day_key = day_key_of(doc)
-            if day_key is not None and start_day_key <= day_key <= end_day_key:
+        for doc in self.docs_of_type(user, entity_type):
+            key = self.index_key(doc)
+            if key is not None and start <= key <= end:
                 found.append(doc)
         return found
 
 
 class DynamoDBSyncStore:
-    def __init__(self, table_name: str):
+    def __init__(self, table_name: str, index_key: IndexKey = lambda doc: None):
         import boto3  # Lambda の実行環境に入っている
 
+        self.index_key = index_key
         self.table = boto3.resource("dynamodb").Table(table_name)
         self.client = self.table.meta.client  # 高水準の型（dict・str・int）のまま渡せる
         self.table_name = table_name
@@ -195,7 +192,7 @@ class DynamoDBSyncStore:
             "pk": p, "sk": CHANGE_PREFIX + c, "seq": s}}} for c, s in markers.items()]
         for doc in docs:
             item = {"pk": p, "sk": state_sk(*doc.key), "data": json.dumps(doc.to_json())}
-            if (day_key := day_key_of(doc)) is not None:
+            if (day_key := self.index_key(doc)) is not None:
                 item["day_key"] = day_key
             items.append({"Put": {"TableName": self.table_name, "Item": item}})
         try:
@@ -234,14 +231,14 @@ class DynamoDBSyncStore:
         items = self._query_all(KeyConditionExpression=condition, ConsistentRead=True)
         return [Doc.from_json(json.loads(i["data"])) for i in items]
 
-    def meal_docs_between(self, user, start_day_key, end_day_key):
+    def docs_by_index(self, user, entity_type, start, end):
         from boto3.dynamodb.conditions import Attr, Key
 
-        # LSI には、移行の前の MEAL# の項目も入っているので、同期の状態だけに絞る
+        # LSI には、移行の前の MEAL# の項目も入っているので、同期のその種類の状態だけに絞る
         items = self._query_all(
             IndexName=BY_DAY_INDEX,
-            KeyConditionExpression=Key("pk").eq(pk(user)) & Key("day_key").between(start_day_key, end_day_key),
-            FilterExpression=Attr("sk").begins_with(state_sk("meal", "")), ConsistentRead=True)
+            KeyConditionExpression=Key("pk").eq(pk(user)) & Key("day_key").between(start, end),
+            FilterExpression=Attr("sk").begins_with(state_sk(entity_type, "")), ConsistentRead=True)
         return [Doc.from_json(json.loads(i["data"])) for i in items]
 
     def _query_all(self, **kwargs) -> list[dict]:

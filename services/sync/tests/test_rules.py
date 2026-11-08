@@ -8,6 +8,7 @@ import pytest
 from sync.engine import SyncEngine
 from sync.model import Change
 from sync.store import InMemorySyncStore
+from tests.conftest import REGISTRY
 
 USER = "user-1"
 NOW = "2026-11-08T10:00:00.000Z"
@@ -19,7 +20,7 @@ def change(op="update", fields=None, at="2026-11-08T09:00:00.000Z", origin="app"
 
 
 def engine():
-    return SyncEngine(InMemorySyncStore(), clock=lambda: NOW)
+    return SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY, clock=lambda: NOW)
 
 
 def state(e, entity_type="workout_set", entity_id="set-1"):
@@ -53,7 +54,7 @@ def test_同じ項目は新しい方が残る_古い変更があとから届い�
 
 
 def test_MCP_の変更はサーバーが受け付けた時刻で比べる():
-    e = SyncEngine(InMemorySyncStore(), clock=lambda: "2026-11-08T09:10:00.000Z")
+    e = SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY, clock=lambda: "2026-11-08T09:10:00.000Z")
     e.append(USER, [change("create", SET, at="2026-11-08T08:00:00.000Z")])
     # アプリで 09:00 に変えたものが、MCP の変更（09:10 に受け付けた）よりあとに届く
     e.append(USER, [change(fields={"reps": 20}, at="2026-11-08T09:10:00.000Z", origin="mcp")])
@@ -80,7 +81,7 @@ def test_端末の時計が進んでいても_受け付けた時刻で切る():
     e = engine()  # 受け付けた時刻は 10:00
     e.append(USER, [change("create", SET, at="2026-11-08T08:00:00.000Z")])
     e.append(USER, [change(fields={"reps": 99}, at="2030-01-01T00:00:00.000Z")])  # 未来の時刻
-    later = SyncEngine(e.store, clock=lambda: "2026-11-08T11:00:00.000Z")
+    later = SyncEngine(e.store, REGISTRY, clock=lambda: "2026-11-08T11:00:00.000Z")
     later.append(USER, [change(fields={"reps": 10}, at="2026-11-08T10:30:00.000Z")])
     assert state(e).values["reps"] == 10
 

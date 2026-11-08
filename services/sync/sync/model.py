@@ -16,9 +16,6 @@ OPS = ("create", "update", "delete", "restore")
 APP_ORIGINS = ("app", "import")  # アプリが名乗れるもの
 ORIGINS = ("app", "import", "mcp", "migration")
 
-# 品目は親の食事と一緒に保存する（食事は品目と一緒に読むため）。子の種類 → 親の種類
-CHILD_OF = {"meal_item": "meal"}
-
 Key = tuple[int, str, int]  # (手入力か, 時刻, seq)
 
 
@@ -53,6 +50,8 @@ class Change:
     device_id: str | None = None
     received_at: str = ""  # サーバーが決める
     seq: int = 0  # サーバーが決める
+    # 親と一緒に保存する種類（例：食事の品目は食事と一緒）なら、親の種類。種類の登録（Registry）から決まる
+    parent_type: str | None = None
 
     @property
     def key(self) -> Key:
@@ -62,9 +61,8 @@ class Change:
 
     @property
     def doc_key(self) -> tuple[str, str]:
-        """保存の単位。品目は親の食事に入れる。"""
-        parent_type = CHILD_OF.get(self.entity_type)
-        return (parent_type, self.parent_id) if parent_type else (self.entity_type, self.entity_id)
+        """保存の単位。親と一緒に保存する種類は、親に入れる。"""
+        return (self.parent_type, self.parent_id) if self.parent_type else (self.entity_type, self.entity_id)
 
     def record(self) -> dict:
         """変更の記録（API の ChangeRecord の形）。"""
@@ -151,7 +149,7 @@ class Doc:
 
     def apply(self, change: Change) -> EntityState:
         """当てはめて、変わった対象の状態を返す。"""
-        if change.entity_type in CHILD_OF:
+        if change.parent_type:
             state = self.children.setdefault(
                 change.entity_id, EntityState(change.entity_type, change.entity_id, change.parent_id))
         else:

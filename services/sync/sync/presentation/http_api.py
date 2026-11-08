@@ -1,33 +1,27 @@
-"""アプリ用の API の入口（同期と、目標の案）。仕様は docs/api/app-api.yaml。
+"""アプリ用の API の入口（同期の送信・受け取り・スナップショット）。仕様は docs/api/app-api.yaml。
 
 API Gateway（HTTP API、形式 2.0）のイベントを受け取り、応答を返す。
 利用者は、JWT のオーソライザーが確かめたクレーム（requestContext.authorizer.jwt.claims）の sub だけで決める。
 本文や URL に利用者の ID は入れない。クレームはオーソライザーが書くもので、利用者が送るヘッダーからは読まない。
+同期でないルート（例：食事の目標の案）は、各コンテキストの presentation が routes で足す。
 """
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 import json
 import logging
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Callable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 
-from application.goals import GoalService
-from domain.errors import MealError
-from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
-from domain.nutrition_goal import EatingStyle, Policy
-from infrastructure.sync_repositories import goal_fields
-from presentation.views import used_inputs
 from sync.engine import SyncEngine
-from sync.entities import UUID_PATTERN, Rejection, parse_change, types_in
+from sync.registry import UUID_PATTERN, Registry, Rejection
 from sync.store import STATE_PREFIX
 
-logger = logging.getLogger("meals.app_api")
+logger = logging.getLogger("sync.http_api")
 
 SCOPE_PREFIX = "torelog-api/"
 MAX_PUSH = 25
@@ -39,8 +33,11 @@ class Caller:
     user: str
     scopes: frozenset[str]  # 「meals.read」など（torelog-api/ を外したもの）
 
-    def types(self, action: Literal["read", "write"]) -> set[str]:
-        return types_in({area for area in ("meals", "training") if f"{area}.{action}" in self.scopes})
+    def can(self, area: str, action: Literal["read", "write"]) -> bool:
+        return f"{area}.{action}" in self.scopes
+
+    def areas(self, action: Literal["read", "write"]) -> set[str]:
+        return {s.removesuffix(f".{action}") for s in self.scopes if s.endswith(f".{action}")}
 
 
 class HttpError(Exception):
@@ -49,31 +46,22 @@ class HttpError(Exception):
         self.status, self.slug, self.title, self.errors = status, slug, title, errors or []
 
 
-class GoalSuggestionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
-
-    policy: Literal["bulk", "maintain", "cut"]
-    pace_kg_per_week: Annotated[float, Field(ge=0, le=1)] = 0
-    protein_per_kg: Annotated[float, Field(ge=1, le=3)] = 2.0
-    sex: Literal["male", "female", "unspecified"] = "unspecified"
-    age: Annotated[int, Field(ge=1, le=120)] | None = None
-    height_cm: Annotated[float, Field(gt=0, le=300)] | None = None
-    weight_kg: Annotated[float, Field(gt=0, le=300)] | None = None
-    daily_activity: Literal["low", "moderate", "high"] | None = None
-    training_minutes: Annotated[int, Field(ge=0, le=600)] | None = None
-    eating_style: Literal["home_cooked", "eating_out", "convenience_store"] | None = None
-    target_weight_kg: Annotated[float, Field(ge=30, le=300)] | None = None
+Route = Callable[[Caller, dict], dict]
 
 
-class AppApi:
-    def __init__(self, engine: SyncEngine, goals: GoalService, app_client_id: str):
-        self.engine, self.goals, self.app_client_id = engine, goals, app_client_id
-        self.routes = {
+class SyncHttpApi:
+    def __init__(self, engine: SyncEngine, registry: Registry, app_client_id: str,
+                 routes: dict[tuple[str, str], Route] | None = None):
+        self.engine, self.registry, self.app_client_id = engine, registry, app_client_id
+        self.routes: dict[tuple[str, str], Route] = {
             ("POST", "/v1/sync/changes"): self.push,
             ("GET", "/v1/sync/changes"): self.pull,
             ("GET", "/v1/sync/snapshot"): self.snapshot,
-            ("POST", "/v1/meals/goal-suggestions"): self.suggest_goals,
         }
+        for key, route in (routes or {}).items():
+            if key in self.routes:
+                raise ValueError(f"{key} はすでにあります")
+            self.routes[key] = route
 
     def handle(self, event: dict) -> dict:
         http = (event.get("requestContext") or {}).get("http") or {}
@@ -100,10 +88,13 @@ class AppApi:
                            if s.startswith(SCOPE_PREFIX))
         return Caller(sub, scopes)
 
+    def _types(self, caller: Caller, action: Literal["read", "write"]) -> set[str]:
+        return self.registry.types_in(caller.areas(action))
+
     # --- 同期 ---
 
     def push(self, caller: Caller, event: dict) -> dict:
-        body = _body(event)
+        body = parse_body(event)
         if not isinstance(body, dict) or set(body) - {"device_id", "changes"}:
             raise HttpError(400, "invalid-request", "本文は device_id と changes だけにしてください")
         device_id, raw_changes = body.get("device_id"), body.get("changes")
@@ -123,8 +114,8 @@ class AppApi:
         if len(set(ids)) != len(ids):
             raise HttpError(400, "invalid-request", "同じ change_id が2回あります")
 
-        writable = caller.types("write")
-        parsed = [parse_change(raw, writable, device_id) for raw in raw_changes]
+        writable = self._types(caller, "write")
+        parsed = [self.registry.parse_change(raw, writable, device_id) for raw in raw_changes]
         accepted = {a.change_id: a for a in self.engine.append(
             caller.user, [c for c in parsed if not isinstance(c, Rejection)])}
         results = []
@@ -143,7 +134,7 @@ class AppApi:
         query = event.get("queryStringParameters") or {}
         after = _int(query, "after", 0, 0, None)
         limit = _int(query, "limit", 100, 1, 500)
-        entries, next_cursor, more = self.engine.pull(caller.user, after, limit, caller.types("read"))
+        entries, next_cursor, more = self.engine.pull(caller.user, after, limit, self._types(caller, "read"))
         return {"entries": [e.to_json() for e in entries], "next_cursor": next_cursor, "has_more": more}
 
     def snapshot(self, caller: Caller, event: dict) -> dict:
@@ -153,29 +144,12 @@ class AppApi:
         start_after = _decode_page_token(token) if token else None
         # 最初のページで今の seq を読む。スナップショットの途中の変更は、このあと changes で届く
         cursor = self.engine.head(caller.user)
-        states, last = self.engine.snapshot(caller.user, start_after, limit, caller.types("read"))
+        states, last = self.engine.snapshot(caller.user, start_after, limit, self._types(caller, "read"))
         return {"states": states, "cursor": cursor, "next_page_token": _encode_page_token(last) if last else None}
 
-    # --- 目標の案 ---
 
-    def suggest_goals(self, caller: Caller, event: dict) -> dict:
-        try:
-            req = GoalSuggestionRequest.model_validate(_body(event))
-        except ValidationError as e:
-            raise HttpError(400, "invalid-request", "本文の形が違います", _field_errors(e)) from e
-        try:  # 範囲や組み合わせの決まりは、ドメインが確かめる（MCP と同じ文で返す）
-            profile = BodyProfile(Sex(req.sex), req.age, req.height_cm, req.weight_kg,
-                                  DailyActivity(req.daily_activity) if req.daily_activity else None,
-                                  req.training_minutes)
-            plan = GoalPlan(Policy(req.policy), req.pace_kg_per_week, req.protein_per_kg,
-                            EatingStyle(req.eating_style) if req.eating_style else None, req.target_weight_kg)
-            suggestion = asyncio.run(self.goals.suggest(caller.user, profile, plan))
-        except MealError as e:
-            raise HttpError(422, "domain-rule", str(e)) from e
-        return {"goal": goal_fields(suggestion.goal), "notes": list(suggestion.notes), "used": used_inputs(profile)}
-
-
-def _body(event: dict):
+def parse_body(event: dict):
+    """本文の JSON（NaN・Infinity は断る）。"""
     raw = event.get("body") or ""
     try:
         if event.get("isBase64Encoded"):
@@ -183,6 +157,10 @@ def _body(event: dict):
         return json.loads(raw, parse_constant=_reject_constant)
     except (ValueError, binascii.Error, UnicodeDecodeError) as e:
         raise HttpError(400, "invalid-request", "本文が JSON ではありません") from e
+
+
+def field_errors(e: ValidationError) -> list[dict]:
+    return [{"field": ".".join(map(str, err["loc"])), "message": err["msg"]} for err in e.errors()]
 
 
 def _reject_constant(name: str):
@@ -213,10 +191,6 @@ def _decode_page_token(token: str) -> str:
     if not isinstance(after, str) or not after.startswith(STATE_PREFIX):
         raise HttpError(400, "invalid-request", "page_token が壊れています")
     return after
-
-
-def _field_errors(e: ValidationError) -> list[dict]:
-    return [{"field": ".".join(map(str, err["loc"])), "message": err["msg"]} for err in e.errors()]
 
 
 def _json(status: int, body: dict) -> dict:

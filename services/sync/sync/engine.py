@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from sync.model import Change, Doc, LogEntry, stamped, utc_now
+from sync.registry import Registry
 from sync.store import Conflict, SyncStore
 
 # 1つのトランザクションは100件まで：先頭1＋（変更の記録＋印＋状態）×30以下
@@ -21,11 +22,13 @@ class Accepted:
 
 
 class SyncEngine:
-    def __init__(self, store: SyncStore, clock: Callable[[], str] = utc_now):
-        self.store, self.clock = store, clock
+    def __init__(self, store: SyncStore, registry: Registry, clock: Callable[[], str] = utc_now):
+        self.store, self.registry, self.clock = store, registry, clock
 
     def append(self, user: str, changes: list[Change]) -> list[Accepted]:
         """変更を送られた順に当てはめて保存する。同じ change_id は2回目から duplicate（冪等）。"""
+        # 親と一緒に保存する種類は、登録から親の種類を決める（呼ぶ側が書かなくてよいように）
+        changes = [replace(c, parent_type=self.registry.parent_type(c.entity_type)) for c in changes]
         results: dict[str, Accepted] = {}
         for i in range(0, len(changes), MAX_CHANGES_PER_COMMIT):
             for accepted in self._append_chunk(user, changes[i:i + MAX_CHANGES_PER_COMMIT]):
@@ -79,5 +82,5 @@ class SyncEngine:
     def docs_of_type(self, user: str, entity_type: str) -> list[Doc]:
         return self.store.docs_of_type(user, entity_type)
 
-    def meal_docs_between(self, user: str, start_day_key: str, end_day_key: str) -> list[Doc]:
-        return self.store.meal_docs_between(user, start_day_key, end_day_key)
+    def docs_by_index(self, user: str, entity_type: str, start: str, end: str) -> list[Doc]:
+        return self.store.docs_by_index(user, entity_type, start, end)
