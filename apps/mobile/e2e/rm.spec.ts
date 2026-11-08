@@ -4,7 +4,7 @@ import { button, chooseUnit, openApp, openSettings, see } from './helpers';
 async function openRm(page: Page) {
   await openApp(page);
   await button(page, 'RM計算機').click();
-  await expect(see(page, '計算式：重量 ×（1 ＋ 回数 ÷ 30）')).toBeVisible();
+  await expect(see(page, '計算式：重量 ×（1 ＋ 回数 ÷ 30）。1回なら重量そのもの')).toBeVisible();
 }
 
 /** 推定1RM の大きな数字 */
@@ -40,11 +40,14 @@ test('空、0、負の数、回数が小数なら「—」', async ({ page }) =>
   }
 });
 
-test('回数が1のとき（Epley 式のまま 1 ＋ 1 ÷ 30 を掛ける）', async ({ page }) => {
-  // 回数が1なら重量そのものを 1RM とする計算機も多い。今は式のまま 103.3 になる（仕様の判断が要るものとして報告）
+test('回数が1なら、推定1RM は重量そのもの', async ({ page }) => {
   await openRm(page);
   await input(page, '100', '1');
-  await expect(oneRm(page)).toContainText('103.3kg');
+  await expect(oneRm(page)).toContainText('100.0kg'); // Epley 式なら 103.3
+  await expect(see(page, '95%', { exact: true }).locator('..')).toContainText('95%95.0 kg2回');
+  // 2回からは Epley 式：100 ×（1 ＋ 2 ÷ 30）= 106.67
+  await input(page, '100', '2');
+  await expect(oneRm(page)).toContainText('106.7kg');
 });
 
 test('単位は設定に従う', async ({ page }) => {

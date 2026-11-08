@@ -82,6 +82,19 @@ test('前回の表示と「前回をコピー」、自己ベスト', async ({ pa
   await expect(see(page, '82.5 kg × 6 回')).toBeVisible();
 });
 
+test('回数が1のセットの推定1RM は重量そのもの（その日の画面、ホーム、自己ベスト）', async ({ page }) => {
+  // 100kg × 1 は 100（Epley 式なら 103.3）、90kg × 3 は 90 ×（1 ＋ 3 ÷ 30）= 99
+  await recordOn(page, '2026-11-05', [{ exercise: 'ベンチプレス', sets: [{ weight: '100', reps: '1' }, { weight: '90', reps: '3' }] }]);
+  await expect(see(page, '推定1RM 100.0kg')).toBeVisible();
+  await button(page, '本日のトレーニングを追加').click();
+  await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toContainText('推定1RM 100.0kg');
+  await moveToDate(page, TODAY);
+  await openToday(page);
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'ベンチプレス');
+  await expect(see(page, '自己ベスト 推定1RM 100kg（100kg × 1）')).toBeVisible();
+});
+
 test('上のセットをコピー、セットの追加と削除と「元に戻す」、メモと完了', async ({ page }) => {
   await openApp(page);
   await openToday(page);
