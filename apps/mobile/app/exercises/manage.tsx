@@ -22,9 +22,24 @@ export default function ManageScreen() {
   const [partName, setPartName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [hiddenDup, setHiddenDup] = useState<HiddenDuplicateError | null>(null);
-  const { dialog } = useConfirmDiscard(adding && partName.trim() !== '', '入力した部位は追加されません。');
+  // 名前を変えている部位（id と入力中の名前）
+  const [renaming, setRenaming] = useState<{ id: string; name: string; original: string } | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const { dialog } = useConfirmDiscard(
+    (adding && partName.trim() !== '') || (renaming != null && renaming.name.trim() !== renaming.original),
+    adding ? '入力した部位は追加されません。' : '部位の名前は変わりません。',
+  );
 
-  const toggleExercise = async (id: string, hidden: boolean) => { await repos.catalog.setExerciseHidden(id, !hidden); reload(); };
+  const renamePart = async () => {
+    if (!renaming) return;
+    try {
+      await repos.catalog.renameBodyPart(renaming.id, renaming.name);
+      setRenaming(null); setRenameError(null);
+      reload();
+    } catch (e) {
+      setRenameError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const togglePart = async (id: string, hidden: boolean) => { await repos.catalog.setBodyPartHidden(id, !hidden); reload(); };
   const addPart = async () => {
     try {
@@ -68,22 +83,50 @@ export default function ManageScreen() {
       />
       <View style={{ flexDirection: 'row', gap: 8, marginVertical: 10 }}>
         <Icon name="eyeOff" size={18} color={colors.sub} />
-        <T size={12} color={colors.sub} style={{ flex: 1 }}>使わなくなった種目は消さずに「非表示」にできます。これまでの記録は残ります。行を押すと切り替わります。</T>
+        <T size={12} color={colors.sub} style={{ flex: 1 }}>使わなくなった種目は消さずに「非表示」にできます。これまでの記録は残ります。種目を押すと、名前・部位・表示を変えられます。</T>
       </View>
       {data?.parts.map((p) => {
         const items = data.exercises.filter((e) => e.bodyPartId === p.id);
         const hiddenCount = items.filter((e) => e.hidden).length;
         return (
           <View key={p.id} style={{ marginTop: 14 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <T bold size={14} color={p.hidden ? colors.sub : colors.text}>{p.name}{p.hidden ? '（非表示）' : ''}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <T size={12} color={colors.sub}>{items.length}種目{hiddenCount ? `・非表示 ${hiddenCount}` : ''}</T>
-                <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} hitSlop={8}>
-                  <T size={12} bold color={colors.accent}>{p.hidden ? '部位を表示' : '部位を非表示'}</T>
+            {renaming?.id === p.id ? (
+              <Card style={{ gap: 10, marginBottom: 8 }}>
+                <TextInput
+                  value={renaming.name}
+                  onChangeText={(t) => { setRenaming({ ...renaming, name: t }); setRenameError(null); }}
+                  placeholder="部位の名前"
+                  placeholderTextColor={colors.sub}
+                  accessibilityLabel="部位の名前"
+                  autoFocus
+                  style={{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }}
+                />
+                {renameError && <T size={12} color={colors.danger}>{renameError}</T>}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Button label="キャンセル" variant="secondary" small style={{ flex: 1 }} onPress={() => { setRenaming(null); setRenameError(null); }} />
+                  <Button label="名前を保存" small style={{ flex: 1 }} onPress={renamePart} />
+                </View>
+              </Card>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <T bold size={14} color={p.hidden ? colors.sub : colors.text} style={{ flexShrink: 1 }}>{p.name}{p.hidden ? '（非表示）' : ''}</T>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${p.name}の名前を変える`}
+                  onPress={() => { setRenaming({ id: p.id, name: p.name, original: p.name }); setRenameError(null); }}
+                  hitSlop={10}
+                >
+                  <Icon name="pencil" size={15} color={colors.sub} />
                 </Pressable>
+                <View style={{ flex: 1 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <T size={12} color={colors.sub}>{items.length}種目{hiddenCount ? `・非表示 ${hiddenCount}` : ''}</T>
+                  <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} hitSlop={8}>
+                    <T size={12} bold color={colors.accent}>{p.hidden ? '部位を表示' : '部位を非表示'}</T>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            )}
             <Card style={{ padding: 0, opacity: p.hidden ? 0.5 : 1 }}>
               {items.length === 0 && <View style={{ padding: 16 }}><T size={13} color={colors.sub}>種目がありません</T></View>}
               {items.map((e, i) => (
@@ -93,8 +136,7 @@ export default function ManageScreen() {
                   title={e.name}
                   subtitle={TYPE_LABEL[e.recordType]}
                   dim={e.hidden}
-                  chevron={false}
-                  onPress={() => toggleExercise(e.id, e.hidden)}
+                  onPress={() => router.push({ pathname: '/exercises/[id]', params: { id: e.id } })}
                   right={
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
                       {e.hidden && <Icon name="eyeOff" size={13} color={colors.sub} />}

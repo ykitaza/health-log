@@ -106,6 +106,51 @@ export function catalogRepository(db: Db, deps: Deps) {
       return id;
     },
 
+    /**
+     * 種目の名前と部位を変える。記録は種目の ID でつながっているので、過去の記録も新しい名前で出る。
+     * 同じ部位に同じ名前（非表示のものも含む）があれば断る。部位を変えたら、その部位の最後に並べる
+     */
+    async updateExercise(id: string, input: { name: string; bodyPartId: string }): Promise<void> {
+      const name = input.name.trim();
+      if (name === '') throw new Error('種目の名前を入れてください');
+      const tooLong = nameLengthError('種目', name);
+      if (tooLong) throw new Error(tooLong);
+      const cur = await db.getFirstAsync<{ body_part_id: string; name: string; sort_order: number }>(
+        'SELECT body_part_id, name, sort_order FROM exercises WHERE id = ? AND deleted_at IS NULL', [id],
+      );
+      if (!cur) throw new Error('種目が見つかりません');
+      if (cur.name === name && cur.body_part_id === input.bodyPartId) return;
+      const dup = await db.getFirstAsync<{ hidden: number }>(
+        'SELECT hidden FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ? AND id <> ?', [input.bodyPartId, name, id],
+      );
+      if (dup?.hidden) throw new Error('同じ部位に同じ名前の非表示の種目があります');
+      if (dup) throw new Error('同じ部位に同じ名前の種目があります');
+      let sortOrder = cur.sort_order;
+      if (cur.body_part_id !== input.bodyPartId) {
+        const max = await db.getFirstAsync<{ m: number | null }>(
+          'SELECT MAX(sort_order) AS m FROM exercises WHERE body_part_id = ?', [input.bodyPartId],
+        );
+        sortOrder = (max?.m ?? -1) + 1;
+      }
+      await db.runAsync('UPDATE exercises SET name = ?, body_part_id = ?, sort_order = ?, updated_at = ? WHERE id = ?',
+        [name, input.bodyPartId, sortOrder, deps.now().toISOString(), id]);
+    },
+
+    /** 部位の名前を変える。同じ名前の部位（非表示のものも含む）があれば断る */
+    async renameBodyPart(id: string, nameInput: string): Promise<void> {
+      const name = nameInput.trim();
+      if (name === '') throw new Error('部位の名前を入れてください');
+      const tooLong = nameLengthError('部位', name);
+      if (tooLong) throw new Error(tooLong);
+      const dup = await db.getFirstAsync<{ hidden: number }>(
+        'SELECT hidden FROM body_parts WHERE deleted_at IS NULL AND name = ? AND id <> ?', [name, id],
+      );
+      if (dup?.hidden) throw new Error('同じ名前の非表示の部位があります');
+      if (dup) throw new Error('同じ名前の部位があります');
+      await db.runAsync('UPDATE body_parts SET name = ?, updated_at = ? WHERE id = ? AND name <> ?',
+        [name, deps.now().toISOString(), id, name]);
+    },
+
     async setExerciseHidden(id: string, hidden: boolean): Promise<void> {
       await db.runAsync('UPDATE exercises SET hidden = ?, updated_at = ? WHERE id = ?',
         [hidden ? 1 : 0, deps.now().toISOString(), id]);
@@ -115,5 +160,5 @@ export function catalogRepository(db: Db, deps: Deps) {
       await db.runAsync('UPDATE body_parts SET hidden = ?, updated_at = ? WHERE id = ?',
         [hidden ? 1 : 0, deps.now().toISOString(), id]);
     },
-  }, ['createExercise', 'createBodyPart', 'setExerciseHidden', 'setBodyPartHidden']);
+  }, ['createExercise', 'createBodyPart', 'updateExercise', 'renameBodyPart', 'setExerciseHidden', 'setBodyPartHidden']);
 }

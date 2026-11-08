@@ -71,7 +71,7 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 | 場所 | 中身 | 知っているもの |
 |---|---|---|
 | `services/meals/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
-| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール11個を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
+| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール12個を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
 | `services/mcp/connector/` | MCP の入口の部品：アクセストークンの検証（`AuthzApiTokenVerifier`）、連携の取り消しと `logout` のツール、アイコン、診断用のログ、設定 | MCP の SDK、認可API との約束（JWT） |
 | `services/mcp/main.py` | サーバー（`MCPServer`）と認証を作り、3つの登録の関数を呼ぶ。コンテキストをまたぐもののポートをつなぐ | すべて |
 
@@ -83,6 +83,9 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 - **scope**：接続（HTTP）のところで必須にするのは、食事の2つ（今までどおり、SDK が足りなければ 403）。筋トレの2つは、筋トレのツールが1つずつ確かめ、なければ「つなぎ直してください」と返します。接続で4つとも必須にすると、筋トレの scope を持たない今のコネクタが、食事のツールまで使えなくなるためです。RFC 9728 の文書（`/.well-known/oauth-protected-resource/mcp`）の `scopes_supported` には4つとも並べ、つなぎ直すと筋トレの scope も求められるようにしています（SDK は必須の scope をそのまま `scopes_supported` にするので、この文書のルートだけ、SDK の同じ関数で作って先に置きます）
 - **今日の筋トレと食事をまとめるツール（`today_overview`）は置きません**：どちらのコンテキストにも属さず、置くなら組み立ての場所にツールの中身を書くことになるためです（組み立ての場所は、つなぐだけにしています）。食事の目標に筋トレの日を反映する部分は、上のポートで `today_status` に入っており、AI は `today_status` と `get_workout` を続けて呼べばまとめて見せられます
 - **種目の名前**：名前の完全一致（全角半角・大文字小文字・空白は同じに扱う）か ID でだけ選びます。「ベンチ」のような略した名前は、候補（「ベンチプレス」など）を添えて断り、AI に選び直させます（違う種目を推測で選んで記録が混ざるのを防ぐため）
+- **種目の変更（`update_exercise`）**：名前・部位を変える、隠す（`hidden`）・表示に戻すを1つのツールで行います。記録（`workout_entry`）は種目の ID でつながっているので、過去の記録・推移・週のふり返りも新しい名前と部位で出ます。同じ部位に同じ名前は断ります（`add_exercise` と同じく、比べる形で）。部位を変えたら、新しい部位の最後に並べます。種目を消すツールは作りません（過去の記録を残すため、代わりに隠す）。記録のしかた（`record_type`）は、今のセットと合わなくなるので変えられません
+  - 初期の種目で、同期にまだ届いていないもの（アプリが送っていない）は、変えた項目だけを `update` で送ります。変えていない項目まで今の時刻で書くと、アプリがまだ送っていない変更（例：隠した）に、項目ごとの当てはめで勝ってしまうためです
+  - アプリでは、種目と部位の管理の画面で種目を押すと、編集の画面（`apps/mobile/app/exercises/[id].tsx`：名前・部位・選択に表示するか）が開きます。部位の名前は、管理の画面の部位の名前の横の鉛筆から変えます
 - **初期の部位と種目**：アプリ（`apps/mobile/db/seed.ts`）と同じ固定の ID で、筋トレのドメイン（`training/domain/catalog.py`）にも持ちます。アプリがまだ同期で送っていなくても、MCP から同じ ID で記録できるようにするためです（同じ内容かはテストで確かめる）
 
 ## 認可API の作り
@@ -112,7 +115,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
 | `services/meals/` | 食事記録（パッケージ `meals`）。MCP のツール（記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合の17個）、同期への登録（`meals/infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`meals/presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
-| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録、同期された記録の読み書き、MCP のツール（11個） |
+| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録、同期された記録の読み書き、MCP のツール（12個） |
 | `services/mcp/` | MCP サーバーの組み立て（`main.py`、Lambda の `MealsFunction`）と、MCP の入口の部品（`connector/`） |
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
 | `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
