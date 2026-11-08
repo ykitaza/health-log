@@ -85,11 +85,11 @@ Cronometer は写真日記（ノートへの添付）を AI 記録と別の機�
 | `save_template`、`record_template` | いつもの |
 | `goal_questions` | 目標を決めるために聞く項目（選択肢・必須・初期値）。必須は方針だけ |
 | `suggest_goals` | 答えた項目から目標の案を計算する（保存はしない） |
-| `set_goals`、`set_day_type` | 目標と日の種類 |
+| `set_goals`、`set_day_type` | 目標と日の種類（決めていない日は、筋トレの記録があれば筋トレの日） |
 | `today_status` | 今日の合計・残り（記録のたびに返す） |
 | `weekly_review` | 週の平均と目標との差 |
 | `record_weight`、`goal_progress` | 体重を記録する、目標体重までの進み具合 |
-| `logout` | 連携を解除する（間違えたアカウントでログインしたとき） |
+| `logout` | 連携を解除する（間違えたアカウントでログインしたとき）。食事ではなくコネクタのツールなので、`services/mcp/connector/tools.py` にある |
 
 チャットでの流れの例：写真か一言 → AI が推定して表で見せ「この内容で記録してよいですか？」（まだ保存しない）→「OK」（直したいところがあれば一緒に言う）→ `record_meal` →「記録しました。今日のたんぱく質 あと42g」
 
