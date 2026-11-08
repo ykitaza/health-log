@@ -38,6 +38,9 @@ export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // ログイン画面のドメインのプレフィックス。プレフィックスに "cognito" は使えないので oidc-study にする
+    const domainPrefix = `oidc-study-${this.account}`;
+
     // ユーザープール（Cognito＝IdP）：ログインIDはメールアドレス。使うのは本人だけなので、
     // ログイン画面からの新規登録はできなくし、ユーザーは管理者の操作（setup-local.sh）でだけ作る
     const userPool = new cognito.UserPool(this, 'UserPool', {
@@ -47,7 +50,16 @@ export class InfraStack extends cdk.Stack {
       selfSignUpEnabled: false,
       autoVerify: { email: true },
       standardAttributes: { email: { required: true, mutable: true } },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      // パスキーでログインする。パスワードは CloudFormation の決まりで外せないので残し、
+      // 運用で長いランダムな値にして捨てる（docs/design.md の「パスキーへの移行」）
+      signInPolicy: { allowedFirstAuthFactors: { password: true, passkey: true } },
+      // RP ID は今のプレフィックスのドメイン。あとで独自ドメインを足すと、パスキーは全部作り直しになる
+      passkeyRelyingPartyId: `${domainPrefix}.auth.${this.region}.amazoncognito.com`,
+      passkeyUserVerification: cognito.PasskeyUserVerification.REQUIRED, // 指紋や PIN での本人確認を必須にする
+      mfa: cognito.Mfa.OFF, // パスキーの本人確認で代える
+      // メールでのパスワードの再設定を止める（捨てたパスワードを、メールを読める人が作り直せないように）。
+      // パスキーをなくしたときは、管理者がパスワードを設定し直す
+      accountRecovery: cognito.AccountRecovery.NONE,
       // ユーザーが消えると、sub（食べた人の ID）が変わり、記録がたどれなくなる。
       // スタックを消しても残し（RETAIN）、コンソールや API からの削除も止める（削除の保護）
       deletionProtection: true,
@@ -55,9 +67,8 @@ export class InfraStack extends cdk.Stack {
     });
 
     // ログイン画面のドメイン（/authorize, /token, /logout の入口）
-    // プレフィックスに "cognito" は使えないので oidc-study にする
     const domain = userPool.addDomain('Domain', {
-      cognitoDomain: { domainPrefix: `oidc-study-${this.account}` },
+      cognitoDomain: { domainPrefix },
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
     });
     const cognitoIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`;
@@ -187,6 +198,9 @@ export class InfraStack extends cdk.Stack {
     const client = userPool.addClient('RpClient', {
       userPoolClientName: 'authz-api',
       generateSecret: true,
+      // マネージドログインで、パスキーとパスワードを選べるようにする（選択式のサインイン ALLOW_USER_AUTH）。
+      // 指定すると、既定で付いていた SRP・カスタム認証の入口は外れる（認可API は使っていない）
+      authFlows: { user: true },
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
       oAuth: {
         flows: { authorizationCodeGrant: true },
