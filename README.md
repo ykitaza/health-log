@@ -47,6 +47,7 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 - 入口は API Gateway の HTTP API だけで、どちらにも流量の制限（1秒1回・瞬間5回）を付けています
 - 認可API が Cognito でログインさせ、同意を得てから、食事記録だけに使えるアクセストークンを出します
+- 怪しいアクセスや異常（4xx・5xx・429 の急増、ルートや MFA なしのログイン、IAM・Cognito の変更など）を検知してメールで知らせます（[監視](docs/monitoring.md)）
 - ログインからツールの呼び出しまでの流れは [シーケンス図](docs/sequence.md)、設計の考え方は [全体の設計](docs/design.md) と [食事記録の設計](docs/meals-design.md) にあります
 
 図は VS Code の draw.io 拡張で `docs/architecture.drawio.svg` を開いて編集します。
@@ -58,11 +59,14 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 AWS の認証情報は、環境変数（`AWS_PROFILE` など）で指定しておきます。
 
 ```sh
-cd cdk && ./build-lambda.sh && npx cdk deploy
+cd cdk && ./build-lambda.sh && npx cdk deploy --all
 ../services/authorization/setup-local.sh   # ログインに使うユーザー（test1@example.com）を作る
 ```
 
 パスワードは `services/authorization/.test1-password` に保存されます（画面には出しません）。
+
+監視のスタック（`CognitoStudyMonitoring`、us-east-1 の `CognitoStudyMonitoringGlobal`）も一緒にデプロイされます。
+初回は us-east-1 の bootstrap と、通知のメールの購読が要ります（[監視](docs/monitoring.md)）。
 
 ### Claude・ChatGPT につなぐ
 
@@ -92,7 +96,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy
 ### 片付け
 
 ```sh
-cd cdk && npx cdk destroy
+cd cdk && npx cdk destroy --all
 # 認可APIが初回起動時に作った秘密の値（スタックとは別に残る）
 aws ssm delete-parameters --names /cognito-study/authorization/signing-key /cognito-study/authorization/session-secret
 ```
