@@ -279,8 +279,9 @@ export class MonitoringStack extends cdk.Stack {
       period: cdk.Duration.hours(1), label: 'ConsumedWriteCapacityUnits',
     }), 3000, 'DynamoDB（MealsTable と StateTable）の書き込みが1時間に3,000 WCU 以上（これまでの最大は1時間886）。費用を膨らませる攻撃の兆し。アプリ用の API のアクセスログで送信元 IP と回数を見る');
 
-    // 1回の送信で delete が多い（services/sync の BULK_DELETE_THRESHOLD 件以上）。データを壊す操作の兆し。
-    // アプリ用の API の Lambda が「bulk_delete deletes=<数> changes=<数>」をログに出す
+    // 1回の送信で消される親（種目・食事・体組成の記録など）が多い（services/sync の BULK_DELETE_THRESHOLD 以上）。
+    // 親といっしょに消える子（セット・品目）は親ごとに1つに数える。データを壊す操作の兆し。
+    // アプリ用の API の Lambda が「bulk_delete deletes=<親の数> delete_changes=<delete の件数> changes=<数>」をログに出す
     const appApiLogGroup = logs.LogGroup.fromLogGroupName(
       this, 'AppApiFunctionLogs', ssm.StringParameter.valueForStringParameter(this, props.appApiLogGroupParam));
     new logs.MetricFilter(this, 'BulkDeletesFilter', {
@@ -288,7 +289,7 @@ export class MonitoringStack extends cdk.Stack {
       filterPattern: logs.FilterPattern.literal('"bulk_delete deletes="'),
     });
     alarm('BulkDeletesAlarm', sumPerHour('BulkDeletes'), 1,
-      'アプリからの1回の送信で、delete が10件以上あった。データを壊す操作の兆し。Lambda のログの bulk_delete と、変更の記録を見る（戻し方は docs/monitoring.md）');
+      'アプリからの1回の送信で、消される親（種目・食事など。セット・品目は親ごとに1つ）が10以上あった。データを壊す操作の兆し。Lambda のログの bulk_delete と、変更の記録を見る（戻し方は docs/monitoring.md）');
 
     // ---- CloudTrail の証跡 ----
 

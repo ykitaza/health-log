@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Header, IconButton } from '@/components/ui';
+import { Button, Card, DayNote, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
@@ -35,7 +35,10 @@ type Loaded = {
 /** 記録の入力（セットを組む） */
 export default function EntryScreen() {
   const params = useLocalSearchParams<{ date?: string; exerciseId?: string; entryId?: string }>();
-  const date = params.date ?? todayKey();
+  const today = todayKey();
+  const date = params.date ?? today;
+  const isToday = date === today;
+  const isFuture = date > today;
   const repos = useRepos();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [drafts, setDrafts] = useState<SetDraft[]>([]);
@@ -124,7 +127,7 @@ export default function EntryScreen() {
   };
 
   const save = async () => {
-    if (savingRef.current) return;
+    if (savingRef.current || isFuture) return;
     const errs = validateSets(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) { setFormError('入力を確かめてください'); return; }
@@ -144,7 +147,6 @@ export default function EntryScreen() {
     }
   };
 
-  const isToday = date === todayKey();
   const saveLabel = entry ? '変更を保存' : isToday ? '今日のトレーニングに追加' : 'この日のトレーニングに追加';
 
   return (
@@ -158,7 +160,7 @@ export default function EntryScreen() {
             </View>
           )}
           {formError && <T size={13} color={colors.danger} align="center">{formError}</T>}
-          <Button label={saveLabel} icon="check" onPress={save} disabled={saving} />
+          <Button label={saveLabel} icon="check" onPress={save} disabled={saving || isFuture} />
         </>
       }
     >
@@ -168,6 +170,7 @@ export default function EntryScreen() {
         subtitle={`${exercise.bodyPartName} ・ ${isToday ? '今日' : formatJpDate(date)}の${loaded.position}種目目`}
         onBack={() => router.back()}
       />
+      <DayNote date={date} today={today} />
 
       <Card style={{ marginTop: 8, gap: 8 }}>
         {previous ? (

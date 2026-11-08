@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { formatJpDate } from '@/lib/date';
 import { colors, radius } from '@/theme';
 import { Icon, IconName } from './Icon';
 import { T } from './Text';
@@ -68,6 +69,23 @@ export function Header({ title, subtitle, onBack, right, overline }: {
         {subtitle && <T size={12} color={colors.sub}>{subtitle}</T>}
       </View>
       {right}
+    </View>
+  );
+}
+
+/**
+ * 記録する日が今日でないときの知らせ（記録の画面の上）。過去の日なら、その日に記録していることを、
+ * 未来の日なら記録できないことを出す。今日なら何も出さない
+ */
+export function DayNote({ date, today }: { date: string; today: string }) {
+  if (date === today) return null;
+  const future = date > today;
+  return (
+    <View style={[s.dayNote, future ? { backgroundColor: colors.dangerDark } : { backgroundColor: colors.accentDark }]}>
+      <Icon name="calendar" size={16} color={future ? colors.danger : colors.accent} />
+      <T size={13} bold color={future ? colors.danger : colors.accent} style={{ flexShrink: 1 }}>
+        {future ? '未来の日には記録できません' : `過去の日（${formatJpDate(date)}）に記録しています`}
+      </T>
     </View>
   );
 }
@@ -189,6 +207,7 @@ const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  dayNote: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4 },
   chip: { paddingHorizontal: 14, height: 34, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   segment: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 4 },
   segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },

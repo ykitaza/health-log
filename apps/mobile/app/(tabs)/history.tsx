@@ -7,11 +7,11 @@ import { MealWeekly } from '@/components/MealWeekly';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo } from '@/components/ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { addMonths, formatJpDate, formatShortDate, MONTH_NAMES_EN, todayKey, yearMonth } from '@/lib/date';
+import { addMonths, formatJpDate, formatMonthDay, formatShortDate, MONTH_NAMES_EN, todayKey, yearMonth } from '@/lib/date';
 import { formatSetLong } from '@/lib/format';
 import {
   bestSet, changeOver, exerciseDailySeries, filterSince, Period, PERIOD_LABELS, periodStart, personalBests,
@@ -146,6 +146,16 @@ export default function HistoryScreen() {
                   </Card>
                 );
               })}
+              {selectedDay && (
+                <Button
+                  label={`${formatMonthDay(selectedDay)}に種目を追加`}
+                  icon="plus"
+                  variant="secondary"
+                  small
+                  style={{ marginTop: 12 }}
+                  onPress={() => router.push({ pathname: '/workout/select', params: { date: selectedDay } })}
+                />
+              )}
               {!selectedDay && <T size={13} color={colors.sub} style={{ marginTop: 12 }}>この月の記録はありません</T>}
             </>
           ) : exerciseId === ALL ? (

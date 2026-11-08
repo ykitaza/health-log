@@ -1,5 +1,7 @@
 import { dateLabels, datePoints, niceTicks } from '../chart';
-import { addDays, addMonths, daysBetween, formatJpDate, monthMatrix, relativeDays, toDateKey, weekStart } from '../date';
+import {
+  addDays, addMonths, daysBetween, formatJpDate, formatMonthDay, lastDoneLabel, monthMatrix, pickedDayOrToday, relativeDays, toDateKey, weekStart,
+} from '../date';
 
 test('日付の文字列と日数の計算', () => {
   expect(toDateKey(new Date(2026, 10, 8))).toBe('2026-11-08');
@@ -46,4 +48,30 @@ test('縦軸の目盛りは最小と最大を含む', () => {
   const t = niceTicks(68, 68);
   expect(t[0]).toBeLessThanOrEqual(68);
   expect(t[t.length - 1]).toBeGreaterThanOrEqual(68);
+});
+
+describe('過去の日に記録するとき', () => {
+  const TODAY = '2026-11-08';
+
+  test('ホームで選んだ日：選んでいなければ今日、過去の日はその日、今日以降は今日', () => {
+    expect(pickedDayOrToday(null, TODAY)).toBe(TODAY);
+    expect(pickedDayOrToday('2026-11-03', TODAY)).toBe('2026-11-03');
+    expect(pickedDayOrToday('2026-10-31', TODAY)).toBe('2026-10-31');
+    expect(pickedDayOrToday(TODAY, TODAY)).toBe(TODAY);
+    expect(pickedDayOrToday('2026-11-20', TODAY)).toBe(TODAY);
+    // 日付が変わったあと：前の日に選んだ日は、まだ過去の日として残る
+    expect(pickedDayOrToday('2026-11-08', '2026-11-09')).toBe('2026-11-08');
+  });
+
+  test('ボタンと見出しの日付', () => {
+    expect(formatMonthDay('2026-11-03')).toBe('11月3日');
+    expect(formatMonthDay('2026-01-30')).toBe('1月30日');
+  });
+
+  test('「前回」の日：今日なら今日から数え、過去の日なら日付で出す', () => {
+    expect(lastDoneLabel('2026-11-06', TODAY, TODAY)).toBe('2日前');
+    expect(lastDoneLabel(TODAY, TODAY, TODAY)).toBe('今日');
+    expect(lastDoneLabel('2026-11-01', '2026-11-03', TODAY)).toBe('11/1');
+    expect(lastDoneLabel('2026-11-03', '2026-11-03', TODAY)).toBe('この日');
+  });
 });

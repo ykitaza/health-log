@@ -18,6 +18,11 @@ from sync.store import BY_DAY_INDEX, DynamoDBSyncStore, InMemorySyncStore
 TABLE = "meals-test"
 
 
+class EntryFields(FieldsModel):
+    date: Day = None
+    sort_order: int = None
+
+
 class SetFields(FieldsModel):
     entry_id: Ref = None
     set_index: Annotated[int, Field(ge=0, le=1000)] = None
@@ -65,7 +70,9 @@ def _named(entity_id, fields):
 
 def make_registry() -> Registry:
     r = Registry()
-    r.register("workout_set", EntitySpec(SetFields, ("entry_id", "set_index", "reps"), "training"))
+    r.register("workout_entry", EntitySpec(EntryFields, ("date", "sort_order"), "training"))
+    r.register("workout_set", EntitySpec(SetFields, ("entry_id", "set_index", "reps"), "training",
+                                         owner=("workout_entry", "entry_id")))
     r.register("body_record", EntitySpec(RecordFields, ("date", "measured_at", "source"), "training"))
     r.register("meal", EntitySpec(MealFields, ("date", "slot"), "meals", index_key=_meal_key))
     r.register("meal_item", EntitySpec(ItemFields, ("name",), "meals", parent_type="meal"))

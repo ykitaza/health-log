@@ -12,12 +12,14 @@ type Props = {
   /** 塗りつぶす日（選んだ日）。なければ今日を塗る */
   selected?: DateKey | null;
   onPressDay?: (key: DateKey) => void;
+  /** これより後の日は押せない（薄く出す）。未来の日を選ばせないため */
+  maxDate?: DateKey;
   cell?: number;
   testID?: string;
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, selected, onPressDay, cell = 36, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   return (
@@ -33,11 +35,13 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
             const isFilled = d.key === filled && d.inMonth;
             const isMarked = marked.has(d.key) && d.inMonth;
             const isToday = d.key === today && d.inMonth;
-            const fg = !d.inMonth ? colors.line : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
+            const isAfterMax = maxDate != null && d.key > maxDate;
+            const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
             return (
               <Pressable
                 key={d.key}
-                disabled={!onPressDay || !d.inMonth}
+                disabled={!onPressDay || !d.inMonth || isAfterMax}
+                aria-selected={onPressDay ? isFilled : undefined}
                 onPress={() => onPressDay?.(d.key)}
                 accessibilityLabel={isMarked ? `${d.key} 記録あり` : d.key}
                 testID={d.inMonth ? `day-${d.key}` : undefined}
