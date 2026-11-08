@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [authorization, meals, sync, training, app_api]
+        service: [authorization, meals, sync, training, app_api, mcp]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}

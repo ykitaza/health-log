@@ -1,14 +1,17 @@
 # meal-log-mcp
 
-Claude や ChatGPT に、食事の写真か一言を送るだけで記録できる MCP サーバーです。
+Claude や ChatGPT に、食事の写真か一言を送るだけで記録できる MCP サーバーです。筋トレと体組成も、同じコネクタから記録・ふり返りできます。
 筋トレと体組成を記録するスマホのアプリ「トレログ」（仮。[apps/mobile](apps/mobile/README.md)）も、同じリポジトリで作っています。
 
 ## リポジトリの構成
 
 | フォルダ | 中身 |
 |---|---|
-| `services/authorization/` | 認可API（Flask・Authlib）。Cognito でログインさせ、食事記録に使うアクセストークンを出す |
-| `services/meals/` | 食事記録の MCP サーバー |
+| `services/authorization/` | 認可API（Flask・Authlib）。Cognito でログインさせ、MCP サーバー（食事と筋トレ）に使うアクセストークンを出す |
+| `services/mcp/` | MCP サーバーの組み立て。食事と筋トレのツールを1つのコネクタにまとめる |
+| `services/meals/` | 食事記録（MCP のツール、同期の種類） |
+| `services/training/` | 筋トレと体組成（MCP のツール、計算、同期の種類） |
+| `services/sync/`・`services/app_api/` | アプリとの同期の共通の部品と、アプリ用の API の組み立て |
 | `apps/mobile/` | 筋トレのアプリ（Expo）。今は端末の中だけで動く（[README](apps/mobile/README.md)） |
 | `cdk/` | AWS の構成（CDK）。スタックは `CognitoStudy` と、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal` の3つ |
 | `docs/` | 構成図、シーケンス図、設計、監視の説明 |
@@ -33,7 +36,7 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 ## 特徴
 
 - **MCP サーバー**：Claude・ChatGPT など、MCP に対応したチャットにコネクタとして登録して使う。食事の記録に専用のアプリや画面は要りません
-- **利用者ごとの記録**：OAuth でログインした人を識別し、記録はその人の分だけを読み書きします。アクセストークンは食事記録だけに使え、5分で切れます（切れたらリフレッシュトークンで更新します）
+- **利用者ごとの記録**：OAuth でログインした人を識別し、記録はその人の分だけを読み書きします。アクセストークンはこの MCP サーバー（食事と筋トレ）だけに使え、5分で切れます（切れたらリフレッシュトークンで更新します）
 - **推論はクライアント側**：写真の解析や栄養の推定は、Claude・ChatGPT の AI が行います。サーバーは AI を呼ばないので、AI の利用料がかかりません。かかるのは Lambda・DynamoDB・API Gateway の従量課金だけで、1人で使う分なら小さく済みます
 - **見せ方もクライアント側**：サーバーはデータ（JSON）だけを返し、表・グラフ・入力フォームは Claude・ChatGPT が自分の画面で作ります
 
@@ -56,6 +59,24 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 写真は保存しません。保存するのは、AI が写真から読み取った説明文と栄養の推定値だけです。
 
+その日に筋トレの記録があれば、食事の目標は自動で「筋トレの日」の目標になります（「今日は休みの日の目標にして」と言えば、そちらを優先します）。
+
+### 筋トレの記録（MCP）
+
+| 頼み方 | 起きること（ツール） |
+|---|---|
+| 「ベンチ 80kg 8回を3セット、懸垂10回」 | その日に記録し、総負荷量と自己ベストを超えたかを返す（`record_workout`） |
+| 「今日のトレーニングを見せて」「11月の記録」 | 1日の記録（`get_workout`）、期間の一覧（`list_workouts`） |
+| 「2セット目は6回だった」「スクワットは消して」「昨日の分だった」 | 直す・消す・日を移す（`update_workout`、`delete_workout`） |
+| 「ベンチプレスの伸びは？」 | 日ごとの総負荷量と推定1RM の推移、自己ベスト（`exercise_history`） |
+| 「今週をふり返って」 | 週の回数、総負荷量、部位ごとの割合（偏り）、前回からの日数、先週との比べ（`weekly_training_review`） |
+| 「種目の一覧」「ケトルベルスイングを脚に足して」 | 部位と種目（`list_exercises`、`add_exercise`） |
+| 「体脂肪率 15%」「体組成の推移」 | 体組成の記録と推移（`record_body`、`body_progress`） |
+
+- 計算（総負荷量、推定1RM、自己ベスト、体脂肪量など）はサーバーが決まった式で行い、アプリと同じ結果になります
+- 種目は名前で指します。「ベンチ」のように略すと、サーバーは推測で選ばず、候補（「ベンチプレス」など）を返します
+- 記録はアプリ（トレログ）と同期します。アプリで記録した分は同期するまで見えないので、応答に `last_app_sync_at`（アプリから最後に同期で受け付けた時刻）を付けています
+
 ### 筋トレのアプリ（トレログ）
 
 筋トレの記録（種目・重量・回数）、総負荷量や推定1RM の分析、体組成の記録と推移を、スマホのアプリで扱います。
@@ -68,7 +89,7 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 - 入口は API Gateway の HTTP API だけで、どれにも流量の制限を付けています（認可API と MCP は1秒1回・瞬間5回、スマホアプリ用の API は1秒10回・瞬間20回）
 - スマホアプリ（トレログ）とは、変更の記録を送り合って同期します。MCP からの変更も同じ記録を通るので、アプリにも届きます（[同期の設計](docs/sync-design.md)、[アプリ用の API](docs/api/app-api.yaml)）
-- 認可API が Cognito でログインさせ、同意を得てから、食事記録だけに使えるアクセストークンを出します
+- 認可API が Cognito でログインさせ、同意を得てから、この MCP サーバーだけに使えるアクセストークンを出します
 - 怪しいアクセスや異常（4xx・5xx・429 の急増、ルートや MFA なしのログイン、IAM・Cognito の変更など）を検知してメールで知らせます（[監視](docs/monitoring.md)）
 - スマホのアプリは、今は AWS とつながらず、端末の中だけで動きます
 - ログインからツールの呼び出しまでの流れは [シーケンス図](docs/sequence.md)、設計の考え方は [全体の設計](docs/design.md) と [食事記録の設計](docs/meals-design.md) にあります
@@ -89,7 +110,7 @@ AWS の認証情報は、環境変数（`AWS_PROFILE` など）で指定して�
 
 | スタック | リージョン | 中身 |
 |---|---|---|
-| `CognitoStudy` | ap-northeast-1 | Cognito、認可API と食事記録の API Gateway・Lambda・DynamoDB |
+| `CognitoStudy` | ap-northeast-1 | Cognito、認可API と MCP サーバー（食事と筋トレ）とアプリ用の API の API Gateway・Lambda・DynamoDB |
 | `CognitoStudyMonitoring` | ap-northeast-1 | 監視（アラーム、CloudTrail、EventBridge、SNS）。`CognitoStudy` のあとに作られる |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京に転送する EventBridge のルール |
 
@@ -119,11 +140,15 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 
 登録するとログイン画面が開くので、上のユーザーでログインし、同意画面で「許可する」を押します。
 
+**筋トレのツールを足す前につないだコネクタは、同意し直すまで筋トレのツールが使えません**（「許可がありません」と返ります。食事のツールはそのまま使えます）。
+アクセストークンとリフレッシュトークンは、同意したときの scope（`meals:read`・`meals:write`）のままだからです。
+コネクタの連携を解除して（または `logout` を頼んで）つなぎ直し、同意画面に筋トレの読み書きが出ていることを確かめて「許可する」を押します。URL は変わらないので、コネクタを登録し直す必要はありません。
+
 ### PC で動かす
 
 ```sh
 (cd services/authorization && uv run flask --app main run --port 3000) &
-(cd services/meals && uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く）
+(cd services/mcp && PYTHONPATH=../meals uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals から読む）
 ```
 
 先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。
@@ -134,7 +159,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 ### テスト
 
 ```sh
-for s in authorization meals sync training app_api; do (cd services/$s && uv run pytest); done
+for s in authorization meals sync training app_api mcp; do (cd services/$s && uv run pytest); done
 (cd cdk && npm ci && npx tsc --noEmit && npm test)
 (cd apps/mobile && npm ci && npx tsc --noEmit && npx jest)   # testdata/training/*.json で、アプリの計算がサーバーと同じかも確かめる
 ```

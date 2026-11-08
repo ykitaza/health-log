@@ -1,4 +1,8 @@
-"""MCP の入口。ツールの説明文は Claude（ChatGPT）への指示を兼ねる。"""
+"""MCP の入口（食事のツール）。ツールの説明文は Claude（ChatGPT）への指示を兼ねる。
+
+ここはツールを登録するだけで、サーバー（MCPServer）と認証は作らない。食事と筋トレのツールを1つのサーバーに
+まとめるのは、組み立ての場所（services/mcp/main.py）。
+"""
 
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -6,8 +10,6 @@ from datetime import date
 from typing import Callable, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcp.server.auth.provider import TokenVerifier
-from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
@@ -23,9 +25,9 @@ from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
 from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from domain.values import DayType, EaterId, MealSlot
 from presentation import views
-from presentation.icons import server_icons
 from presentation.schemas import AmountChange, DailyTargetInput, ItemInput, MealInput, SlotName, WhenInput
 
+# 食事のツールに要る scope。組み立ての場所が、接続（HTTP）のところで両方を必須にする（足りなければ SDK が 403）
 READ_SCOPE, WRITE_SCOPE = "meals:read", "meals:write"
 
 INSTRUCTIONS = """食事を記録し、カロリーと PFC（たんぱく質・脂質・炭水化物）を目標と比べるサーバー。
@@ -38,7 +40,8 @@ INSTRUCTIONS = """食事を記録し、カロリーと PFC（たんぱく質・�
 結果に suggested_next があれば、返事の最後にその中から1つだけ次の操作として提案する。
 見せ方は任せる。利用者の好み：数字は表やグラフで見やすく。PFC は割合（%）とグラム数の両方（円グラフがよい）。
 週の kcal や体重の推移など、日ごとに変わる数字には、描けるならグラフを付ける（描けないときは表で返す）。
-入力してもらうときは、使えるならフォームや選択肢で聞く。"""
+入力してもらうときは、使えるならフォームや選択肢で聞く。
+日の種類（筋トレの日／休みの日）は、本人が set_day_type で決めた日はそれを、決めていない日は、その日に筋トレの記録があれば筋トレの日にする。"""
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -70,12 +73,19 @@ NEXT_TODAY = "今日の状況を見る"
 NEXT_WEIGHT = "体重を記録する"
 
 
-class Session(Protocol):
-    """連携（ログイン）の終わらせ方。認可コンテキストに頼むので、食事記録のドメインには入れない。"""
+class AppSyncStatus(Protocol):
+    """アプリの最後の同期の時刻（同期の仕組みが持つ）。組み立ての場所でつなぐ。"""
 
-    async def revoke(self, access_token: str, client_id: str) -> None: ...
+    async def last_app_sync_at(self, subject: str) -> str | None:
+        """その人の端末からの変更を、最後に受け付けた時刻。まだなければ None。"""
+        ...
 
-    def logout_url(self) -> str: ...
+
+class NoAppSync:
+    """同期をつながないとき（テストなど）。"""
+
+    async def last_app_sync_at(self, subject: str) -> str | None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -87,40 +97,29 @@ class Services:
     weights: WeightService
 
 
-def create_mcp_server(
+def register_meal_tools(
+    mcp: MCPServer,
     services: Services,
-    token_verifier: TokenVerifier,
-    trusted_issuer: str,
-    resource_url: str,
     today: Callable[[], date],
-    session: Session,
-) -> MCPServer:
-    mcp = MCPServer(
-        name="study-meals",
-        title="食事記録",
-        instructions=INSTRUCTIONS,
-        icons=server_icons(resource_url.removesuffix("/mcp")),
-        token_verifier=token_verifier,
-        auth=AuthSettings(
-            issuer_url=trusted_issuer,
-            resource_server_url=resource_url,
-            # 足りなければ SDK が 403 を返す。SDK はこれを RFC 9728 の scopes_supported にも使い、
-            # クライアントはそれを見て scope を求めるので、書き込みも含めて両方を並べる
-            required_scopes=[READ_SCOPE, WRITE_SCOPE],
-            validate_token_resource=False,  # aud はトークンの検証で確かめている
-        ),
-    )
+    sync_status: AppSyncStatus | None = None,
+) -> None:
+    """食事のツールを mcp に登録する。"""
     s = services
+    status = sync_status or NoAppSync()
 
     def subject() -> str:
         return get_access_token().subject  # SDK が検証済みのアクセストークン
 
+    async def synced(subject_: str, view: dict) -> dict:
+        """応答に、アプリの最後の同期の時刻を足す（それより後にアプリで記録した分は、まだ見えていない）。"""
+        return {**view, "last_app_sync_at": await status.last_app_sync_at(subject_)}
+
     async def with_today(meal_views: list[dict], subject_: str) -> dict:
-        return {
+        return await synced(subject_, {
             "meals": meal_views,
             "today": views.daily(await s.summaries.daily(subject_, today())),
             "suggested_next": [NEXT_WEEK, NEXT_PROGRESS],
-        }
+        })
 
 
     # --- 記録する ---
@@ -156,7 +155,7 @@ def create_mcp_server(
         """記録済みの食事に名前を付けて「いつもの」として保存する。同じ名前は上書きする。"""
         sub = subject()
         with domain_errors():
-            return views.template(await s.templates.save(sub, meal_id, name))
+            return await synced(sub, views.template(await s.templates.save(sub, meal_id, name)))
 
     @mcp.tool(annotations=WRITE)
     async def record_template(name: str, when: WhenInput) -> dict:
@@ -172,19 +171,24 @@ def create_mcp_server(
         """食事を1件、品目ごとに返す。品目を直すときは、ここで item_id を調べる。"""
         sub = subject()
         with domain_errors():
-            return views.meal(await s.meals.get(sub, meal_id))
+            return await synced(sub, views.meal(await s.meals.get(sub, meal_id)))
 
     @mcp.tool(annotations=READ)
     async def list_meals(start: date, end: date, slot: SlotName | None = None) -> dict:
         """期間（両端を含む）の食事を返す。区分で絞れる。"""
-        meals = await s.meals.list(subject(), start, end, MealSlot(slot) if slot else None)
-        return {"meals": [views.meal(m) for m in meals]}
+        sub = subject()
+        meals = await s.meals.list(sub, start, end, MealSlot(slot) if slot else None)
+        return await synced(sub, {"meals": [views.meal(m) for m in meals]})
 
     @mcp.tool(annotations=READ)
     async def today_status(day: date | None = None) -> dict:
-        """その日（省略すると今日）の合計・目標・残り。目標が未設定なら note で知らせる。"""
-        daily = views.daily(await s.summaries.daily(subject(), day or today()))
-        return {**daily, "suggested_next": [NEXT_WEEK, NEXT_PROGRESS]}
+        """その日（省略すると今日）の合計・目標・残り。目標が未設定なら note で知らせる。
+
+        day_type が training なら筋トレの日の目標を使っている（本人が決めた日か、その日に筋トレの記録がある日）。
+        """
+        sub = subject()
+        daily = views.daily(await s.summaries.daily(sub, day or today()))
+        return await synced(sub, {**daily, "suggested_next": [NEXT_WEEK, NEXT_PROGRESS]})
 
     @mcp.tool(annotations=READ)
     async def weekly_review(last_day: date | None = None) -> dict:
@@ -192,8 +196,9 @@ def create_mcp_server(
 
         記録しなかった日や目標との差を責めず、次の一歩を1つだけ提案する。
         """
-        weekly = views.weekly(await s.summaries.weekly(subject(), last_day or today()))
-        return {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]}
+        sub = subject()
+        weekly = views.weekly(await s.summaries.weekly(sub, last_day or today()))
+        return await synced(sub, {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]})
 
     # --- 体重とゴールまでの道のり ---
 
@@ -204,7 +209,7 @@ def create_mcp_server(
         with domain_errors():
             await s.weights.record(sub, day or today(), kg)
         progress = views.progress(await s.weights.progress(sub, today()))
-        return {**progress, "suggested_next": [NEXT_WEEK, NEXT_TODAY]}
+        return await synced(sub, {**progress, "suggested_next": [NEXT_WEEK, NEXT_TODAY]})
 
     @mcp.tool(annotations=READ)
     async def goal_progress() -> dict:
@@ -213,8 +218,9 @@ def create_mcp_server(
         目標体重がなければ、目標を見直して決められること、体重の記録が少なければ record_weight で記録できることを伝える。
         守れていなくても責めない。
         """
-        progress = views.progress(await s.weights.progress(subject(), today()))
-        return {**progress, "suggested_next": [NEXT_WEIGHT, NEXT_WEEK]}
+        sub = subject()
+        progress = views.progress(await s.weights.progress(sub, today()))
+        return await synced(sub, {**progress, "suggested_next": [NEXT_WEIGHT, NEXT_WEEK]})
 
     # --- 直す・消す ---
 
@@ -246,24 +252,8 @@ def create_mcp_server(
         sub = subject()
         with domain_errors():
             await s.meals.delete(sub, meal_id)
-        return {"deleted": meal_id, "today": views.daily(await s.summaries.daily(sub, today())),
-                "suggested_next": [NEXT_WEEK]}
-
-    # --- ログアウト ---
-
-    @mcp.tool(annotations=DESTRUCTIVE)
-    async def logout() -> dict:
-        """ログアウトする。別のアカウントで入り直したいときや、連携をやめたいときに呼ぶ。
-
-        この連携を終わらせ、ログイン画面のセッションを消すためのリンク（logout_url）を返す。
-        リンクを利用者に見せ、開くように伝える。そのあと、このコネクタを使うとログインし直しになる。
-        """
-        token = get_access_token()
-        await session.revoke(token.token, token.client_id)
-        return {
-            "message": "この連携を終わらせました。ログイン画面のセッションも消すため、logout_url を開いてください。",
-            "logout_url": session.logout_url(),
-        }
+        return await synced(sub, {"deleted": meal_id, "today": views.daily(await s.summaries.daily(sub, today())),
+                                  "suggested_next": [NEXT_WEEK]})
 
     # --- 目標 ---
 
@@ -274,11 +264,12 @@ def create_mcp_server(
         questions を、使える入力フォームや選択肢（ホストの機能）で利用者に聞く。必須は方針だけで、ほかは任意。
         答えたくない項目は省いてよく、推測で埋めない。答えがそろったら suggest_goals を呼び、案を見せてから set_goals を呼ぶ。
         """
-        goal = await s.goals.current(subject())
-        return {
+        sub = subject()
+        goal = await s.goals.current(sub)
+        return await synced(sub, {
             "questions": GOAL_QUESTIONS,
             "current_goal": views.goal(goal) if goal else None,
-        }
+        })
 
     @mcp.tool(annotations=READ)
     async def suggest_goals(
@@ -348,19 +339,19 @@ def create_mcp_server(
                 eating_style,
                 target_weight_kg,
             )
-            return views.goal(await s.goals.set_goals(sub, goal))
+            return await synced(sub, views.goal(await s.goals.set_goals(sub, goal)))
 
     @mcp.tool(annotations=WRITE)
     async def set_day_type(day_type: DayType, day: date | None = None) -> dict:
-        """その日（省略すると今日）を筋トレの日（training）か休みの日（rest）にする。決めていない日は休みの日として扱う。
+        """その日（省略すると今日）を筋トレの日（training）か休みの日（rest）にする。
 
-        利用者が「今日は筋トレした」などと言ったときに呼ぶ。こちらから聞きはしない。
+        決めていない日は、その日に筋トレの記録があれば筋トレの日、なければ休みの日として扱う。
+        ここで決めた日は、筋トレの記録の有無より優先する。筋トレを記録していないのに「今日は筋トレした」と言われたときや、
+        記録はあるが休みの日の目標にしたいと言われたときに呼ぶ。こちらから聞きはしない。
         """
         sub = subject()
         await s.goals.set_day_type(sub, day or today(), day_type)
-        return views.daily(await s.summaries.daily(sub, day or today()))
-
-    return mcp
+        return await synced(sub, views.daily(await s.summaries.daily(sub, day or today())))
 
 
 @contextmanager

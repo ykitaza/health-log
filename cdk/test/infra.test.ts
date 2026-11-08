@@ -5,7 +5,7 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import { InfraStack } from '../lib/infra-stack';
 
 // Lambda のコードは build-lambda.sh が作る。CI ではテストのために作らないので、空のフォルダで代える
-for (const dir of ['authorization', 'meals', 'app_api']) {
+for (const dir of ['authorization', 'mcp', 'app_api']) {
   fs.mkdirSync(path.join(__dirname, '..', 'build', dir), { recursive: true });
 }
 

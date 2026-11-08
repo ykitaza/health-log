@@ -855,12 +855,17 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.9" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3.0" },
     { name = "pydantic", specifier = ">=2.11" },
     { name = "sync", editable = "../sync" },
 ]
+provides-extras = ["mcp"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+dev = [
+    { name = "mcp", specifier = ">=2.3.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
 
 [[package]]
 name = "typing-extensions"

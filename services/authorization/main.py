@@ -14,6 +14,9 @@ from oauth.resource_indicators import ResourceServer
 from oauth.server import AuthorizationServer
 from presentation.routes import LoginGateway, create_blueprint
 
+# MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）
+MCP_SCOPES = ("meals:read", "meals:write", "training:read", "training:write")
+
 
 def create_app(
     settings: Settings | None = None,
@@ -36,8 +39,9 @@ def create_app(
 
     if store is None:
         store = DynamoDBStore(settings.state_table) if settings.state_table else MemoryStore()
-    # 知っているリソースサーバーと、そこで使える scope。信頼関係は手で設定する
-    resource_servers = [ResourceServer(settings.meals_resource, ("meals:read", "meals:write"))]
+    # 知っているリソースサーバーと、そこで使える scope。信頼関係は手で設定する。
+    # MCP サーバー（食事と筋トレのツールを1つにまとめたもの。resource の URL は食事記録のときのまま）
+    resource_servers = [ResourceServer(settings.meals_resource, MCP_SCOPES)]
     server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers)
     if login is None:
         from infrastructure.cognito_login import CognitoLogin

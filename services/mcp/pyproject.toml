@@ -1,0 +1,33 @@
+[project]
+name = "mcp-server"
+version = "0.1.0"
+description = "MCP サーバーの組み立て（食事と筋トレのツールを1つのコネクタにまとめる）"
+requires-python = ">=3.12"
+# sync と training はパッケージなので path の依存で入れる（training は MCP のツールを使うので extra の mcp も）。
+# 食事（services/meals）はトップレベルに domain・application などを置くアプリなので、パッケージにはせず、
+# テストでは pythonpath に ../meals を足し、Lambda には cdk/build-lambda.sh がソースをコピーする。
+# anyio と pydantic は、ここで使う食事のコードが使うもの
+dependencies = [
+    "anyio>=4.9",
+    "mcp>=2.3.0",
+    "pydantic>=2.11",
+    "pyjwt[crypto]>=2.15.1",
+    "sync",
+    "training[mcp]",
+    "uvicorn>=0.54.0",
+]
+
+[tool.uv.sources]
+sync = { path = "../sync", editable = true }
+training = { path = "../training", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = [".", "../meals"]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "boto3>=1.43.111",
+    "moto>=5.2.4",
+    "pytest>=9.1.1",
+]
