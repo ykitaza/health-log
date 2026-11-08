@@ -432,7 +432,7 @@ def test_lambda_fetches_metadata_only_from_claude_and_chatgpt(monkeypatch, login
 
 
 def test_local_pc_accepts_localhost_client_id(monkeypatch, login):
-    # PC（README の手順）では、自分の PC の中のクライアント（MCP Inspector など）を http の localhost で使える
+    # PC（docs/development.md の手順）では、自分の PC の中のクライアント（MCP Inspector など）を http の localhost で使える
     doc = {"client_id": LOCAL_CLIENT_ID, "client_name": "Local", "redirect_uris": ["http://localhost/callback"]}
     real_client = httpx.Client
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=doc))

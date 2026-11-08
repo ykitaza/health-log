@@ -377,7 +377,7 @@ export class InfraStack extends cdk.Stack {
 
     // Lambda のログ（CDK が関数ごとに作るロググループ。機能フラグ @aws-cdk/aws-lambda:useCdkManagedLogGroup）は90日残す。
     // 既定の2年は長すぎる。90日は、CloudTrail のイベント履歴と同じで、DynamoDB のポイントインタイムリカバリ（35日）より長い。
-    // 量は月に数百 KB なので、費用はほぼ0。スタックを消しても残る（RETAIN。README の「片付け」）
+    // 量は月に数百 KB なので、費用はほぼ0。スタックを消しても残る（RETAIN。docs/cd.md の「片付け」）
     for (const fn of [authzFn, mealsFn, appApiFn]) {
       (fn.node.findChild('LogGroup').node.defaultChild as logs.CfnLogGroup).retentionInDays = logs.RetentionDays.THREE_MONTHS;
     }

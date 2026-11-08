@@ -1,6 +1,7 @@
 # サーバーの CD（GitHub Actions からのデプロイ）
 
 サーバーのスタック（`CognitoStudy`、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`）を、GitHub Actions（`.github/workflows/deploy.yml`）からデプロイします。
+初めてのときの手でのデプロイと、スタックの片付けもここに書きます。アプリの配信は [apps/mobile/docs/eas.md](../apps/mobile/docs/eas.md) にあります。
 
 ## 流れ
 
@@ -26,11 +27,37 @@ ID プロバイダーとロールは、スタック `CognitoStudyCiCd`（`cdk/li
 - デプロイ用のロールから引き受ける `deploy-role` は、CloudFormation を通して何でも作れます（CDK のブートストラップの作り）。守りは environment の承認と、main だけから使えることです
 - `CognitoStudyCiCd` 自身は、ワークフローからはデプロイしません。ロールの変更は手で行います
 
+## 初めてのデプロイ
+
+AWS の認証情報は、環境変数（`AWS_PROFILE` など）で指定しておきます。
+初めてのときは手でデプロイします。2回目からは GitHub Actions から行います（上の「流れ」）。
+
+us-east-1 にもスタックがあるので、初めてのときは、東京と us-east-1 の両方に CDK の bootstrap をします（1回だけ）。
+
+```sh
+cd cdk && npx cdk bootstrap aws://<アカウント ID>/ap-northeast-1 aws://<アカウント ID>/us-east-1
+```
+
+```sh
+cd cdk && ./build-lambda.sh && npx cdk deploy --all
+../services/authorization/setup-local.sh   # PC で認可API を動かすときの services/authorization/.env を書く（ユーザーは作らない）
+```
+
+初めてのときは、本人のユーザーを管理者の操作で作り、そのユーザーのパスキーを作って、パスワードを捨てます（[パスキーを作る手順](design.md#パスキーを作る手順)）。
+パスワードでログインできるテスト用のユーザーは作りません。
+パスキーをなくしたときは、[パスキーをなくしたとき](design.md#パスキーをなくしたとき)の手順で作り直します。
+
+すでにデプロイしてあって、同期の仕組みを入れる前の記録があるときは、**デプロイの前に**移行のスクリプトを動かします（[今あるデータの移行](sync-design.md#今あるデータの移行)）。
+
+通知のメールは、デプロイのあとに SNS のトピックへ購読を足すと届きます（[監視](monitoring.md#デプロイとメールの購読の足し方)）。
+
+デプロイしたら、Claude・ChatGPT にコネクタを登録します（[MCP のつなぎ方](mcp.md#つなぎ方)）。
+
 ## 最初の準備（1回だけ）
 
 ### 1. CiCd のスタックを手でデプロイする
 
-東京と us-east-1 の CDK の bootstrap が済んでいることが前提です（[README のデプロイ](../README.md#デプロイする)）。
+東京と us-east-1 の CDK の bootstrap が済んでいることが前提です（上の「[初めてのデプロイ](#初めてのデプロイ)」）。
 GitHub の OIDC の ID プロバイダー（`token.actions.githubusercontent.com`）は、1つのアカウントに1つしか作れません。先にないことを確かめます。
 
 ```sh
@@ -72,4 +99,27 @@ Actions の画面で deploy を main で起動します。diff のジョブの S
 ```sh
 cd cdk && AWS_PROFILE=yuki npx cdk diff CognitoStudyCiCd
 AWS_PROFILE=yuki npx cdk deploy CognitoStudyCiCd
+```
+
+## アプリの配信
+
+アプリは EAS Build で APK を作り、JS の変更は EAS Update で配信します（Play ストアには出しません）。main の test が通ったあと、`apps/mobile/` が変わっていれば配信します（[EAS の手順](../apps/mobile/docs/eas.md)）。
+
+## 片付け
+
+`cdk destroy --all` で4つのスタックを消します。
+次のものは、スタックを消しても残ります。
+
+| 残るもの | 理由 | 消し方 |
+|---|---|---|
+| Cognito のユーザープール（`cognito-study`） | 削除の保護と RETAIN。ユーザーが消えると `sub` が変わり、記録がたどれなくなるため | コンソールで削除の保護を外してから消す |
+| DynamoDB の `MealsTable`（記録）と `StateTable`（ログインの途中の状態、リフレッシュトークン） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
+| CloudTrail の証跡のバケット | RETAIN。証拠として残すため | 中身を消してから消す（[監視の片付け](monitoring.md#片付け)） |
+| Lambda のロググループ（`/aws/lambda/CognitoStudy-*`。90日で古いものから消える） | RETAIN（CDK の既定）。消したあとに調べられるように残す | 要らなければコンソールか `aws logs delete-log-group` で消す |
+| SSM パラメータ（署名鍵とセッションの秘密） | 認可API が初回の起動で作り、スタックの外にあるため | 下のコマンド |
+
+```sh
+cd cdk && npx cdk destroy --all
+# 認可APIが初回起動時に作った秘密の値（スタックとは別に残る）
+aws ssm delete-parameters --names /cognito-study/authorization/signing-key /cognito-study/authorization/session-secret
 ```

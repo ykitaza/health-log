@@ -75,7 +75,7 @@ Cronometer は写真日記（ノートへの添付）を AI 記録と別の機�
 
 ## ツール（MCP）
 
-食事のツールは17個で、`meals/presentation/mcp_server.py` の `register_meal_tools` で登録します。1つのコネクタには、これに筋トレの11個（[README](../README.md#できること)）と `logout` を足した29個が並びます。
+食事のツールは17個で、`meals/presentation/mcp_server.py` の `register_meal_tools` で登録します。1つのコネクタには、これに筋トレの11個（[ツールの一覧](mcp.md#ツールの一覧)）と `logout` を足した29個が並びます。
 
 | ツール | 内容 |
 |---|---|
