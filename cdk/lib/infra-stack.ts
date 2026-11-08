@@ -195,7 +195,9 @@ export class InfraStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    const mealsFn = new lambda.Function(this, 'MealsFunction', pythonWebApp('meals', {
+    // 食事と筋トレのツールを1つにまとめた MCP サーバー（services/mcp）。論理 ID と URL は、食事記録だけだったときのまま。
+    // 筋トレも同じテーブルの同期の項目（SYNC#…）を読み書きするので、権限は食事のテーブルの読み書きのまま
+    const mealsFn = new lambda.Function(this, 'MealsFunction', pythonWebApp('mcp', {
       AUTHZ_ISSUER: authzUrl, // 信頼関係（手で設定する）：信じる認可API
       MCP_URL_PARAM: MEALS_URL_PARAM,
       MEALS_TABLE: mealsTable.tableName,
