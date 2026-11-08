@@ -3,12 +3,13 @@
  * アプリを開いたとき・前面に戻ったとき・「今すぐ取り込む」で、型ごとに差分（getChanges）を読み、端末の表に書く。
  * - 初めての型は、先にトークンを取ってから、過去30日を readRecords で全ページ読む（読んでいるあいだの変更は、次の差分で届く）
  * - トークンが切れていたら、最後に読んだ時刻（なければ30日前）から読み直す
+ * - 心拍は、サンプルを持たず、日ごとのまとめ（Health Connect の集計）だけを持つ
  * - 書くのは db/repositories/healthConnect.ts の write だけ（origin = 'import' で outbox に積まれる）
  * ID は Health Connect の記録の ID から決める（uuid5）。同じ記録を別の端末で取り込んでも、同じ行になる
  */
 import type { HealthConnectRecordResult, Permission, RecordType } from 'react-native-health-connect';
-import { BodyImport, HC_META, HealthConnectStore, ImportBatch, SleepImport } from '@/db/repositories/healthConnect';
-import { toDateKey } from '@/lib/date';
+import { BodyImport, HC_META, HealthConnectStore, HeartRateDayImport, ImportBatch, SleepImport } from '@/db/repositories/healthConnect';
+import { addDays, toDateKey } from '@/lib/date';
 import { inRange, Limit, LIMITS } from '@/lib/limits';
 import { uuid5 } from '@/lib/uuid5';
 import * as hc from './client';
@@ -30,8 +31,17 @@ type Upsert = { kind: 'upsert'; record: HealthConnectRecordResult };
 type Removal = { kind: 'delete'; id: string };
 type Event = Upsert | Removal;
 
-/** 型ごとの、読んだ記録を書き込みに変えるもの */
-type Handler = { recordType: RecordType; toBatch: (events: Event[]) => Promise<ImportBatch> };
+type Context = { granted: Set<string>; now: Date };
+
+/**
+ * 型ごとの、読んだ記録を書き込みに変えるもの。
+ * readRange があれば、初めて読むときとトークンが切れたときは、記録を読む代わりにそれを使う（心拍：記録が多いので、日ごとに集計し直す）
+ */
+type Handler = {
+  recordType: RecordType;
+  toBatch: (events: Event[], ctx: Context) => Promise<ImportBatch>;
+  readRange?: (from: Date, to: Date, ctx: Context) => Promise<ImportBatch>;
+};
 
 /** 記録の時刻を、その土地の日付にする（zoneOffset がなければ端末の暦） */
 export function localDate(time: string, zoneOffset?: { totalSeconds: number } | null): string {
@@ -121,6 +131,83 @@ const sleepHandler: Handler = {
   },
 };
 
+/** 心拍の日のまとめの行の ID（日付から決める。どの端末で集計しても同じ行になる） */
+export const heartRateDayId = (date: string) => uuid5(HC_NAMESPACE, `hc-hr-day:${date}`);
+
+/** 心拍の値の範囲（Health Connect の決まりと同じ。サーバーの heart_rate_day も同じ） */
+export const BPM_MIN = 1;
+export const BPM_MAX = 300;
+
+const bpm = (v: number | undefined, has: boolean) => (has && v != null && Number.isFinite(v) && v >= BPM_MIN && v <= BPM_MAX ? v : null);
+
+/** 端末の暦の日の、始まりと終わり（次の日の始まり） */
+function dayRange(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  return { operator: 'between' as const, startTime: new Date(y, m - 1, d).toISOString(), endTime: new Date(y, m - 1, d + 1).toISOString() };
+}
+
+/**
+ * その日の心拍を、Health Connect の集計（aggregateRecord）で出し直す。サンプルそのものは持たない。
+ * 心拍のサンプルも安静時心拍もなければ null（その日の行を消す）
+ */
+export async function heartRateDay(date: string, granted: Set<string>): Promise<HeartRateDayImport | null> {
+  const timeRangeFilter = dayRange(date);
+  let hr = { avg: null as number | null, min: null as number | null, max: null as number | null, samples: 0 };
+  if (granted.has('HeartRate')) {
+    const r = await hc.aggregateRecord({ recordType: 'HeartRate', timeRangeFilter });
+    const samples = Math.round(r.MEASUREMENTS_COUNT ?? 0);
+    hr = { avg: bpm(r.BPM_AVG, samples > 0), min: bpm(r.BPM_MIN, samples > 0), max: bpm(r.BPM_MAX, samples > 0), samples };
+  }
+  let resting: number | null = null;
+  if (granted.has('RestingHeartRate')) {
+    const r = await hc.aggregateRecord({ recordType: 'RestingHeartRate', timeRangeFilter });
+    resting = bpm(r.BPM_AVG, true); // 記録がない日は 0 が返る（範囲の外なので null になる）
+  }
+  if (hr.samples === 0 && resting == null) return null;
+  return { id: heartRateDayId(date), date, restingBpm: resting, avgBpm: hr.avg, minBpm: hr.min, maxBpm: hr.max, samples: hr.samples };
+}
+
+/** 日付の一覧の日を、集計し直して書き込みにする */
+async function heartRateBatch(dates: Iterable<string>, granted: Set<string>): Promise<ImportBatch> {
+  const upserts: HeartRateDayImport[] = [];
+  const deletes: string[] = [];
+  for (const date of [...new Set(dates)].sort()) {
+    const day = await heartRateDay(date, granted);
+    if (day) upserts.push(day); else deletes.push(date);
+  }
+  return { heartRate: { upserts, deletes } };
+}
+
+/** from から to までの、端末の暦の日付 */
+function datesBetween(from: Date, to: Date): string[] {
+  const out: string[] = [];
+  for (let d = toDateKey(from); d <= toDateKey(to); d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+/**
+ * 心拍（HeartRate・RestingHeartRate）：変わった記録の日を集め、その日を集計し直す。
+ * 消えた記録は、どの日のものか分からない（ID しか届かない）ので、過去30日を集計し直す
+ */
+function heartRateHandler(recordType: 'HeartRate' | 'RestingHeartRate'): Handler {
+  return {
+    recordType,
+    async toBatch(events, ctx) {
+      const dates = new Set<string>();
+      for (const e of events) {
+        if (e.kind === 'delete') {
+          for (const d of datesBetween(new Date(ctx.now.getTime() - INITIAL_DAYS * 86_400_000), ctx.now)) dates.add(d);
+          continue;
+        }
+        const r = e.record as { time?: string; startTime?: string; endTime?: string };
+        for (const t of [r.time, r.startTime, r.endTime]) if (t) dates.add(toDateKey(new Date(t)));
+      }
+      return heartRateBatch(dates, ctx.granted);
+    },
+    readRange: (from, to, ctx) => heartRateBatch(datesBetween(from, to), ctx.granted),
+  };
+}
+
 export const HANDLERS: Handler[] = [
   bodyHandler('Weight', {
     column: 'weight_kg', limit: LIMITS.bodyWeight,
@@ -135,6 +222,8 @@ export const HANDLERS: Handler[] = [
     value: (r) => (r as { mass?: { inKilograms?: number } }).mass?.inKilograms,
   }),
   sleepHandler,
+  heartRateHandler('HeartRate'),
+  heartRateHandler('RestingHeartRate'),
 ];
 
 /** 型の記録を、from から今まで全ページ読む */
@@ -172,13 +261,19 @@ export async function importHealthConnect(store: HealthConnectStore, now: () => 
     const type = handler.recordType;
     if (!granted.has(type)) continue;
     const startedAt = now();
+    const ctx: Context = { granted, now: startedAt };
     const meta = { [HC_META.readAt(type)]: startedAt.toISOString() };
+    // 全部を読む（初めて・トークンが切れた）：先にトークンを取ってから読む
+    const readAll = async (from: Date): Promise<ImportBatch> => (handler.readRange
+      ? handler.readRange(from, startedAt, ctx)
+      : handler.toBatch(await readSince(type, from, startedAt), ctx));
     let token = await store.getMeta(HC_META.token(type));
-    let events: Event[] = [];
+    let batch: ImportBatch | null = null;
     if (token == null) {
       token = await freshToken(type);
-      events = await readSince(type, new Date(startedAt.getTime() - INITIAL_DAYS * 86_400_000), startedAt);
+      batch = await readAll(new Date(startedAt.getTime() - INITIAL_DAYS * 86_400_000));
     } else {
+      const events: Event[] = [];
       for (;;) {
         const page = await hc.getChanges({ changesToken: token });
         if (page.changesTokenExpired) {
@@ -186,7 +281,7 @@ export async function importHealthConnect(store: HealthConnectStore, now: () => 
           const readAt = await store.getMeta(HC_META.readAt(type));
           const from = readAt ? new Date(readAt) : new Date(startedAt.getTime() - INITIAL_DAYS * 86_400_000);
           token = await freshToken(type);
-          events = await readSince(type, from, startedAt);
+          batch = await readAll(from);
           break;
         }
         for (const c of page.upsertionChanges) events.push({ kind: 'upsert', record: c.record });
@@ -194,8 +289,9 @@ export async function importHealthConnect(store: HealthConnectStore, now: () => 
         token = page.nextChangesToken;
         if (!page.hasMore) break;
       }
+      batch ??= await handler.toBatch(events, ctx);
     }
-    written += await store.write(await handler.toBatch(events), { ...meta, [HC_META.token(type)]: token });
+    written += await store.write(batch, { ...meta, [HC_META.token(type)]: token });
     types.push(type);
   }
   await store.setMeta(HC_META.lastImportAt, now().toISOString());

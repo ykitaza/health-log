@@ -111,6 +111,12 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
     assert [c["origin"] for c in sleeps] == ["import"]
     state = engine.doc("alice", "sleep_session", sleeps[0]["entity_id"]).own.view()
     assert (state["deleted"], state["fields"]["date"], state["fields"]["asleep_min"]) == (False, "2026-11-08", 420)
+    # 心拍の日のまとめ（サンプルそのものは送らない）
+    hearts = [c for p in pushes for c in p["changes"] if c["entity_type"] == "heart_rate_day"]
+    assert [(c["origin"], set(c["fields"])) for c in hearts] == [
+        ("import", {"date", "resting_bpm", "avg_bpm", "min_bpm", "max_bpm", "samples"})]
+    state = engine.doc("alice", "heart_rate_day", hearts[0]["entity_id"]).own.view()
+    assert state["fields"] == {"date": "2026-11-07", "resting_bpm": 54, "avg_bpm": 94, "min_bpm": 62, "max_bpm": 131, "samples": 3}
 
 
 def normalize(value, ids: dict):

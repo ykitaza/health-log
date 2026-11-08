@@ -3,7 +3,8 @@
 範囲はアプリの apps/mobile/lib/limits.ts に合わせる（アプリで通った記録を、同期で断らないように）。
 名前の長さは、アプリが書記素（絵文字も1文字）で40文字までにしているので、ここではコードポイントで200までにする。
 scope は torelog-api/training.read・training.write。
-睡眠（sleep_session）は、アプリが Health Connect から取り込んだものだけ（手入力はない。origin は import）。
+睡眠（sleep_session）と心拍の日のまとめ（heart_rate_day）は、アプリが Health Connect から取り込んだものだけ
+（手入力はない。origin は import）。心拍のサンプルそのものは受け取らない。
 """
 
 from __future__ import annotations
@@ -76,6 +77,18 @@ class SleepSessionFields(FieldsModel):
     origin_package: Annotated[str, Field(max_length=200)] | None = None
 
 
+Bpm = Annotated[float, Field(ge=1, le=300)]  # 拍/分（Health Connect の範囲。アプリの BPM_MIN・BPM_MAX）
+
+
+class HeartRateDayFields(FieldsModel):
+    date: Day = None  # 端末の暦の日付。ID は日付から決める（アプリの heartRateDayId）
+    resting_bpm: Bpm | None = None
+    avg_bpm: Bpm | None = None  # その日のサンプルの平均・最低・最高（サンプルがなければ null）
+    min_bpm: Bpm | None = None
+    max_bpm: Bpm | None = None
+    samples: Annotated[int, Field(ge=0, le=1000000)] = None  # その日のサンプルの数
+
+
 class SettingFields(FieldsModel):
     value: Annotated[str, Field(max_length=1000)] | None = None
 
@@ -91,3 +104,4 @@ def register(registry: Registry) -> None:
     registry.register("setting", EntitySpec(SettingFields, ("value",), AREA))
     registry.register("sleep_session", EntitySpec(
         SleepSessionFields, ("date", "start_at", "end_at", "asleep_min", "awake_min", "source"), AREA))
+    registry.register("heart_rate_day", EntitySpec(HeartRateDayFields, ("date", "samples"), AREA))

@@ -56,7 +56,22 @@ export function createFakeHealthConnect() {
       const page = all.slice(start, start + PAGE);
       return { records: page, pageToken: start + PAGE < all.length ? String(start + PAGE) : undefined };
     },
-    async aggregateRecord(): Promise<never> { throw new Error('偽の Health Connect：aggregateRecord はテストで差し替える'); },
+    /** 心拍の集計（本物と同じく、記録がなければ 0 を返す） */
+    async aggregateRecord(req: { recordType: string; timeRangeFilter: { startTime: string; endTime: string } }) {
+      calls.push({ fn: 'aggregateRecord', args: [req] });
+      const { startTime, endTime } = req.timeRangeFilter;
+      const inRange = (t: string) => t >= startTime && t < endTime;
+      const all = [...records.values()].filter((r) => r.recordType === req.recordType);
+      const values = req.recordType === 'HeartRate'
+        ? all.flatMap((r) => (r.samples as { time: string; beatsPerMinute: number }[]).filter((s) => inRange(s.time)).map((s) => s.beatsPerMinute))
+        : all.filter((r) => inRange(r.time!)).map((r) => r.beatsPerMinute as number);
+      const avg = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+      return {
+        BPM_AVG: avg, BPM_MIN: values.length ? Math.min(...values) : 0, BPM_MAX: values.length ? Math.max(...values) : 0,
+        ...(req.recordType === 'HeartRate' ? { MEASUREMENTS_COUNT: values.length } : {}),
+        dataOrigins: values.length ? ['com.example.watch'] : [],
+      };
+    },
   };
 
   return {
@@ -111,4 +126,15 @@ export const sleep = (id: string, startTime: string, endTime: string, stages: [s
   recordType: 'SleepSession', startTime, endTime, startZoneOffset: JST, endZoneOffset: JST,
   stages: stages.map(([s, e, stage]) => ({ startTime: s, endTime: e, stage })),
   metadata: { id, dataOrigin: 'com.example.watch' },
+});
+
+/** 心拍の記録（samples は [時刻, 拍/分]） */
+export const heartRate = (id: string, samples: [string, number][]): Rec => ({
+  recordType: 'HeartRate', startTime: samples[0][0], endTime: samples[samples.length - 1][0], startZoneOffset: JST, endZoneOffset: JST,
+  samples: samples.map(([time, beatsPerMinute]) => ({ time, beatsPerMinute })),
+  metadata: { id, dataOrigin: 'com.example.watch' },
+});
+
+export const restingHeartRate = (id: string, time: string, beatsPerMinute: number): Rec => ({
+  recordType: 'RestingHeartRate', time, zoneOffset: JST, beatsPerMinute, metadata: { id, dataOrigin: 'com.example.watch' },
 });

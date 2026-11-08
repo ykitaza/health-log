@@ -220,6 +220,27 @@ CREATE INDEX sleep_sessions_date ON sleep_sessions (date);
       for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'sleep_sessions')) await db.execAsync(triggerSql(spec));
     },
   },
+  {
+    // 心拍の1日のまとめ（Health Connect の HeartRate と RestingHeartRate を、その日について集計したもの）。サンプルは持たない。
+    // id は日付から決める（lib/healthConnect/importer.ts の heartRateDayId）。date は端末の暦の日付。
+    // samples はその日のサンプルの数。安静時心拍しかない日は、avg・min・max が NULL で samples が 0
+    version: 6,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE heart_rate_days (
+  id TEXT PRIMARY KEY NOT NULL,
+  date TEXT NOT NULL,
+  resting_bpm REAL,
+  avg_bpm REAL,
+  min_bpm REAL,
+  max_bpm REAL,
+  samples INTEGER NOT NULL,${SYNC_COLUMNS}
+);
+CREATE INDEX heart_rate_days_date ON heart_rate_days (date);
+`);
+      for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'heart_rate_days')) await db.execAsync(triggerSql(spec));
+    },
+  },
 ];
 
 /** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
@@ -283,7 +304,7 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, wit
         if (Object.keys(changed).length > 0) await add(spec.type, id, 'update', changed, row.updated_at as string);
         if (row.deleted_at) await add(spec.type, id, 'delete', null, row.deleted_at as string);
       } else if (!row.deleted_at) {
-        const imported = spec.imported && values[spec.imported.column] === spec.imported.equals;
+        const imported = spec.imported === 'always' || (spec.imported && values[spec.imported.column] === spec.imported.equals);
         await add(spec.type, id, 'create', values, row.updated_at as string, (row.parent_id as string | undefined) ?? null,
           imported ? 'import' : 'app');
       }

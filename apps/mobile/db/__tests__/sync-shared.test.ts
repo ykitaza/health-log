@@ -10,7 +10,7 @@ import { SEED_EXERCISES } from '../seed';
 import { SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Bind } from '../types';
 import { importHealthConnect } from '@/lib/healthConnect/importer';
-import { fakeHealthConnect as hc, sleep, weight } from '@/test-utils/fakeHealthConnect';
+import { fakeHealthConnect as hc, heartRate, restingHeartRate, sleep, weight } from '@/test-utils/fakeHealthConnect';
 import { createFakeSyncServer, Origin } from '@/test-utils/fakeSyncServer';
 import { Device, device } from '@/test-utils/syncHarness';
 
@@ -137,6 +137,9 @@ async function appPushes() {
   hc.put(weight('hc-w1', '2026-11-06T22:00:00Z', 70.1));
   hc.put(weight('hc-w2', '2026-11-08T03:30:00Z', 69.9));
   hc.put(sleep('hc-s1', '2026-11-07T14:40:00Z', '2026-11-07T21:55:00Z', [['2026-11-07T18:00:00Z', '2026-11-07T18:15:00Z', 1]]));
+  // 心拍：11/7 のサンプル3つと安静時心拍（日のまとめだけを送る。日付は端末の暦なので、どの時差でも同じ日になる時刻にする）
+  hc.put(heartRate('hc-h1', [['2026-11-07T03:00:00Z', 62], ['2026-11-07T03:10:00Z', 88], ['2026-11-07T09:00:00Z', 131]]));
+  hc.put(restingHeartRate('hc-r1', '2026-11-07T01:00:00Z', 54));
   await importHealthConnect(healthConnectStore(d.db, d.deps), d.deps.now);
   expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   return server.requests.filter((q) => q.method === 'POST').map((q) => {
@@ -150,7 +153,7 @@ describe('app_push.json：アプリが送る本文（サーバーの pytest が�
     const pushes = await appPushes();
     if (process.env.UPDATE_TESTDATA) {
       fs.writeFileSync(path.join(DIR, 'app_push.json'), `${JSON.stringify({
-        description: 'アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
+        description: 'アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめを送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
           + 'services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);

@@ -13,7 +13,7 @@ import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
-import { formatClock, formatMinutes } from '@/lib/health';
+import { formatClock, formatHeartRate, formatMinutes } from '@/lib/health';
 import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -34,8 +34,10 @@ const FIELD_LIMITS: Record<Field, Limit> = {
 export default function BodyScreen() {
   const [date, setDate] = useState(todayKey);
   const { data, reload, repos } = useFocusData(async (r) => {
-    const [daily, settings, sleep] = await Promise.all([r.body.listDaily(), r.settings.get(), r.health.sleepDay(date)]);
-    return { daily, settings, sleep };
+    const [daily, settings, sleep, heart] = await Promise.all([
+      r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date),
+    ]);
+    return { daily, settings, sleep, heart };
   }, date);
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
@@ -181,17 +183,25 @@ export default function BodyScreen() {
       </Card>
       {error && <T size={12} color={colors.danger} style={{ marginTop: 6 }}>{error}</T>}
 
-      {data?.sleep && (
+      {(data?.sleep || data?.heart) && (
         <Card style={{ marginTop: 12, paddingVertical: 12, gap: 6 }}>
           <T size={12} color={colors.sub}>Health Connect から取り込み</T>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="sleep-day">
-            <T size={15} color={colors.sub} style={{ width: 52 }}>睡眠</T>
-            <T num bold size={20}>{formatMinutes(data.sleep.asleepMin)}</T>
-            <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>
-              {formatClock(data.sleep.mainStartAt)}〜{formatClock(data.sleep.mainEndAt)}
-              {data.sleep.sessions > 1 ? `ほか${data.sleep.sessions - 1}回` : ''}
-            </T>
-          </View>
+          {data.sleep && (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="sleep-day">
+              <T size={15} color={colors.sub} style={{ width: 52 }}>睡眠</T>
+              <T num bold size={20}>{formatMinutes(data.sleep.asleepMin)}</T>
+              <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>
+                {formatClock(data.sleep.mainStartAt)}〜{formatClock(data.sleep.mainEndAt)}
+                {data.sleep.sessions > 1 ? `ほか${data.sleep.sessions - 1}回` : ''}
+              </T>
+            </View>
+          )}
+          {data.heart && (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="heart-day">
+              <T size={15} color={colors.sub} style={{ width: 52 }}>心拍</T>
+              <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>{formatHeartRate(data.heart)}</T>
+            </View>
+          )}
         </Card>
       )}
 

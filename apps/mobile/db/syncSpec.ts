@@ -10,7 +10,7 @@ import type { Bind } from './types';
 export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
-  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session';
+  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day';
 
 export type EntitySpec = {
   type: SyncType;
@@ -28,9 +28,9 @@ export type EntitySpec = {
   parent?: { column: string; table: string };
   /**
    * Health Connect から取り込む行の見分け方（ログインの前の記録を outbox に積むときに、origin を 'import' にする）。
-   * column の値が equals の行が取り込み
+   * column の値が equals の行が取り込み。'always' はどの行も取り込み
    */
-  imported?: { column: string; equals: string };
+  imported?: { column: string; equals: string } | 'always';
 };
 
 /** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類） */
@@ -110,7 +110,7 @@ export const MEAL_ENTITIES: EntitySpec[] = [
 ];
 
 /**
- * Health Connect から取り込むもの（版5で睡眠）。サーバーの筋トレの種類（training.*）として同期する。
+ * Health Connect から取り込むもの（版5で睡眠、版6で心拍の日のまとめ）。サーバーの筋トレの種類（training.*）として同期する。
  * どれも取り込みだけで作る（手入力はない）
  */
 export const HEALTH_ENTITIES: EntitySpec[] = [
@@ -122,6 +122,13 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
     },
     required: ['date', 'start_at', 'end_at', 'asleep_min', 'awake_min', 'source'],
     imported: { column: 'source', equals: 'health_connect' },
+  },
+  {
+    // 心拍の1日のまとめ（版6）。source の列はなく、どの行も取り込み
+    type: 'heart_rate_day', table: 'heart_rate_days',
+    columns: { date: 'text', resting_bpm: 'real', avg_bpm: 'real', min_bpm: 'real', max_bpm: 'real', samples: 'int' },
+    required: ['date', 'samples'],
+    imported: 'always',
   },
 ];
 
