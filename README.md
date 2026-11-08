@@ -89,10 +89,10 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 - 入口は API Gateway の HTTP API だけで、どれにも流量の制限を付けています（認可API と MCP は1秒1回・瞬間5回、スマホアプリ用の API は1秒10回・瞬間20回）
 - スマホアプリ（トレログ）とは、変更の記録を送り合って同期します。MCP からの変更も同じ記録を通るので、アプリにも届きます（[同期の設計](docs/sync-design.md)、[アプリ用の API](docs/api/app-api.yaml)）
-- 認可API が Cognito でログインさせ、同意を得てから、この MCP サーバーだけに使えるアクセストークンを出します
+- 認可API が Cognito でログインさせ、同意を得てから、この MCP サーバーだけに使えるアクセストークンを出します。ログインはパスキーで、パスワードはパスキーを作るときだけ使います（[パスキー](docs/design.md#パスキー)）
 - 怪しいアクセスや異常（4xx・5xx・429 の急増、ルートや MFA なしのログイン、IAM・Cognito の変更など）を検知してメールで知らせます（[監視](docs/monitoring.md)）
-- スマホのアプリは、今は AWS とつながらず、端末の中だけで動きます
-- ログインからツールの呼び出しまでの流れは [シーケンス図](docs/sequence.md)、設計の考え方は [全体の設計](docs/design.md) と [食事記録の設計](docs/meals-design.md) にあります
+- スマホのアプリは、今は AWS とつながらず、端末の中だけで動きます。アプリ用の API と同期の仕組みはデプロイ済みで、アプリのログインと同期は次の段階で足します（[筋トレのアプリとの関係](docs/design.md#筋トレのアプリとの関係)）
+- ログインからツールの呼び出しまでの流れと、アプリの同期の流れは [シーケンス図](docs/sequence.md)、設計の考え方は [全体の設計](docs/design.md) と [食事記録の設計](docs/meals-design.md) にあります
 
 図の元は `docs/architecture.drawio` です。直したら、draw.io のデスクトップ版の CLI で SVG を書き出し直します（図を埋め込むので、SVG も draw.io で開けます）。
 
@@ -122,10 +122,12 @@ cd cdk && npx cdk bootstrap aws://<アカウント ID>/ap-northeast-1 aws://<ア
 
 ```sh
 cd cdk && ./build-lambda.sh && npx cdk deploy --all
-../services/authorization/setup-local.sh   # ログインに使うユーザー（test1@example.com）を作る
+../services/authorization/setup-local.sh   # services/authorization/.env を書き、ユーザー（test1@example.com）がなければ作る
 ```
 
-パスワードは `services/authorization/.test1-password` に保存されます（画面には出しません）。
+初めてのときは、`setup-local.sh` がユーザーを作り、パスワードを `services/authorization/.test1-password` に保存します（画面には出しません）。
+続けて、そのユーザーのパスキーを作り、パスワードを捨てます（[パスキーを作る手順](docs/design.md#パスキーを作る手順)）。
+パスキーをなくしたときも、同じ手順で作り直します。
 
 すでにデプロイしてあって、同期の仕組みを入れる前の記録があるときは、**デプロイの前に**移行のスクリプトを動かします（[今あるデータの移行](docs/sync-design.md#今あるデータの移行)）。
 
@@ -138,7 +140,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 - Claude：「設定 → コネクタ → カスタムコネクタを追加」に URL を入れます。OAuth クライアントは「Claude の公開アイデンティティを使用」のままにします
 - ChatGPT：開発者モードでアプリを作成し、URL を入れて認証方式に OAuth を選びます
 
-登録するとログイン画面が開くので、上のユーザーでログインし、同意画面で「許可する」を押します。
+登録するとログイン画面が開くので、上のユーザーで「パスキーでサインイン」を選んでログインし、同意画面で「許可する」を押します。
 
 **筋トレのツールを足す前につないだコネクタは、同意し直すまで筋トレのツールが使えません**（「許可がありません」と返ります。食事のツールはそのまま使えます）。
 アクセストークンとリフレッシュトークンは、同意したときの scope（`meals:read`・`meals:write`）のままだからです。
@@ -151,7 +153,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 (cd services/mcp && PYTHONPATH=../meals uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals から読む）
 ```
 
-先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。
+先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。`setup-local.sh` は、ユーザー `test1@example.com` がなければ作るので、`.env` だけが要るときも作られます。
 署名鍵とセッションの秘密は、初めて起動したときに `services/authorization/` に作られます（`.gitignore` 済み）。
 
 スマホのアプリの動かし方は [apps/mobile/README.md](apps/mobile/README.md) にあります。
@@ -170,9 +172,14 @@ PR と main への push では、GitHub Actions（`.github/workflows/test.yml`�
 ### 片付け
 
 `cdk destroy --all` で3つのスタックを消します。
-ユーザープールと DynamoDB のテーブルは、削除の保護を付け、`cdk destroy` でも残るようにしています（記録を守るため）。
-消すときは、先にコンソールで削除の保護を外してから、それぞれを消します。
-CloudTrail の証跡のバケットも、スタックを消しても残します（[監視の片付け](docs/monitoring.md#片付け)）。
+次のものは、スタックを消しても残ります。
+
+| 残るもの | 理由 | 消し方 |
+|---|---|---|
+| Cognito のユーザープール（`cognito-study`） | 削除の保護と RETAIN。ユーザーが消えると `sub` が変わり、記録がたどれなくなるため | コンソールで削除の保護を外してから消す |
+| DynamoDB の `MealsTable`（記録）と `StateTable`（ログインの途中の状態、リフレッシュトークン） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
+| CloudTrail の証跡のバケット | RETAIN。証拠として残すため | 中身を消してから消す（[監視の片付け](docs/monitoring.md#片付け)） |
+| SSM パラメータ（署名鍵とセッションの秘密） | 認可API が初回の起動で作り、スタックの外にあるため | 下のコマンド |
 
 ```sh
 cd cdk && npx cdk destroy --all

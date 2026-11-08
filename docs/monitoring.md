@@ -57,13 +57,13 @@
 | 通知 | 見るもの |
 |---|---|
 | API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
-| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...` |
+| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API） |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail の操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
 Logs Insights のクエリの例です（CloudWatch → Logs Insights で、ロググループを選んで実行します）。
 
-送信元 IP と path ごとの 4xx（アクセスログを2つとも選ぶ）：
+送信元 IP と path ごとの 4xx（アクセスログを3つとも選ぶ）：
 
 ```
 fields @timestamp, sourceIp, method, path, status, userAgent
@@ -73,7 +73,7 @@ fields @timestamp, sourceIp, method, path, status, userAgent
 | limit 50
 ```
 
-どの API で増えたか（アクセスログを2つとも選ぶ）：
+どの API で増えたか（アクセスログを3つとも選ぶ）：
 
 ```
 stats count(*) as n by @log, bin(10m)

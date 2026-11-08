@@ -69,10 +69,13 @@ Cronometer は写真日記（ノートへの添付）を AI 記録と別の機�
 
 ### ポート
 
-`MealRepository`、`MealTemplateRepository`、`GoalRepository`、`DayTypeRepository`、`WeightRepository`、`EaterResolver`。
+`MealRepository`、`MealTemplateRepository`、`GoalRepository`、`DayTypeRepository`、`WeightRepository`、`EaterResolver`、`TrainingDayProvider`（筋トレの日。実装は MCP の組み立てが筋トレの読み取りから作る。[design.md](design.md#mcp-サーバーの組み立て)）。
+リポジトリの実装は、同期の仕組みの上に作ったもの（`infrastructure/sync_repositories.py`）を使います。体重（`WeightRepository`）だけは、体組成に一本化するまで今の項目（`WEIGHT#`）のままです（`infrastructure/dynamodb_repositories.py`）。
 今は入れていませんが、あとで `FoodDatabase`（検証済みの食品データとの照合）を足せる形にしています。
 
 ## ツール（MCP）
+
+食事のツールは17個で、`presentation/mcp_server.py` の `register_meal_tools` で登録します。1つのコネクタには、これに筋トレの11個（[README](../README.md#できること)）と `logout` を足した29個が並びます。
 
 | ツール | 内容 |
 |---|---|

@@ -4,7 +4,7 @@ AWS の構成を CDK（TypeScript）で書いています。スタックは3つ�
 
 | スタック | リージョン | ファイル | 中身 |
 |---|---|---|---|
-| `CognitoStudy` | ap-northeast-1 | `lib/infra-stack.ts` | Cognito、認可API と食事記録の API Gateway・Lambda・DynamoDB、SSM パラメータ |
+| `CognitoStudy` | ap-northeast-1 | `lib/infra-stack.ts` | Cognito（パスキー、認可API 用とアプリ用のクライアント）、認可API・MCP サーバー・アプリ用の API の API Gateway・Lambda、DynamoDB 2つ、SSM パラメータ |
 | `CognitoStudyMonitoring` | ap-northeast-1 | `lib/monitoring-stack.ts` | 監視（アラーム、CloudTrail、EventBridge、SNS）。[監視](../docs/monitoring.md) |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | `lib/monitoring-stack.ts` | IAM の操作を東京に転送する EventBridge のルール |
 
@@ -16,7 +16,7 @@ AWS の構成を CDK（TypeScript）で書いています。スタックは3つ�
 npm ci
 npx tsc --noEmit                  # 型チェック
 npm test                          # jest（test/）。テンプレートの中身を確かめる
-./build-lambda.sh                 # Lambda に載せるもの（services/ の2つ）を build/ にまとめる。デプロイの前に実行する
+./build-lambda.sh                 # Lambda に載せるもの（authorization・mcp・app_api の3つ）を build/ にまとめる。デプロイの前に実行する
 npx cdk diff --all                # デプロイ済みのものとの差
 npx cdk deploy --all              # 3つのスタックをデプロイする
 ```

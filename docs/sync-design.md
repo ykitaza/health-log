@@ -2,6 +2,7 @@
 
 スマホアプリ（トレログ）と MCP（Claude・ChatGPT）が、同じ記録を読み書きするための仕組みです。
 API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
+サーバーの側（アプリ用の API、同期の仕組み、MCP からの書き込み）はデプロイ済みです。アプリの側（ログインと同期）は、次の段階で入れます。流れは [シーケンス図](sequence.md#アプリの同期) にあります。
 
 ## 方針
 
@@ -114,7 +115,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## DynamoDB のキー
 
-利用者ごとに pk を分け、どの読み書きも本人の項目にしか届かないようにします（pk の値は、下の「決めること」の1で決まります）。
+利用者ごとに pk を分け、どの読み書きも本人の項目にしか届かないようにします（pk の値は、下の「決めたこと」の1のとおり、今の `EATER#<sub>` です）。
 
 | sk | 中身 |
 |---|---|
@@ -142,6 +143,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 今の食事・いつもの・目標・日の種類（`MEAL#`・`TEMPLATE#`・`GOAL`・`DAYTYPE#`）には、変更の記録がありません。
 移行のスクリプト（`services/meals/scripts/migrate_to_sync.py`）で、1件ずつ `create` の変更に変えて書きます。Lambda には載せません。
+本番のテーブルは、2026-11-08 に移行を済ませています。この節の手順は、同期の仕組みを入れる前のデータが残っている環境に、デプロイし直すときのためのものです。
 
 - `origin` は `migration`、`changed_at` はスクリプトを動かした時刻です
 - `change_id` は `uuid5(移行の名前空間, pk + sk + 中身のハッシュ + 何番目か)` にします。何度動かしても、中身が同じものは `duplicate` になります
