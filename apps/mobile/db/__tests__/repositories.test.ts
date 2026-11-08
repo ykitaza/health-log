@@ -217,6 +217,39 @@ describe('筋トレの記録', () => {
   });
 });
 
+describe('並び順が同じとき（同期でほかの端末の記録が入ったときなど）は、ID の順に並べる（サーバーと同じ）', () => {
+  // 種目は (date, sort_order, id)、セットは (set_index, id)。ID の順と逆に足して、足した順に頼っていないことを確かめる
+  async function sameOrder() {
+    const { db, r } = await setup();
+    const now = '2026-11-08T00:00:00.000Z';
+    const entry = (id: string, exerciseId: string) => db.raw.prepare(
+      'INSERT INTO workout_entries (id, date, exercise_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)',
+    ).run(id, '2026-11-08', exerciseId, now, now);
+    const set = (id: string, entryId: string, reps: number) => db.raw.prepare(
+      'INSERT INTO workout_sets (id, entry_id, set_index, weight_kg, reps, memo, done, created_at, updated_at) VALUES (?, ?, 0, 50, ?, \'\', 1, ?, ?)',
+    ).run(id, entryId, reps, now, now);
+    entry('e-b', SQUAT);
+    entry('e-a', BENCH);
+    set('s-b', 'e-a', 2);
+    set('s-a', 'e-a', 1);
+    set('s-c', 'e-b', 3);
+    return r;
+  }
+
+  test('その日の記録と、種目のセット', async () => {
+    const r = await sameOrder();
+    const day = await r.workouts.getDay('2026-11-08');
+    expect(day.map((e) => e.id)).toEqual(['e-a', 'e-b']);
+    expect(day[0].sets.map((s) => s.id)).toEqual(['s-a', 's-b']);
+  });
+
+  test('集計と CSV', async () => {
+    const r = await sameOrder();
+    expect((await r.workouts.allSetRows()).map((s) => s.reps)).toEqual([1, 2, 3]);
+    expect((await r.workouts.exportRows()).map((s) => s.reps)).toEqual([1, 2, 3]);
+  });
+});
+
 describe('体組成', () => {
   test('手入力は1日1件を書き換え、null で項目を消せる', async () => {
     const { r, db, deps } = await setup();
