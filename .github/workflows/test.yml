@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # 初期の権限はなし。ジョブごとに必要なものだけを与える
 permissions: {}
@@ -14,8 +15,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # PR で変わったパスを調べて、関係するジョブだけを動かす。main への push と手で起動したときは全部を動かす。
+  # ワークフローの on.paths で絞ると、必須のチェックが出ずに PR をマージできなくなるので使わない。
+  # 飛ばしたジョブ（skipped）は、必須のチェックを満たした扱いになる
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      # PR の変わったファイルを API で読む（checkout はしない）
+      pull-requests: read
+    outputs:
+      all: ${{ github.event_name != 'pull_request' }}
+      # 変わったものに当たったフィルターの名前の JSON の配列（例 ["meals","sync"]）
+      filters: ${{ steps.filter.outputs.changes || '[]' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          # python の各サービスは、自分のフォルダと、依存するもの（pyproject.toml の path の依存と pythonpath）で動かす。
+          # testdata/ はサーバーの計算（training）と突き合わせているので、training とそれに依存するものも動かす。
+          # どのフィルターにも、このワークフロー自身を入れる
+          filters: |
+            workflow: &workflow
+              - .github/workflows/test.yml
+            authorization:
+              - *workflow
+              - services/authorization/**
+            sync:
+              - *workflow
+              - services/sync/**
+            meals:
+              - *workflow
+              - services/meals/**
+              - services/sync/**
+            training:
+              - *workflow
+              - services/training/**
+              - services/sync/**
+              - testdata/**
+            app_api:
+              - *workflow
+              - services/app_api/**
+              - services/meals/**
+              - services/training/**
+              - services/sync/**
+              - services/composition/**
+              - testdata/**
+            mcp:
+              - *workflow
+              - services/mcp/**
+              - services/meals/**
+              - services/training/**
+              - services/sync/**
+              - services/composition/**
+              - testdata/**
+            # Lambda に入るコード（cdk/build-lambda.sh が services/ からコピーする）も含める
+            cdk:
+              - *workflow
+              - cdk/**
+              - services/**
+            mobile:
+              - *workflow
+              - apps/mobile/**
+              - testdata/**
+
   python:
     name: python (${{ matrix.service }})
+    needs: changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,23 +89,37 @@ jobs:
       fail-fast: false
       matrix:
         service: [authorization, meals, sync, training, app_api, mcp]
+    env:
+      RUN: ${{ needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), matrix.service) }}
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
     steps:
+      # ジョブの if では matrix を使えないので、ステップごとに飛ばす（ジョブは成功になり、必須のチェックを満たす）
+      - name: Skip if unchanged
+        if: env.RUN != 'true'
+        # checkout をしないので、services/ のフォルダはない
+        working-directory: ${{ github.workspace }}
+        run: echo "services/${{ matrix.service }} とその依存は変わっていないので、テストを飛ばす"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RUN == 'true'
         with:
           persist-credentials: false
       # Python の版は、各フォルダの .python-version を uv が読む
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: env.RUN == 'true'
         with:
           working-directory: services/${{ matrix.service }}
           enable-cache: true
           cache-dependency-glob: services/${{ matrix.service }}/uv.lock
       - run: uv sync --locked
+        if: env.RUN == 'true'
       - run: uv run pytest
+        if: env.RUN == 'true'
 
   cdk:
+    needs: changes
+    if: needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), 'cdk')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,6 +140,8 @@ jobs:
       - run: npm test
 
   mobile:
+    needs: changes
+    if: needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), 'mobile')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -85,6 +167,8 @@ jobs:
   # 画面の E2E。Expo の web 向けの書き出しを、Pixel と同じ大きさの Chromium で操作する（apps/mobile/e2e/README.md）
   mobile-e2e:
     name: mobile (e2e)
+    needs: changes
+    if: needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), 'mobile')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
