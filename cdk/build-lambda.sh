@@ -23,7 +23,10 @@ for app in authorization meals app_api; do
   out="build/$app"
   rm -rf "$out"
   mkdir -p "$out"
-  (cd "$services/$app" && uv export --frozen --no-dev --no-hashes --no-emit-local --quiet -o "../../cdk/$out/requirements.txt")
+  # requirements.txt の先頭にはコマンドが書かれ、アセットのハッシュに入る。同じリポジトリの依存がない認可API は今までと同じコマンドにする
+  local_deps=''
+  [ "$app" = authorization ] || local_deps='--no-emit-local'
+  (cd "$services/$app" && uv export --frozen --no-dev --no-hashes $local_deps --quiet -o "../../cdk/$out/requirements.txt")
   uv pip install --quiet -r "$out/requirements.txt" --target "$out" \
     --python-platform aarch64-manylinux2014 --python-version 3.12 --only-binary :all:
   copy_sources "$services/$app" "$out"
