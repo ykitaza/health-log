@@ -152,6 +152,34 @@ describe('スマホアプリ用のクライアント', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 2);
   });
 
+  test('ブランディングは hlog のもの（ダークモード、ロゴとファビコン）で、両方のクライアントに同じものが付く', () => {
+    const resources = template.toJSON().Resources as Record<string, any>;
+    const clientIds = Object.entries(resources)
+      .filter(([, r]) => r.Type === 'AWS::Cognito::UserPoolClient')
+      .map(([id, r]) => [r.Properties.ClientName, id]);
+    const brandings = Object.values(resources).filter((r) => r.Type === 'AWS::Cognito::ManagedLoginBranding');
+    // 付くクライアントが torelog-app と authz-api の2つであること
+    const byClient = Object.fromEntries(clientIds.map(([name, id]) =>
+      [name, brandings.find((b) => b.Properties.ClientId?.Ref === id)]));
+    expect(byClient['torelog-app']).toBeDefined();
+    expect(byClient['authz-api']).toBeDefined();
+    const app = byClient['torelog-app'].Properties;
+    const authz = byClient['authz-api'].Properties;
+    expect(app.UseCognitoProvidedValues).toBe(false);
+    expect(app.Settings.categories.global.colorSchemeMode).toBe('DARK');
+    expect(app.Settings.components.pageBackground.darkMode.color).toBe('0e1013ff');
+    expect(app.Settings.components.primaryButton.darkMode.defaults).toEqual(
+      { backgroundColor: '5be49bff', textColor: '08130dff' });
+    expect(app.Assets.map((a: any) => a.Category).sort()).toEqual(['FAVICON_ICO', 'FAVICON_SVG', 'FORM_LOGO']);
+    for (const a of app.Assets) {
+      expect(a.ColorMode).toBe('DARK');
+      expect(a.Bytes.length).toBeLessThanOrEqual(1000000); // AssetType の Bytes の上限
+    }
+    // 両方とも同じ設定と画像
+    expect(authz.Settings).toEqual(app.Settings);
+    expect(authz.Assets).toEqual(app.Assets);
+  });
+
   test('Lambda のロググループは、3つとも CDK が作り、90日残す（論理 ID は今のまま）', () => {
     for (const id of ['AuthzFunctionLogGroup5336A532', 'MealsFunctionLogGroupAA05EA7B', 'AppApiFunctionLogGroupA294EE67']) {
       const logGroup = (template.toJSON().Resources as Record<string, any>)[id];

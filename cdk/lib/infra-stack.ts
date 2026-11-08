@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import * as cdk from 'aws-cdk-lib/core';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
@@ -43,6 +44,82 @@ const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
 // 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
 // 認可APIが書き込める /cognito-study/* の外に置く
 const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
+
+// マネージドログイン（パスキーでログインする画面）の hlog のブランディング。アプリと MCP の接続のログインで同じものを使う。
+// 色はアプリ（apps/mobile/theme/index.ts）と同じで、ダークモードの画面だけにする。文言は Cognito が決めるので変えない。
+// 色は RRGGBBAA の形。ここに書かない項目は Cognito の既定の値のまま。
+// ロゴは apps/mobile/assets/icon-src/icon.svg の写し。ファビコンの ICO は、それを rsvg-convert で 16・32・48px の PNG にして ICO に詰めたもの
+const BRAND = {
+  bg: '0e1013ff', card: '181b20ff', input: '22262dff', line: '2c313aff',
+  text: 'f3f5f7ff', sub: '8c94a1ff', accent: '5be49bff', onAccent: '08130dff',
+  danger: 'f2555aff', dangerBg: '3a1719ff',
+};
+const brandingAsset = (file: string, category: string, extension: string) => ({
+  category, extension, colorMode: 'DARK',
+  bytes: fs.readFileSync(path.join(__dirname, '..', 'assets', 'branding', file)).toString('base64'),
+});
+const LOGIN_BRANDING = {
+  useCognitoProvidedValues: false,
+  assets: [
+    brandingAsset('logo.svg', 'FORM_LOGO', 'SVG'),
+    brandingAsset('logo.svg', 'FAVICON_SVG', 'SVG'),
+    brandingAsset('favicon.ico', 'FAVICON_ICO', 'ICO'),
+  ],
+  settings: {
+    categories: {
+      global: { colorSchemeMode: 'DARK', pageHeader: { enabled: false }, pageFooter: { enabled: false }, spacingDensity: 'REGULAR' },
+    },
+    components: {
+      pageBackground: { image: { enabled: false }, darkMode: { color: BRAND.bg } },
+      form: {
+        darkMode: { backgroundColor: BRAND.card, borderColor: BRAND.line },
+        backgroundImage: { enabled: false },
+        logo: { enabled: true, location: 'CENTER', position: 'TOP', formInclusion: 'IN' },
+      },
+      pageText: { darkMode: { headingColor: BRAND.text, bodyColor: BRAND.text, descriptionColor: BRAND.sub } },
+      primaryButton: {
+        darkMode: {
+          defaults: { backgroundColor: BRAND.accent, textColor: BRAND.onAccent },
+          hover: { backgroundColor: BRAND.accent, textColor: BRAND.onAccent },
+          active: { backgroundColor: BRAND.accent, textColor: BRAND.onAccent },
+          disabled: { backgroundColor: BRAND.input, borderColor: BRAND.line },
+        },
+      },
+      secondaryButton: {
+        darkMode: {
+          defaults: { backgroundColor: BRAND.card, borderColor: BRAND.line, textColor: BRAND.text },
+          hover: { backgroundColor: BRAND.input, borderColor: BRAND.line, textColor: BRAND.text },
+          active: { backgroundColor: BRAND.input, borderColor: BRAND.accent, textColor: BRAND.text },
+        },
+      },
+      alert: { darkMode: { error: { backgroundColor: BRAND.dangerBg, borderColor: BRAND.danger } } },
+      favicon: { enabledTypes: ['ICO', 'SVG'] },
+    },
+    componentClasses: {
+      input: {
+        darkMode: { defaults: { backgroundColor: BRAND.input, borderColor: BRAND.line }, placeholderColor: BRAND.sub },
+      },
+      inputLabel: { darkMode: { textColor: BRAND.text } },
+      inputDescription: { darkMode: { textColor: BRAND.sub } },
+      divider: { darkMode: { borderColor: BRAND.line } },
+      focusState: { darkMode: { borderColor: BRAND.accent } },
+      link: { darkMode: { defaults: { textColor: BRAND.accent }, hover: { textColor: BRAND.accent } } },
+      optionControls: {
+        darkMode: {
+          defaults: { backgroundColor: BRAND.input, borderColor: BRAND.line },
+          selected: { backgroundColor: BRAND.accent, foregroundColor: BRAND.onAccent },
+        },
+      },
+      dropDown: {
+        darkMode: {
+          defaults: { itemBackgroundColor: BRAND.input },
+          hover: { itemBackgroundColor: BRAND.card, itemBorderColor: BRAND.line, itemTextColor: BRAND.text },
+          match: { itemBackgroundColor: BRAND.input, itemTextColor: BRAND.accent },
+        },
+      },
+    },
+  },
+};
 
 export class InfraStack extends cdk.Stack {
   // API の ID（AuthzApi など）→ アクセスログのロググループ名を入れた SSM パラメータの名前。
@@ -270,11 +347,12 @@ export class InfraStack extends cdk.Stack {
       parameterName: COGNITO_CLIENT_ID_PARAM, stringValue: client.userPoolClientId,
     });
 
-    // マネージドログインの画面デザイン（既定のものを使う。これがないとログイン画面が出ない）
+    // マネージドログインの画面デザイン（hlog のブランディング。これがないとログイン画面が出ない）。
+    // MCP（Claude・ChatGPT）の接続のログインは、このクライアントの画面になる
     new cognito.CfnManagedLoginBranding(this, 'Branding', {
       userPoolId: userPool.userPoolId,
       clientId: client.userPoolClientId,
-      useCognitoProvidedValues: true,
+      ...LOGIN_BRANDING,
     });
 
     // ---- スマホアプリ（hlog）のログイン ----
@@ -317,11 +395,11 @@ export class InfraStack extends cdk.Stack {
       preventUserExistenceErrors: true, // ユーザーがいるかどうかを、エラーの違いから知られないようにする
     });
 
-    // アプリのクライアントのログイン画面のデザイン（既定のもの）
+    // アプリのクライアントのログイン画面のデザイン（認可API のクライアントと同じ hlog のブランディング）
     new cognito.CfnManagedLoginBranding(this, 'AppBranding', {
       userPoolId: userPool.userPoolId,
       clientId: appClient.userPoolClientId,
-      useCognitoProvidedValues: true,
+      ...LOGIN_BRANDING,
     });
 
     new ssm.StringParameter(this, 'AppIssuerParam', { parameterName: APP_ISSUER_PARAM, stringValue: cognitoIssuer });
