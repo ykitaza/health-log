@@ -9,24 +9,15 @@ import logging
 import os
 
 from application.goals import GoalService
+from composition.registry import create_registry
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from infrastructure.sync_entities import register as register_meal_entities
 from infrastructure.sync_repositories import SyncDayTypeRepository, SyncGoalRepository
 from presentation.app_routes import meal_routes
 from sync.engine import SyncEngine
 from sync.presentation.http_api import SyncHttpApi
-from sync.registry import Registry
 from sync.store import DynamoDBSyncStore
-from training.main import register_sync_entities as register_training_entities
 
 logging.getLogger().setLevel(logging.INFO)
-
-
-def create_registry() -> Registry:
-    registry = Registry()
-    register_meal_entities(registry)
-    register_training_entities(registry)
-    return registry
 
 
 def create_api(engine: SyncEngine, app_client_id: str) -> SyncHttpApi:

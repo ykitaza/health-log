@@ -96,6 +96,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 | `services/mcp/` | MCP サーバーの組み立て（`main.py`、Lambda の `MealsFunction`）と、MCP の入口の部品（`connector/`） |
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
 | `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
+| `services/composition/` | 組み立ての場所（`services/mcp` と `services/app_api`）が共有するもの。同期で扱う種類の登録（`create_registry`） |
 | `apps/mobile/` | 筋トレのアプリ（トレログ、Expo）。今は端末の SQLite だけで動く（下の「筋トレのアプリとの関係」、[apps/mobile/README.md](../apps/mobile/README.md)） |
 | `testdata/training/` | 筋トレの計算の、入力と期待する結果（サーバーとアプリで共有） |
 | `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |

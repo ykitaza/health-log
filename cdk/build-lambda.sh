@@ -34,7 +34,8 @@ for app in authorization mcp app_api; do
   case "$app" in
     mcp | app_api)
       # 食事と筋トレと同期を載せる。食事はパッケージではないので、層のフォルダだけをコピーする
-      cp -R "$services/sync/sync" "$services/training/training" "$out/"
+      # 組み立ての場所どうしで共有するもの（services/composition）も載せる
+      cp -R "$services/sync/sync" "$services/training/training" "$services/composition/composition" "$out/"
       for layer in application domain infrastructure presentation; do cp -R "$services/meals/$layer" "$out/"; done ;;
   esac
   # PC でテストを動かしたときのキャッシュは載せない（中身が同じでも、アセットのハッシュが変わるため）
