@@ -159,3 +159,29 @@ export async function setBodyInfo(page: Page, info: { height?: string; goal?: st
   if (info.goal !== undefined) await enter(page, '目標体重', info.goal);
   await button(page, '戻る').click();
 }
+
+/**
+ * 入力欄から離れずに（blur を起こさずに）ボタンを押す。Android の ScrollView（keyboardShouldPersistTaps="handled"）では、
+ * 子のボタンを押しても入力欄はフォーカスを失わない。web では押すと先に blur が起きるので、mousedown の既定の動き
+ * （フォーカスを移す）を止めて、Android と同じ順にする。押したあとも入力欄にフォーカスが残っていることを確かめる
+ */
+export async function pressKeepingFocus(target: Locator) {
+  const page = target.page();
+  type W = { __keepFocus?: (e: MouseEvent) => void; __focused?: Element | null };
+  expect(await page.evaluate(() => {
+    const w = window as unknown as W;
+    w.__focused = document.activeElement;
+    w.__keepFocus = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('mousedown', w.__keepFocus, true);
+    return w.__focused?.tagName ?? null;
+  })).toBe('INPUT');
+  try {
+    await target.click();
+  } finally {
+    await page.evaluate(() => {
+      const w = window as unknown as W;
+      if (w.__keepFocus) document.removeEventListener('mousedown', w.__keepFocus, true);
+    });
+  }
+  expect(await page.evaluate(() => document.activeElement === (window as unknown as W).__focused)).toBe(true);
+}

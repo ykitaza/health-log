@@ -38,6 +38,9 @@ export default function BodyScreen() {
   const day = data?.daily.find((d) => d.date === date) ?? null;
   const [texts, setTexts] = useState<Texts>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
   const [error, setError] = useState<string | null>(null);
+  // 打ったが、まだ保存していない欄。Android では、入力中に「前の日」「次の日」を押しても欄を離れない（onBlur が起きない）ため、
+  // 日を変える前に、これを元の日に保存する
+  const editing = useRef(new Set<keyof Texts>());
 
   // その日の保存済みの値を、欄に出す文字にしたもの
   const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
@@ -52,6 +55,7 @@ export default function BodyScreen() {
     shown.current = { date, unit, texts: savedTexts };
     // 日付・単位を変えたときは、すべての欄を埋め直す
     if (!prev || prev.date !== date || prev.unit !== unit) {
+      editing.current.clear();
       setTexts(savedTexts);
       setError(null);
       return;
@@ -66,6 +70,7 @@ export default function BodyScreen() {
   }, [date, unit, JSON.stringify(savedTexts)]);
 
   const commit = async (f: Field) => {
+    editing.current.delete(f);
     const t = texts[f];
     // 出した値のままなら保存しない（lb で出した体重を kg に戻すと、丸めで値が変わるため）
     const saved = day?.[f];
@@ -84,9 +89,18 @@ export default function BodyScreen() {
     reload();
   };
   const commitMemo = async () => {
+    editing.current.delete('memo');
     if (texts.memo.trim() === (day?.memo ?? '')) return;
     await repos.body.saveManual(date, { memo: texts.memo.trim() });
     reload();
+  };
+  // 日を変える。保存していない欄は、先に今の日へ保存する（保存は順に行うので、日を変えたあとに終わっても元の日に入る）
+  const changeDate = (next: string) => {
+    for (const k of [...editing.current]) {
+      if (k === 'memo') commitMemo();
+      else commit(k);
+    }
+    setDate(next);
   };
 
   const height = data?.settings.heightCm ?? null;
@@ -116,9 +130,9 @@ export default function BodyScreen() {
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} />
       </View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
+        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, padding: 0 }}>
@@ -127,7 +141,7 @@ export default function BodyScreen() {
             <T size={15} color={colors.sub} style={{ flex: 1 }}>{f.label}</T>
             <TextInput
               value={texts[f.key]}
-              onChangeText={(t) => setTexts((x) => ({ ...x, [f.key]: t }))}
+              onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
               onBlur={() => commit(f.key)}
               onSubmitEditing={() => commit(f.key)}
               keyboardType="decimal-pad"
@@ -145,7 +159,7 @@ export default function BodyScreen() {
           <Icon name="pencil" size={16} color={colors.sub} />
           <TextInput
             value={texts.memo}
-            onChangeText={(t) => setTexts((x) => ({ ...x, memo: t }))}
+            onChangeText={(t) => { editing.current.add('memo'); setTexts((x) => ({ ...x, memo: t })); }}
             onBlur={commitMemo}
             placeholder="メモ（例：朝・起床後に計測）"
             placeholderTextColor={colors.sub}

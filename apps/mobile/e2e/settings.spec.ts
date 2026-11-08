@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, fillSets, goTab, moveToDate, openApp, openBody, openSettings, recordOn, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -291,6 +291,25 @@ test('身長を入れたまま単位を押しても、身長と単位の両方�
   await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
   await expect(button(page, '5セット')).toHaveAttribute('aria-selected', 'true');
   expect(errors).toEqual([]);
+});
+
+test('欄を離れないまま（Android のように blur が起きずに）単位を押しても、入れた値を前の単位で保存する', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  const height = page.getByRole('textbox', { name: '身長' });
+  const goal = page.getByRole('textbox', { name: '目標体重' });
+  await height.fill('170');
+  await pressKeepingFocus(button(page, 'lb'));
+  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
+  await expect(height).toHaveValue('170');
+  // lb で入れた目標体重は、kg に押し戻す前に lb のまま保存する（150lb = 68.04kg）
+  await goal.fill('150');
+  await pressKeepingFocus(button(page, 'kg'));
+  await expect(button(page, 'kg')).toHaveAttribute('aria-selected', 'true');
+  await expect(goal).toHaveValue('68.04');
+  await page.reload();
+  await expect(height).toHaveValue('170');
+  await expect(goal).toHaveValue('68.04');
 });
 
 test('身長と目標体重の保存が終わる前に単位を変えても、欄は保存したあとの値を出す', async ({ page }) => {
