@@ -94,7 +94,7 @@ export default function BodyScreen() {
       </View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
-        <T bold size={16}>{formatJpDate(date)}{date === today ? '' : ''}</T>
+        <T bold size={16}>{formatJpDate(date)}</T>
         <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
       </Card>
 
