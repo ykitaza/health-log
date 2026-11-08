@@ -180,7 +180,8 @@ def register_training_tools(
     async def list_exercises(include_hidden: bool = False) -> dict:
         """部位と種目の一覧（アプリと同じもの）。記録の前に種目の正しい名前を確かめるときに呼ぶ。
 
-        アプリで隠した種目は、include_hidden を true にすると出る（隠した種目も記録には使える）。
+        隠した種目は、include_hidden を true にすると出る（隠した種目も記録には使える）。
+        名前・部位を変える、隠す・表示に戻すときは update_exercise。
         """
         sub = subject(READ_SCOPE)
         return await synced(sub, views.catalog_view(await queries.catalog(sub), include_hidden))
@@ -235,6 +236,25 @@ def register_training_tools(
         with training_errors():
             exercise = await commands.add_exercise(sub, name, body_part, RecordType(record_type))
         return await synced(sub, views.exercise(exercise, await queries.catalog(sub)))
+
+    @mcp.tool(annotations=WRITE)
+    async def update_exercise(
+        exercise: str,
+        name: str | None = None,
+        body_part: str | None = None,
+        hidden: bool | None = None,
+    ) -> dict:
+        """種目の名前・部位を変える、隠す（hidden=true）・表示に戻す（hidden=false）。変えない項目は省く（アプリにも反映される）。
+
+        exercise は今の名前か exercise_id（隠した種目は list_exercises の include_hidden で調べる）。body_part は部位の名前。
+        記録は種目の ID でつながっているので、過去の記録もそのまま新しい名前で出る。同じ部位に同じ名前の種目は作れない。
+        種目を消すツールはない。使わなくなった種目は、消す代わりに hidden=true で隠す（過去の記録は残り、記録にも使える）。
+        利用者の指示どおりなので、確認なしで呼んでよい。
+        """
+        sub = subject(WRITE_SCOPE)
+        with training_errors():
+            updated = await commands.update_exercise(sub, exercise, name, body_part, hidden)
+        return await synced(sub, views.exercise(updated, await queries.catalog(sub)))
 
     # --- 体組成 ---
 

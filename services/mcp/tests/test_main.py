@@ -89,7 +89,7 @@ def test_食事と筋トレとログアウトのツールが1つのサーバー�
     assert {"record_meal", "today_status", "set_day_type", "weekly_review", "record_weight"} <= names
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body"} <= names
     assert "logout" in names
-    assert len(names) == 17 + 11 + 1
+    assert len(names) == 17 + 12 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):
@@ -106,6 +106,19 @@ def test_筋トレを記録すると_その日の食事の目標が筋トレの�
     assert (before["day_type"], before["target"]["kcal"]) == ("rest", 2400)
     assert (after["day_type"], after["target"]["kcal"]) == ("training", 2800)
     assert chosen["day_type"] == "rest"
+
+
+def test_種目の名前を変えると_過去の記録も新しい名前で出る(server):
+    async def body(client):
+        recorded = data(await client.call_tool("record_workout", {"day": "2026-11-01", "exercises": [
+            {"exercise": "ベンチプレス", "sets": [{"weight_kg": 80, "reps": 8}]}]}))
+        renamed = data(await client.call_tool("update_exercise", {"exercise": "ベンチプレス", "name": "バーベルベンチプレス"}))
+        past = data(await client.call_tool("get_workout", {"day": "2026-11-01"}))
+        return recorded, renamed, past
+
+    recorded, renamed, past = run(server, ALL_SCOPES, body)
+    assert renamed["exercise_id"] == recorded["entries"][0]["exercise_id"] and renamed["name"] == "バーベルベンチプレス"
+    assert past["entries"][0]["exercise"] == "バーベルベンチプレス"
 
 
 def test_体重は体組成に一本化していて_食事と筋トレのどちらのツールで記録しても両方から見える(server):
