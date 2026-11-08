@@ -1,6 +1,6 @@
 import {
   bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart, periodTotals,
-  personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
+  lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
   daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, weeklyVolumes,
 } from '../training';
 
@@ -120,4 +120,32 @@ test('RM計算機の表', () => {
   expect(t).toHaveLength(6);
   expect(t[0]).toEqual({ pct: 95, reps: 2, weight: 95 });
   expect(t[5]).toEqual({ pct: 70, reps: 12, weight: 70 });
+});
+
+describe('過去の日を基準にした「前回」と自己ベスト', () => {
+  const rows = [
+    row('2026-11-01', 80, 8), row('2026-11-01', 85, 5),
+    row('2026-11-03', 70, 10),
+    row('2026-11-08', 100, 5), // 選んだ日より後（今日）の記録
+    row('2026-11-01', 100, 5, 'squat', 'legs'),
+  ];
+
+  test('前回は、選んだ日まで（その日を含む）でいちばん新しい日の、いちばん重いセット', () => {
+    const before = lastTopSets(rows, '2026-11-02');
+    expect(before.get('bench')).toMatchObject({ date: '2026-11-01', top: { weightKg: 85, reps: 5 } });
+    expect(before.get('squat')).toMatchObject({ date: '2026-11-01' });
+    // その日に記録があれば、その日。後の日（11/8）は使わない
+    expect(lastTopSets(rows, '2026-11-03').get('bench')).toMatchObject({ date: '2026-11-03', top: { weightKg: 70 } });
+    expect(lastTopSets(rows, '2026-11-07').get('bench')?.date).toBe('2026-11-03');
+    expect(lastTopSets(rows, '2026-11-08').get('bench')).toMatchObject({ date: '2026-11-08', top: { weightKg: 100 } });
+    expect(lastTopSets(rows, '2026-10-31').size).toBe(0);
+  });
+
+  test('自己ベストは、選んだ日より前だけで出す（後の日の記録は入らない）', () => {
+    // 推定1RM：80×8 = 101.3、85×5 = 99.2、70×10 = 93.3、100×5 = 116.7
+    expect(personalBests(rows, '2026-11-03').get('bench')).toMatchObject({ weightKg: 80, date: '2026-11-01' });
+    expect(personalBests(rows, '2026-11-08').get('bench')?.weightKg).toBe(80);
+    expect(personalBests(rows, '2026-11-01').get('bench')).toBeUndefined();
+    expect(personalBests(rows).get('bench')?.weightKg).toBe(100);
+  });
 });

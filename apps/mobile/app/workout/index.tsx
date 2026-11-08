@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, ConfirmDialog, EmptyState, Header, IconButton, SetNo } from '@/components/ui';
+import { Button, Card, ConfirmDialog, DayNote, EmptyState, Header, IconButton, SetNo } from '@/components/ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
@@ -16,8 +16,9 @@ import { colors } from '@/theme';
 /** 今日（またはその日）のトレーニング。種目は実施した順に並ぶ */
 export default function WorkoutDayScreen() {
   const params = useLocalSearchParams<{ date?: string }>();
-  const date = params.date ?? todayKey();
-  const isToday = date === todayKey();
+  const today = todayKey();
+  const date = params.date ?? today;
+  const isToday = date === today;
   const { data, reload, repos } = useFocusData(async (r) => {
     const [entries, settings] = await Promise.all([r.workouts.getDay(date), r.settings.get()]);
     return { entries, settings };
@@ -38,10 +39,11 @@ export default function WorkoutDayScreen() {
 
   return (
     <Screen
-      footer={<Button label="種目を追加" icon="plus" onPress={() => router.push({ pathname: '/workout/select', params: { date } })} />}
+      footer={<Button label="種目を追加" icon="plus" disabled={date > today} onPress={() => router.push({ pathname: '/workout/select', params: { date } })} />}
     >
       <Header overline={isToday ? '今日のトレーニング' : 'トレーニング'} title={formatJpDate(date)} onBack={() => router.back()} />
-      {data && entries.length === 0 && (
+      <DayNote date={date} today={today} />
+      {data && entries.length === 0 && date <= today && (
         <View style={{ marginTop: 140 }}>
           <EmptyState title="まだ種目がありません" body="下の「＋ 種目を追加」から始めましょう" />
         </View>

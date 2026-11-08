@@ -210,6 +210,21 @@ describe('筋トレの記録', () => {
     expect(await r.workouts.findEntry('2026-11-08', BENCH)).toMatchObject({ id });
   });
 
+  test('過去の日に足すと、その日の記録になり、前回・何種目目はその日を基準にする', async () => {
+    const { r } = await setup();
+    await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: BENCH, sets: [set(80, 8)] });
+    await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: [set(100, 5)] });
+    await r.workouts.saveEntry({ date: '2026-11-03', exerciseId: SQUAT, sets: [set(100, 5)] });
+    // 今日（11/8）に記録したあとで、過去の日（11/3）に足す
+    await r.workouts.saveEntry({ date: '2026-11-03', exerciseId: BENCH, sets: [set(82.5, 6)] });
+
+    expect((await r.workouts.getDay('2026-11-03')).map((e) => [e.exerciseName, e.sortOrder])).toEqual([['スクワット', 0], ['ベンチプレス', 1]]);
+    expect((await r.workouts.getDay('2026-11-08')).map((e) => e.sets[0].weightKg)).toEqual([100]);
+    // 11/3 の「前回」は 11/1（後の 11/8 ではない）
+    expect((await r.workouts.previousEntry(BENCH, '2026-11-03'))?.date).toBe('2026-11-01');
+    expect((await r.workouts.previousEntry(BENCH, '2026-11-08'))?.date).toBe('2026-11-03');
+  });
+
   test('直すと、セットは ID で更新し、外したものは論理削除する', async () => {
     const { r, db } = await setup();
     const id = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: BENCH, sets: [set(80, 8), set(80, 7), set(80, 6)] });

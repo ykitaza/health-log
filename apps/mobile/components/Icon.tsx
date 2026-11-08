@@ -4,7 +4,7 @@ import { colors } from '@/theme';
 export type IconName =
   | 'home' | 'meal' | 'chart' | 'scale' | 'gear' | 'back' | 'chevron' | 'plus' | 'check' | 'pencil'
   | 'star' | 'copy' | 'search' | 'up' | 'down' | 'close' | 'trash' | 'car' | 'bus' | 'plane'
-  | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next';
+  | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next' | 'calendar';
 
 /** 線で描く簡単なアイコン（24 の格子） */
 export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: { name: IconName; size?: number; color?: string; strokeWidth?: number }) {
@@ -33,6 +33,7 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: 
       case 'plane': return <Path {...p} d="M21 15l-8-4V5a1.5 1.5 0 0 0-3 0v6l-8 4v2l8-2v4l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-4l8 2z" />;
       case 'calc': return (<><Rect {...p} x="5" y="3" width="14" height="18" rx="2" /><Path {...p} d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /></>);
       case 'dumbbell': return <Path {...p} d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" />;
+      case 'calendar': return (<><Rect {...p} x="3" y="5" width="18" height="16" rx="2" /><Path {...p} d="M3 10h18M8 3v4M16 3v4" /></>);
       case 'eyeOff': return <Path {...p} d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.2M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6a8.6 8.6 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" />;
     }
   })();

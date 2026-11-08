@@ -5,16 +5,17 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, Chip, ChipRow, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
+import { Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { relativeDays, todayKey } from '@/lib/date';
+import { formatJpDate, lastDoneLabel, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
-import { topSet } from '@/lib/training';
+import { lastTopSets } from '@/lib/training';
 import { colors, fonts } from '@/theme';
 
 /** 種目の選択（検索、部位のチップ、部位ごとの一覧、前回の記録） */
 export default function SelectExerciseScreen() {
-  const { date = todayKey() } = useLocalSearchParams<{ date?: string }>();
+  const today = todayKey();
+  const { date = today } = useLocalSearchParams<{ date?: string }>();
   const [query, setQuery] = useState('');
   const [part, setPart] = useState<string | null>(null);
   const { data, repos } = useFocusData(async (r) => {
@@ -28,19 +29,11 @@ export default function SelectExerciseScreen() {
   const last = useMemo(() => {
     const m = new Map<string, { date: string; text: string }>();
     if (!data) return m;
-    const byEx = new Map<string, { date: string; sets: typeof data.rows }>();
-    for (const r of data.rows) {
-      if (r.date > date) continue;
-      const cur = byEx.get(r.exerciseId);
-      if (!cur || r.date > cur.date) byEx.set(r.exerciseId, { date: r.date, sets: [r] });
-      else if (r.date === cur.date) cur.sets.push(r);
-    }
-    for (const [id, v] of byEx) {
-      const t = topSet(v.sets);
-      if (t) m.set(id, { date: v.date, text: `前回 ${formatSetShort(t.weightKg, t.reps ?? 0, data.settings.weightUnit)} ・ ${relativeDays(v.date, date)}` });
+    for (const [id, v] of lastTopSets(data.rows, date)) {
+      m.set(id, { date: v.date, text: `前回 ${formatSetShort(v.top.weightKg, v.top.reps ?? 0, data.settings.weightUnit)} ・ ${lastDoneLabel(v.date, date, today)}` });
     }
     return m;
-  }, [data, date]);
+  }, [data, date, today]);
 
   const q = query.trim();
   const filtered = (data?.exercises ?? []).filter((e) => (!part || e.bodyPartId === part) && (q === '' || e.name.includes(q)));
@@ -55,6 +48,7 @@ export default function SelectExerciseScreen() {
     <Screen>
       <Header
         title="種目を選ぶ"
+        subtitle={`${date === today ? '今日' : formatJpDate(date)}に記録`}
         onBack={() => router.back()}
         right={
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/exercises/new', params: part ? { bodyPartId: part } : {} })} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -63,6 +57,7 @@ export default function SelectExerciseScreen() {
           </Pressable>
         }
       />
+      <DayNote date={date} today={today} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: 14, height: 48, marginVertical: 10 }}>
         <Icon name="search" size={18} color={colors.sub} />
         <Input

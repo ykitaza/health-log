@@ -76,6 +76,12 @@ export function formatJpDate(key: DateKey): string {
   return `${m}月${d}日（${WEEKDAY_JA[weekday(key)]}）`;
 }
 
+/** 11月8日 */
+export function formatMonthDay(key: DateKey): string {
+  const [, m, d] = parts(key);
+  return `${m}月${d}日`;
+}
+
 /** 11/8 */
 export function formatShortDate(key: DateKey): string {
   const [, m, d] = parts(key);
@@ -108,4 +114,18 @@ export function relativeDays(from: DateKey, today: DateKey): string {
   if (n <= 0) return '今日';
   if (n === 1) return '昨日';
   return `${n}日前`;
+}
+
+/**
+ * 種目の選択に出す「前回」の日。今日に記録するなら「2日前」のように今日から数える。
+ * 過去の日に記録するなら、その日と同じ日は「この日」、ほかは「11/1」のように日付で出す（選んだ日から数えた日数は分かりにくいため）
+ */
+export function lastDoneLabel(last: DateKey, date: DateKey, today: DateKey): string {
+  if (date === today) return relativeDays(last, date);
+  return last === date ? 'この日' : formatShortDate(last);
+}
+
+/** ホームで選んだ日。選んでいない（null）か、今日以降（日付が変わったあとなど）なら今日 */
+export function pickedDayOrToday(picked: DateKey | null, today: DateKey): DateKey {
+  return picked != null && picked < today ? picked : today;
 }
