@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 import jwt
 import pytest
+from authlib.integrations.base_client import MismatchingStateError
 from authlib.oauth2 import rfc8414, rfc9207
 from flask import redirect
 
@@ -181,6 +182,18 @@ def test_unverified_client_or_redirect_uri_gets_an_error_page(client, overrides)
     res = client.get("/authorize", query_string=authorize_params(**overrides))
     assert res.status_code == 400 and "Location" not in res.headers
     assert "連携を続けられません" in res.get_data(as_text=True)
+
+
+def test_login_failure_does_not_show_exception_details(client, login):
+    def fail():
+        raise MismatchingStateError(description="internal detail")
+
+    login.subject_from_callback = fail
+    client.get("/authorize", query_string=authorize_params())
+    res = client.get("/cognito/callback")
+    text = res.get_data(as_text=True)
+    assert res.status_code == 400 and "ログインを確かめられません" in text
+    assert "internal detail" not in text and "mismatching_state" not in text
 
 
 def test_scope_defaults_to_all_scopes_of_the_resource_and_resource_defaults_to_meals(client):
