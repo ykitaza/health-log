@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import AfterValidator, Field
 
 from domain.values import MealSlot
 from sync.fields import Day, FieldsModel, Ref, SortOrder, is_date
@@ -30,7 +30,17 @@ Kcal = Annotated[float, Field(ge=0, le=20000)]
 Amount = Annotated[float, Field(gt=0, le=100000)]
 Unit = Literal["g", "ml", "個", "杯"]
 Confidence = Literal["high", "medium", "low"]
-ItemName = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+def not_blank(text: str) -> str:
+    """空白だけの名前は断る（ドメインと同じく、前後の空白を除いてから確かめる。値はそのまま保存する）。"""
+    if not text.strip():
+        raise ValueError("空白だけにはできません")
+    return text
+
+
+ItemName = Annotated[str, Field(min_length=1, max_length=200), AfterValidator(not_blank)]
+TemplateName = Annotated[str, Field(min_length=1, max_length=100), AfterValidator(not_blank)]
 
 
 def template_id(name: str) -> str:
@@ -77,7 +87,7 @@ class TemplateItem(_ItemCore):
 
 
 class MealTemplateFields(FieldsModel):
-    name: Annotated[str, Field(min_length=1, max_length=100)] = None
+    name: TemplateName = None
     items: Annotated[list[TemplateItem], Field(min_length=1, max_length=50)] = None
 
 
