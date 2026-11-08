@@ -3,13 +3,18 @@ import pytest
 from oauth.models import Client, is_client_id_url, parse_refresh_token
 
 
-@pytest.mark.parametrize("url", [
-    "https://claude.ai/oauth/claude-code-client-metadata",
-    "http://localhost:3005/client-metadata.json",
-    "http://127.0.0.1:3005/client-metadata.json",
-])
-def test_client_id_accepts_https_and_local_http(url):
-    assert is_client_id_url(url)
+LOCAL_CLIENT_IDS = ["http://localhost:3005/client-metadata.json", "http://127.0.0.1:3005/client-metadata.json"]
+
+
+def test_client_id_accepts_https():
+    assert is_client_id_url("https://claude.ai/oauth/claude-code-client-metadata")
+
+
+@pytest.mark.parametrize("url", LOCAL_CLIENT_IDS)
+def test_client_id_accepts_local_http_only_when_allowed(url):
+    # PC で動かすときだけ認める。Lambda で認めると、認可API が自分の中（localhost）へ取りに行ってしまう（SSRF）
+    assert is_client_id_url(url, allow_loopback_http=True)
+    assert not is_client_id_url(url)
 
 
 @pytest.mark.parametrize("url", [

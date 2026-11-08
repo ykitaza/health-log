@@ -3,11 +3,14 @@
 保存のときは今の状態と比べ、違う項目だけを update にする（新しいものは create）。
 アプリが同時に別の項目を変えていても、項目ごとに当てはめるので、両方が残る。
 消えた対象を MCP が保存し直すとき（同じ名前のいつもの、目標、日の種類）は、restore してから書く。
+書く前に、アプリから届く変更と同じ決まり（sync_entities.py）で確かめる（量を変えて kcal が上限を超えた、など）。
+アプリから届いた値をドメインが断るときは、その対象だけを読まずにログに残す（一覧の残りは返す）。
 体重は、体組成に一本化するまで同期しない（今の DynamoDB の実装のまま）。
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, time
 from functools import partial
@@ -22,10 +25,18 @@ from domain.values import Confidence, DayType, EatenOn, EaterId, MealSlot, Nutri
 from infrastructure.sync_entities import day_key, template_id
 from sync.engine import SyncEngine
 from sync.model import Change, Doc, EntityState
+from sync.registry import Rejection
+
+logger = logging.getLogger(__name__)
 
 SLOT_ORDER = list(MealSlot)
 GOAL_ID = "current"
 _MISSING = object()
+
+
+def _unreadable(entity_type: str, eater: EaterId, entity_id: str, error: Exception) -> None:
+    """ドメインの決まりに合わない状態（アプリから届いた値、前の形のデータ）。黙って消さず、ログに残す。"""
+    logger.warning("読めない %s を飛ばしました（user=%s, id=%s）: %s", entity_type, eater.value, entity_id, error)
 
 
 def _item_core(i: FoodItem) -> dict:
@@ -54,11 +65,16 @@ def meal_item_fields(i: FoodItem, order: int) -> dict:
 
 
 def meal_from_doc(doc: Doc, eater: EaterId) -> Meal | None:
-    """消えた食事、日付などが届いていない食事、生きている品目がない食事は None（一覧にも出さない）。"""
+    """消えた食事、日付などが届いていない食事、生きている品目がない食事は None（一覧にも出さない）。
+
+    ドメインが断る値（空白だけの品目の名前など）があるときも None にし、ログに残す。
+    """
     own = doc.own
     if own is None or own.deleted or not {"date", "slot", "description", "source"} <= own.values.keys():
         return None
     children = [c for c in doc.children.values() if not c.deleted and _ITEM_KEYS <= c.values.keys()]
+    if not children:
+        return None  # 品目がない（アプリで全部消した）
     children.sort(key=lambda c: (c.values["sort_order"], c.entity_id))
     v = own.values
     try:
@@ -66,8 +82,9 @@ def meal_from_doc(doc: Doc, eater: EaterId) -> Meal | None:
                            time.fromisoformat(v["time"]) if v.get("time") else None)
         return Meal(doc.entity_id, eater, eaten_on, tuple(_item_from(c.entity_id, c.values) for c in children),
                     v["description"], Source(v["source"]))
-    except MealError:
-        return None  # 品目がない（アプリで全部消した）など
+    except (MealError, ValueError) as e:
+        _unreadable("meal", eater, doc.entity_id, e)
+        return None
 
 
 _ITEM_KEYS = {"name", "amount", "unit", "kcal", "protein_g", "fat_g", "carbs_g", "confidence", "sort_order"}
@@ -78,11 +95,16 @@ def template_fields(t: MealTemplate) -> dict:
 
 
 def template_from_state(state: EntityState, eater: EaterId) -> MealTemplate | None:
+    """ドメインが断る値があるときは None にし、ログに残す（一覧のほかのいつものは返す）。"""
     v = state.values
     if state.deleted or "name" not in v or not v.get("items"):
         return None
-    items = tuple(_item_from(i.get("item_id") or f"item{n}", i) for n, i in enumerate(v["items"], 1))
-    return MealTemplate(eater, v["name"], items)
+    try:
+        items = tuple(_item_from(i.get("item_id") or f"item{n}", i) for n, i in enumerate(v["items"], 1))
+        return MealTemplate(eater, v["name"], items)
+    except (MealError, ValueError) as e:
+        _unreadable("meal_template", eater, state.entity_id, e)
+        return None
 
 
 def _target(t: DailyTarget | None) -> dict | None:
@@ -100,16 +122,21 @@ def goal_fields(g: NutritionGoal) -> dict:
 
 
 def goal_from_state(state: EntityState, eater: EaterId) -> NutritionGoal | None:
+    """ドメインが断る値があるときは None（目標が未設定のときと同じ。set_goals で保存し直せる）にし、ログに残す。"""
     v = state.values
     if state.deleted or "policy" not in v:
         return None
     targets = v.get("targets")
-    return NutritionGoal(
-        eater, Policy(v["policy"]), v.get("body_weight_kg"), v.get("protein_per_kg"),
-        DailyTarget(**targets["training_day"]) if targets else None,
-        DailyTarget(**targets["rest_day"]) if targets else None,
-        EatingStyle(v["eating_style"]) if v.get("eating_style") else None,
-        v.get("target_weight_kg"))
+    try:
+        return NutritionGoal(
+            eater, Policy(v["policy"]), v.get("body_weight_kg"), v.get("protein_per_kg"),
+            DailyTarget(**targets["training_day"]) if targets else None,
+            DailyTarget(**targets["rest_day"]) if targets else None,
+            EatingStyle(v["eating_style"]) if v.get("eating_style") else None,
+            v.get("target_weight_kg"))
+    except (MealError, ValueError) as e:
+        _unreadable("nutrition_goal", eater, state.entity_id, e)
+        return None
 
 
 class _SyncRepository:
@@ -135,8 +162,22 @@ class _SyncRepository:
         return changes
 
     def _write(self, user: str, changes: list[Change]) -> None:
+        for change in changes:
+            self._check(change)
         if changes:
             self.engine.append(user, changes)
+
+    def _check(self, change: Change) -> None:
+        """アプリから届く変更と同じ決まりで確かめる。合わなければ何も書かずに断る（理由は Claude に見せる）。"""
+        if change.op not in ("create", "update"):
+            return
+        registry = self.engine.registry
+        result = registry.check_fields(change.entity_type, change.op, change.fields)
+        if not isinstance(result, Rejection):
+            result = registry.specs[change.entity_type].check(change.entity_id, result)
+        if isinstance(result, Rejection):
+            details = "、".join(f"{e['field']}：{e['message']}" for e in result.errors)
+            raise MealError(f"記録できない値です（{details or result.message}）")
 
 
 class SyncMealRepository(_SyncRepository):

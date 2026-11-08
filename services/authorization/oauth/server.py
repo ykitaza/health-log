@@ -21,7 +21,6 @@ from joserfc import jwt
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet, RSAKey
 
-from infrastructure.stores import Store
 from oauth.models import (
     AuthorizationCode,
     Client,
@@ -32,6 +31,7 @@ from oauth.models import (
     parse_refresh_token,
 )
 from oauth.resource_indicators import ResourceIndicators, ResourceServer, check_token_resource
+from oauth.store import Store
 
 KEY_ID = "authz-key-1"
 # 5分：取り消し（ログアウト）しても、発行済みのアクセストークンは期限まで使えてしまうため短くする
@@ -186,9 +186,11 @@ class IssuerParameter(rfc9207.IssuerParameter):
 
 
 class AuthorizationServer(FlaskAuthorizationServer):
-    def __init__(self, issuer: str, signing_key_pem: str, store: Store, resource_servers: list[ResourceServer]):
+    def __init__(self, issuer: str, signing_key_pem: str, store: Store, resource_servers: list[ResourceServer],
+                 *, allow_loopback_http: bool = False):
         super().__init__()
         self.issuer, self.store, self.resource_servers = issuer, store, resource_servers
+        self.allow_loopback_http = allow_loopback_http  # localhost の http の client_id を認めるか（PC だけ）
         self.keys = KeySet([RSAKey.import_key(
             signing_key_pem, parameters={"kid": KEY_ID, "use": "sig", "alg": "RS256"})])
         self.issuer_parameter = IssuerParameter(issuer)
@@ -205,7 +207,9 @@ class AuthorizationServer(FlaskAuthorizationServer):
         client = g.get("clients", {}).get(client_id)
         if client is not None:
             return client
-        return Client(client_id) if client_id and is_client_id_url(client_id) else None
+        if client_id and is_client_id_url(client_id, allow_loopback_http=self.allow_loopback_http):
+            return Client(client_id)
+        return None
 
     def save_token(self, token, request):
         """トークンを発行したら、連携（リフレッシュトークンの系列）に最新のリフレッシュトークンのハッシュを置く。"""

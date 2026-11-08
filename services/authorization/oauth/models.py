@@ -14,11 +14,15 @@ LOOPBACK_HOSTS = {"localhost", "127.0.0.1"}
 GRANT_TYPES = {"authorization_code", "refresh_token"}
 
 
-def is_client_id_url(value: str) -> bool:
-    """CIMD の client_id（クライアントの情報を書いた文書の URL）として使える形か。"""
+def is_client_id_url(value: str, *, allow_loopback_http: bool = False) -> bool:
+    """CIMD の client_id（クライアントの情報を書いた文書の URL）として使える形か。
+
+    本来は https だけを認める。allow_loopback_http は PC で動かすときだけ True にし、自分のPCの中（localhost）の
+    http も認める。Lambda で認めると、認可API が自分の中へ文書を取りに行ってしまう（SSRF）。
+    """
     url = urlsplit(value)
-    # 本来は https だけを認める。勉強用に、自分のPCの中（localhost）だけは http も認める
-    if not (url.scheme == "https" or (url.scheme == "http" and url.hostname in LOOPBACK_HOSTS)):
+    loopback = allow_loopback_http and url.scheme == "http" and url.hostname in LOOPBACK_HOSTS
+    if not (url.scheme == "https" or loopback):
         return False
     return not (url.path in ("", "/") or url.fragment or url.username or url.password)
 

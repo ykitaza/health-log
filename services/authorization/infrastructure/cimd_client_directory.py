@@ -13,13 +13,15 @@ class CimdClientDirectory:
     """CIMD：client_id の URL から、クライアントの情報を書いた文書を取りに行く。
 
     SSRF の対策として、https の URL だけを、リダイレクトをたどらず、5秒・5KB までで取りに行く。
+    allow_loopback_http は PC で動かすときだけ True にする（localhost の http も取りに行く）。
     """
 
-    def __init__(self, http_get=None):
+    def __init__(self, http_get=None, *, allow_loopback_http: bool = False):
         self.http_get = http_get or self._get
+        self.allow_loopback_http = allow_loopback_http
 
     def find(self, client_id: str) -> Client:
-        if not is_client_id_url(client_id):
+        if not is_client_id_url(client_id, allow_loopback_http=self.allow_loopback_http):
             raise ClientRejected("client_id は https の URL である必要があります")
         try:
             res = self.http_get(client_id)
@@ -52,5 +54,12 @@ class CimdClientDirectory:
 
     @staticmethod
     def _get(url: str) -> httpx.Response:
-        with httpx.Client(timeout=5, follow_redirects=False) as client:
-            return client.get(url)
+        # 少しずつ受け取り、5KB を超えたところでやめる（大きな応答を全部メモリーに読み込まない）。
+        # iter_bytes は圧縮を解いたあとの中身なので、解くと大きくなる応答も 5KB で止まる
+        with httpx.Client(timeout=5, follow_redirects=False) as client, client.stream("GET", url) as res:
+            body = b""
+            for chunk in res.iter_bytes():
+                body += chunk
+                if len(body) > CIMD_MAX_BYTES:
+                    break
+            return httpx.Response(res.status_code, content=body)

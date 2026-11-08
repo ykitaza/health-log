@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 # sync と training はパッケージなので path の依存で入れる。
 # 食事（services/meals）はトップレベルに domain・application などを置くアプリなので、パッケージにはせず、
 # テストでは pythonpath に ../meals を足し、Lambda には cdk/build-lambda.sh がソースをコピーする。
+# 組み立ての場所どうしで共有するもの（services/composition）も同じく pythonpath に足す。
 # anyio と pydantic は、ここで使う食事のコード（infrastructure/sync_*、presentation/app_routes）が使うもの
 dependencies = [
     "anyio>=4.9",
@@ -19,7 +20,7 @@ sync = { path = "../sync", editable = true }
 training = { path = "../training", editable = true }
 
 [tool.pytest.ini_options]
-pythonpath = [".", "../meals"]
+pythonpath = [".", "../meals", "../composition"]
 testpaths = ["tests"]
 
 [dependency-groups]

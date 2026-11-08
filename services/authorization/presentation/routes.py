@@ -10,9 +10,9 @@ from authlib.oauth2 import OAuth2Error
 from flask import Blueprint, Response, current_app, jsonify, redirect, request, session
 
 from infrastructure.cimd_client_directory import CimdClientDirectory, ClientRejected
-from infrastructure.stores import Store
 from oauth.models import Client, Subject
 from oauth.server import AuthorizationServer, TokenRevocationEndpoint, new_id, use_client
+from oauth.store import Store
 from presentation.pages import render_consent_page, render_error_page, render_logged_out_page, render_privacy_page
 
 # ブラウザのセッション（署名付き Cookie）に、進行中の認可リクエストの ID を入れておく

@@ -25,7 +25,20 @@ from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
 from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from domain.values import DayType, EaterId, MealSlot
 from presentation import views
-from presentation.schemas import AmountChange, DailyTargetInput, ItemInput, MealInput, SlotName, WhenInput
+from presentation.schemas import (
+    AmountChange,
+    BodyWeightKg,
+    DailyTargetInput,
+    ItemInput,
+    MealInput,
+    ProteinPerKg,
+    SlotName,
+    TemplateName,
+    WhenInput,
+)
+
+# 一度に読める期間（筋トレの MAX_RANGE_DAYS と同じ）。長い期間で一度に読みすぎないようにする
+MAX_RANGE_DAYS = 366
 
 # 食事のツールに要る scope。組み立ての場所が、接続（HTTP）のところで両方を必須にする（足りなければ SDK が 403）
 READ_SCOPE, WRITE_SCOPE = "meals:read", "meals:write"
@@ -151,7 +164,7 @@ def register_meal_tools(
             return await with_today([views.meal(await s.meals.copy(sub, meal_id, to.to_eaten_on()))], sub)
 
     @mcp.tool(annotations=WRITE)
-    async def save_template(meal_id: str, name: str) -> dict:
+    async def save_template(meal_id: str, name: TemplateName) -> dict:
         """記録済みの食事に名前を付けて「いつもの」として保存する。同じ名前は上書きする。"""
         sub = subject()
         with domain_errors():
@@ -175,7 +188,9 @@ def register_meal_tools(
 
     @mcp.tool(annotations=READ)
     async def list_meals(start: date, end: date, slot: SlotName | None = None) -> dict:
-        """期間（両端を含む）の食事を返す。区分で絞れる。"""
+        """期間（両端を含む、366日まで）の食事を返す。区分で絞れる。"""
+        if (end - start).days >= MAX_RANGE_DAYS:
+            raise ToolError(f"期間は{MAX_RANGE_DAYS}日までにしてください")
         sub = subject()
         meals = await s.meals.list(sub, start, end, MealSlot(slot) if slot else None)
         return await synced(sub, {"meals": [views.meal(m) for m in meals]})
@@ -315,12 +330,12 @@ def register_meal_tools(
     @mcp.tool(annotations=WRITE)
     async def set_goals(
         policy: Policy,
-        body_weight_kg: float | None = None,
-        protein_per_kg: float | None = None,
+        body_weight_kg: BodyWeightKg | None = None,
+        protein_per_kg: ProteinPerKg | None = None,
         training_day: DailyTargetInput | None = None,
         rest_day: DailyTargetInput | None = None,
         eating_style: EatingStyle | None = None,
-        target_weight_kg: float | None = None,
+        target_weight_kg: float | None = None,  # 30〜300kg はドメインが確かめる（同期と同じ範囲）
     ) -> dict:
         """目標を保存する（食べた人ごとに1つ。上書きする）。必須なのは方針だけ。
 

@@ -17,7 +17,12 @@ class MealService:
         return (await self.record_many(subject, [new]))[0]
 
     async def record_many(self, subject: str, news: list[NewMeal]) -> list[Meal]:
-        """写真をまとめて貼ったとき。全件を作れてから保存する（途中で1件が不正なら何も保存しない）。"""
+        """写真をまとめて貼ったとき。全件を作れてから保存する（作る途中で1件が不正なら何も保存しない）。
+
+        保存は1件ずつなので、保存の途中で失敗すると（書き込みが重なり続けた、など）、それまでに保存した分は残る。
+        まとめて1回で書かないのは、同期の仕組みが1つのトランザクションに入れる変更を30件までに分けるため
+        （品目の多い食事をまとめると、どのみち1回では書けない）。
+        """
         eater = await self.eaters.resolve(subject)
         meals = [self._create(eater, new) for new in news]
         for meal in meals:

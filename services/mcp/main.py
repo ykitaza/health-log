@@ -22,6 +22,7 @@ from application.meals import MealService
 from application.summaries import SummaryService
 from application.templates import TemplateService
 from application.weights import WeightService
+from composition.registry import create_registry
 from connector.access_token_verifier import AuthzApiTokenVerifier
 from connector.authz_session import AuthzApiSession
 from connector.icons import IconMiddleware, server_icons
@@ -34,14 +35,11 @@ from infrastructure import dynamodb_repositories as dynamo
 from infrastructure import memory_repositories as memory
 from infrastructure import sync_repositories as synced
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
-from infrastructure.sync_entities import register as register_meal_entities
 from presentation import mcp_server as meal_tools
 from sync.engine import SyncEngine
-from sync.registry import Registry
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
 from training.application.queries import TrainingQueries
 from training.main import create_commands, create_queries
-from training.main import register_sync_entities as register_training_entities
 from training.presentation import mcp_tools as training_tools
 
 JST = timezone(timedelta(hours=9))
@@ -99,14 +97,6 @@ class WorkoutTrainingDays:
     async def training_days(self, eater_id: EaterId, start: date, end: date) -> set[date]:
         days = await self.queries.training_dates(eater_id.value, start.isoformat(), end.isoformat())
         return {date.fromisoformat(d) for d in days}
-
-
-def create_registry() -> Registry:
-    """同期で扱う種類。筋トレのツールも、食事と同じテーブルの同期の項目を読み書きする。"""
-    registry = Registry()
-    register_meal_entities(registry)
-    register_training_entities(registry)
-    return registry
 
 
 def create_server(

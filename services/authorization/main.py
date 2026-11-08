@@ -9,9 +9,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from infrastructure.cimd_client_directory import CimdClientDirectory
 from infrastructure.settings import Settings, load_settings
-from infrastructure.stores import DynamoDBStore, MemoryStore, Store
+from infrastructure.stores import DynamoDBStore, MemoryStore
 from oauth.resource_indicators import ResourceServer
 from oauth.server import AuthorizationServer
+from oauth.store import Store
 from presentation.routes import LoginGateway, create_blueprint
 
 # MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）
@@ -42,7 +43,10 @@ def create_app(
     # 知っているリソースサーバーと、そこで使える scope。信頼関係は手で設定する。
     # MCP サーバー（食事と筋トレのツールを1つにまとめたもの。resource の URL は食事記録のときのまま）
     resource_servers = [ResourceServer(settings.meals_resource, MCP_SCOPES)]
-    server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers)
+    # localhost の http の client_id（MCP Inspector など）は PC で動かすときだけ認める（Lambda では SSRF になる）
+    local = not settings.on_lambda
+    server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers,
+                                 allow_loopback_http=local)
     if login is None:
         from infrastructure.cognito_login import CognitoLogin
 
@@ -53,5 +57,5 @@ def create_app(
             client_secret=settings.cognito_client_secret,
             redirect_uri=f"{settings.issuer}/cognito/callback",
         )
-    app.register_blueprint(create_blueprint(server, clients or CimdClientDirectory(), store, login))
+    app.register_blueprint(create_blueprint(server, clients or CimdClientDirectory(allow_loopback_http=local), store, login))
     return app
