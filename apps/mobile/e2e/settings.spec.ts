@@ -164,6 +164,35 @@ test('CSV：記録がなければ見出しだけ', async ({ page }) => {
   expect(s.text).toBe('日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n');
 });
 
+test('CSV：共有のメニューが使えないときは、エラーを出す', async ({ page }) => {
+  // web で navigator.share がないとき（Android ではまず起きない）。今までは何も起きなかった
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
+  await expect(see(page, '共有のメニューを開けなかったため、CSV を書き出せませんでした。')).toBeVisible();
+});
+
+test('CSV：共有のメニューを閉じただけなら、エラーを出さない', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { __calls: number }).__calls = 0;
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async () => {
+        (window as unknown as { __calls: number }).__calls++;
+        throw new DOMException('Share canceled', 'AbortError');
+      },
+    });
+  });
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __calls: number }).__calls)).toBe(1);
+  await expect(see(page, /CSV を書き出せませんでした/)).toHaveCount(0);
+});
+
 test('CSV：メモの「,」と「"」はくくって書き出し、消した記録と完了を反映する', async ({ page }) => {
   await captureShare(page);
   await openApp(page);

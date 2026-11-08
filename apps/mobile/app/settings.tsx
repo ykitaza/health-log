@@ -15,6 +15,7 @@ export default function SettingsScreen() {
   const [height, setHeight] = useState('');
   const [goal, setGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const unit = settings?.weightUnit ?? 'kg';
   // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
@@ -44,12 +45,19 @@ export default function SettingsScreen() {
   };
 
   const exportCsv = async () => {
+    setExportError(null);
     const rows = await repos.workouts.exportRows();
     const csv = toCsv(
       ['日付', '部位', '種目', 'セット', '重量(kg)', '回数', 'メモ', '完了'],
       rows.map((r) => [r.date, r.body_part, r.exercise, r.set_index + 1, r.weight_kg, r.reps, r.memo, r.done ? 1 : 0]),
     );
-    await Share.share({ title: 'トレログの記録（CSV）', message: csv });
+    try {
+      await Share.share({ title: 'トレログの記録（CSV）', message: csv });
+    } catch (e) {
+      // 共有のメニューを自分で閉じただけ（web の AbortError）なら知らせない
+      if ((e as { name?: string } | null)?.name === 'AbortError') return;
+      setExportError('共有のメニューを開けなかったため、CSV を書き出せませんでした。');
+    }
   };
 
   return (
@@ -90,6 +98,7 @@ export default function SettingsScreen() {
       <Card style={{ padding: 0 }}>
         <ListRow first title="筋トレの記録を CSV で書き出す" subtitle="共有のメニューから、保存先やアプリを選びます" onPress={exportCsv} />
       </Card>
+      {exportError && <T size={12} color={colors.danger} style={{ marginTop: 8 }}>{exportError}</T>}
       <T size={12} color={colors.sub} style={{ marginTop: 8 }}>
         記録はこの端末の中だけに保存されます。アプリを消すと記録も消えます。
       </T>
