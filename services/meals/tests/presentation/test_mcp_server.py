@@ -113,6 +113,12 @@ def test_ドメインの決まりに反すると理由を返す(call):
 
 
 
+def test_食事の一覧の期間は366日まで(call):
+    assert call("list_meals", start="2025-10-12", end="2026-10-12")["meals"] == []  # 366日
+    with pytest.raises(ToolError, match="366日"):
+        call("list_meals", start="2025-10-11", end="2026-10-12")
+
+
 def test_週のふり返り(call):
     call("record_meal", meal=LUNCH)
     review = call("weekly_review")

@@ -37,6 +37,9 @@ from presentation.schemas import (
     WhenInput,
 )
 
+# 一度に読める期間（筋トレの MAX_RANGE_DAYS と同じ）。長い期間で一度に読みすぎないようにする
+MAX_RANGE_DAYS = 366
+
 # 食事のツールに要る scope。組み立ての場所が、接続（HTTP）のところで両方を必須にする（足りなければ SDK が 403）
 READ_SCOPE, WRITE_SCOPE = "meals:read", "meals:write"
 
@@ -185,7 +188,9 @@ def register_meal_tools(
 
     @mcp.tool(annotations=READ)
     async def list_meals(start: date, end: date, slot: SlotName | None = None) -> dict:
-        """期間（両端を含む）の食事を返す。区分で絞れる。"""
+        """期間（両端を含む、366日まで）の食事を返す。区分で絞れる。"""
+        if (end - start).days >= MAX_RANGE_DAYS:
+            raise ToolError(f"期間は{MAX_RANGE_DAYS}日までにしてください")
         sub = subject()
         meals = await s.meals.list(sub, start, end, MealSlot(slot) if slot else None)
         return await synced(sub, {"meals": [views.meal(m) for m in meals]})
