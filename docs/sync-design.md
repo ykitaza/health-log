@@ -186,6 +186,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 品目（`meal_item`）は食事の中でだけ一意なので、端末の表は `(meal_id, id)` を主キーにし、outbox に `parent_id` を足しました（版3。品目の変更にだけ付け、送るときに `parent_id` に入れる）。`sync_seen`・`sync_held` では「食事の ID/品目の ID」で指します。食事が端末にないうちは、品目を `sync_held` に取っておきます
 - 一覧と合計に出す食事は、サーバー（`meal_from_doc`）と同じ決まりで選びます（`apps/mobile/lib/meals.ts` の `readableMeals`：消えた食事・品目がない食事は出さない、品目は並び順と ID の順）
 - 版2までの端末は、食事の状態を当てはめずに受け取りの位置だけ進めていました。版3のマイグレーションで受け取りの位置を消し、次の同期でスナップショットを1回取り直します（サーバーが正本で、消えたものも含めて全部返る。筋トレなどは、当てはめた `seq` より古い状態では上書きしない）
+- アプリ → MCP：アプリが送る食事の本文（`testdata/meals/app_push.json`。`apps/mobile/db/__tests__/meals.test.ts` が作る）を、pytest（`services/meals/tests/sync/test_app_push.py`）が本物の `SyncHttpApi` に送り、MCP の `list_meals`・`today_status`・`record_template` から見えることと、2回送っても二重にならないことを確かめます
 - 確かめ方：`testdata/meals/summaries.json` の変更を、サーバー（`services/meals/tests/test_shared_testdata.py`）が当てはめた状態（同じ項目は新しい方、削除が勝つ）と、そこからの1日のまとめ・週のふり返りを、アプリ（`apps/mobile/lib/__tests__/meals-shared.test.ts`、`db/__tests__/meals.test.ts`。端末に当てはめて読む）でも同じになることを確かめます
 
 ### 確かめ方

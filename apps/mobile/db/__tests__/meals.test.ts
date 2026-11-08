@@ -180,3 +180,44 @@ describe('同期', () => {
     expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
   });
 });
+
+/**
+ * アプリで食事を記録・修正・複製し、いつもの・目標・日の種類を決めて送る本文。
+ * services/meals/tests/sync/test_app_push.py が、これを本物の同期の API に送り、MCP の食事のツールから見えることを確かめる。
+ * 作り直すとき：UPDATE_TESTDATA=1 npx jest db/__tests__/meals.test.ts
+ */
+describe('app_push.json：アプリが送る食事の本文', () => {
+  test('同じ本文になる', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
+    const d = await device(server, '2026-11-08T03:00:00.000Z');
+    const lunch = await d.r.meals.record({ date: '2026-11-07', slot: 'lunch', source: 'text', items: [rice, chicken] });
+    d.deps.advance(60_000);
+    const meal = (await d.r.meals.getMeal(lunch))!;
+    await d.r.meals.update(lunch, { date: '2026-11-07', slot: 'lunch', items: [changeAmount(meal.items[0], 150), meal.items[1], soup] });
+    d.deps.advance(60_000);
+    await d.r.meals.copy(lunch, { date: DAY, slot: 'lunch' });
+    await d.r.meals.saveTemplateFromMeal(lunch, '昼の定番');
+    const removed = await d.r.meals.record({ date: DAY, slot: 'snack', source: 'numbers', items: [{ ...soup, name: 'kcal と PFC' }] });
+    d.deps.advance(60_000);
+    await d.r.meals.remove(removed);
+    await d.r.meals.saveGoal({
+      policy: 'bulk', body_weight_kg: 70, protein_per_kg: 2, eating_style: 'home_cooked', target_weight_kg: 74,
+      targets: { training_day: { kcal: 2600, fat_g: 72, carbs_g: 340 }, rest_day: { kcal: 2200, fat_g: 61, carbs_g: 280 } },
+    });
+    await d.r.meals.setDayType(DAY, 'training');
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+    const pushes = server.requests.filter((q) => q.method === 'POST').map((q) => {
+      const body = q.body as { changes: { change_id: string }[] };
+      return { device_id: '<device_id>', changes: body.changes.map((c) => ({ ...c, change_id: '<change_id>' })) };
+    });
+    const file = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'meals', 'app_push.json');
+    if (process.env.UPDATE_TESTDATA) {
+      fs.writeFileSync(file, `${JSON.stringify({
+        description: 'アプリで食事を記録・修正（量・品目の追加）・複製・削除し、いつもの・目標・日の種類を決めて送る本文（apps/mobile/db/__tests__/meals.test.ts が作る）。'
+          + 'services/meals/tests/sync/test_app_push.py が change_id を UUID にして本物の API に送り、MCP の食事のツールから見えることを確かめる。',
+        pushes,
+      }, null, 2)}\n`);
+    }
+    expect(pushes).toEqual(JSON.parse(fs.readFileSync(file, 'utf8')).pushes);
+  });
+});
