@@ -33,6 +33,9 @@ export default function SettingsScreen() {
 
   const saveHeight = () => {
     editing.current.delete('height');
+    // 出した値のままなら保存しない
+    const saved = settings?.heightCm;
+    if (height.trim() === (saved == null ? '' : trimNumber(saved))) { setMessage(null); return; }
     const parsed = parseInRange(height, LIMITS.height);
     if ('error' in parsed) { setMessage(parsed.error); return; }
     setMessage(null);

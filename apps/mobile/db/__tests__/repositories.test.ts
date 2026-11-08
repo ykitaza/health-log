@@ -56,6 +56,24 @@ describe('設定', () => {
     await expect(r.settings.update({ defaultSetCount: 7 })).rejects.toThrow();
   });
 
+  test('今の値と同じなら書かない（初期値と同じ値も、空を空にするのも）', async () => {
+    const { r, db, deps } = await setup();
+    const rows = () => db.raw.prepare('SELECT id, value, updated_at FROM settings ORDER BY id').all();
+    await r.settings.update({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null });
+    expect(rows()).toEqual([]);
+    await r.settings.update({ heightCm: 170 });
+    const saved = rows();
+    deps.advance(1000);
+    await r.settings.update({ heightCm: 170, weightUnit: 'kg' });
+    expect(rows()).toEqual(saved);
+    // 変わった項目だけ書く
+    await r.settings.update({ heightCm: 170, goalWeightKg: 65 });
+    expect(rows()).toEqual([
+      { id: 'goal_weight_kg', value: '65', updated_at: '2026-11-08T00:00:01.000Z' },
+      ...saved,
+    ]);
+  });
+
   test('保存が重なっても、両方とも保存する', async () => {
     // 身長の欄を離れたときの保存と、単位の切り替えなどが同時に走る。トランザクションが入れ子になって失敗していた
     const { r } = await setup();
@@ -263,6 +281,23 @@ describe('体組成', () => {
     });
     const row = db.raw.prepare('SELECT source, external_id, origin_package FROM body_records').get();
     expect(row).toEqual({ source: 'manual', external_id: null, origin_package: null });
+  });
+
+  test('記録のない日に値を消しても、空の行を作らない。値が変わらなければ書かない', async () => {
+    const { r, db, deps } = await setup();
+    const rows = () => db.raw.prepare('SELECT date, weight_kg, memo, updated_at FROM body_records').all();
+    await r.body.saveManual('2026-11-08', { weightKg: null });
+    await r.body.saveManual('2026-11-08', { memo: '' });
+    await r.body.saveManual('2026-11-08', { bodyFatPct: null, musclePct: null, waistCm: null, memo: '' });
+    expect(rows()).toEqual([]);
+    await r.body.saveManual('2026-11-08', { weightKg: 68.4, memo: '朝' });
+    const saved = rows();
+    deps.advance(1000);
+    await r.body.saveManual('2026-11-08', { weightKg: 68.4 });
+    await r.body.saveManual('2026-11-08', { memo: '朝', bodyFatPct: null });
+    expect(rows()).toEqual(saved);
+    await r.body.saveManual('2026-11-08', { weightKg: 68.4, waistCm: 80 });
+    expect(rows()).toEqual([{ date: '2026-11-08', weight_kg: 68.4, memo: '朝', updated_at: '2026-11-08T00:00:01.000Z' }]);
   });
 
   test('同じ日の手入力の保存が重なっても、手入力の行は1件だけで、あとから消せる', async () => {
