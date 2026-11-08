@@ -1,4 +1,5 @@
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
+import { HiddenDuplicateError } from '../repositories/catalog';
 import { SEED_BODY_PARTS, SEED_EXERCISES } from '../seed';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
 
@@ -100,6 +101,26 @@ describe('種目と部位', () => {
     expect((await r.catalog.listBodyParts()).some((p) => p.id === CHEST)).toBe(false);
     const newPart = await r.catalog.createBodyPart('前腕');
     expect((await r.catalog.listBodyParts()).at(-1)?.id).toBe(newPart);
+  });
+
+  test('非表示の部位・種目と同じ名前を足そうとすると、その ID を添えて知らせる（足さない）', async () => {
+    const { r } = await setup();
+    const ABS = SEED_BODY_PARTS.find((p) => p.name === '腹筋')!.id;
+    await r.catalog.setBodyPartHidden(ABS, true);
+    const part = await r.catalog.createBodyPart(' 腹筋 ').catch((e) => e);
+    expect(part).toBeInstanceOf(HiddenDuplicateError);
+    expect(part).toMatchObject({ id: ABS, message: '非表示の部位があります。表示に戻しますか？' });
+
+    await r.catalog.setExerciseHidden(BENCH, true);
+    const ex = await r.catalog.createExercise({ name: 'ベンチプレス', bodyPartId: CHEST, recordType: 'weight_reps' }).catch((e) => e);
+    expect(ex).toBeInstanceOf(HiddenDuplicateError);
+    expect(ex).toMatchObject({ id: BENCH, message: '非表示の種目があります。表示に戻しますか？' });
+
+    // 表示しているものと同じ名前なら、今までどおり
+    await expect(r.catalog.createBodyPart('胸')).rejects.not.toBeInstanceOf(HiddenDuplicateError);
+    await expect(r.catalog.createBodyPart('胸')).rejects.toThrow('同じ名前の部位があります');
+    expect((await r.catalog.listBodyParts({ includeHidden: true })).filter((p) => p.name === '腹筋')).toHaveLength(1);
+    expect((await r.catalog.listExercises({ includeHidden: true })).filter((e) => e.name === 'ベンチプレス')).toHaveLength(1);
   });
 });
 

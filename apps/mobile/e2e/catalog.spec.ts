@@ -230,3 +230,40 @@ test('種目と部位の追加の途中で戻るときも確かめる。名前�
   await button(page.getByRole('dialog'), 'やめる').click();
   await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
 });
+
+test('非表示の部位・種目と同じ名前を足そうとすると、表示に戻すか確かめる', async ({ page }) => {
+  await openApp(page);
+  await openManage(page);
+  await see(page, '腹筋', { exact: true }).locator('..').getByRole('button', { name: '部位を非表示' }).click();
+  await expect(see(page, '腹筋（非表示）')).toBeVisible();
+
+  await button(page, '部位を追加').click();
+  await page.getByPlaceholder('部位の名前（例：前腕）').fill(' 腹筋 ');
+  await button(page, '追加する').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('非表示の部位があります。表示に戻しますか？');
+  // キャンセルなら非表示のまま
+  await button(dialog, 'キャンセル').click();
+  await expect(dialog).toBeHidden();
+  await expect(see(page, '腹筋（非表示）')).toBeVisible();
+  // 表示に戻すと、新しく足さずにその部位が表示に戻る
+  await button(page, '追加する').click();
+  await button(page.getByRole('dialog'), '表示に戻す').click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(see(page, '腹筋（非表示）')).toHaveCount(0);
+  await expect(see(page, '腹筋', { exact: true })).toHaveCount(1);
+  await expect(button(page, '部位を追加')).toBeVisible();
+
+  // 種目も同じ（同じ部位の非表示の種目）
+  await row(page, 'ベンチプレス').click();
+  await expect(row(page, 'ベンチプレス')).toContainText('非表示');
+  await button(page, '種目を追加').click();
+  await page.getByPlaceholder('例：インクラインベンチプレス').fill('ベンチプレス');
+  await button(page, '胸').click();
+  await button(page, '追加する').click();
+  await expect(page.getByRole('dialog')).toContainText('非表示の種目があります。表示に戻しますか？');
+  await button(page.getByRole('dialog'), '表示に戻す').click();
+  await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
+  await expect(row(page, 'ベンチプレス')).toHaveCount(1);
+  await expect(row(page, 'ベンチプレス')).toContainText('表示中');
+});
