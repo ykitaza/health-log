@@ -114,6 +114,7 @@ export default function SettingsScreen() {
       <SectionTitle title="種目" />
       <Card style={{ padding: 0 }}>
         <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
+        <ListRow title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
       </Card>
 
       <SectionTitle title="データ" />
@@ -129,9 +130,7 @@ export default function SettingsScreen() {
 
       <SectionTitle title="次の段階で使えるようになるもの" />
       <Card style={{ padding: 0 }}>
-        {['食事の目標', 'チャットとの連携'].map((t, i) => (
-          <ListRow key={t} first={i === 0} title={t} dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
-        ))}
+        <ListRow first title="チャットとの連携" dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
       </Card>
     </Screen>
   );

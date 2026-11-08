@@ -1,0 +1,107 @@
+{
+  "description": "いつものの ID（名前から uuid5）と、品目の量を変えたときの栄養（同じ割合で変わる。単位はそのまま）",
+  "template_ids": [
+    {
+      "name": "朝の定番",
+      "id": "bbc92f6c-01dc-57fc-99c3-72b168e3372c"
+    },
+    {
+      "name": "鶏むね肉とブロッコリー",
+      "id": "6a5f1bde-a25f-523a-9541-f5eec318ab0a"
+    },
+    {
+      "name": "プロテイン（水で割る）",
+      "id": "6510c4b9-0537-5b50-9705-99f242f8c1f2"
+    },
+    {
+      "name": " 前後に空白 ",
+      "id": "29af061f-7149-5f44-92a4-cfab95cb9def"
+    },
+    {
+      "name": "Oatmeal & Whey",
+      "id": "8c562b8e-dd64-54f2-9311-8d4ee4420e6b"
+    },
+    {
+      "name": "🍙おにぎり",
+      "id": "122df6f3-9c6d-5c0f-a93a-dc63af3db084"
+    }
+  ],
+  "change_amount": [
+    {
+      "before": {
+        "amount": 200,
+        "unit": "g",
+        "kcal": 312,
+        "protein_g": 5,
+        "fat_g": 0.6,
+        "carbs_g": 74.2
+      },
+      "amount": 150,
+      "after": {
+        "amount": 150,
+        "unit": "g",
+        "kcal": 234.0,
+        "protein_g": 3.75,
+        "fat_g": 0.44999999999999996,
+        "carbs_g": 55.650000000000006
+      }
+    },
+    {
+      "before": {
+        "amount": 150,
+        "unit": "g",
+        "kcal": 234.3,
+        "protein_g": 3.8,
+        "fat_g": 0.5,
+        "carbs_g": 55.7
+      },
+      "amount": 180,
+      "after": {
+        "amount": 180,
+        "unit": "g",
+        "kcal": 281.16,
+        "protein_g": 4.56,
+        "fat_g": 0.6,
+        "carbs_g": 66.84
+      }
+    },
+    {
+      "before": {
+        "amount": 1,
+        "unit": "杯",
+        "kcal": 46.1,
+        "protein_g": 4.2,
+        "fat_g": 2.3,
+        "carbs_g": 3.1
+      },
+      "amount": 0.5,
+      "after": {
+        "amount": 0.5,
+        "unit": "杯",
+        "kcal": 23.05,
+        "protein_g": 2.1,
+        "fat_g": 1.15,
+        "carbs_g": 1.55
+      }
+    },
+    {
+      "before": {
+        "amount": 3,
+        "unit": "個",
+        "kcal": 100,
+        "protein_g": 0.1,
+        "fat_g": 0.2,
+        "carbs_g": 0.3
+      },
+      "amount": 7,
+      "after": {
+        "amount": 7,
+        "unit": "個",
+        "kcal": 233.33333333333334,
+        "protein_g": 0.23333333333333336,
+        "fat_g": 0.46666666666666673,
+        "carbs_g": 0.7000000000000001
+      }
+    }
+  ]
+}

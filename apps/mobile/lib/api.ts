@@ -19,6 +19,8 @@ export type PushChange = {
   change_id: string;
   entity_type: string;
   entity_id: string;
+  /** 食事の品目（meal_item）だけ：親の食事の ID */
+  parent_id?: string;
   op: 'create' | 'update' | 'delete' | 'restore';
   fields?: Record<string, unknown>;
   changed_at: string;

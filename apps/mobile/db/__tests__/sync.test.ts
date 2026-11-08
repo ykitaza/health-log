@@ -279,14 +279,21 @@ describe('同期の1回分（送る → 受け取る → 当てはめる）', ()
     expect(server.state('body_record', id)?.fields).toMatchObject({ weight_kg: 69, memo: '端末' });
   });
 
-  test('食事の変更は、まだ当てはめない（捨てて、受け取りの位置は進める）', async () => {
+  test('食事の変更も当てはめる（品目が食事より先に届いたら、食事が届くまで取っておく）', async () => {
     const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
     const d = await device(server);
     await d.engine.run();
-    server.append([mcp('meal', 'm1', 'create', { date: '2026-11-08', meal_type: 'lunch' })]);
-    expect(await d.engine.run()).toMatchObject({ ok: true, applied: 0 });
-    expect(await d.store.getMeta('cursor')).toBe('1');
+    server.append([
+      { ...mcp('meal_item', 'i1', 'create', {
+        name: '白米', amount: 200, unit: 'g', kcal: 312, protein_g: 5, fat_g: 0.6, carbs_g: 74, confidence: 'medium', sort_order: 0,
+      }), parent_id: 'm1' },
+    ]);
+    await d.engine.run();
+    expect(d.db.raw.prepare('SELECT COUNT(*) AS n FROM sync_held').get()).toEqual({ n: 1 });
+    server.append([mcp('meal', 'm1', 'create', { date: '2026-11-08', slot: 'lunch', time: null, description: '', source: 'text' })]);
+    await d.engine.run();
     expect(d.db.raw.prepare('SELECT COUNT(*) AS n FROM sync_held').get()).toEqual({ n: 0 });
+    expect((await d.r.meals.listDay('2026-11-08')).map((m) => [m.id, m.items.map((i) => [i.id, i.kcal])])).toEqual([['m1', [['i1', 312]]]]);
   });
 
   test('ほかの端末の記録も、同じサーバーを通して届く（初期の種目を隠したのも）', async () => {

@@ -4,7 +4,7 @@
 // どの表も、のちにサーバーと同期できるように、次の列を持つ。
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
-import { ENTITIES, SQL_UUID, triggerSql } from './syncSpec';
+import { ENTITIES, EntitySpec, MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
 import type { Bind, Db } from './types';
 
 export type Migration = { version: number; up: (db: Db, nowIso: string) => Promise<void> };
@@ -119,8 +119,68 @@ CREATE TABLE sync_held (
 );
 INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
 `);
-      await backfillOutbox(db);
-      for (const spec of ENTITIES) await db.execAsync(triggerSql(spec));
+      await backfillOutbox(db, TRAINING_ENTITIES);
+      for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // 食事（docs/meals-design.md）。列の名前は同期の項目（services/meals/meals/infrastructure/sync_entities.py）と同じ。
+    // meal_items：品目の ID は食事の中でだけ一意（MCP の複製といつものは、元の品目の ID をそのまま使う）。そこで (meal_id, id) を主キーにする
+    // meal_templates：いつもの。id は名前から決める（lib/meals.ts の templateId）。items は品目の一覧の JSON（一覧ごと置き換える）
+    // nutrition_goals：目標。id は 'current' だけ。targets は筋トレの日と休みの日の目標の JSON（両方あるか、NULL）
+    // day_types：本人が決めた日の種類。id は日付
+    // 同期：outbox に親の ID（parent_id。品目の変更に付ける）を足し、食事の表にトリガーを作る。
+    // 版2までの端末は、受け取った食事の状態を当てはめずに受け取りの位置（cursor）だけ進めていたので、
+    // 位置を消して、次の同期でスナップショットを1回取り直す（サーバーが正本で、消えたものも含めて全部返る。
+    // 筋トレなどは、当てはめた seq（sync_seen）より古い状態では上書きしない）
+    version: 3,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE meals (
+  id TEXT PRIMARY KEY NOT NULL,
+  date TEXT NOT NULL,
+  slot TEXT NOT NULL CHECK (slot IN ('breakfast', 'lunch', 'dinner', 'snack')),
+  time TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL CHECK (source IN ('photo', 'text', 'numbers', 'copy', 'template')),${SYNC_COLUMNS}
+);
+CREATE INDEX meals_date ON meals (date);
+CREATE TABLE meal_items (
+  meal_id TEXT NOT NULL REFERENCES meals(id),
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  unit TEXT NOT NULL CHECK (unit IN ('g', 'ml', '個', '杯')),
+  kcal REAL NOT NULL,
+  protein_g REAL NOT NULL,
+  fat_g REAL NOT NULL,
+  carbs_g REAL NOT NULL,
+  confidence TEXT NOT NULL CHECK (confidence IN ('high', 'medium', 'low')),
+  sort_order INTEGER NOT NULL,${SYNC_COLUMNS},
+  PRIMARY KEY (meal_id, id)
+);
+CREATE TABLE meal_templates (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  items TEXT NOT NULL,${SYNC_COLUMNS}
+);
+CREATE TABLE nutrition_goals (
+  id TEXT PRIMARY KEY NOT NULL,
+  policy TEXT NOT NULL CHECK (policy IN ('bulk', 'maintain', 'cut')),
+  body_weight_kg REAL,
+  protein_per_kg REAL,
+  targets TEXT,
+  eating_style TEXT,
+  target_weight_kg REAL,${SYNC_COLUMNS}
+);
+CREATE TABLE day_types (
+  id TEXT PRIMARY KEY NOT NULL,
+  day_type TEXT NOT NULL CHECK (day_type IN ('training', 'rest')),${SYNC_COLUMNS}
+);
+ALTER TABLE sync_outbox ADD COLUMN parent_id TEXT;
+DELETE FROM sync_meta WHERE key = 'cursor';
+`);
+      for (const spec of MEAL_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];
@@ -147,22 +207,35 @@ export async function insertSeeds(db: Db, now: string) {
  *   ほかの端末や MCP で変えた値を、この端末を入れた時刻で上書きしてしまうため）
  * - それ以外は、今の値を create で積む。時刻は行の updated_at
  * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
+ * - 食事の品目は、親の食事の ID（parent_id）を付けて積む。消した食事の品目は積まない
+ * specs は積む種類。版2のマイグレーションは筋トレの種類だけ（食事の表は版3で作るので、まだない）
  */
-export async function backfillOutbox(db: Db) {
+export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES) {
   const seeds: Record<string, Map<string, Record<string, Bind>>> = {
     body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
     exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
     }])),
   };
-  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string) => db.runAsync(
-    `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
-    [type, id, op, fields ? JSON.stringify(fields) : null, at],
-  );
-  for (const spec of ENTITIES) {
+  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null) =>
+    parentId == null
+      ? db.runAsync(
+        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
+        [type, id, op, fields ? JSON.stringify(fields) : null, at],
+      )
+      : db.runAsync(
+        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, parent_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?, ?)`,
+        [type, id, parentId, op, fields ? JSON.stringify(fields) : null, at],
+      );
+  for (const spec of specs) {
     const cols = Object.keys(spec.columns);
+    const parent = spec.parent;
     const rows = await db.getAllAsync<Record<string, Bind>>(
-      `SELECT id, updated_at, deleted_at, ${cols.join(', ')} FROM ${spec.table} ORDER BY created_at, id`, [],
+      parent
+        ? `SELECT c.id, c.${parent.column} AS parent_id, c.updated_at, c.deleted_at, ${cols.map((x) => `c.${x}`).join(', ')}
+           FROM ${spec.table} c JOIN ${parent.table} p ON p.id = c.${parent.column}
+           WHERE p.deleted_at IS NULL ORDER BY c.created_at, c.${parent.column}, c.id`
+        : `SELECT id, updated_at, deleted_at, ${cols.join(', ')} FROM ${spec.table} ORDER BY created_at, id`, [],
     );
     for (const row of rows) {
       const id = row.id as string;
@@ -173,7 +246,7 @@ export async function backfillOutbox(db: Db) {
         if (Object.keys(changed).length > 0) await add(spec.type, id, 'update', changed, row.updated_at as string);
         if (row.deleted_at) await add(spec.type, id, 'delete', null, row.deleted_at as string);
       } else if (!row.deleted_at) {
-        await add(spec.type, id, 'create', values, row.updated_at as string);
+        await add(spec.type, id, 'create', values, row.updated_at as string, (row.parent_id as string | undefined) ?? null);
       }
     }
   }

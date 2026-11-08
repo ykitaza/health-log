@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { bodyRepository } from './repositories/body';
 import { catalogRepository } from './repositories/catalog';
+import { mealRepository } from './repositories/meals';
 import { settingsRepository } from './repositories/settings';
 import { workoutRepository } from './repositories/workouts';
 import type { Db, Deps } from './types';
@@ -13,6 +14,7 @@ export function createRepositories(db: Db, deps: Deps = defaultDeps) {
     catalog: catalogRepository(db, deps),
     workouts: workoutRepository(db, deps),
     body: bodyRepository(db, deps),
+    meals: mealRepository(db, deps),
   };
 }
 

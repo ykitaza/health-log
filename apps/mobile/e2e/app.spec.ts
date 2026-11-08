@@ -8,8 +8,7 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
 
   await goTab(page, '食事');
   await expect(see(page, '食事', { exact: true }).first()).toBeVisible();
-  await expect(see(page, '準備中です')).toBeVisible();
-  await expect(see(page, 'サーバーとつないでから使えるようになります', { exact: false })).toBeVisible();
+  await expect(see(page, '朝食はまだ記録していません')).toBeVisible();
 
   await goTab(page, '履歴／分析');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
@@ -29,8 +28,8 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await openSettings(page);
   await expect(page.getByRole('tablist')).toBeHidden();
   // 設定の「準備中」
-  for (const t of ['食事の目標', 'チャットとの連携']) await expect(see(page, t, { exact: true })).toBeVisible();
-  await expect(see(page, '準備中', { exact: true })).toHaveCount(2);
+  await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
+  await expect(see(page, '準備中', { exact: true })).toHaveCount(1);
   await button(page, '戻る').click();
   await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
   await expect(page.getByRole('tablist')).toBeVisible();

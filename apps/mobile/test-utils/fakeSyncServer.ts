@@ -58,7 +58,8 @@ export function createFakeSyncServer(opts: { clock?: () => string } = {}) {
       const dup = seen.get(id);
       if (dup !== undefined) return { change_id: id, seq: dup, duplicate: true };
       const change: ServerChange = { ...c, change_id: id, changed_at: normalizeTime(c.changed_at), received_at: receivedAt, seq: ++head };
-      const k = `${c.entity_type}#${c.entity_id}`;
+      // 食事の品目は、親（食事）の中でだけ一意（parent_id と entity_id の組で指す）
+      const k = c.parent_id ? `${c.entity_type}#${c.parent_id}/${c.entity_id}` : `${c.entity_type}#${c.entity_id}`;
       const s = states.get(k) ?? {
         entity_type: c.entity_type, entity_id: c.entity_id, parent_id: c.parent_id ?? null,
         values: {}, keys: {}, deletion: null, created_at: '', updated_at: '', seq: 0,
@@ -135,7 +136,7 @@ export function createFakeSyncServer(opts: { clock?: () => string } = {}) {
     append, handle, fetch, fail, requests, log,
     get head() { return head; },
     setClock(next: () => string) { clock = next; },
-    /** 今の状態（API の EntityState の形）。なければ undefined */
+    /** 今の状態（API の EntityState の形）。なければ undefined。品目の id は「親の ID/品目の ID」 */
     state(type: string, id: string) {
       const s = states.get(`${type}#${id}`);
       return s ? view(s) : undefined;

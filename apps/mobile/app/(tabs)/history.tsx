@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { LineChart, StackedBarChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
+import { MealWeekly } from '@/components/MealWeekly';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -85,7 +86,7 @@ export default function HistoryScreen() {
       <Segmented options={[{ key: 'training', label: '筋トレ' }, { key: 'meals', label: '食事' }]} value={mode} onChange={setMode} />
 
       {mode === 'meals' ? (
-        <EmptyState icon="meal" title="準備中です" body="食事の履歴と分析は、次の段階で使えるようになります" />
+        <MealWeekly />
       ) : data && rows.length === 0 ? (
         <EmptyState title="まだ記録がありません" body={'ホームの「本日のトレーニングを追加」から\n記録すると、ここに履歴とグラフが出ます'} />
       ) : (
