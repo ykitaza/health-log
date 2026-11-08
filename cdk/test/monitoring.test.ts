@@ -291,6 +291,7 @@ describe('EventBridge のルール', () => {
     const t = Template.fromStack(global);
     const tokyoBus = `arn:aws:events:ap-northeast-1:${env.account}:event-bus/default`;
     t.hasResourceProperties('AWS::Events::Rule', {
+      Name: 'cognito-study-iam-change-forward',
       EventPattern: { source: ['aws.iam'], detail: Match.objectLike(notByCdk) },
       Targets: [Match.objectLike({ Arn: tokyoBus, RoleArn: Match.anyValue() })],
     });
@@ -298,7 +299,10 @@ describe('EventBridge のルール', () => {
       AssumeRolePolicyDocument: {
         Statement: [Match.objectLike({
           Principal: { Service: 'events.amazonaws.com' },
-          Condition: { StringEquals: { 'aws:SourceAccount': env.account } },
+          Condition: {
+            StringEquals: { 'aws:SourceAccount': env.account },
+            ArnEquals: { 'aws:SourceArn': `arn:aws:events:us-east-1:${env.account}:rule/cognito-study-iam-change-forward` },
+          },
         })],
       },
     });

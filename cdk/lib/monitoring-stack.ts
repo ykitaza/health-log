@@ -282,13 +282,19 @@ export class MonitoringGlobalStack extends cdk.Stack {
 
     const targetBus = events.EventBus.fromEventBusArn(
       this, 'TargetBus', `arn:aws:events:${props.targetRegion}:${this.account}:event-bus/default`);
-    // 転送のロール。このアカウントの EventBridge のルールだけが使え、転送先のバスにだけ PutEvents できる（権限は targets.EventBus が足す）
+    // 転送のロール。下の転送のルールだけが使え、転送先のバスにだけ PutEvents できる（権限は targets.EventBus が足す）。
+    // ルールの ARN を参照するとロールとルールが循環するので、ルールに名前を付けて ARN を組み立てる
+    const forwardRuleName = 'cognito-study-iam-change-forward';
     const forwardRole = new iam.Role(this, 'ForwardRole', {
       assumedBy: new iam.ServicePrincipal('events.amazonaws.com', {
-        conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+        conditions: {
+          StringEquals: { 'aws:SourceAccount': this.account },
+          ArnEquals: { 'aws:SourceArn': `arn:aws:events:${this.region}:${this.account}:rule/${forwardRuleName}` },
+        },
       }),
     });
     new events.Rule(this, 'IamChangeForwardRule', {
+      ruleName: forwardRuleName,
       description: `IAM の変更を ${props.targetRegion} に転送する`,
       eventPattern: IAM_CHANGE_PATTERN,
       targets: [new targets.EventBus(targetBus, { role: forwardRole })],
