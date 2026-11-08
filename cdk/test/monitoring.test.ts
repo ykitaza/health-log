@@ -1,5 +1,5 @@
-import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { newApp } from './app';
 import { MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
 
 // InfraStack は Lambda のビルド（build-lambda.sh）が要るので、ここでは SSM パラメータの名前だけを渡す
@@ -10,7 +10,7 @@ const accessLogGroupParams = {
 };
 
 const synth = () => {
-  const app = new cdk.App();
+  const app = newApp();
   const stack = new MonitoringStack(app, 'Monitoring', { env, accessLogGroupParams, tokenEndpointApi: 'AuthzApi' });
   return { stack, template: Template.fromStack(stack) };
 };
@@ -233,7 +233,7 @@ describe('EventBridge のルール', () => {
   });
 
   test('us-east-1 の IAM の変更を、東京の既定のイベントバスに転送する', () => {
-    const app = new cdk.App();
+    const app = newApp();
     const global = new MonitoringGlobalStack(app, 'Global', {
       env: { account: env.account, region: 'us-east-1' }, targetRegion: 'ap-northeast-1',
     });

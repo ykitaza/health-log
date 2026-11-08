@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { newApp } from './app';
 import { InfraStack } from '../lib/infra-stack';
 
 // Lambda のコードは build-lambda.sh が作る。CI ではテストのために作らないので、空のフォルダで代える
@@ -13,7 +13,7 @@ const ACCOUNT = '123456789012';
 const REGION = 'ap-northeast-1';
 
 const template = (() => {
-  const app = new cdk.App();
+  const app = newApp();
   const stack = new InfraStack(app, 'CognitoStudy', { env: { account: ACCOUNT, region: REGION } });
   return Template.fromStack(stack);
 })();
