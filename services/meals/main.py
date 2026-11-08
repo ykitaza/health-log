@@ -18,10 +18,12 @@ from infrastructure.access_token_verifier import AuthzApiTokenVerifier
 from infrastructure.authz_session import AuthzApiSession
 from infrastructure.settings import load_settings
 from infrastructure.subject_as_eater_id import SubjectAsEaterId
+from infrastructure.sync_entities import register as register_meal_entities
 from presentation.mcp_server import Services, create_mcp_server
 from presentation.icons import IconMiddleware
 from presentation.request_log import JsonRpcLogMiddleware
 from sync.engine import SyncEngine
+from sync.registry import Registry
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
 
 JST = timezone(timedelta(hours=9))
@@ -35,11 +37,13 @@ def today() -> date:
 settings = load_settings()
 # 食事・いつもの・目標・日の種類は、同期の仕組み（変更の記録と今の状態）で読み書きする。アプリと同じものが見える。
 # 体重は、体組成に一本化するまで今のまま
+registry = Registry()
+register_meal_entities(registry)
 if settings.table_name:
-    engine = SyncEngine(DynamoDBSyncStore(settings.table_name))
+    engine = SyncEngine(DynamoDBSyncStore(settings.table_name, registry.index_key), registry)
     weights = dynamo.DynamoDBWeightRepository(settings.table_name)
 else:
-    engine = SyncEngine(InMemorySyncStore())
+    engine = SyncEngine(InMemorySyncStore(registry.index_key), registry)
     weights = memory.InMemoryWeightRepository()
 meals = synced.SyncMealRepository(engine)
 templates = synced.SyncMealTemplateRepository(engine)

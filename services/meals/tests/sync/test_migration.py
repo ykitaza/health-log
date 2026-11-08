@@ -12,10 +12,8 @@ from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
 from domain.values import DayType, EatenOn, EaterId, MealSlot
 from infrastructure import dynamodb_repositories as dynamo
 from infrastructure import sync_repositories as synced
-from sync.engine import SyncEngine
-from sync.store import DynamoDBSyncStore
 from tests.domain.factories import EATER, lunch
-from tests.sync.conftest import TABLE
+from tests.sync.conftest import TABLE, dynamodb_engine
 
 _spec = importlib.util.spec_from_file_location(
     "migrate_to_sync", Path(__file__).parents[2] / "scripts" / "migrate_to_sync.py")
@@ -42,7 +40,7 @@ async def test_読み取りだけなら何も書かない(dynamodb_table):
     counts = migration.migrate(TABLE, apply=False)
     assert (counts["meal"], counts["meal_template"], counts["nutrition_goal"], counts["day_type"]) == (2, 1, 1, 1)
     assert counts["users"] == 2 and counts["accepted"] == 0
-    assert SyncEngine(DynamoDBSyncStore(TABLE)).head(EATER.value) == 0
+    assert dynamodb_engine().head(EATER.value) == 0
 
 
 @pytest.mark.anyio
@@ -50,7 +48,7 @@ async def test_移すと同期の実装で同じものが読め_もう一度動�
     await _old_data()
     counts = migration.migrate(TABLE, apply=True, changed_at="2026-11-08T00:00:00.000Z")
     assert counts["accepted"] == counts["changes"] == 2 * 3 + 1 + 1 + 1  # 食事2件は、食事1つと品目2つずつ
-    engine = SyncEngine(DynamoDBSyncStore(TABLE))
+    engine = dynamodb_engine()
     meals = synced.SyncMealRepository(engine)
     assert await meals.get(EATER, "m1") == lunch("m1", EatenOn(date(2026, 10, 12), MealSlot.LUNCH, time(12, 30)))
     assert await meals.get(EATER, "m2") is None  # ほかの人の食事は、その人の pk に移る

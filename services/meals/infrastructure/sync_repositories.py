@@ -19,8 +19,8 @@ from domain.meal import FoodItem, Meal
 from domain.meal_template import MealTemplate
 from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from domain.values import Confidence, DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from infrastructure.sync_entities import day_key, template_id
 from sync.engine import SyncEngine
-from sync.entities import template_id
 from sync.model import Change, Doc, EntityState
 
 SLOT_ORDER = list(MealSlot)
@@ -164,8 +164,9 @@ class SyncMealRepository(_SyncRepository):
         await self._run(self._write, eater_id.value, [self._change("meal", meal_id, "delete")])
 
     async def find(self, eater_id: EaterId, start: date, end: date, slot: MealSlot | None = None) -> list[Meal]:
-        docs = await self._run(self.engine.meal_docs_between, eater_id.value,
-                               f"{start.isoformat()}#0", f"{end.isoformat()}#{len(SLOT_ORDER) - 1}")
+        docs = await self._run(self.engine.docs_by_index, eater_id.value, "meal",
+                               day_key(start.isoformat(), SLOT_ORDER[0].value),
+                               day_key(end.isoformat(), SLOT_ORDER[-1].value))
         found = [(d, m) for d in docs if (m := meal_from_doc(d, eater_id)) is not None]
         found = [(d, m) for d, m in found if slot is None or m.eaten_on.slot == slot]
         found.sort(key=lambda dm: (dm[1].eaten_on.day, SLOT_ORDER.index(dm[1].eaten_on.slot),

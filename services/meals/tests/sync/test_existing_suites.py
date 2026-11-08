@@ -22,7 +22,7 @@ from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from presentation import mcp_server
 from presentation.mcp_server import Services, create_mcp_server
 from sync.engine import SyncEngine
-from sync.store import InMemorySyncStore
+from tests.sync.conftest import memory_engine
 from tests.application import test_services
 from tests.infrastructure import test_repositories
 from tests.presentation import test_mcp_server
@@ -39,15 +39,15 @@ def _repos(engine: SyncEngine):
 
 
 @pytest.fixture
-def repos(sync_store):
+def repos(sync_engine):
     """test_repositories 用。体重は同期しないので、今のメモリー版のまま。"""
-    return (*_repos(SyncEngine(sync_store)), memory.InMemoryWeightRepository())
+    return (*_repos(sync_engine), memory.InMemoryWeightRepository())
 
 
 @pytest.fixture
 def app():
     """test_services 用。"""
-    meals, templates, goals, day_types = _repos(SyncEngine(InMemorySyncStore()))
+    meals, templates, goals, day_types = _repos(memory_engine())
     eaters, numbers = SubjectAsEaterId(), count(1)
     ids = lambda: f"id{next(numbers)}"  # noqa: E731
     return {
@@ -63,7 +63,7 @@ def call(monkeypatch):
     """test_mcp_server 用。"""
     token = AccessToken(token="t", client_id="c", scopes=["meals:read", "meals:write"], subject="alice")
     monkeypatch.setattr(mcp_server, "get_access_token", lambda: token)
-    meals, templates, goals, day_types = _repos(SyncEngine(InMemorySyncStore()))
+    meals, templates, goals, day_types = _repos(memory_engine())
     eaters = SubjectAsEaterId()
     services = Services(
         MealService(eaters, meals),

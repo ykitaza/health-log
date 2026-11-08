@@ -20,10 +20,11 @@ import uuid
 from collections import Counter
 
 from infrastructure.serialization import goal_from_dict, meal_from_dict, template_from_dict
+from infrastructure.sync_entities import register, template_id
 from infrastructure.sync_repositories import GOAL_ID, goal_fields, meal_fields, meal_item_fields, template_fields
 from sync.engine import SyncEngine
-from sync.entities import template_id
 from sync.model import Change, utc_now
+from sync.registry import Registry
 from sync.store import DynamoDBSyncStore
 
 MIGRATION_NAMESPACE = uuid.UUID("0b8f6c1e-3f4a-4f0e-9a51-7d2b9c4e8a10")
@@ -66,8 +67,10 @@ def scan(table) -> list[dict]:
 
 
 def migrate(table_name: str, apply: bool, changed_at: str | None = None) -> Counter:
-    store = DynamoDBSyncStore(table_name)
-    engine = SyncEngine(store)
+    registry = Registry()
+    register(registry)
+    store = DynamoDBSyncStore(table_name, registry.index_key)
+    engine = SyncEngine(store, registry)
     changed_at = changed_at or utc_now()
     counts: Counter = Counter()
     by_user: dict[str, list[Change]] = {}
