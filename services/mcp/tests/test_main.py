@@ -15,7 +15,8 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.server.auth.provider import AccessToken
 
 import main
-from infrastructure import memory_repositories as memory
+from domain.body_weight import WeightRecord
+from domain.values import EaterId
 from sync.engine import SyncEngine
 from sync.model import Change
 from sync.store import InMemorySyncStore
@@ -54,8 +55,7 @@ def server():
     registry = main.create_registry()
     engine = SyncEngine(InMemorySyncStore(registry.index_key), registry)
     session = FakeSession()
-    mcp = main.create_server(engine, memory.InMemoryWeightRepository(), FakeVerifier(), ISSUER, RESOURCE, session,
-                             today=lambda: date(2026, 11, 8))
+    mcp = main.create_server(engine, FakeVerifier(), ISSUER, RESOURCE, session, today=lambda: date(2026, 11, 8))
     app = main.create_app(mcp, "127.0.0.1")
     return {"mcp": mcp, "app": app, "engine": engine, "session": session}
 
@@ -106,6 +106,43 @@ def test_筋トレを記録すると_その日の食事の目標が筋トレの�
     assert (before["day_type"], before["target"]["kcal"]) == ("rest", 2400)
     assert (after["day_type"], after["target"]["kcal"]) == ("training", 2800)
     assert chosen["day_type"] == "rest"
+
+
+def test_体重は体組成に一本化していて_食事と筋トレのどちらのツールで記録しても両方から見える(server):
+    async def body(client):
+        data(await client.call_tool("set_goals", {**GOALS, "target_weight_kg": 65}))
+        data(await client.call_tool("record_weight", {"kg": 72.0, "day": "2026-10-25"}))
+        data(await client.call_tool("record_body", {"body_fat_pct": 18.0, "day": "2026-10-25"}))  # 同じ日の手入力に足す
+        data(await client.call_tool("record_body", {"weight_kg": 71.0, "day": "2026-11-08"}))
+        progress = data(await client.call_tool("goal_progress", {}))
+        body_ = data(await client.call_tool("body_progress", {}))
+        return progress, body_
+
+    progress, body_ = run(server, ALL_SCOPES, body)
+    assert progress["latest"]["kg"] == 71.0 and progress["remaining_kg"] == -6.0
+    assert [(r["date"], r["kg"]) for r in progress["records"]] == [("2026-10-25", 72.0), ("2026-11-08", 71.0)]
+    first = next(d for d in body_["days"] if d["date"] == "2026-10-25")
+    assert (first["weight_kg"], first["body_fat_pct"]) == (72.0, 18.0)  # 1日に1つの手入力の記録にまとまる
+    assert len(server["engine"].docs_of_type("alice", "body_record")) == 2  # 日ごとに1つ
+
+
+def test_食事の体重のポートは_日ごとに1つ_本人の分だけ_期間で日付の順に返す(server):
+    engine = server["engine"]
+    weights = main.BodyRecordWeights(main.create_commands(engine, main.now), main.create_queries(engine))
+    alice, bob = EaterId("alice"), EaterId("bob")
+
+    async def go():
+        await weights.save(WeightRecord(alice, date(2026, 10, 12), 67.0))
+        await weights.save(WeightRecord(alice, date(2026, 10, 1), 66.0))
+        await weights.save(WeightRecord(alice, date(2026, 10, 12), 67.4))  # 同じ日は上書き
+        await weights.save(WeightRecord(bob, date(2026, 10, 5), 80.0))
+        return (await weights.find(alice, date(2026, 10, 1), date(2026, 10, 12)),
+                await weights.find(alice, date(2026, 10, 2), date(2026, 10, 11)))
+
+    found, middle = anyio.run(go)
+    assert [(r.day.day, r.kg) for r in found] == [(1, 66.0), (12, 67.4)]
+    assert middle == []
+    assert len(engine.docs_of_type("alice", "body_record")) == 2
 
 
 def test_応答にアプリの最後の同期の時刻が入る(server):

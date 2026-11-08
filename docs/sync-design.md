@@ -35,7 +35,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
 - いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`services/meals/infrastructure/sync_entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
-- 体重は、体組成（`body_record`）に一本化するまで、今の MCP と同じ扱い（同期しない）にします
+- 体重は、体組成（`body_record`）に一本化しています。MCP の `record_weight` も体組成の記録を書きます（[design.md](design.md#mcp-サーバーの組み立て)）
 
 ## 変更の記録
 
@@ -148,7 +148,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - `origin` は `migration`、`changed_at` はスクリプトを動かした時刻です
 - `change_id` は `uuid5(移行の名前空間, pk + sk + 中身のハッシュ + 何番目か)` にします。何度動かしても、中身が同じものは `duplicate` になります
 - 古い項目は消しません（もとに戻すときのため）。読む側は `SYNC#STATE#` だけを読みます
-- 体重（`WEIGHT#`）は移しません
+- 体重（`WEIGHT#`）は移しません（体重は体組成に一本化し、`WEIGHT#` はもう読みません。一本化の前の体重はテストのデータだけでした）
 - 画面に出すのは件数だけです（利用者の ID や記録の中身は出さない）
 
 手順（**デプロイの前に**移します。デプロイのあとに古いコードは動かないので、古い項目はもう変わりません）：
