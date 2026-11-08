@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Header } from '@/components/ui';
@@ -60,7 +61,7 @@ function Field({ label, value, onChange, decimal }: { label: string; value: stri
   return (
     <View style={{ flex: 1, gap: 6 }}>
       <T size={13} color={colors.sub}>{label}</T>
-      <TextInput
+      <Input
         value={value}
         onChangeText={onChange}
         keyboardType={decimal ? 'decimal-pad' : 'number-pad'}

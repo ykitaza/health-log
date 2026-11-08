@@ -1,6 +1,8 @@
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from '@/components/Icon';
+import { tabBarStyle } from '@/components/tabBar';
 import { colors, fonts } from '@/theme';
 
 function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
@@ -19,13 +21,14 @@ const TABS: { name: string; title: string; icon: IconName }[] = [
 ];
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.sub,
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line, height: 72, paddingTop: 8 },
+        tabBarStyle: tabBarStyle(insets.bottom),
         tabBarLabelStyle: { fontFamily: fonts.bold, fontSize: 11, marginTop: 4 },
       }}
     >

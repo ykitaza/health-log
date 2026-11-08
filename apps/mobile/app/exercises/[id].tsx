@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Chip, Header } from '@/components/ui';
@@ -55,7 +56,7 @@ export default function EditExerciseScreen() {
       {exercise && (
         <>
           <T size={13} color={colors.sub} style={{ marginTop: 12, marginBottom: 6 }}>種目の名前</T>
-          <TextInput
+          <Input
             value={name}
             onChangeText={(t) => { setName(t); setError(null); }}
             placeholder="種目の名前"

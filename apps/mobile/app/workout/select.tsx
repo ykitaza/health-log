@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
@@ -64,12 +65,12 @@ export default function SelectExerciseScreen() {
       />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: 14, height: 48, marginVertical: 10 }}>
         <Icon name="search" size={18} color={colors.sub} />
-        <TextInput
+        <Input
           value={query}
           onChangeText={setQuery}
           placeholder="種目を検索"
           placeholderTextColor={colors.sub}
-          style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 15 }}
+          style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', color: colors.text, fontFamily: fonts.regular, fontSize: 15 }}
         />
       </View>
       <ChipRow>

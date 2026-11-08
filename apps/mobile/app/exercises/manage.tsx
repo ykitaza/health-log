@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, Header, ListRow } from '@/components/ui';
@@ -92,7 +93,7 @@ export default function ManageScreen() {
           <View key={p.id} style={{ marginTop: 14 }}>
             {renaming?.id === p.id ? (
               <Card style={{ gap: 10, marginBottom: 8 }}>
-                <TextInput
+                <Input
                   value={renaming.name}
                   onChangeText={(t) => { setRenaming({ ...renaming, name: t }); setRenameError(null); }}
                   placeholder="部位の名前"
@@ -152,7 +153,7 @@ export default function ManageScreen() {
       <View style={{ marginTop: 20 }}>
         {adding ? (
           <Card style={{ gap: 10 }}>
-            <TextInput
+            <Input
               value={partName}
               onChangeText={(t) => { setPartName(t); setError(null); }}
               placeholder="部位の名前（例：前腕）"

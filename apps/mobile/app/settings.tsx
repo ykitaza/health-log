@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Share, TextInput, View } from 'react-native';
+import { Share, View } from 'react-native';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
@@ -142,7 +143,7 @@ function Field({ label, unit, value, onChange, onDone }: { label: string; unit: 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       <T bold size={16} style={{ flex: 1 }}>{label}</T>
-      <TextInput
+      <Input
         value={value}
         onChangeText={onChange}
         onBlur={onDone}

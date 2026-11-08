@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Header, IconButton } from '@/components/ui';
@@ -195,7 +196,7 @@ export default function EntryScreen() {
 
       <Card style={{ marginTop: 14, gap: 4 }}>
         <View style={s.headRow}>
-          <T size={10} color={colors.sub} style={{ width: 30 }} align="center" numberOfLines={1}>セット</T>
+          <T size={10} color={colors.sub} style={{ width: 36 }} align="center" numberOfLines={1}>セット</T>
           {weighted && <T size={11} color={colors.sub} style={{ flex: 1 }} align="center">重量（{unit}）</T>}
           <T size={11} color={colors.sub} style={{ flex: 1 }} align="center">回数</T>
           <T size={11} color={colors.sub} style={{ width: 44 }} align="center">完了</T>
@@ -206,7 +207,7 @@ export default function EntryScreen() {
           return (
             <View key={d.key} style={{ gap: 6, marginTop: 8 }}>
               <View style={s.setRow}>
-                <T num bold size={17} style={{ width: 30 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
+                <T num bold size={17} style={{ width: 36 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
                 {weighted && (
                   <NumberInput
                     label={`セット${i + 1}の重量`}
@@ -235,19 +236,19 @@ export default function EntryScreen() {
                 </Pressable>
               </View>
               {(err?.weight || err?.reps || err?.memo) && (
-                <T size={12} color={colors.danger} style={{ marginLeft: 38 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
+                <T size={12} color={colors.danger} style={{ marginLeft: 44 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 38 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 44 }}>
                 <View style={s.memo}>
                   <Icon name="pencil" size={14} color={colors.sub} />
-                  <TextInput
+                  <Input
                     value={d.memo}
                     onChangeText={(t) => update(d.key, { memo: t })}
                     maxLength={MEMO_MAX_LENGTH}
                     placeholder="メモを追加"
                     placeholderTextColor={colors.sub}
                     accessibilityLabel={`セット${i + 1}のメモ`}
-                    style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 6 }}
+                    style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 6, minHeight: 32 }}
                   />
                 </View>
                 <IconButton name="close" label={`セット${i + 1}を削除`} size={32} bg="transparent" color={colors.sub} onPress={() => remove(i)} />
@@ -280,7 +281,7 @@ function NumberInput({ value, placeholder, onChange, error, decimal, label }: {
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <TextInput
+    <Input
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
