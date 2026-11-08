@@ -1,14 +1,24 @@
-# Welcome to your CDK TypeScript project
+# cdk
 
-This is a blank project for CDK development with TypeScript.
+AWS の構成を CDK（TypeScript）で書いています。スタックは3つです。
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+| スタック | リージョン | ファイル | 中身 |
+|---|---|---|---|
+| `CognitoStudy` | ap-northeast-1 | `lib/infra-stack.ts` | Cognito、認可API と食事記録の API Gateway・Lambda・DynamoDB、SSM パラメータ |
+| `CognitoStudyMonitoring` | ap-northeast-1 | `lib/monitoring-stack.ts` | 監視（アラーム、CloudTrail、EventBridge、SNS）。[監視](../docs/monitoring.md) |
+| `CognitoStudyMonitoringGlobal` | us-east-1 | `lib/monitoring-stack.ts` | IAM の操作を東京に転送する EventBridge のルール |
 
-## Useful commands
+スタックの組み立ては `bin/infra.ts` です。監視のスタックとは、SSM パラメータの名前だけでつなぎます（スタックをまたぐ Export は作りません）。
 
-* `npm run build`   type-check the project
-* `npm run watch`   watch for changes and type-check
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+## コマンド
+
+```sh
+npm ci
+npx tsc --noEmit                  # 型チェック
+npm test                          # jest（test/）。テンプレートの中身を確かめる
+./build-lambda.sh                 # Lambda に載せるもの（services/ の2つ）を build/ にまとめる。デプロイの前に実行する
+npx cdk diff --all                # デプロイ済みのものとの差
+npx cdk deploy --all              # 3つのスタックをデプロイする
+```
+
+初めてデプロイするときは、東京と us-east-1 の bootstrap が要ります。手順は [README のデプロイ](../README.md#デプロイする) にあります。
