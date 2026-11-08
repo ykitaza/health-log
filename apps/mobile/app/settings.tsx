@@ -4,6 +4,7 @@ import { Share, TextInput, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
+import { useAuth } from '@/hooks/auth';
 import { useFocusData } from '@/hooks/data';
 import { toCsv } from '@/lib/csv';
 import { LIMITS, parseInRange } from '@/lib/limits';
@@ -12,6 +13,7 @@ import { colors, fonts } from '@/theme';
 
 export default function SettingsScreen() {
   const { data: settings, reload, repos } = useFocusData((r) => r.settings.get());
+  const { status: authStatus } = useAuth();
   const [height, setHeight] = useState('');
   const [goal, setGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -76,6 +78,17 @@ export default function SettingsScreen() {
     <Screen>
       <Header title="設定" onBack={() => router.back()} />
 
+      <SectionTitle title="アカウント" />
+      <Card style={{ padding: 0 }}>
+        <ListRow
+          first
+          title="ログイン"
+          subtitle={authStatus === 'signedIn' ? 'ログインしています' : 'ログインしていません（任意）'}
+          right={authStatus === 'signedIn' ? <Badge label="ログイン中" /> : undefined}
+          onPress={() => router.push('/account')}
+        />
+      </Card>
+
       <SectionTitle title="記録の初期値" />
       <Card style={{ gap: 14 }}>
         <View style={{ gap: 8 }}>
@@ -117,7 +130,7 @@ export default function SettingsScreen() {
 
       <SectionTitle title="次の段階で使えるようになるもの" />
       <Card style={{ padding: 0 }}>
-        {['アカウントと同期', '食事の目標', 'チャットとの連携'].map((t, i) => (
+        {['サーバーとの同期', '食事の目標', 'チャットとの連携'].map((t, i) => (
           <ListRow key={t} first={i === 0} title={t} dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
         ))}
       </Card>

@@ -9,6 +9,7 @@ import { SQLiteDatabase, SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { migrate } from '@/db';
+import { AuthProvider } from '@/hooks/auth';
 import { colors } from '@/theme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -42,12 +43,14 @@ export default function RootLayout() {
 
   return (
     <SQLiteProvider databaseName="torelog.db" onInit={onInit}>
-      <ThemeProvider value={theme}>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider value={theme}>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </ThemeProvider>
+      </AuthProvider>
     </SQLiteProvider>
   );
 }

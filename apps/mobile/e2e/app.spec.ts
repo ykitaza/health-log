@@ -43,7 +43,7 @@ test('歯車から設定へ行き、戻ると元の画面。設定と RM計算�
 
   // 設定の「準備中」
   await openSettings(page);
-  for (const t of ['アカウントと同期', '食事の目標', 'チャットとの連携']) await expect(see(page, t, { exact: true })).toBeVisible();
+  for (const t of ['サーバーとの同期', '食事の目標', 'チャットとの連携']) await expect(see(page, t, { exact: true })).toBeVisible();
   await expect(see(page, '準備中', { exact: true })).toHaveCount(3);
 });
 
