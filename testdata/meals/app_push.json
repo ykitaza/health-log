@@ -68,11 +68,11 @@
           "changed_at": "2026-11-08T03:01:00.000Z",
           "origin": "app",
           "fields": {
-            "amount": 150,
-            "kcal": 234,
-            "protein_g": 3.75,
-            "fat_g": 0.45,
-            "carbs_g": 55.5
+            "amount": 100,
+            "kcal": 156,
+            "protein_g": 2.5,
+            "fat_g": 0.3,
+            "carbs_g": 37
           }
         },
         {
@@ -120,12 +120,12 @@
           "origin": "app",
           "fields": {
             "name": "白米",
-            "amount": 150,
+            "amount": 100,
             "unit": "g",
-            "kcal": 234,
-            "protein_g": 3.75,
-            "fat_g": 0.45,
-            "carbs_g": 55.5,
+            "kcal": 156,
+            "protein_g": 2.5,
+            "fat_g": 0.3,
+            "carbs_g": 37,
             "confidence": "high",
             "sort_order": 0
           }
@@ -183,12 +183,12 @@
               {
                 "item_id": "id-2",
                 "name": "白米",
-                "amount": 150,
+                "amount": 100,
                 "unit": "g",
-                "kcal": 234,
-                "protein_g": 3.75,
-                "fat_g": 0.44999999999999996,
-                "carbs_g": 55.5,
+                "kcal": 156,
+                "protein_g": 2.5,
+                "fat_g": 0.3,
+                "carbs_g": 37,
                 "confidence": "high"
               },
               {

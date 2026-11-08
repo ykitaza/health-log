@@ -40,14 +40,14 @@ describe('食事の記録・修正・削除・複製', () => {
     const meal = (await d.r.meals.getMeal(id))!;
     const before = d.outbox().length;
     d.deps.advance(60_000);
-    await d.r.meals.update(id, { date: '2026-11-07', slot: 'dinner', items: [changeAmount(meal.items[0], 150), soup] });
+    await d.r.meals.update(id, { date: '2026-11-07', slot: 'dinner', items: [changeAmount(meal.items[0], 100), soup] });
     const after = (await d.r.meals.getMeal(id))!;
     expect([after.date, after.slot, after.items.map((i) => [i.name, i.amount, i.kcal])]).toEqual(
-      ['2026-11-07', 'dinner', [['白米', 150, 234], ['みそ汁', 1, 46]]]);
+      ['2026-11-07', 'dinner', [['白米', 100, 156], ['みそ汁', 1, 46]]]);
     expect(outboxOf(d.outbox().slice(before))).toEqual([
       ['meal', 'update', null, { date: '2026-11-07', slot: 'dinner' }],
-      // SQLite の json_object は小数を15桁で書くので、0.6 × 0.75（0.44999999999999996）は 0.45 で積まれる
-      ['meal_item', 'update', id, { amount: 150, kcal: 234, protein_g: 3.75, fat_g: 0.45, carbs_g: 55.5 }],
+      // 半分にする（2進数で割り切れる値にして、SQLite の版による json_object の小数の書き方の違いを避ける）
+      ['meal_item', 'update', id, { amount: 100, kcal: 156, protein_g: 2.5, fat_g: 0.3, carbs_g: 37 }],
       ['meal_item', 'create', id, { ...soup, confidence: 'high', sort_order: 1 }],
       ['meal_item', 'delete', id, null],
     ]);
@@ -211,7 +211,7 @@ describe('app_push.json：アプリが送る食事の本文', () => {
     const lunch = await d.r.meals.record({ date: '2026-11-07', slot: 'lunch', source: 'text', items: [rice, chicken] });
     d.deps.advance(60_000);
     const meal = (await d.r.meals.getMeal(lunch))!;
-    await d.r.meals.update(lunch, { date: '2026-11-07', slot: 'lunch', items: [changeAmount(meal.items[0], 150), meal.items[1], soup] });
+    await d.r.meals.update(lunch, { date: '2026-11-07', slot: 'lunch', items: [changeAmount(meal.items[0], 100), meal.items[1], soup] });
     d.deps.advance(60_000);
     await d.r.meals.copy(lunch, { date: DAY, slot: 'lunch' });
     await d.r.meals.saveTemplateFromMeal(lunch, '昼の定番');

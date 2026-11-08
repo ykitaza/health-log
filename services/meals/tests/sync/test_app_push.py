@@ -82,8 +82,8 @@ def test_アプリで記録した食事が_MCP_から見える_同じ本文を2�
     assert engine.head("alice") == head
 
     meals = tool("list_meals", start="2026-11-07", end="2026-11-08")["meals"]
-    # 量を直した白米（200g → 150g）、鶏むね肉、足したみそ汁。複製は別の日の昼食に同じ品目。消した間食は出ない
-    expected_items = [("白米", 150, "g", 234.0), ("鶏むね肉", 100, "g", 108.0), ("みそ汁", 1, "杯", 46.0)]
+    # 量を直した白米（200g → 100g）、鶏むね肉、足したみそ汁。複製は別の日の昼食に同じ品目。消した間食は出ない
+    expected_items = [("白米", 100, "g", 156.0), ("鶏むね肉", 100, "g", 108.0), ("みそ汁", 1, "杯", 46.0)]
     assert [(m["date"], m["slot"], m["source"]) for m in meals] == [("2026-11-07", "lunch", "text"), ("2026-11-08", "lunch", "copy")]
     for m in meals:
         assert [(i["name"], i["amount"], i["unit"], i["kcal"]) for i in m["items"]] == expected_items
@@ -91,7 +91,7 @@ def test_アプリで記録した食事が_MCP_から見える_同じ本文を2�
 
     today = tool("today_status")
     assert today["day_type"] == "training"
-    assert today["total"]["kcal"] == 388.0
+    assert today["total"]["kcal"] == 310.0
     assert today["target"] == {"kcal": 2600.0, "protein_g": 140.0, "fat_g": 72.0, "carbs_g": 340.0}
     assert today["goal"]["policy"] == "bulk" and today["goal"]["target_weight_kg"] == 74
 
