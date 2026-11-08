@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from training.application.queries import BodyProgress, ExerciseHistory, WeeklyTrainingReview
+from datetime import datetime, timedelta, timezone
+
+from training.application.queries import BodyProgress, ExerciseHistory, HeartRateSummary, SleepSummary, WeeklyTrainingReview
 from training.domain import body, calculations
 from training.domain.catalog import Catalog
 from training.domain.model import Exercise, SetRow, Workout
@@ -141,4 +143,34 @@ def body_progress(p: BodyProgress, start: str, end: str) -> dict:
         "latest": daily_body(p.latest) if p.latest else None,
         "weekly_weight_change_kg": None if p.weekly_pace is None else round(p.weekly_pace, 2),
         "days": [daily_body(d) for d in p.days],
+    }
+
+
+# 時刻は日本時間で返す（MCP の「今日」と last_app_sync_at と同じ。services/mcp/main.py）
+JST = timezone(timedelta(hours=9))
+
+
+def jst(moment: str) -> str:
+    return datetime.fromisoformat(moment.replace("Z", "+00:00")).astimezone(JST).isoformat(timespec="minutes")
+
+
+def sleep_summary(s: SleepSummary, start: str, end: str) -> dict:
+    return {
+        "from": start,
+        "to": end,
+        "nights_recorded": len(s.nights),
+        "average_asleep_min": r1(s.average_asleep_min),
+        "nights": [{"date": n.date, "asleep_min": n.asleep_min, "awake_min": n.awake_min,
+                    "bedtime": jst(n.start_at), "wake_time": jst(n.end_at), "sessions": n.sessions} for n in s.nights],
+    }
+
+
+def heart_rate_summary(s: HeartRateSummary, start: str, end: str) -> dict:
+    return {
+        "from": start,
+        "to": end,
+        "days_recorded": len(s.days),
+        "average_resting_bpm": r1(s.average_resting_bpm),
+        "days": [{"date": d.date, "resting_bpm": r1(d.resting_bpm), "avg_bpm": r1(d.avg_bpm), "min_bpm": r1(d.min_bpm),
+                  "max_bpm": r1(d.max_bpm), "samples": d.samples} for d in s.days],
     }

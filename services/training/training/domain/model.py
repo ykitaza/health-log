@@ -3,6 +3,7 @@
   部位（BodyPart）・種目（Exercise）       種目は1つの部位に属する。記録の仕方は「重量×回数」か「回数だけ」
   トレーニング（Workout）                  その日の種目（WorkoutEntry）と、種目ごとのセット（WorkoutSet）
   体組成（BodyRecord）                     1日に複数あり得る（体重計の取り込みと手入力など）
+  睡眠（SleepSession）・心拍（HeartRateDay） アプリが Health Connect から取り込んだもの（読むだけ）
 重さはいつも kg で持つ（表示の単位は設定で変える）。日付は端末の暦の日付（YYYY-MM-DD）。
 """
 
@@ -94,3 +95,27 @@ class BodyRecord:
     memo: str
     source: str  # manual・health_connect
     updated_at: str
+
+
+@dataclass(frozen=True)
+class SleepSession:
+    """睡眠の1回分（Health Connect の取り込み）。date は起きた日。asleep_min は起きていた分を引いたもの。"""
+
+    id: str
+    date: str
+    start_at: str
+    end_at: str
+    asleep_min: int
+    awake_min: int
+
+
+@dataclass(frozen=True)
+class HeartRateDay:
+    """心拍の1日のまとめ（Health Connect の取り込み）。サンプルがない日は avg・min・max が None。"""
+
+    date: str
+    resting_bpm: float | None
+    avg_bpm: float | None
+    min_bpm: float | None
+    max_bpm: float | None
+    samples: int

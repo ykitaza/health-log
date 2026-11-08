@@ -71,7 +71,7 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 | 場所 | 中身 | 知っているもの |
 |---|---|---|
 | `services/meals/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
-| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール12個を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
+| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール14個（睡眠と心拍のまとめを含む）を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
 | `services/mcp/connector/` | MCP の入口の部品：アクセストークンの検証（`AuthzApiTokenVerifier`）、連携の取り消しと `logout` のツール、アイコン、診断用のログ、設定 | MCP の SDK、認可API との約束（JWT） |
 | `services/mcp/main.py` | サーバー（`MCPServer`）と認証を作り、3つの登録の関数を呼ぶ。コンテキストをまたぐもののポートをつなぐ | すべて |
 

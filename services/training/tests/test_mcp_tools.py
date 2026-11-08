@@ -66,7 +66,7 @@ def test_ツールの一覧():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"record_workout", "get_workout", "list_workouts", "exercise_history", "weekly_training_review",
                      "list_exercises", "update_workout", "delete_workout", "add_exercise", "update_exercise",
-                     "record_body", "body_progress"}
+                     "record_body", "body_progress", "sleep_summary", "heart_rate_summary"}
 
 
 def test_記録すると_その日の記録と計算と最後の同期の時刻を返す(call):
@@ -296,6 +296,7 @@ def test_ほかの人の記録は見えず_直せない(call):
     assert call("get_workout")["entries"] == []
     assert call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"] == []
     assert call("body_progress")["days"] == []
+    assert call("sleep_summary")["nights"] == [] and call("heart_rate_summary")["days"] == []
     assert call("weekly_training_review")["sessions"] == 0
     assert call("get_workout")["last_app_sync_at"] is None  # 同期の時刻も本人の分だけ
     with pytest.raises(ToolError, match="ありません"):
@@ -311,6 +312,8 @@ def test_ほかの人の記録は見えず_直せない(call):
     ("weekly_training_review", {}, "training:read"),
     ("list_exercises", {}, "training:read"),
     ("body_progress", {}, "training:read"),
+    ("sleep_summary", {}, "training:read"),
+    ("heart_rate_summary", {}, "training:read"),
     ("record_workout", {"exercises": [bench((80, 8))]}, "training:write"),
     ("update_workout", {"day": "2026-11-08", "remove_set_ids": ["x"]}, "training:write"),
     ("delete_workout", {"day": "2026-11-08"}, "training:write"),
@@ -350,3 +353,58 @@ def test_書いた変更は_アプリから届く変更と同じ確かめ方を�
     # アプリ（同期の受け取り）からも、直した値が見える
     sets = [e.state for e in entries if e.change.entity_type == "workout_set" and not e.state["deleted"]]
     assert 82.5 in [s["fields"].get("weight_kg") for s in sets]
+
+
+def imported(engine, entity_type, entity_id, fields, op="create"):
+    """アプリが Health Connect から取り込んで送った変更（origin = import）。"""
+    engine.append("alice", [Change(str(uuid.uuid4()), entity_type, entity_id, None, op, fields,
+                                   "2026-11-08T10:00:00.000Z", "import")])
+
+
+def sleep_fields(day, start, end, asleep, awake=0):
+    return {"date": day, "start_at": start, "end_at": end, "asleep_min": asleep, "awake_min": awake,
+            "source": "health_connect", "external_id": None, "origin_package": "com.example.watch"}
+
+
+def test_睡眠のまとめ_起きた日ごとに足し_時刻は日本時間_期間の平均(call, engine):
+    imported(engine, "sleep_session", "s1", sleep_fields("2026-11-07", "2026-11-06T14:40:00.000Z", "2026-11-06T21:55:00.000Z", 420, 15))
+    imported(engine, "sleep_session", "s2", sleep_fields("2026-11-07", "2026-11-07T04:00:00.000Z", "2026-11-07T04:30:00.000Z", 30))
+    imported(engine, "sleep_session", "s3", sleep_fields("2026-11-08", "2026-11-07T15:10:00.000Z", "2026-11-07T21:40:00.000Z", 380, 10))
+    imported(engine, "sleep_session", "s-old", sleep_fields("2026-10-30", "2026-10-29T15:00:00.000Z", "2026-10-29T22:00:00.000Z", 400))
+    imported(engine, "sleep_session", "s-gone", sleep_fields("2026-11-06", "2026-11-05T15:00:00.000Z", "2026-11-05T22:00:00.000Z", 400))
+    imported(engine, "sleep_session", "s-gone", None, op="delete")
+    result = call("sleep_summary")
+    assert (result["from"], result["to"]) == ("2026-11-02", "2026-11-08")
+    assert result["nights"] == [
+        {"date": "2026-11-07", "asleep_min": 450, "awake_min": 15, "bedtime": "2026-11-06T23:40+09:00",
+         "wake_time": "2026-11-07T06:55+09:00", "sessions": 2},
+        {"date": "2026-11-08", "asleep_min": 380, "awake_min": 10, "bedtime": "2026-11-08T00:10+09:00",
+         "wake_time": "2026-11-08T06:40+09:00", "sessions": 1},
+    ]
+    assert (result["nights_recorded"], result["average_asleep_min"]) == (2, 415.0)
+    assert result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
+    assert len(call("sleep_summary", days=14)["nights"]) == 3
+
+
+def test_心拍のまとめ_日ごとの値と安静時心拍の平均(call, engine):
+    imported(engine, "heart_rate_day", "h1", {"date": "2026-11-06", "resting_bpm": 56, "avg_bpm": 72.4, "min_bpm": 50,
+                                              "max_bpm": 150, "samples": 1200})
+    imported(engine, "heart_rate_day", "h2", {"date": "2026-11-07", "resting_bpm": 59, "avg_bpm": None, "min_bpm": None,
+                                              "max_bpm": None, "samples": 0})
+    imported(engine, "heart_rate_day", "h3", {"date": "2026-11-08", "resting_bpm": None, "avg_bpm": 80, "min_bpm": 60,
+                                              "max_bpm": 120, "samples": 30})
+    result = call("heart_rate_summary")
+    assert result["days"] == [
+        {"date": "2026-11-06", "resting_bpm": 56, "avg_bpm": 72.4, "min_bpm": 50, "max_bpm": 150, "samples": 1200},
+        {"date": "2026-11-07", "resting_bpm": 59, "avg_bpm": None, "min_bpm": None, "max_bpm": None, "samples": 0},
+        {"date": "2026-11-08", "resting_bpm": None, "avg_bpm": 80, "min_bpm": 60, "max_bpm": 120, "samples": 30},
+    ]
+    assert (result["days_recorded"], result["average_resting_bpm"]) == (3, 57.5)
+    assert result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
+
+
+@pytest.mark.parametrize("tool", ["sleep_summary", "heart_rate_summary"])
+@pytest.mark.parametrize("days", [6, 91])
+def test_睡眠と心拍の期間は7日から90日(call, tool, days):
+    with pytest.raises(ToolError):
+        call(tool, days=days)
