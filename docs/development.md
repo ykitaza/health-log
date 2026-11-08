@@ -21,7 +21,7 @@ for s in authorization meals sync training app_api mcp; do (cd services/$s && uv
 ```
 
 アプリの画面の E2E テストは [apps/mobile/e2e/README.md](../apps/mobile/e2e/README.md) にあります。
-PR と main への push では、GitHub Actions（`.github/workflows/test.yml`）が同じテストと E2E を動かします。
+GitHub Actions（`.github/workflows/test.yml`）が同じテストと E2E を動かします。PR では変わった部分のジョブだけを、main への push と手での起動では全部を動かします。
 
 ## フォルダごとの開発
 
