@@ -47,6 +47,8 @@ export class InfraStack extends cdk.Stack {
   // API の ID（AuthzApi など）→ アクセスログのロググループ名を入れた SSM パラメータの名前。
   // 監視のスタックはこの名前でロググループを引く（スタックをまたぐ Export を作らないため）
   public readonly accessLogGroupParams: Record<string, string> = {};
+  // Lambda の ID（AuthzFunction など）→ 関数名を入れた SSM パラメータの名前。監視のスタックが関数ごとのエラーを数える
+  public readonly functionNameParams: Record<string, string> = {};
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -55,7 +57,7 @@ export class InfraStack extends cdk.Stack {
     const domainPrefix = `oidc-study-${this.account}`;
 
     // ユーザープール（Cognito＝IdP）：ログインIDはメールアドレス。使うのは本人だけなので、
-    // ログイン画面からの新規登録はできなくし、ユーザーは管理者の操作（setup-local.sh）でだけ作る
+    // ログイン画面からの新規登録はできなくし、ユーザーは管理者の操作（docs/design.md の「パスキーを作る手順」）でだけ作る
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'cognito-study',
       featurePlan: cognito.FeaturePlan.ESSENTIALS,
@@ -95,6 +97,8 @@ export class InfraStack extends cdk.Stack {
       timeToLiveAttribute: 'expires_at',
       // 中身は期限つきの状態だけだが、リフレッシュトークンの系列も入るので、消えると全員がログインし直しになる
       deletionProtection: true,
+      // 誤って消したり書き換えたりしたときに、35日前までの任意の時点に戻せるようにする（費用はテーブルの大きさで決まり、数十 KB なのでほぼ0）
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -166,11 +170,26 @@ export class InfraStack extends cdk.Stack {
       MEALS_URL_PARAM,
     }));
     const authzUrl = publicApi('AuthzApi', authzFn);
-    stateTable.grantReadWriteData(authzFn);
+    // ログインの途中の状態とリフレッシュトークンの系列を、置く・読む・取り出して消す（services/authorization/infrastructure/stores.py）
     authzFn.addToRolePolicy(new iam.PolicyStatement({
-      // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
-      actions: ['ssm:GetParameter', 'ssm:PutParameter'],
-      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${PARAM_PREFIX}/*`],
+      actions: ['dynamodb:PutItem', 'dynamodb:GetItem', 'dynamodb:DeleteItem'],
+      resources: [stateTable.tableArn],
+    }));
+    // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
+    const paramArn = (name: string) => `arn:aws:ssm:${this.region}:${this.account}:parameter${name}`;
+    // 読むのは、起動時に読む5つだけ（services/authorization/infrastructure/settings.py の load_lambda_settings）
+    authzFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: [COGNITO_CLIENT_ID_PARAM, AUTHZ_URL_PARAM, MEALS_URL_PARAM, SIGNING_KEY_PARAM, SESSION_SECRET_PARAM].map(paramArn),
+    }));
+    // 書けるのは、署名鍵とセッションの秘密を初めて作るときだけ。上書き（Overwrite=true）は許さないので、
+    // 関数が乗っ取られても、鍵を差し替えたり、URL のパラメータを書き換えたりはできない。
+    // 認可API は Overwrite=False で作る。Overwrite を付けない呼び出しは条件キーがないことがあるので、
+    // 「true でない」（キーがないときも一致する StringNotEquals）で書く
+    authzFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:PutParameter'],
+      resources: [SIGNING_KEY_PARAM, SESSION_SECRET_PARAM].map(paramArn),
+      conditions: { StringNotEquals: { 'ssm:Overwrite': 'true' } },
     }));
     authzFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['cognito-idp:DescribeUserPoolClient'], // クライアントシークレットを起動時に読む
@@ -192,18 +211,26 @@ export class InfraStack extends cdk.Stack {
       billing: dynamodb.Billing.onDemand(),
       // 記録は本人のデータなので、スタックを消しても残し（RETAIN）、テーブルの削除も止める（削除の保護）
       deletionProtection: true,
+      // 誤って消したり書き換えたりした記録を、35日前までの任意の時点に戻せるようにする（戻すと別のテーブルができる）
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     // 食事と筋トレのツールを1つにまとめた MCP サーバー（services/mcp）。論理 ID と URL は、食事記録だけだったときのまま。
-    // 筋トレも同じテーブルの同期の項目（SYNC#…）を読み書きするので、権限は食事のテーブルの読み書きのまま
+    // 筋トレも同じテーブルの同期の項目（SYNC#…）を読み書きする
     const mealsFn = new lambda.Function(this, 'MealsFunction', pythonWebApp('mcp', {
       AUTHZ_ISSUER: authzUrl, // 信頼関係（手で設定する）：信じる認可API
       MCP_URL_PARAM: MEALS_URL_PARAM,
       MEALS_TABLE: mealsTable.tableName,
     }));
     const mealsUrl = publicApi('MealsApi', mealsFn);
-    mealsTable.grantReadWriteData(mealsFn);
+    // 同期の仕組み（services/sync/sync/store.py）と体重（services/meals/infrastructure/dynamodb_repositories.py）が使う操作だけ。
+    // 同期の変更は追記で、体重は上書き（PutItem）なので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
+    // TransactWriteItems は、中の操作（Put。条件は Put に付ける）の権限で許される
+    mealsFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem'],
+      resources: [mealsTable.tableArn, `${mealsTable.tableArn}/index/*`],
+    }));
     mealsFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
       resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${MEALS_URL_PARAM}`],
@@ -228,6 +255,7 @@ export class InfraStack extends cdk.Stack {
         // logout_uri：ログアウトのあとの画面と、「別のアカウントで入り直す」のあとにログイン画面へ戻る入口
         logoutUrls: [LOCAL_AUTHZ_ORIGIN, authzUrl].flatMap((origin) => [`${origin}/logged-out`, `${origin}/relogin`]),
       },
+      preventUserExistenceErrors: true, // ユーザーがいるかどうかを、ログイン画面のエラーの違いから知られないようにする
     });
     new ssm.StringParameter(this, 'CognitoClientIdParam', {
       parameterName: COGNITO_CLIENT_ID_PARAM, stringValue: client.userPoolClientId,
@@ -341,6 +369,20 @@ export class InfraStack extends cdk.Stack {
       });
     }
     new ssm.StringParameter(this, 'AppApiUrlParam', { parameterName: APP_API_URL_PARAM, stringValue: appHttpApi.apiEndpoint });
+
+    // Lambda のログ（CDK が関数ごとに作るロググループ。機能フラグ @aws-cdk/aws-lambda:useCdkManagedLogGroup）は90日残す。
+    // 既定の2年は長すぎる。90日は、CloudTrail のイベント履歴と同じで、DynamoDB のポイントインタイムリカバリ（35日）より長い。
+    // 量は月に数百 KB なので、費用はほぼ0。スタックを消しても残る（RETAIN。README の「片付け」）
+    for (const fn of [authzFn, mealsFn, appApiFn]) {
+      (fn.node.findChild('LogGroup').node.defaultChild as logs.CfnLogGroup).retentionInDays = logs.RetentionDays.THREE_MONTHS;
+    }
+
+    // 監視のスタックが読む、関数名の置き場所（アクセスログのロググループ名と同じく、Export を作らない）
+    for (const [fnId, fn] of Object.entries({ AuthzFunction: authzFn, MealsFunction: mealsFn, AppApiFunction: appApiFn })) {
+      const parameterName = `${MONITORING_PARAM_PREFIX}/${fnId}/function-name`;
+      new ssm.StringParameter(this, `${fnId}NameParam`, { parameterName, stringValue: fn.functionName });
+      this.functionNameParams[fnId] = parameterName;
+    }
 
     // services/authorization/.env に入れる値（クライアントシークレットは出力しない）
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });

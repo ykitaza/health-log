@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { newApp } from './app';
 import { InfraStack } from '../lib/infra-stack';
 
 // Lambda のコードは build-lambda.sh が作る。CI ではテストのために作らないので、空のフォルダで代える
@@ -13,7 +13,7 @@ const ACCOUNT = '123456789012';
 const REGION = 'ap-northeast-1';
 
 const template = (() => {
-  const app = new cdk.App();
+  const app = newApp();
   const stack = new InfraStack(app, 'CognitoStudy', { env: { account: ACCOUNT, region: REGION } });
   return Template.fromStack(stack);
 })();
@@ -36,7 +36,7 @@ describe('データを持つリソースを守る', () => {
     });
   });
 
-  test('DynamoDB のテーブルは、どれも削除の保護があり、スタックを消しても残る', () => {
+  test('DynamoDB のテーブルは、どれも削除の保護とポイントインタイムリカバリがあり、スタックを消しても残る', () => {
     const tables = template.findResources('AWS::DynamoDB::GlobalTable');
     expect(Object.keys(tables).sort()).toEqual(
       expect.arrayContaining([expect.stringMatching(/^MealsTable/), expect.stringMatching(/^StateTable/)]));
@@ -45,13 +45,16 @@ describe('データを持つリソースを守る', () => {
       expect(table.UpdateReplacePolicy).toBe('Retain');
       for (const replica of table.Properties.Replicas) {
         expect(replica.DeletionProtectionEnabled).toBe(true);
+        // ポイントインタイムリカバリ（35日。既定の期間）
+        expect(replica.PointInTimeRecoverySpecification).toEqual({ PointInTimeRecoveryEnabled: true });
       }
     }
   });
 
   test('既存のリソースの論理 ID が変わっていない（変わると作り直しになる）', () => {
     const ids = Object.keys(template.toJSON().Resources);
-    for (const prefix of ['UserPool6BA7E5F2', 'UserPoolDomainD0EA232A', 'UserPoolRpClient06B6EADD']) {
+    for (const prefix of ['UserPool6BA7E5F2', 'UserPoolDomainD0EA232A', 'UserPoolRpClient06B6EADD', 'MealsTableCAABDBC9',
+      'StateTable9728C7E5']) {
       expect(ids).toContain(prefix);
     }
   });
@@ -85,6 +88,10 @@ describe('パスキー', () => {
     const rp = clientNamed('authz-api');
     expect(rp.ExplicitAuthFlows).toEqual(['ALLOW_USER_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']);
     expect(rp.GenerateSecret).toBe(true);
+  });
+
+  test('認可API 用のクライアントも、ユーザーの有無をエラーから知られないようにする', () => {
+    expect(clientNamed('authz-api').PreventUserExistenceErrors).toBe('ENABLED');
   });
 });
 
@@ -133,6 +140,24 @@ describe('スマホアプリ用のクライアント', () => {
 
   test('マネージドログインのブランディングが、両方のクライアントにある', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 2);
+  });
+
+  test('Lambda のロググループは、3つとも CDK が作り、90日残す（論理 ID は今のまま）', () => {
+    for (const id of ['AuthzFunctionLogGroup5336A532', 'MealsFunctionLogGroupAA05EA7B', 'AppApiFunctionLogGroupA294EE67']) {
+      const logGroup = (template.toJSON().Resources as Record<string, any>)[id];
+      expect(logGroup.Type).toBe('AWS::Logs::LogGroup');
+      expect(logGroup.Properties.RetentionInDays).toBe(90);
+      expect(logGroup.DeletionPolicy).toBe('Retain');
+    }
+  });
+
+  test('監視のスタックが読む関数名を、3つの Lambda について SSM に置く', () => {
+    for (const fnId of ['AuthzFunction', 'MealsFunction', 'AppApiFunction']) {
+      template.hasResourceProperties('AWS::SSM::Parameter', {
+        Name: `/cognito-study-monitoring/${fnId}/function-name`, Type: 'String',
+        Value: { Ref: Match.stringLikeRegexp(`^${fnId}`) },
+      });
+    }
   });
 
   test('アプリが使う値を SSM と出力に置く', () => {
@@ -234,5 +259,51 @@ describe('アプリ用の API（同期）', () => {
       expect(p.Properties.Principal).toBe('apigateway.amazonaws.com');
       expect(JSON.stringify(p.Properties.SourceArn)).toContain(apiId);
     }
+  });
+});
+
+describe('Lambda の権限', () => {
+  const resources = template.toJSON().Resources as Record<string, any>;
+  const statementsOf = (fnPrefix: string) => {
+    const [fnId] = Object.keys(resources).filter((k) => resources[k].Type === 'AWS::Lambda::Function' && k.startsWith(fnPrefix));
+    const fnRole = resources[fnId].Properties.Role['Fn::GetAtt'][0];
+    return Object.values(resources)
+      .filter((r) => r.Type === 'AWS::IAM::Policy' && r.Properties.Roles.some((role: any) => role.Ref === fnRole))
+      .flatMap((p) => p.Properties.PolicyDocument.Statement);
+  };
+  const paramArn = (name: string) => `arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/cognito-study/${name}`;
+  const actionsOf = (s: any) => [s.Action].flat().sort();
+
+  test('認可API の SSM：読むのは起動時の5つ、書けるのは2つの秘密を初めて作るときだけ', () => {
+    const ssm = statementsOf('AuthzFunction').filter((s) => actionsOf(s).some((a: string) => a.startsWith('ssm:')));
+    expect(ssm).toHaveLength(2);
+    const get = ssm.find((s) => actionsOf(s).includes('ssm:GetParameter'));
+    expect(actionsOf(get)).toEqual(['ssm:GetParameter']);
+    expect([...get.Resource].sort()).toEqual([
+      'authorization/cognito-client-id', 'authorization/session-secret', 'authorization/signing-key',
+      'authorization/url', 'meals/url'].map(paramArn).sort());
+    const put = ssm.find((s) => actionsOf(s).includes('ssm:PutParameter'));
+    expect(actionsOf(put)).toEqual(['ssm:PutParameter']);
+    expect([...put.Resource].sort()).toEqual(
+      ['authorization/session-secret', 'authorization/signing-key'].map(paramArn));
+    expect(put.Condition).toEqual({ StringNotEquals: { 'ssm:Overwrite': 'true' } });
+  });
+
+  const dynamodbOf = (fnPrefix: string) =>
+    statementsOf(fnPrefix).filter((s) => actionsOf(s).some((a: string) => a.startsWith('dynamodb:')));
+
+  test('認可API の DynamoDB：StateTable の PutItem・GetItem・DeleteItem だけ', () => {
+    const [s, ...rest] = dynamodbOf('AuthzFunction');
+    expect(rest).toHaveLength(0);
+    expect(actionsOf(s)).toEqual(['dynamodb:DeleteItem', 'dynamodb:GetItem', 'dynamodb:PutItem']);
+    expect(s.Resource).toEqual({ 'Fn::GetAtt': [expect.stringMatching(/^StateTable/), 'Arn'] });
+  });
+
+  test('MCP の DynamoDB：MealsTable（と LSI）の読み取りと PutItem だけ', () => {
+    const [s, ...rest] = dynamodbOf('MealsFunction');
+    expect(rest).toHaveLength(0);
+    expect(actionsOf(s)).toEqual(['dynamodb:BatchGetItem', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:Query']);
+    expect(JSON.stringify(s.Resource)).toContain('MealsTable');
+    expect(JSON.stringify(s.Resource)).not.toContain('StateTable');
   });
 });

@@ -1,6 +1,6 @@
-import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
+import { newApp } from './app';
+import { COGNITO_CHANGE_PATTERN, MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
 
 // InfraStack は Lambda のビルド（build-lambda.sh）が要るので、ここでは SSM パラメータの名前だけを渡す
 const env = { account: '123456789012', region: 'ap-northeast-1' };
@@ -8,10 +8,17 @@ const accessLogGroupParams = {
   AuthzApi: '/cognito-study-monitoring/AuthzApi/access-log-group',
   MealsApi: '/cognito-study-monitoring/MealsApi/access-log-group',
 };
+const functionNameParams = {
+  AuthzFunction: '/cognito-study-monitoring/AuthzFunction/function-name',
+  MealsFunction: '/cognito-study-monitoring/MealsFunction/function-name',
+  AppApiFunction: '/cognito-study-monitoring/AppApiFunction/function-name',
+};
 
 const synth = () => {
-  const app = new cdk.App();
-  const stack = new MonitoringStack(app, 'Monitoring', { env, accessLogGroupParams, tokenEndpointApi: 'AuthzApi' });
+  const app = newApp();
+  const stack = new MonitoringStack(app, 'Monitoring', {
+    env, accessLogGroupParams, functionNameParams, tokenEndpointApi: 'AuthzApi',
+  });
   return { stack, template: Template.fromStack(stack) };
 };
 
@@ -36,10 +43,36 @@ describe('アラーム', () => {
     });
   });
 
-  test('Lambda のエラーは、リージョンのすべての関数の集計（ディメンションなし）', () => {
-    template.hasResourceProperties('AWS::CloudWatch::Alarm', {
-      Namespace: 'AWS/Lambda', MetricName: 'Errors', Threshold: 3, Period: 3600, Dimensions: Match.absent(),
-    });
+  test('Lambda のエラーは、このアプリの3つの関数の Errors の合計（メトリクスの計算）', () => {
+    const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'))
+      .filter((a) => a.Properties.Metrics !== undefined).map((a) => a.Properties);
+    expect(alarms).toHaveLength(1);
+    const [a] = alarms;
+    expect(a.Threshold).toBe(3);
+    expect(a.EvaluationPeriods).toBe(1);
+    const expression = a.Metrics.filter((m: any) => m.Expression !== undefined);
+    expect(expression).toHaveLength(1);
+    expect(expression[0].ReturnData).not.toBe(false);
+    const metrics = a.Metrics.filter((m: any) => m.MetricStat !== undefined);
+    expect(metrics).toHaveLength(3);
+    expect(expression[0].Expression).toBe(`SUM([${metrics.map((m: any) => m.Id).join(', ')}])`);
+    for (const m of metrics) {
+      expect(m.ReturnData).toBe(false);
+      expect(m.MetricStat).toMatchObject({
+        Metric: { Namespace: 'AWS/Lambda', MetricName: 'Errors' }, Period: 3600, Stat: 'Sum',
+      });
+      // 関数名は SSM パラメータから読む（CloudFormation のパラメータ）
+      expect(m.MetricStat.Metric.Dimensions).toEqual([{ Name: 'FunctionName', Value: { Ref: expect.any(String) } }]);
+    }
+    for (const paramName of Object.values(functionNameParams)) {
+      template.hasParameter('*', { Type: 'AWS::SSM::Parameter::Value<String>', Default: paramName });
+    }
+  });
+
+  test('アラームのメトリクスは、無料枠（10個。既存の請求のアラームが1個ある）に収まる9個', () => {
+    const count = Object.values(template.findResources('AWS::CloudWatch::Alarm')).reduce((n, a) => n
+      + (a.Properties.Metrics ? a.Properties.Metrics.filter((m: any) => m.MetricStat).length : 1), 0);
+    expect(count).toBe(9);
   });
 
   test('どのアラームも、欠けたデータを異常にせず、SNS に送る', () => {
@@ -208,16 +241,34 @@ describe('EventBridge のルール', () => {
     });
   });
 
-  test('Cognito のユーザーとユーザープールの変更（CDK のデプロイを除く）', () => {
+  test('Cognito の変更：前方一致、パスキーの API、マネージドログインでのパスキーの登録（CDK のデプロイを除く）', () => {
     template.hasResourceProperties('AWS::Events::Rule', {
       EventPattern: {
         source: ['aws.cognito-idp'],
-        detail: Match.objectLike({
-          eventName: Match.arrayWith(['AdminCreateUser', 'AdminDeleteUser', 'AdminSetUserPassword', 'UpdateUserPool']),
+        'detail-type': ['AWS API Call via CloudTrail', 'AWS Service Event via CloudTrail'],
+        detail: {
+          eventSource: ['cognito-idp.amazonaws.com'],
+          eventName: [
+            ...['Admin', 'Create', 'Update', 'Delete', 'Set', 'Add', 'Start', 'Complete'].map((prefix) => ({ prefix })),
+            'SignUp', 'ChangePassword', 'ConfirmForgotPassword', 'passkeys_add_POST',
+          ],
           ...notByCdk,
-        }),
+        },
       },
     });
+  });
+
+  // EventBridge のパターンの一致を、実際の名前で確かめる（前方一致で拾うもの・拾わないもの）
+  test.each([
+    ['AdminCreateUser', true], ['AdminSetUserPassword', true], ['AdminUserGlobalSignOut', true],
+    ['UpdateUserPool', true], ['DeleteUser', true], ['SetUserPoolMfaConfig', true], ['AddCustomAttributes', true],
+    ['StartWebAuthnRegistration', true], ['CompleteWebAuthnRegistration', true], ['DeleteWebAuthnCredential', true],
+    ['SignUp', true], ['passkeys_add_POST', true],
+    ['InitiateAuth', false], ['ListWebAuthnCredentials', false], ['login_POST', false], ['token_POST', false],
+  ])('Cognito の %s は通知するか：%s', (eventName, expected) => {
+    const names = COGNITO_CHANGE_PATTERN.detail!.eventName as (string | { prefix: string })[];
+    const matched = names.some((n) => (typeof n === 'string' ? n === eventName : eventName.startsWith(n.prefix)));
+    expect(matched).toBe(expected);
   });
 
   test('CloudTrail の停止と削除（CDK のデプロイでも通知する）', () => {
@@ -233,13 +284,14 @@ describe('EventBridge のルール', () => {
   });
 
   test('us-east-1 の IAM の変更を、東京の既定のイベントバスに転送する', () => {
-    const app = new cdk.App();
+    const app = newApp();
     const global = new MonitoringGlobalStack(app, 'Global', {
       env: { account: env.account, region: 'us-east-1' }, targetRegion: 'ap-northeast-1',
     });
     const t = Template.fromStack(global);
     const tokyoBus = `arn:aws:events:ap-northeast-1:${env.account}:event-bus/default`;
     t.hasResourceProperties('AWS::Events::Rule', {
+      Name: 'cognito-study-iam-change-forward',
       EventPattern: { source: ['aws.iam'], detail: Match.objectLike(notByCdk) },
       Targets: [Match.objectLike({ Arn: tokyoBus, RoleArn: Match.anyValue() })],
     });
@@ -247,7 +299,10 @@ describe('EventBridge のルール', () => {
       AssumeRolePolicyDocument: {
         Statement: [Match.objectLike({
           Principal: { Service: 'events.amazonaws.com' },
-          Condition: { StringEquals: { 'aws:SourceAccount': env.account } },
+          Condition: {
+            StringEquals: { 'aws:SourceAccount': env.account },
+            ArnEquals: { 'aws:SourceArn': `arn:aws:events:us-east-1:${env.account}:rule/cognito-study-iam-change-forward` },
+          },
         })],
       },
     });

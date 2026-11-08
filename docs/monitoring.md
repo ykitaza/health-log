@@ -8,13 +8,13 @@
 | `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム7個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール3個 |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京の既定のイベントバスに転送するルール |
 
-`CognitoStudy` とは、SSM パラメータの名前（`/cognito-study-monitoring/<API>/access-log-group`）だけでつないでいます。スタックをまたぐ Export は作りません。
+`CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group` と、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`）だけでつないでいます。スタックをまたぐ Export は作りません。
 
 ## 何を検知するか
 
 ### API と Lambda（CloudWatch のアラーム）
 
-しきい値は、2026-11-08 までの30日のアクセスログ（2つの API の合計）をもとに、本人1人の利用ではありえない量にしています。
+しきい値は、2026-11-08 までの30日のアクセスログ（3つの API の合計。アプリ用の API はまだ使っていないので、数は認可API と MCP のもの）をもとに、本人1人の利用ではありえない量にしています。
 スマホアプリ用の API（`AppApi`）のアクセスログも、同じメトリクスに合わせて数えます。アプリは開くたびに同期で数回から十数回送るので、使い始めたら `Requests` のしきい値を見直します。
 どの API の数も、ディメンションのない1つのメトリクス（名前空間 `CognitoStudy/Monitoring`）に足し込みます。API ごとにアラームを作ると、アラームの無料枠（10個）を超えるためです。どの API で起きたかは、下の Logs Insights で見ます。
 
@@ -23,9 +23,9 @@
 | `RequestsAlarm` | すべてのリクエスト（アクセスログ） | 1時間に300件以上 | これまでの最大は1時間32件、1日42件。300件は、多い日の7日分を1時間で使う量。費用の兆し |
 | `ClientErrorsAlarm` | 4xx（アクセスログ） | 1時間に50件以上 | 普段はスキャンが月10件ほど。コネクタをつないだ日でも 401 は1日38件。スキャンや総当たりの兆し |
 | `ServerErrorsAlarm` | 5xx（アクセスログ） | 1時間に3件以上 | 30日間0件。1件だけなら一時的な失敗のこともあるので、3件から |
-| `ThrottledAlarm` | 429（流量の制限での拒否。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
+| `ThrottledAlarm` | 429（流量の制限での拒否。認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒10回・瞬間20回。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
 | `TokenFailuresAlarm` | 認可API の `/token` の 4xx（アクセスログ） | 1時間に10件以上 | これまでの最大は1時間1件。認可コードやリフレッシュトークンの総当たりの兆し |
-| `LambdaErrorsAlarm` | 東京リージョンのすべての Lambda の `Errors`（`AWS/Lambda`、ディメンションなし） | 1時間に3件以上 | 30日間0件。関数ごとに作るとアラームが増えるので、リージョンの合計にする |
+| `LambdaErrorsAlarm` | このアプリの3つの Lambda（`AuthzFunction`・`MealsFunction`・`AppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
 
 - 欠けたデータ（リクエストがない時間）は、異常として扱いません（`notBreaching`）
 - 通知はアラームの状態が「アラーム」になったときだけ送ります（戻ったときは送りません）
@@ -36,12 +36,14 @@
 |---|---|---|
 | ルートでのログイン、MFA なしのログイン（失敗も含む） | CloudTrail → CloudWatch Logs のメトリクスフィルター → アラーム `SuspiciousConsoleLoginAlarm`（5分に1件以上） | なし |
 | IAM の変更（ユーザー、アクセスキー、パスワード、MFA、ポリシー、ロール、ID プロバイダー。名前が Create・Delete・Update・Put・Attach・Detach・Add・Remove・Set・Enable・Deactivate・Upload・Change・Resync で始まる操作） | us-east-1 の EventBridge → 東京の既定のイベントバス → `IamChangeRule` | CDK のデプロイ |
-| Cognito のユーザーの作成・削除・パスワードの設定、ユーザープールとアプリクライアントの変更 | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
+| Cognito の変更（名前が Admin・Create・Update・Delete・Set・Add・Start・Complete で始まる操作と、SignUp・ChangePassword・ConfirmForgotPassword）。パスキーの登録と削除（`StartWebAuthnRegistration`・`CompleteWebAuthnRegistration`・`DeleteWebAuthnCredential`）と、マネージドログインの画面からのパスキーの登録（`passkeys_add_POST`）を含む | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
 | CloudTrail の停止・削除・変更（StopLogging、DeleteTrail、UpdateTrail、PutEventSelectors） | 東京の EventBridge `CloudTrailTamperRule` | なし（CDK のデプロイでも通知する） |
 
 - **ログインをアラームで見る理由**：`ConsoleLogin` が記録されるリージョンは、利用者の種類と入口で変わります。ルートは us-east-1・us-east-2・us-west-2 のどれか、IAM ユーザーは us-east-1・us-east-2・eu-north-1・ap-southeast-2 のどれか、リージョンの入口を使えばそのリージョンです（[AWS Management Console sign-in events](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-aws-console-sign-in-events.html)）。このアカウントでも、直近のログインは5つのリージョンに記録されていました。EventBridge のルールはリージョンごとに要るので、すべてのリージョンを1つのロググループに集める証跡で数えます
 - **IAM を us-east-1 から転送する理由**：IAM はグローバルなサービスで、操作は us-east-1 にだけ記録され、us-east-1 の EventBridge にだけ届きます。送り先を東京の1つのトピックにまとめ、メールの購読を1回で済ませるために、東京のイベントバスに転送します
 - **CDK のデプロイを除く方法**：CloudFormation が使うロール `cdk-hnb659fds-cfn-exec-role-*` による操作を、`userIdentity.sessionContext.sessionIssuer.userName` の前方一致（`anything-but`）で除きます。`anything-but` は項目がない（IAM ユーザーやルートの操作）と一致しないので、`exists: false` と `$or` でつなぎます。その名前のロールを新しく作る操作は通知されるので、同じ名前で紛れ込むことはできません
+- **マネージドログインでのパスキーの登録**：画面（`/passkeys/add`）からの登録は API の呼び出しではなく、エンドポイントへのリクエストとして CloudTrail に記録されます（`eventType` が `AwsServiceEvent`、`eventName` が `passkeys_add_POST`。このアカウントの記録でも確かめた）。EventBridge には detail-type `AWS Service Event via CloudTrail` で届くはずなので、ルールに両方の detail-type を入れています。届くかはデプロイのあとに試して確かめます（下の「デプロイと、メールの購読の足し方」の手順4）
+- 読むだけの操作（`AdminGetUser`、`ListWebAuthnCredentials` など）は、前方一致に当たっても、EventBridge の既定の状態（`ENABLED`）のルールには届かないので、通知されません
 - 通知の中身は CloudTrail のイベントそのもの（JSON）です。パスワードは CloudTrail が伏せて記録します
 
 ### CloudTrail の証跡
@@ -57,7 +59,7 @@
 | 通知 | 見るもの |
 |---|---|
 | API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
-| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API） |
+| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）。90日残す |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail の操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
@@ -136,6 +138,7 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 4. 届くかを確かめる（どれも1通ずつ届く）
    - アラーム：`aws cloudwatch set-alarm-state --region ap-northeast-1 --alarm-name <RequestsAlarm の名前> --state-value ALARM --state-reason test`（次の評価で元に戻る）
    - IAM の転送：何も付けないポリシーを作って消す（`aws iam create-policy --policy-name monitoring-test --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"none:none","Resource":"*"}]}'` のあと `aws iam delete-policy --policy-arn <ARN>`）。2通届く
+   - マネージドログインでのパスキーの登録：パスキーを作る手順（[design.md](design.md#パスキーを作る手順)）で、パスキーを足したときに `passkeys_add_POST` の通知が届くかを見る。届かなければ、EventBridge にはこのイベントが来ていない。そのときは、証跡のロググループ（`TrailLogGroup`）にメトリクスフィルター（`{ $.eventName = "passkeys_add_POST" }`）を足して、アラームで知らせる。ただし、アラームのメトリクスは無料枠（10個）をすでに使い切っているので、アラームを1個足すと月 $0.10 かかる（または、`SuspiciousConsoleLoginAlarm` を、ログインとパスキーの登録をまとめた式にする。これも式の中のメトリクスの数で数えるので、1個増える）
 
 初めてデプロイするときは、証跡を作る操作（PutEventSelectors など）で、CloudTrail のルールから通知が来ます。
 
@@ -145,7 +148,7 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 
 | もの | 量 | 費用 |
 |---|---|---|
-| CloudWatch のアラーム | 7個（ほかに請求のアラームが1個） | 無料枠（標準の解像度で10個）の中 |
+| CloudWatch のアラーム | 7個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は3つの関数の3個なので、合わせて9個（ほかに us-east-1 の請求のアラームが1個で、全部で10個） | 無料枠（標準の解像度のアラームのメトリクス10個）の中。**これ以上アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる** |
 | カスタムメトリクス（メトリクスフィルター） | 6個 | 無料枠（10個）の中 |
 | CloudTrail の証跡 | 管理イベントの1つ目の写し | 無料 |
 | CloudTrail → CloudWatch Logs | 管理イベントは1日 1,200件ほど（東京 1,070件、us-east-1 126件）。月 60MB ほど | 取り込みと保存は無料枠（5GB）の中。CloudTrail の配信の料金（$0.25/GB）が月 $0.02 ほど |

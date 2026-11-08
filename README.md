@@ -122,12 +122,12 @@ cd cdk && npx cdk bootstrap aws://<アカウント ID>/ap-northeast-1 aws://<ア
 
 ```sh
 cd cdk && ./build-lambda.sh && npx cdk deploy --all
-../services/authorization/setup-local.sh   # services/authorization/.env を書き、ユーザー（test1@example.com）がなければ作る
+../services/authorization/setup-local.sh   # PC で認可API を動かすときの services/authorization/.env を書く（ユーザーは作らない）
 ```
 
-初めてのときは、`setup-local.sh` がユーザーを作り、パスワードを `services/authorization/.test1-password` に保存します（画面には出しません）。
-続けて、そのユーザーのパスキーを作り、パスワードを捨てます（[パスキーを作る手順](docs/design.md#パスキーを作る手順)）。
-パスキーをなくしたときも、同じ手順で作り直します。
+初めてのときは、本人のユーザーを管理者の操作で作り、そのユーザーのパスキーを作って、パスワードを捨てます（[パスキーを作る手順](docs/design.md#パスキーを作る手順)）。
+パスワードでログインできるテスト用のユーザーは作りません。
+パスキーをなくしたときは、[パスキーをなくしたとき](docs/design.md#パスキーをなくしたとき)の手順で作り直します。
 
 すでにデプロイしてあって、同期の仕組みを入れる前の記録があるときは、**デプロイの前に**移行のスクリプトを動かします（[今あるデータの移行](docs/sync-design.md#今あるデータの移行)）。
 
@@ -153,7 +153,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 (cd services/mcp && PYTHONPATH=../meals uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals から読む）
 ```
 
-先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。`setup-local.sh` は、ユーザー `test1@example.com` がなければ作るので、`.env` だけが要るときも作られます。
+先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。ログインには、本人のユーザーとパスキーを使います（ローカルの戻り先 `http://localhost:3000/cognito/callback` も Cognito に登録してあります）。
 署名鍵とセッションの秘密は、初めて起動したときに `services/authorization/` に作られます（`.gitignore` 済み）。
 
 スマホのアプリの動かし方は [apps/mobile/README.md](apps/mobile/README.md) にあります。
@@ -179,6 +179,7 @@ PR と main への push では、GitHub Actions（`.github/workflows/test.yml`�
 | Cognito のユーザープール（`cognito-study`） | 削除の保護と RETAIN。ユーザーが消えると `sub` が変わり、記録がたどれなくなるため | コンソールで削除の保護を外してから消す |
 | DynamoDB の `MealsTable`（記録）と `StateTable`（ログインの途中の状態、リフレッシュトークン） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
 | CloudTrail の証跡のバケット | RETAIN。証拠として残すため | 中身を消してから消す（[監視の片付け](docs/monitoring.md#片付け)） |
+| Lambda のロググループ（`/aws/lambda/CognitoStudy-*`。90日で古いものから消える） | RETAIN（CDK の既定）。消したあとに調べられるように残す | 要らなければコンソールか `aws logs delete-log-group` で消す |
 | SSM パラメータ（署名鍵とセッションの秘密） | 認可API が初回の起動で作り、スタックの外にあるため | 下のコマンド |
 
 ```sh

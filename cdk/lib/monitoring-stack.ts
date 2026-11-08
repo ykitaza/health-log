@@ -40,20 +40,23 @@ export const IAM_CHANGE_PATTERN: events.EventPattern = {
   },
 };
 
-// Cognito のユーザーの作成・削除・パスワードの設定と、ユーザープール・アプリクライアントの変更
+// Cognito の変更。IAM と同じく、操作の名前の前方一致で広く捕まえる（読むだけの操作 Get・List・Describe は除く。
+// AdminGetUser のような読み取りは、EventBridge の既定のルールには届かない）。
+// - Admin：管理者の操作（ユーザーの作成・削除、パスワードの設定、全セッションのサインアウトなど）
+// - Create・Update・Delete・Set・Add：ユーザープール、クライアント、ドメイン、IdP、グループ、ユーザー自身の削除、パスキーの削除（DeleteWebAuthnCredential）
+// - Start・Complete：パスキーの登録（StartWebAuthnRegistration・CompleteWebAuthnRegistration）、ユーザーのインポート
+// - 前方一致で拾えない、ユーザー自身の操作（新規登録、パスワードの変更・再設定）は名前で足す
+// マネージドログインの画面からのパスキーの登録（passkeys_add_POST）は、API の呼び出しではなく
+// エンドポイントへのリクエストとして、CloudTrail に AwsServiceEvent で記録されるので、detail-type も足す
 export const COGNITO_CHANGE_PATTERN: events.EventPattern = {
   source: ['aws.cognito-idp'],
-  detailType: ['AWS API Call via CloudTrail'],
+  detailType: ['AWS API Call via CloudTrail', 'AWS Service Event via CloudTrail'],
   detail: {
     eventSource: ['cognito-idp.amazonaws.com'],
     eventName: [
-      'AdminCreateUser', 'SignUp', 'AdminDeleteUser', 'DeleteUser',
-      'AdminSetUserPassword', 'AdminResetUserPassword', 'ChangePassword', 'ConfirmForgotPassword',
-      'AdminAddUserToGroup', 'AdminUpdateUserAttributes', 'AdminSetUserMFAPreference', 'SetUserPoolMfaConfig',
-      'CreateUserPool', 'UpdateUserPool', 'DeleteUserPool',
-      'CreateUserPoolClient', 'UpdateUserPoolClient', 'DeleteUserPoolClient',
-      'CreateIdentityProvider', 'UpdateIdentityProvider', 'DeleteIdentityProvider',
-      'CreateUserPoolDomain', 'UpdateUserPoolDomain', 'DeleteUserPoolDomain',
+      ...['Admin', 'Create', 'Update', 'Delete', 'Set', 'Add', 'Start', 'Complete'].map((prefix) => ({ prefix })),
+      'SignUp', 'ChangePassword', 'ConfirmForgotPassword',
+      'passkeys_add_POST',
     ],
     ...notByCdkDeploy,
   },
@@ -74,6 +77,8 @@ export interface MonitoringStackProps extends cdk.StackProps {
   readonly accessLogGroupParams: Record<string, string>;
   // /token の失敗を数える API の ID（認可API）
   readonly tokenEndpointApi: string;
+  // Lambda の ID → 関数名を入れた SSM パラメータの名前（InfraStack.functionNameParams）。エラーを数える関数
+  readonly functionNameParams: Record<string, string>;
 }
 
 // 東京に置く監視。通知の送り先（SNS）、アラーム、CloudTrail の証跡、東京で起きる操作の EventBridge のルール
@@ -155,7 +160,8 @@ export class MonitoringStack extends cdk.Stack {
       }
     }
 
-    // しきい値は、2026-11-08 までの30日のアクセスログ（2つの API の合計）をもとに、本人1人の利用ではありえない量にする
+    // しきい値は、2026-11-08 までの30日のアクセスログ（3つの API の合計。アプリ用の API はまだ使っていないので、
+    // 数は認可API と MCP のもの）をもとに、本人1人の利用ではありえない量にする
     alarm('RequestsAlarm', sumPerHour('Requests'), 300,
       'API へのリクエストが1時間に300件以上（これまでの最大は1時間32件）。費用の兆し。アクセスログで送信元 IP と path を見る');
     alarm('ClientErrorsAlarm', sumPerHour('ClientErrors'), 50,
@@ -163,14 +169,23 @@ export class MonitoringStack extends cdk.Stack {
     alarm('ServerErrorsAlarm', sumPerHour('ServerErrors'), 3,
       'API の 5xx が1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
     alarm('ThrottledAlarm', sumPerHour('Throttled'), 10,
-      '流量の制限（1秒1回・瞬間5回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP を見る');
+      '流量の制限（認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒10回・瞬間20回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP と API を見る');
     alarm('TokenFailuresAlarm', sumPerHour('TokenFailures'), 10,
       '認可API の /token の失敗（4xx）が1時間に10件以上（これまでの最大は1時間1件）。認可コードやリフレッシュトークンの総当たりの兆し');
 
-    // このリージョンのすべての Lambda のエラー（ディメンションなしの集計）。関数ごとに作るとアラームが増えるため
-    alarm('LambdaErrorsAlarm', new cloudwatch.Metric({
-      namespace: 'AWS/Lambda', metricName: 'Errors', statistic: cloudwatch.Stats.SUM, period: cdk.Duration.hours(1),
-    }), 3, '東京リージョンの Lambda のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
+    // このアプリの Lambda（3つ）のエラーの合計。関数ごとの Errors をメトリクスの計算（SUM）でまとめ、アラームは1つにする。
+    // アラームの料金と無料枠は、式の中のメトリクスの数（ここでは3）で数える（docs/monitoring.md の「費用の見込み」）
+    const functionErrors = Object.fromEntries(Object.entries(props.functionNameParams).map(([fnId, paramName], i) => [
+      `e${i}`, new cloudwatch.Metric({
+        namespace: 'AWS/Lambda', metricName: 'Errors', statistic: cloudwatch.Stats.SUM, period: cdk.Duration.hours(1),
+        dimensionsMap: { FunctionName: ssm.StringParameter.valueForStringParameter(this, paramName) },
+        label: fnId,
+      }),
+    ]));
+    alarm('LambdaErrorsAlarm', new cloudwatch.MathExpression({
+      expression: `SUM([${Object.keys(functionErrors).join(', ')}])`, usingMetrics: functionErrors,
+      period: cdk.Duration.hours(1), label: 'Errors',
+    }), 3, 'このアプリの Lambda（認可API・MCP・アプリ用の API）のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
 
     // ---- CloudTrail の証跡 ----
 
@@ -243,7 +258,7 @@ export class MonitoringStack extends cdk.Stack {
       description: 'IAM の変更（us-east-1 から転送されたもの）', eventPattern: IAM_CHANGE_PATTERN, targets: [topicTarget],
     });
     new events.Rule(this, 'CognitoChangeRule', {
-      description: 'Cognito のユーザーとユーザープールの変更', eventPattern: COGNITO_CHANGE_PATTERN, targets: [topicTarget],
+      description: 'Cognito のユーザー・パスキー・ユーザープールの変更', eventPattern: COGNITO_CHANGE_PATTERN, targets: [topicTarget],
     });
     new events.Rule(this, 'CloudTrailTamperRule', {
       description: 'CloudTrail の停止・削除・変更', eventPattern: CLOUDTRAIL_TAMPER_PATTERN, targets: [topicTarget],
@@ -267,13 +282,19 @@ export class MonitoringGlobalStack extends cdk.Stack {
 
     const targetBus = events.EventBus.fromEventBusArn(
       this, 'TargetBus', `arn:aws:events:${props.targetRegion}:${this.account}:event-bus/default`);
-    // 転送のロール。このアカウントの EventBridge のルールだけが使え、転送先のバスにだけ PutEvents できる（権限は targets.EventBus が足す）
+    // 転送のロール。下の転送のルールだけが使え、転送先のバスにだけ PutEvents できる（権限は targets.EventBus が足す）。
+    // ルールの ARN を参照するとロールとルールが循環するので、ルールに名前を付けて ARN を組み立てる
+    const forwardRuleName = 'cognito-study-iam-change-forward';
     const forwardRole = new iam.Role(this, 'ForwardRole', {
       assumedBy: new iam.ServicePrincipal('events.amazonaws.com', {
-        conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+        conditions: {
+          StringEquals: { 'aws:SourceAccount': this.account },
+          ArnEquals: { 'aws:SourceArn': `arn:aws:events:${this.region}:${this.account}:rule/${forwardRuleName}` },
+        },
       }),
     });
     new events.Rule(this, 'IamChangeForwardRule', {
+      ruleName: forwardRuleName,
       description: `IAM の変更を ${props.targetRegion} に転送する`,
       eventPattern: IAM_CHANGE_PATTERN,
       targets: [new targets.EventBus(targetBus, { role: forwardRole })],
