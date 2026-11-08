@@ -8,9 +8,10 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { BodyMetric, bmi, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '@/lib/body';
+import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { addDays, addMonths, formatJpDate, todayKey } from '@/lib/date';
+import { addDays, formatJpDate, todayKey } from '@/lib/date';
+import { formatSigned } from '@/lib/format';
 import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -120,14 +121,8 @@ export default function BodyScreen() {
   ];
 
   // 体重の推移（1か月）と目標
-  const weights = (data?.daily ?? []).filter((d) => d.weightKg != null).map((d) => ({ date: d.date, weightKg: d.weightKg! }));
-  const from = addMonths(today, -1);
-  const recent = weights.filter((p) => p.date >= from && p.date <= today);
-  const latest = weights.filter((p) => p.date <= today).at(-1);
   const goal = data?.settings.goalWeightKg ?? null;
-  const pace = weeklyPace(weights, today);
-  const progress = latest && goal != null ? goalProgress(latest.weightKg, goal, pace) : null;
-  const monthChange = recent.length >= 2 ? recent[recent.length - 1].weightKg - recent[0].weightKg : null;
+  const { from, recent, pace, progress, monthChange } = weightOverview(data?.daily ?? [], goal, today);
   const openTrend = (metric: BodyMetric) => router.push({ pathname: '/body-trend', params: { metric } });
 
   return (
@@ -215,7 +210,7 @@ export default function BodyScreen() {
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
               {progress.weeks != null && <Badge label={`このペースで約${progress.weeks}週`} />}
               <T size={11} color={colors.sub}>
-                {pace == null ? '直近28日の記録が2つ以上あるとペースが出ます' : `直近28日のペース ${pace >= 0 ? '+' : '−'}${fmt1(Math.abs(kgToUnit(pace, unit)))}${unit}／週`}
+                {pace == null ? '直近28日の記録が2つ以上あるとペースが出ます' : `直近28日のペース ${formatSigned(kgToUnit(pace, unit))}${unit}／週`}
               </T>
             </View>
           </View>
@@ -227,7 +222,7 @@ export default function BodyScreen() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
             <T bold size={16}>体重の推移</T>
             {monthChange != null && (
-              <T bold size={13} color={colors.accent}>1か月で {monthChange >= 0 ? '+' : '−'}{fmt1(Math.abs(kgToUnit(monthChange, unit)))}{unit}</T>
+              <T bold size={13} color={colors.accent}>1か月で {formatSigned(kgToUnit(monthChange, unit))}{unit}</T>
             )}
           </View>
           {recent.length >= 2 ? (

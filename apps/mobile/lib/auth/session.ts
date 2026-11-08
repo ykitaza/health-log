@@ -71,6 +71,22 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * アクセストークン（JWT）の利用者（sub）を読む。署名は確かめない（確かめるのはサーバー）。
+ * 同期した相手のアカウントが変わったかを見るためだけに使う。sub は画面やログに出さない。読めなければ null
+ */
+export function accessTokenSubject(accessToken: string): string | null {
+  const payload = accessToken.split('.')[1];
+  if (!payload) return null;
+  try {
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))) as { sub?: unknown };
+    return typeof claims.sub === 'string' && claims.sub !== '' ? claims.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 /** アクセストークンの期限のこの時間前から、切れたものとして更新する（端末の時計のずれと通信の時間の分） */
 export const REFRESH_MARGIN_MS = 60_000;
 /** Cognito への通信の待ち時間の上限 */

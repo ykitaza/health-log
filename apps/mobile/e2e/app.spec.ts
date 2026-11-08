@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { button, enter, goTab, openApp, openBody, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
 
-test('4つのタブと、タブの見出し', async ({ page }) => {
+test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
   await openApp(page);
   await expect(page.getByRole('tab')).toHaveCount(4);
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
@@ -13,37 +13,37 @@ test('4つのタブと、タブの見出し', async ({ page }) => {
   await goTab(page, '履歴／分析');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
 
+  // 体組成の歯車から設定へ行き、戻ると体組成
   await goTab(page, '体組成');
   await expect(see(page, '体重', { exact: true })).toBeVisible();
-
-  await goTab(page, 'ホーム');
-  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
-});
-
-test('歯車から設定へ行き、戻ると元の画面。設定と RM計算機にタブバーは出ない', async ({ page }) => {
-  await openApp(page);
   await openSettings(page);
   await expect(page.getByRole('tablist')).toBeHidden();
-  await button(page, '戻る').click();
-  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
-  await expect(page.getByRole('tablist')).toBeVisible();
-
-  await openBody(page);
-  await openSettings(page);
   await button(page, '戻る').click();
   await expect(see(page, '自動で計算', { exact: true })).toBeVisible();
   await expect(tab(page, '体組成')).toHaveAttribute('aria-selected', 'true');
 
+  // ホームの歯車から設定へ行き、戻るとホーム
   await goTab(page, 'ホーム');
+  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
+  await openSettings(page);
+  await expect(page.getByRole('tablist')).toBeHidden();
+  // 設定の「準備中」
+  await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
+  await expect(see(page, '準備中', { exact: true })).toHaveCount(1);
+  await button(page, '戻る').click();
+  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tablist')).toBeVisible();
+
   await button(page, 'RM計算機').click();
   await expect(page.getByRole('tablist')).toBeHidden();
   await button(page, '戻る').click();
   await expect(page.getByRole('tablist')).toBeVisible();
 
-  // 設定の「準備中」
-  await openSettings(page);
-  await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
-  await expect(see(page, '準備中', { exact: true })).toHaveCount(1);
+  // 知らない道は「画面が見つかりません」からホームへ戻れる
+  await page.goto('/no-such-page');
+  await expect(see(page, '画面が見つかりません')).toBeVisible();
+  await see(page, 'ホームへ').click();
+  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
 });
 
 test('再読み込みしても記録・体組成・設定が残る', async ({ page }) => {
@@ -69,18 +69,4 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   // 深い画面の URL を直接開いても動く
   await page.goto('/workout?date=2026-11-08');
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
-});
-
-test('新しいコンテキストは、まっさらなデータから始まる', async ({ page }) => {
-  await openApp(page);
-  await expect(page.getByTestId('volume-total')).toContainText('0.00t');
-  await expect(see(page, 'まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。')).toBeVisible();
-});
-
-test('知らない道は「画面が見つかりません」からホームへ戻れる', async ({ page }) => {
-  await openApp(page);
-  await page.goto('/no-such-page');
-  await expect(see(page, '画面が見つかりません')).toBeVisible();
-  await see(page, 'ホームへ').click();
-  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
 });

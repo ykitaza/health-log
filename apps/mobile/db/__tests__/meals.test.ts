@@ -166,6 +166,24 @@ describe('同期', () => {
         ({ date: x.date, day_type: x.day_type, meal_ids: x.meals.map((m) => m.meal_id), total: x.total, target: x.target, remaining: x.remaining })));
   });
 
+  test('別のアカウントに送る（send）と、食事も積み直す（品目には親の ID。消した食事とその品目は積まない）。消す（replace）と、食事の表も空になる', async () => {
+    const d = await device();
+    const kept = await d.r.meals.record({ date: DAY, slot: 'lunch', source: 'text', items: [rice, chicken] });
+    const gone = await d.r.meals.record({ date: DAY, slot: 'snack', source: 'text', items: [soup] });
+    await d.r.meals.remove(gone);
+    await d.r.meals.saveTemplateFromMeal(kept, '昼');
+    await d.r.meals.setDayType(DAY, 'rest');
+    await d.store.switchAccount('new-sub', 'send', '2026-11-08T00:00:00.000Z');
+    expect(outboxOf(d.outbox()).map(([t, op, parent]) => [t, op, parent])).toEqual([
+      ['meal', 'create', null], ['meal_item', 'create', kept], ['meal_item', 'create', kept],
+      ['meal_template', 'create', null], ['day_type', 'create', null],
+    ]);
+    expect(toPushChange(d.outbox()[3] as never).fields?.items).toHaveLength(2);
+    await d.store.switchAccount('other-sub', 'replace', '2026-11-08T00:00:00.000Z');
+    expect(await d.r.meals.listDay(DAY)).toEqual([]);
+    expect(await d.r.meals.listTemplates()).toEqual([]);
+  });
+
   test('版2の端末は、版3で受け取りの位置を消して、スナップショットを取り直す', async () => {
     const db = memoryDb();
     const deps = testDeps();

@@ -8,6 +8,7 @@ import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, lastDoneLabel, todayKey } from '@/lib/date';
+import { searchExercises } from '@/lib/exercises';
 import { formatSetShort } from '@/lib/format';
 import { lastTopSets } from '@/lib/training';
 import { colors, fonts } from '@/theme';
@@ -35,8 +36,7 @@ export default function SelectExerciseScreen() {
     return m;
   }, [data, date, today]);
 
-  const q = query.trim();
-  const filtered = (data?.exercises ?? []).filter((e) => (!part || e.bodyPartId === part) && (q === '' || e.name.includes(q)));
+  const filtered = searchExercises(data?.exercises ?? [], part, query);
   const groups = (data?.parts ?? []).map((p) => ({ part: p, items: filtered.filter((e) => e.bodyPartId === p.id) })).filter((g) => g.items.length > 0);
 
   const choose = async (exerciseId: string) => {

@@ -7,7 +7,7 @@ import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useFocusData } from '@/hooks/data';
-import { toCsv } from '@/lib/csv';
+import { workoutCsv } from '@/lib/csv';
 import { LIMITS, parseInRange } from '@/lib/limits';
 import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -61,11 +61,7 @@ export default function SettingsScreen() {
 
   const exportCsv = async () => {
     setExportError(null);
-    const rows = await repos.workouts.exportRows();
-    const csv = toCsv(
-      ['日付', '部位', '種目', 'セット', '重量(kg)', '回数', 'メモ', '完了'],
-      rows.map((r) => [r.date, r.body_part, r.exercise, r.set_index + 1, r.weight_kg, r.reps, r.memo, r.done ? 1 : 0]),
-    );
+    const csv = workoutCsv(await repos.workouts.exportRows());
     try {
       await Share.share({ title: 'トレログの記録（CSV）', message: csv });
     } catch (e) {

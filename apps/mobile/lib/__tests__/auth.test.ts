@@ -1,6 +1,7 @@
 import { ApiError, createApiClient } from '../api';
-import { AuthError, createAuthClient, logoutUrl, REFRESH_MARGIN_MS, Tokens, TokenStore } from '../auth/session';
+import { accessTokenSubject, AuthError, createAuthClient, logoutUrl, REFRESH_MARGIN_MS, Tokens, TokenStore } from '../auth/session';
 import { createSecureTokenStore } from '../auth/tokenStore';
+import { fakeAccessToken } from '@/test-utils/fakeToken';
 
 const config = { clientId: 'client-1', cognitoDomain: 'https://login.example.test' };
 const TOKEN_URL = 'https://login.example.test/oauth2/token';
@@ -357,5 +358,17 @@ describe('ログインの戻りのリンク（+native-intent）', () => {
   test('ほかのリンクはそのまま', () => {
     expect(redirectSystemPath({ path: 'torelog://settings', initial: false })).toBe('torelog://settings');
     expect(redirectSystemPath({ path: '/callbacks', initial: false })).toBe('/callbacks');
+  });
+});
+
+describe('アクセストークンの sub（同期した相手のアカウントを見分ける）', () => {
+  test('JWT の本体から sub を読む。読めないものは null', () => {
+    expect(accessTokenSubject(fakeAccessToken('11111111-2222-4333-8444-555555555555'))).toBe('11111111-2222-4333-8444-555555555555');
+    const b64url = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    // base64url の - と _ が入るもの、詰め物（=）がないもの
+    expect(accessTokenSubject(`x.${b64url({ sub: 'a>?b', n: '\u00ff\u00ff' })}.y`)).toBe('a>?b');
+    for (const bad of ['test-access', 'a..b', 'a.!!!.b', `a.${b64url({ sub: 1 })}.b`, `a.${b64url({ sub: '' })}.b`, `a.${b64url(null)}.b`]) {
+      expect(accessTokenSubject(bad)).toBeNull();
+    }
   });
 });

@@ -1,6 +1,7 @@
 import type { EntityState, PushChange } from '@/lib/api';
+import { backfillOutbox, insertSeeds } from '../migrations';
 import { oneAtATime } from '../serial';
-import { EntitySpec, SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
+import { ENTITIES, EntitySpec, SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Db } from '../types';
 
 export type OutboxRow = {
@@ -27,6 +28,16 @@ export function toPushChange(row: OutboxRow): PushChange {
 }
 
 type Applied = 'applied' | 'held' | 'skipped';
+
+/**
+ * 前と違うアカウントでログインしたときの選び方（docs/sync-design.md の「アカウントが変わったとき」）
+ * - send：この端末の記録を、新しいアカウントに送る（今の記録をすべて outbox に積み直す）
+ * - replace：端末の記録を消し、新しいアカウントから受け取り直す（入れたばかりの端末と同じにする）
+ */
+export type AccountSwitch = 'send' | 'replace';
+
+/** 同期した相手のアカウント（アクセストークンの sub）を置く sync_meta のキー。画面やログには出さない */
+const ACCOUNT_KEY = 'account';
 
 /**
  * sync_seen・sync_held で対象を指すキー。品目（親の中でだけ一意）は「親の ID/品目の ID」にする
@@ -160,6 +171,33 @@ export function syncStore(db: Db) {
       const n = (s: string) => rows.find((r) => r.status === s)?.n ?? 0;
       return { pending: n('pending'), rejected: n('rejected') };
     },
+
+    /** 同期した相手のアカウント（sub）。まだ同期していなければ null */
+    account: () => meta(ACCOUNT_KEY),
+    /** 初めて同期するアカウントを覚える */
+    rememberAccount: (sub: string) => oneAtATime(db, () => putMeta(ACCOUNT_KEY, sub)),
+
+    /**
+     * 新しいアカウント（sub）に切り替える。前のアカウントの受け取りの位置・当てはめた印・送っていない変更は捨てる。
+     * send は端末の今の記録を outbox に積み直し、replace は端末の記録を消して初期の部位と種目だけにする
+     */
+    switchAccount: (sub: string, mode: AccountSwitch, nowIso: string) => oneAtATime(db, () => db.withTransactionAsync(async () => {
+      await putMeta('applying', '1'); // 消す・入れ直すのを outbox に積まない
+      try {
+        for (const t of ['sync_outbox', 'sync_seen', 'sync_held']) await db.runAsync(`DELETE FROM ${t}`, []);
+        await db.runAsync(`DELETE FROM sync_meta WHERE key IN ('cursor', 'last_synced_at')`, []);
+        if (mode === 'replace') {
+          // 子から消す（ENTITIES は親が先）
+          for (const spec of [...ENTITIES].reverse()) await db.runAsync(`DELETE FROM ${spec.table}`, []);
+          await insertSeeds(db, nowIso);
+        } else {
+          await backfillOutbox(db);
+        }
+        await putMeta(ACCOUNT_KEY, sub);
+      } finally {
+        await db.runAsync(`DELETE FROM sync_meta WHERE key = 'applying'`, []);
+      }
+    })),
 
     /**
      * 受け取った状態を当てはめる。meta（受け取りの位置など）も同じトランザクションで書く。

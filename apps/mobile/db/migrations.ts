@@ -4,7 +4,7 @@
 // どの表も、のちにサーバーと同期できるように、次の列を持つ。
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
-import { MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
+import { ENTITIES, EntitySpec, MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
 import type { Bind, Db } from './types';
 
 export type Migration = { version: number; up: (db: Db, nowIso: string) => Promise<void> };
@@ -79,18 +79,7 @@ CREATE TABLE settings (
   value TEXT,${SYNC_COLUMNS}
 );
 `);
-      for (const [i, p] of SEED_BODY_PARTS.entries()) {
-        await db.runAsync(
-          'INSERT INTO body_parts (id, name, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)',
-          [p.id, p.name, i, now, now],
-        );
-      }
-      for (const [i, e] of SEED_EXERCISES.entries()) {
-        await db.runAsync(
-          'INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-          [e.id, e.bodyPartId, e.name, e.recordType, i, now, now],
-        );
-      }
+      await insertSeeds(db, now);
     },
   },
   {
@@ -130,7 +119,7 @@ CREATE TABLE sync_held (
 );
 INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
 `);
-      await backfillOutbox(db);
+      await backfillOutbox(db, TRAINING_ENTITIES);
       for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
@@ -196,28 +185,57 @@ DELETE FROM sync_meta WHERE key = 'cursor';
   },
 ];
 
+/** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
+export async function insertSeeds(db: Db, now: string) {
+  for (const [i, p] of SEED_BODY_PARTS.entries()) {
+    await db.runAsync(
+      'INSERT INTO body_parts (id, name, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)',
+      [p.id, p.name, i, now, now],
+    );
+  }
+  for (const [i, e] of SEED_EXERCISES.entries()) {
+    await db.runAsync(
+      'INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+      [e.id, e.bodyPartId, e.name, e.recordType, i, now, now],
+    );
+  }
+}
+
 /**
- * ログインの前に端末で作った記録を、最初の同期で送れるように outbox に積む。
+ * ログインの前に端末で作った記録を、最初の同期で送れるように outbox に積む（別のアカウントに送り直すときにも使う）。
  * - 初期の部位と種目は、初期の値から変えた項目だけを update で積む（変えていないものを送ると、
  *   ほかの端末や MCP で変えた値を、この端末を入れた時刻で上書きしてしまうため）
  * - それ以外は、今の値を create で積む。時刻は行の updated_at
  * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
+ * - 食事の品目は、親の食事の ID（parent_id）を付けて積む。消した食事の品目は積まない
+ * specs は積む種類。版2のマイグレーションは筋トレの種類だけ（食事の表は版3で作るので、まだない）
  */
-async function backfillOutbox(db: Db) {
+export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES) {
   const seeds: Record<string, Map<string, Record<string, Bind>>> = {
     body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
     exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
     }])),
   };
-  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string) => db.runAsync(
-    `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
-    [type, id, op, fields ? JSON.stringify(fields) : null, at],
-  );
-  for (const spec of TRAINING_ENTITIES) {
+  const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null) =>
+    parentId == null
+      ? db.runAsync(
+        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?)`,
+        [type, id, op, fields ? JSON.stringify(fields) : null, at],
+      )
+      : db.runAsync(
+        `INSERT INTO sync_outbox (change_id, entity_type, entity_id, parent_id, op, fields, changed_at) VALUES (${SQL_UUID}, ?, ?, ?, ?, ?, ?)`,
+        [type, id, parentId, op, fields ? JSON.stringify(fields) : null, at],
+      );
+  for (const spec of specs) {
     const cols = Object.keys(spec.columns);
+    const parent = spec.parent;
     const rows = await db.getAllAsync<Record<string, Bind>>(
-      `SELECT id, updated_at, deleted_at, ${cols.join(', ')} FROM ${spec.table} ORDER BY created_at, id`, [],
+      parent
+        ? `SELECT c.id, c.${parent.column} AS parent_id, c.updated_at, c.deleted_at, ${cols.map((x) => `c.${x}`).join(', ')}
+           FROM ${spec.table} c JOIN ${parent.table} p ON p.id = c.${parent.column}
+           WHERE p.deleted_at IS NULL ORDER BY c.created_at, c.${parent.column}, c.id`
+        : `SELECT id, updated_at, deleted_at, ${cols.join(', ')} FROM ${spec.table} ORDER BY created_at, id`, [],
     );
     for (const row of rows) {
       const id = row.id as string;
@@ -228,7 +246,7 @@ async function backfillOutbox(db: Db) {
         if (Object.keys(changed).length > 0) await add(spec.type, id, 'update', changed, row.updated_at as string);
         if (row.deleted_at) await add(spec.type, id, 'delete', null, row.deleted_at as string);
       } else if (!row.deleted_at) {
-        await add(spec.type, id, 'create', values, row.updated_at as string);
+        await add(spec.type, id, 'create', values, row.updated_at as string, (row.parent_id as string | undefined) ?? null);
       }
     }
   }

@@ -14,3 +14,8 @@ export function formatSetShort(weightKg: number | null, reps: number, unit: Weig
 export function tonnes(volumeKg: number, unit: WeightUnit = 'kg'): string {
   return (kgToUnit(volumeKg, unit) / 1000).toFixed(2);
 }
+
+/** 増減を符号つきの小数1桁で（+1.6、−0.8。マイナスは全角の「−」） */
+export function formatSigned(n: number): string {
+  return `${n >= 0 ? '+' : '−'}${fmt1(Math.abs(n))}`;
+}

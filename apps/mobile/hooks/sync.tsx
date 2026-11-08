@@ -1,10 +1,9 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
-import { syncStore } from '@/db/repositories/sync';
+import { AccountSwitch, syncStore } from '@/db/repositories/sync';
 import { onLocalWrite } from '@/db/serial';
-import type { ApiErrorCode } from '@/lib/api';
-import { createSyncEngine } from '@/lib/sync/engine';
+import { createSyncEngine, SyncErrorCode } from '@/lib/sync/engine';
 import { notifyRemoteChange } from '@/lib/sync/events';
 import { createSyncScheduler } from '@/lib/sync/scheduler';
 import { useAuth } from './auth';
@@ -21,9 +20,11 @@ export type SyncStatus = {
   pending: number;
   /** サーバーに断られて、送るのをやめた変更の件数 */
   rejected: number;
-  /** 最後の同期の失敗。成功したら null */
-  error: ApiErrorCode | null;
+  /** 最後の同期の失敗。成功したら null。accountChanged なら、switchAccount で選ぶまで同期しない */
+  error: SyncErrorCode | null;
   syncNow: () => void;
+  /** 前と違うアカウントでログインしたとき、端末の記録をどうするかを決めて、同期を始める */
+  switchAccount: (mode: AccountSwitch) => Promise<void>;
 };
 
 const SyncContext = createContext<SyncStatus | null>(null);
@@ -35,7 +36,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [counts, setCounts] = useState({ pending: 0, rejected: 0 });
-  const [error, setError] = useState<ApiErrorCode | null>(null);
+  const [error, setError] = useState<SyncErrorCode | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -83,9 +84,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(() => { if (status === 'signedIn') scheduler.request('manual'); }, [status, scheduler]);
 
+  const switchAccount = useCallback(async (mode: AccountSwitch) => {
+    const sub = await api.account();
+    if (!sub) throw new Error('アクセストークンに sub がありません');
+    await store.switchAccount(sub, mode, new Date().toISOString());
+    // 端末の記録が変わった（replace）ので、画面を読み直す
+    if (mode === 'replace') notifyRemoteChange();
+    setError(null);
+    await refresh();
+    if (status === 'signedIn') scheduler.request('manual');
+  }, [api, store, status, scheduler, refresh]);
+
   const value = useMemo(
-    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, syncNow }),
-    [syncing, lastSyncedAt, counts, error, syncNow],
+    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, syncNow, switchAccount }),
+    [syncing, lastSyncedAt, counts, error, syncNow, switchAccount],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

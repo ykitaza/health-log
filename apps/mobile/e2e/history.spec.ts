@@ -1,5 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, moveToDate, openApp, recordOn, saveButton, see, tab, TODAY } from './helpers';
+import { button, moveToDate, openApp, recordOn, recordToday, saveButton, see, tab, TODAY } from './helpers';
+
+// 総負荷量・推定1RM・増減・自己ベストの計算は jest（lib/__tests__/screen-logic.test.ts の「履歴の数字」）。ここは画面の切り替えと表示
 
 /**
  * 履歴のテストのデータ
@@ -23,7 +25,7 @@ async function seed(page: Page) {
 
 const day = (page: Page, date: string) => page.getByTestId('history-calendar').getByTestId(`day-${date}`);
 
-test('記録がないとき（筋トレと食事）', async ({ page }) => {
+test('記録がないとき（筋トレと食事）。回数だけの記録しかないときの自己ベスト', async ({ page }) => {
   await openApp(page);
   await tab(page, '履歴／分析').click();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
@@ -31,9 +33,16 @@ test('記録がないとき（筋トレと食事）', async ({ page }) => {
   await expect(see(page, 'この週はまだ記録がありません')).toBeVisible();
   await button(page, '筋トレ').click();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
+
+  await tab(page, 'ホーム').click();
+  await recordToday(page, [{ exercise: '懸垂', sets: [{ reps: '10' }] }]);
+  await tab(page, '履歴／分析').click();
+  await button(page, 'グラフ').click();
+  await expect(see(page, '重量のある種目の記録がまだありません')).toBeVisible();
+  await expect(see(page, '週の平均 0.0t ・ 先週より +0.0t')).toBeVisible();
 });
 
-test('カレンダー：月の移動、記録のある日・ない日の選択、種目で絞る', async ({ page }) => {
+test('カレンダー：月の移動、記録のある日・ない日の選択、種目で絞る。日を押すと、その日のトレーニングが開いて直せる', async ({ page }) => {
   await seed(page);
   await expect(see(page, 'November 2026', { exact: true })).toBeVisible();
   await expect(see(page, 'トレーニングした日：今月 2回')).toBeVisible();
@@ -84,10 +93,9 @@ test('カレンダー：月の移動、記録のある日・ない日の選択�
   await expect(see(page, '11月8日（日） 懸垂')).toBeVisible();
   await expect(see(page, '10 回', { exact: true })).toBeVisible();
   await expect(see(page, '総負荷量', { exact: true })).toHaveCount(0);
-});
 
-test('カレンダーの日を押すと、その日のトレーニングが開いて直せる', async ({ page }) => {
-  await seed(page);
+  // 日を押すと、その日のトレーニングが開いて直せる
+  await button(page, 'すべて').click();
   await day(page, '2026-11-05').click();
   await see(page, '11月5日（木） ベンチプレス').click();
   await expect(see(page, 'トレーニング', { exact: true })).toBeVisible();
@@ -115,7 +123,7 @@ test('カレンダーの日を押すと、その日のトレーニングが開�
   await expect(see(page, '1,120 kg')).toBeVisible();
 });
 
-test('グラフ：期間の切り替え、記録が1件以下、回数だけの種目', async ({ page }) => {
+test('グラフ：期間の切り替え、記録が1件以下、回数だけの種目。「すべて」：週ごとの総負荷量と自己ベスト', async ({ page }) => {
   await seed(page);
   await button(page, 'ベンチプレス').click();
   await button(page, 'グラフ').click();
@@ -126,13 +134,11 @@ test('グラフ：期間の切り替え、記録が1件以下、回数だけの�
   await expect(see(page, '425', { exact: true })).toBeVisible();
   await expect(see(page, '3か月で −175kg')).toBeVisible(); // 425 − 600
   await expect(see(page, '99.2', { exact: true })).toBeVisible();
-  await expect(see(page, '3か月で +19.2kg')).toBeVisible(); // 99.17 − 80
   await expect(page.locator('svg').filter({ visible: true })).not.toHaveCount(0);
 
   // 1か月（10/8〜）：11/5 と 11/8
   await button(page, '1か月').click();
   await expect(see(page, '1か月で −855kg')).toBeVisible(); // 425 − 1280
-  await expect(see(page, '1か月で −2.2kg')).toBeVisible(); // 99.17 − 101.33
   // すべて
   await button(page, 'すべて').last().click();
   await expect(see(page, 'すべての期間で −175kg')).toBeVisible();
@@ -153,11 +159,9 @@ test('グラフ：期間の切り替え、記録が1件以下、回数だけの�
   await expect(button(page, 'スクワット')).toHaveAttribute('aria-selected', 'true');
   await button(page, 'レッグプレス').click();
   await expect(see(page, 'この期間の記録は 0 日です。2日以上になるとグラフが出ます')).toBeVisible();
-});
 
-test('「すべて」の表示：週ごとの総負荷量と自己ベスト', async ({ page }) => {
-  await seed(page);
-  await button(page, 'グラフ').click();
+  // 「すべて」の種目：週ごとの総負荷量と自己ベスト
+  await button(page, 'すべて').first().click();
   await expect(see(page, '週ごとの総負荷量', { exact: true })).toBeVisible();
   // 今週 425kg → 0.4t。8週（9/20〜）の合計 500+1280+425 = 2205 → 平均 275.6kg → 0.3t。先週 1280 との差 −855 → −0.9t
   await expect(see(page, '0.4', { exact: true })).toBeVisible();
@@ -177,13 +181,4 @@ test('「すべて」の表示：週ごとの総負荷量と自己ベスト', as
   await expect(button(page, '胸')).toHaveAttribute('aria-selected', 'true');
   await expect(button(page, 'ベンチプレス')).toHaveAttribute('aria-selected', 'true');
   await expect(see(page, '最大RM（推定）', { exact: true })).toBeVisible();
-});
-
-test('回数だけの記録しかないとき、自己ベストの空の状態', async ({ page }) => {
-  await openApp(page);
-  await recordOn(page, TODAY, [{ exercise: '懸垂', sets: [{ reps: '10' }] }]);
-  await tab(page, '履歴／分析').click();
-  await button(page, 'グラフ').click();
-  await expect(see(page, '重量のある種目の記録がまだありません')).toBeVisible();
-  await expect(see(page, '週の平均 0.0t ・ 先週より +0.0t')).toBeVisible();
 });
