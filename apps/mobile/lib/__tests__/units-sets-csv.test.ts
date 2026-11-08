@@ -1,0 +1,63 @@
+import { toCsv } from '../csv';
+import { copyOf, SetDraft, toSetInputs, validateSets } from '../sets';
+import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '../units';
+
+test('数の読み取り', () => {
+  expect(parseNumber('80')).toBe(80);
+  expect(parseNumber(' 80.5 ')).toBe(80.5);
+  expect(parseNumber('８０，５')).toBe(80.5);
+  expect(parseNumber('')).toBeNull();
+  expect(parseNumber('abc')).toBeNull();
+  expect(parseNumber('-5')).toBeNull();
+});
+
+test('kg と lb', () => {
+  expect(kgToUnit(100, 'lb')).toBeCloseTo(220.462, 3);
+  expect(unitToKg(kgToUnit(80, 'lb'), 'lb')).toBeCloseTo(80, 10);
+  expect(kgToUnit(80, 'kg')).toBe(80);
+  expect(fmt1(101.333)).toBe('101.3');
+  expect(fmt1(80)).toBe('80.0');
+  expect(trimNumber(80)).toBe('80');
+});
+
+const d = (key: string, weight: string, reps: string, memo = ''): SetDraft => ({ key, weight, reps, memo, done: false });
+
+describe('セットの入力の確認', () => {
+  test('重量が空ならエラー', () => {
+    const e = validateSets([d('a', '80', '8'), d('b', '', '8')], 'weight_reps');
+    expect(e.size).toBe(1);
+    expect(e.get('b')).toEqual({ weight: '重量を入れてください' });
+  });
+  test('回数がないか、整数でなければエラー', () => {
+    const e = validateSets([d('a', '80', ''), d('b', '80', '2.5')], 'weight_reps');
+    expect(e.get('a')?.reps).toBeDefined();
+    expect(e.get('b')?.reps).toBeDefined();
+  });
+  test('空の行は無視し、回数だけの種目は重量を見ない', () => {
+    expect(validateSets([d('a', '', '')], 'weight_reps').size).toBe(0);
+    expect(validateSets([d('a', '', '20')], 'reps_only').size).toBe(0);
+  });
+  test('保存用に変換（空の行を落とし、lb は kg に）', () => {
+    const out = toSetInputs([d('a', '100', '5', ' 良し '), d('b', '', '')], 'weight_reps', 'lb');
+    expect(out).toHaveLength(1);
+    expect(out[0].weightKg).toBeCloseTo(45.359, 3);
+    expect(out[0]).toMatchObject({ reps: 5, memo: '良し', done: false });
+    expect(toSetInputs([d('a', '10', '20')], 'reps_only', 'kg')[0].weightKg).toBeNull();
+  });
+  test('上のセットを写す', () => {
+    expect(copyOf({ ...d('a', '80', '8', 'メモ'), done: true, id: 'x' }, 'b')).toEqual(d('b', '80', '8'));
+  });
+});
+
+test('CSV は必要なときだけ引用符で囲む', () => {
+  expect(toCsv(['a', 'b'], [['x,y', 'say "hi"'], [1, null]])).toBe('a,b\r\n"x,y","say ""hi"""\r\n1,\r\n');
+});
+
+import { formatSetLong, formatSetShort, tonnes } from '../format';
+
+test('セットの表示', () => {
+  expect(formatSetLong(80, 8, 'kg')).toBe('80.0 kg × 8 回');
+  expect(formatSetLong(null, 20, 'kg')).toBe('20 回');
+  expect(formatSetShort(82.5, 8, 'kg')).toBe('82.5kg × 8');
+  expect(tonnes(12450)).toBe('12.45');
+});
