@@ -169,10 +169,21 @@ export class InfraStack extends cdk.Stack {
     }));
     const authzUrl = publicApi('AuthzApi', authzFn);
     stateTable.grantReadWriteData(authzFn);
+    // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
+    const paramArn = (name: string) => `arn:aws:ssm:${this.region}:${this.account}:parameter${name}`;
+    // 読むのは、起動時に読む5つだけ（services/authorization/infrastructure/settings.py の load_lambda_settings）
     authzFn.addToRolePolicy(new iam.PolicyStatement({
-      // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
-      actions: ['ssm:GetParameter', 'ssm:PutParameter'],
-      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${PARAM_PREFIX}/*`],
+      actions: ['ssm:GetParameter'],
+      resources: [COGNITO_CLIENT_ID_PARAM, AUTHZ_URL_PARAM, MEALS_URL_PARAM, SIGNING_KEY_PARAM, SESSION_SECRET_PARAM].map(paramArn),
+    }));
+    // 書けるのは、署名鍵とセッションの秘密を初めて作るときだけ。上書き（Overwrite=true）は許さないので、
+    // 関数が乗っ取られても、鍵を差し替えたり、URL のパラメータを書き換えたりはできない。
+    // 認可API は Overwrite=False で作る。Overwrite を付けない呼び出しは条件キーがないことがあるので、
+    // 「true でない」（キーがないときも一致する StringNotEquals）で書く
+    authzFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:PutParameter'],
+      resources: [SIGNING_KEY_PARAM, SESSION_SECRET_PARAM].map(paramArn),
+      conditions: { StringNotEquals: { 'ssm:Overwrite': 'true' } },
     }));
     authzFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['cognito-idp:DescribeUserPoolClient'], // クライアントシークレットを起動時に読む

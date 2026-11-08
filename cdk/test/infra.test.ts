@@ -239,3 +239,31 @@ describe('アプリ用の API（同期）', () => {
     }
   });
 });
+
+describe('Lambda の権限', () => {
+  const resources = template.toJSON().Resources as Record<string, any>;
+  const statementsOf = (fnPrefix: string) => {
+    const [fnId] = Object.keys(resources).filter((k) => resources[k].Type === 'AWS::Lambda::Function' && k.startsWith(fnPrefix));
+    const fnRole = resources[fnId].Properties.Role['Fn::GetAtt'][0];
+    return Object.values(resources)
+      .filter((r) => r.Type === 'AWS::IAM::Policy' && r.Properties.Roles.some((role: any) => role.Ref === fnRole))
+      .flatMap((p) => p.Properties.PolicyDocument.Statement);
+  };
+  const paramArn = (name: string) => `arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/cognito-study/${name}`;
+  const actionsOf = (s: any) => [s.Action].flat().sort();
+
+  test('認可API の SSM：読むのは起動時の5つ、書けるのは2つの秘密を初めて作るときだけ', () => {
+    const ssm = statementsOf('AuthzFunction').filter((s) => actionsOf(s).some((a: string) => a.startsWith('ssm:')));
+    expect(ssm).toHaveLength(2);
+    const get = ssm.find((s) => actionsOf(s).includes('ssm:GetParameter'));
+    expect(actionsOf(get)).toEqual(['ssm:GetParameter']);
+    expect([...get.Resource].sort()).toEqual([
+      'authorization/cognito-client-id', 'authorization/session-secret', 'authorization/signing-key',
+      'authorization/url', 'meals/url'].map(paramArn).sort());
+    const put = ssm.find((s) => actionsOf(s).includes('ssm:PutParameter'));
+    expect(actionsOf(put)).toEqual(['ssm:PutParameter']);
+    expect([...put.Resource].sort()).toEqual(
+      ['authorization/session-secret', 'authorization/signing-key'].map(paramArn));
+    expect(put.Condition).toEqual({ StringNotEquals: { 'ssm:Overwrite': 'true' } });
+  });
+});
