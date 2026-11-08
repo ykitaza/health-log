@@ -1,5 +1,5 @@
 import { expect, Locator, Page, test } from '@playwright/test';
-import { button, enter, openApp, openBody, see, setBodyInfo } from './helpers';
+import { button, controlDb, enter, openApp, openBody, see, setBodyInfo } from './helpers';
 
 /** 自動で計算のカード（BMI など）の値 */
 const computed = (page: Page, label: string): Locator => page.getByRole('button', { name: `${label}の推移` }).filter({ visible: true }).last();
@@ -154,6 +154,32 @@ test('日付の移動。先の日には進めず、入力中に日を変えて�
   await expect(field(page, '体重')).toHaveValue('68.4');
   await button(page, '前の日').click();
   await expect(field(page, '体重')).toHaveValue('69');
+});
+
+test('保存が終わる前にその日へ戻っても、保存した値を出す。欄に触れて離れても消さない', async ({ page }) => {
+  // 欄を離れたときの保存と読み直しは非同期。DB の返事を止めて、保存が終わる前に日を戻したときを毎回作る
+  const db = await controlDb(page);
+  await openApp(page);
+  await openBody(page);
+  await enter(page, 'ウエスト', '80');
+  await expectInTrend(page, 'ウエスト', ['80.0']);
+  await button(page, '前の日').click();
+  await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
+
+  await db.hold();
+  await field(page, 'ウエスト').fill('81');
+  await button(page, '次の日').click(); // 欄を離れて 11/7 に保存する（返事は止まっている）
+  await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
+  await expect(field(page, 'ウエスト')).toHaveValue('80');
+  await button(page, '前の日').click();
+  await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
+  await db.release();
+  // 保存と読み直しが終わったら、11/7 の欄に保存した値が出る
+  await expect(field(page, 'ウエスト')).toHaveValue('81');
+  // 出ている値のまま欄に触れて離れても、消さない
+  await field(page, 'ウエスト').focus();
+  await field(page, 'ウエスト').press('Tab');
+  await expectInTrend(page, 'ウエスト', ['81.0', '80.0']);
 });
 
 test('1日に何度か入れたときは、その日の値をまとめて出す', async ({ page }) => {

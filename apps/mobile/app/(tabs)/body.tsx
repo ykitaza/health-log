@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
@@ -21,6 +21,7 @@ const FIELDS: { key: Field; label: string; unit: string; metric: BodyMetric; wei
   { key: 'musclePct', label: '筋肉率', unit: '%', metric: 'muscle' },
   { key: 'waistCm', label: 'ウエスト', unit: 'cm', metric: 'waist' },
 ];
+type Texts = Record<Field | 'memo', string>;
 const FIELD_LIMITS: Record<Field, Limit> = {
   weightKg: LIMITS.bodyWeight, bodyFatPct: LIMITS.bodyFat, musclePct: LIMITS.muscle, waistCm: LIMITS.waist,
 };
@@ -35,18 +36,34 @@ export default function BodyScreen() {
   });
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
-  const [texts, setTexts] = useState<Record<Field | 'memo', string>>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
+  const [texts, setTexts] = useState<Texts>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
   const [error, setError] = useState<string | null>(null);
 
+  // その日の保存済みの値を、欄に出す文字にしたもの
+  const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
+  const savedTexts: Texts = {
+    weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
+    bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
+  };
+  // 前に欄へ出した値（日付・単位と組で）
+  const shown = useRef<{ date: string; unit: string; texts: Texts } | null>(null);
   useEffect(() => {
-    const v = (n: number | null | undefined, conv = (x: number) => x) => (n == null ? '' : trimNumber(conv(n)));
-    setTexts({
-      weightKg: v(day?.weightKg, (x) => kgToUnit(x, unit)),
-      bodyFatPct: v(day?.bodyFatPct), musclePct: v(day?.musclePct), waistCm: v(day?.waistCm), memo: day?.memo ?? '',
+    const prev = shown.current;
+    shown.current = { date, unit, texts: savedTexts };
+    // 日付・単位を変えたときは、すべての欄を埋め直す
+    if (!prev || prev.date !== date || prev.unit !== unit) {
+      setTexts(savedTexts);
+      setError(null);
+      return;
+    }
+    // 読み直したとき（保存のあとなど）は、手で変えていない欄（前に出した値のまま）だけを、保存済みの値にそろえる。
+    // 入力中の欄は消さない。保存が終わる前に日を移って戻ると、古いデータで埋めた欄が空のまま残り、触れて離れると値を消していた
+    setTexts((x) => {
+      const next = { ...x };
+      for (const k of Object.keys(next) as (keyof Texts)[]) if (x[k] === prev.texts[k]) next[k] = savedTexts[k];
+      return next;
     });
-    setError(null);
-    // 日付・単位を変えたときと、読み込んだときだけ埋める（保存のたびに読み直しても、入力中の欄を消さない）
-  }, [date, unit, data != null]);
+  }, [date, unit, JSON.stringify(savedTexts)]);
 
   const commit = async (f: Field) => {
     const t = texts[f];

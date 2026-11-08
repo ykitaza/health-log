@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DependencyList, useCallback, useMemo, useState } from 'react';
+import { DependencyList, useCallback, useMemo, useRef, useState } from 'react';
 import { createRepositories, Repositories } from '@/db';
 
 export function useRepos(): Repositories {
@@ -13,11 +13,17 @@ export function useFocusData<T>(load: (r: Repositories) => Promise<T>, deps: Dep
   const repos = useRepos();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  // 読み直しが重なったときは、最後に始めたものの結果だけを使う（先に始めた古い結果で上書きしない）
+  const latest = useRef(0);
   const reload = useCallback(async () => {
+    const n = ++latest.current;
     try {
-      setData(await load(repos));
+      const next = await load(repos);
+      if (n !== latest.current) return;
+      setData(next);
       setError(null);
     } catch (e) {
+      if (n !== latest.current) return;
       setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, [repos, ...deps]);
