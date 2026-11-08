@@ -1,4 +1,4 @@
-from domain.values import EaterId
+from meals.domain.values import EaterId
 
 
 class SubjectAsEaterId:

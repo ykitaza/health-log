@@ -5,8 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
-from application.commands import NewItem, NewMeal
-from domain.values import Confidence, EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.application.commands import NewItem, NewMeal
+from meals.domain.values import Confidence, EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
 
 SlotName = Literal["breakfast", "lunch", "dinner", "snack"]
 

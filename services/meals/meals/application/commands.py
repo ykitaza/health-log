@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 from uuid import uuid4
 
-from domain.meal import FoodItem
-from domain.values import Confidence, EatenOn, Nutrition, Quantity, Source
+from meals.domain.meal import FoodItem
+from meals.domain.values import Confidence, EatenOn, Nutrition, Quantity, Source
 
 IdFactory = Callable[[], str]
 

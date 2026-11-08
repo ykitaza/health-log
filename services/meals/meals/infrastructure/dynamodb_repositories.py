@@ -20,11 +20,11 @@ from functools import partial
 
 import anyio
 
-from domain.meal import Meal
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import NutritionGoal
-from domain.values import DayType, EaterId, MealSlot
-from infrastructure.serialization import (
+from meals.domain.meal import Meal
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import NutritionGoal
+from meals.domain.values import DayType, EaterId, MealSlot
+from meals.infrastructure.serialization import (
     goal_from_dict,
     goal_to_dict,
     meal_from_dict,

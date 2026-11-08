@@ -1,7 +1,7 @@
 from dataclasses import dataclass, replace
 
-from domain.errors import MealError, NotFound
-from domain.values import Confidence, EatenOn, EaterId, Nutrition, Quantity, Source
+from meals.domain.errors import MealError, NotFound
+from meals.domain.values import Confidence, EatenOn, EaterId, Nutrition, Quantity, Source
 
 
 @dataclass(frozen=True)

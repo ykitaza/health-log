@@ -19,9 +19,9 @@ import json
 import uuid
 from collections import Counter
 
-from infrastructure.serialization import goal_from_dict, meal_from_dict, template_from_dict
-from infrastructure.sync_entities import register, template_id
-from infrastructure.sync_repositories import GOAL_ID, goal_fields, meal_fields, meal_item_fields, template_fields
+from meals.infrastructure.serialization import goal_from_dict, meal_from_dict, template_from_dict
+from meals.infrastructure.sync_entities import register, template_id
+from meals.infrastructure.sync_repositories import GOAL_ID, goal_fields, meal_fields, meal_item_fields, template_fields
 from sync.engine import SyncEngine
 from sync.model import Change, utc_now
 from sync.registry import Registry

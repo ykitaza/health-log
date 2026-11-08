@@ -4,21 +4,21 @@ from itertools import count
 
 import pytest
 
-from application.commands import MealChanges, NewItem, NewMeal
-from application.goals import GoalService
-from application.meals import MealService
-from application.summaries import SummaryService
-from application.templates import TemplateService
-from domain.errors import MealError, NotFound
-from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
-from domain.values import DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
-from infrastructure.memory_repositories import (
+from meals.application.commands import MealChanges, NewItem, NewMeal
+from meals.application.goals import GoalService
+from meals.application.meals import MealService
+from meals.application.summaries import SummaryService
+from meals.application.templates import TemplateService
+from meals.domain.errors import MealError, NotFound
+from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
+from meals.domain.values import DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.infrastructure.memory_repositories import (
     InMemoryDayTypeRepository,
     InMemoryGoalRepository,
     InMemoryMealRepository,
     InMemoryMealTemplateRepository,
 )
-from infrastructure.subject_as_eater_id import SubjectAsEaterId
+from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from tests.domain.factories import approx
 
 DAY = date(2026, 10, 12)

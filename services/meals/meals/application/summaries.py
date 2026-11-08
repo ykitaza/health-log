@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 
-from domain.ports import DayTypeRepository, EaterResolver, GoalRepository, MealRepository, TrainingDayProvider
-from domain.summary import DailySummary, WeeklyReview
-from domain.values import DayType, EaterId
+from meals.domain.ports import DayTypeRepository, EaterResolver, GoalRepository, MealRepository, TrainingDayProvider
+from meals.domain.summary import DailySummary, WeeklyReview
+from meals.domain.values import DayType, EaterId
 
 # 日の種類を本人が決めていない日は、筋トレの記録があれば筋トレの日、なければ休みの日として計算する（利用者に聞かない）
 DEFAULT_DAY_TYPE = DayType.REST

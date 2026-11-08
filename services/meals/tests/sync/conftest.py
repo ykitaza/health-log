@@ -4,7 +4,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from infrastructure.sync_entities import register
+from meals.infrastructure.sync_entities import register
 from sync.engine import SyncEngine
 from sync.registry import Registry
 from sync.store import BY_DAY_INDEX, DynamoDBSyncStore, InMemorySyncStore

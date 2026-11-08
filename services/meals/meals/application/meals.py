@@ -1,10 +1,10 @@
 from datetime import date
 
-from application.commands import IdFactory, MealChanges, NewMeal, new_id
-from domain.errors import NotFound
-from domain.meal import Meal
-from domain.ports import EaterResolver, MealRepository
-from domain.values import EatenOn, EaterId, MealSlot
+from meals.application.commands import IdFactory, MealChanges, NewMeal, new_id
+from meals.domain.errors import NotFound
+from meals.domain.meal import Meal
+from meals.domain.ports import EaterResolver, MealRepository
+from meals.domain.values import EatenOn, EaterId, MealSlot
 
 
 class MealService:

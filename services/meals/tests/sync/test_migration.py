@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
-from domain.values import DayType, EatenOn, EaterId, MealSlot
-from infrastructure import dynamodb_repositories as dynamo
-from infrastructure import sync_repositories as synced
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
+from meals.domain.values import DayType, EatenOn, EaterId, MealSlot
+from meals.infrastructure import dynamodb_repositories as dynamo
+from meals.infrastructure import sync_repositories as synced
 from tests.domain.factories import EATER, lunch
 from tests.sync.conftest import TABLE, dynamodb_engine
 

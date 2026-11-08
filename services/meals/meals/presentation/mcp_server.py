@@ -14,18 +14,18 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from application.commands import MealChanges
-from application.goals import GoalService
-from application.meals import MealService
-from application.summaries import SummaryService
-from application.templates import TemplateService
-from application.weights import WeightService
-from domain.errors import MealError
-from domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
-from domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from domain.values import DayType, EaterId, MealSlot
-from presentation import views
-from presentation.schemas import (
+from meals.application.commands import MealChanges
+from meals.application.goals import GoalService
+from meals.application.meals import MealService
+from meals.application.summaries import SummaryService
+from meals.application.templates import TemplateService
+from meals.application.weights import WeightService
+from meals.domain.errors import MealError
+from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
+from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
+from meals.domain.values import DayType, EaterId, MealSlot
+from meals.presentation import views
+from meals.presentation.schemas import (
     AmountChange,
     BodyWeightKg,
     DailyTargetInput,

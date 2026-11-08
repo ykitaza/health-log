@@ -2,9 +2,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from domain.body_weight import GoalProgress, WeightRecord
-from domain.errors import MealError
-from domain.nutrition_goal import NutritionGoal, Policy
+from meals.domain.body_weight import GoalProgress, WeightRecord
+from meals.domain.errors import MealError
+from meals.domain.nutrition_goal import NutritionGoal, Policy
 from tests.domain.factories import EATER
 
 TODAY = date(2026, 10, 12)

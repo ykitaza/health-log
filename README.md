@@ -9,7 +9,7 @@ Claude や ChatGPT に、食事の写真か一言を送るだけで記録でき�
 |---|---|
 | `services/authorization/` | 認可API（Flask・Authlib）。Cognito でログインさせ、MCP サーバー（食事と筋トレ）に使うアクセストークンを出す |
 | `services/mcp/` | MCP サーバーの組み立て。食事と筋トレのツールを1つのコネクタにまとめる |
-| `services/meals/` | 食事記録（MCP のツール、同期の種類） |
+| `services/meals/` | 食事記録（パッケージ `meals`。MCP のツール、同期の種類） |
 | `services/training/` | 筋トレと体組成（MCP のツール、計算、同期の種類） |
 | `services/sync/`・`services/app_api/` | アプリとの同期の共通の部品と、アプリ用の API の組み立て |
 | `apps/mobile/` | 筋トレのアプリ（Expo）。今は端末の中だけで動く（[README](apps/mobile/README.md)） |
@@ -152,7 +152,7 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 
 ```sh
 (cd services/authorization && uv run flask --app main run --port 3000) &
-(cd services/mcp && PYTHONPATH=../meals:../composition uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。食事の層は ../meals、組み立ての共有は ../composition から読む）
+(cd services/mcp && PYTHONPATH=../composition uv run python main.py) &   # http://localhost:8001/mcp（記録はメモリーに置く。組み立ての共有は ../composition から読む）
 ```
 
 先に `setup-local.sh` で `services/authorization/.env` を作っておきます（デプロイした Cognito を使います）。ログインには、本人のユーザーとパスキーを使います（ローカルの戻り先 `http://localhost:3000/cognito/callback` も Cognito に登録してあります）。

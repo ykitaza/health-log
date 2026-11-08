@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from domain.errors import MealError
-from domain.meal import FoodItem, Meal
-from domain.values import EatenOn, EaterId, Source
+from meals.domain.errors import MealError
+from meals.domain.meal import FoodItem, Meal
+from meals.domain.values import EatenOn, EaterId, Source
 
 
 @dataclass(frozen=True)

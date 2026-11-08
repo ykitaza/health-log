@@ -2,11 +2,11 @@
 
 from datetime import date
 
-from domain.body_weight import WeightRecord
-from domain.meal import Meal
-from domain.meal_template import MealTemplate
-from domain.nutrition_goal import NutritionGoal
-from domain.values import DayType, EaterId, MealSlot
+from meals.domain.body_weight import WeightRecord
+from meals.domain.meal import Meal
+from meals.domain.meal_template import MealTemplate
+from meals.domain.nutrition_goal import NutritionGoal
+from meals.domain.values import DayType, EaterId, MealSlot
 
 SLOT_ORDER = list(MealSlot)
 
