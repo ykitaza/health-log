@@ -93,3 +93,27 @@ def test_fetches_localhost_only_when_allowed():
     local = "http://localhost:3005/client-metadata.json"
     assert CimdClientDirectory(http_get=http_get, allow_loopback_http=True).find(local).client_id == local
     assert fetched == [local]
+
+
+def test_fetches_only_allowed_hosts_when_restricted():
+    fetched = []
+
+    def http_get(url):
+        fetched.append(url)
+        return httpx.Response(200, json={**DOC, "client_id": url})
+
+    directory = CimdClientDirectory(http_get=http_get, allowed_hosts=frozenset({"claude.ai", "chatgpt.com"}))
+    allowed = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+    assert directory.find(allowed).client_id == allowed
+    for other in ["https://client.example/metadata.json",
+                  "https://claude.ai.evil.example/metadata.json",  # 名前の先頭だけが同じ
+                  "https://evil.claude.ai/metadata.json",  # サブドメイン
+                  "https://claude.ai:8443/metadata.json"]:  # 既定でないポート
+        with pytest.raises(ClientRejected):
+            directory.find(other)
+    assert fetched == [allowed]
+
+
+def test_does_not_restrict_hosts_by_default():
+    # PC で動かすとき（allowed_hosts を渡さない）は、ホストを絞らない
+    assert directory().find(CLIENT_ID).client_id == CLIENT_ID

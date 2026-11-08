@@ -75,7 +75,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 |---|---|---|
 | Authlib | 認可コードのグラント、PKCE（RFC 7636）、リフレッシュトークンのローテーション、失効（RFC 7009）、`iss`（RFC 9207）、JWT のアクセストークン（RFC 9068）、クライアント認証（`none`）、OAuth のエラー応答 | `oauth/server.py` で組み立てる |
 | 自分で書く | RFC 8707（`resource` を確かめて `aud` に入れる。scope をリソースサーバーごとに狭める。受け入れられなければ `invalid_target`） | `oauth/resource_indicators.py` |
-| 自分で書く | CIMD（client_id の URL から文書を取る。https だけ・リダイレクトをたどらない・5秒・5KB まで） | `infrastructure/cimd_client_directory.py` |
+| 自分で書く | CIMD（client_id の URL から文書を取る。https だけ・リダイレクトをたどらない・5秒・5KB まで。Lambda では `claude.ai` と `chatgpt.com` だけに取りに行き、PC で動かすときは絞らない（`main.py` の `CIMD_ALLOWED_HOSTS`）） | `infrastructure/cimd_client_directory.py` |
 | 自分で書く | Cognito でのログイン（Authlib の OIDC クライアント）、同意画面、アカウントの切り替え、ログアウト | `infrastructure/cognito_login.py`、`presentation/` |
 | 自分で書く | 保存（認可の途中の状態、認可コード、リフレッシュトークンの系列）。方針として、PKCE は S256 だけ、認可コードは取り出すと同時に消す、古いリフレッシュトークンが再び届いたら系列ごと無効にする | `infrastructure/stores.py`、`oauth/server.py` |
 
