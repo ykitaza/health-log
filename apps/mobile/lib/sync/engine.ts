@@ -12,9 +12,15 @@ export const MAX_PUSH = 25;
 export const MAX_PUSH_BYTES = 60 * 1024;
 const PULL_LIMIT = 500;
 
+/**
+ * 同期の失敗。accountChanged は、前に同期したのと違うアカウントでログインしている（選ぶまで同期しない。
+ * docs/sync-design.md の「アカウントが変わったとき」）
+ */
+export type SyncErrorCode = ApiErrorCode | 'accountChanged';
+
 export type SyncOutcome =
   | { ok: true; applied: number; sent: number; rejected: number }
-  | { ok: false; error: ApiErrorCode; retry: boolean };
+  | { ok: false; error: SyncErrorCode; retry: boolean };
 
 /** UTF-8 にしたときのバイト数 */
 export function utf8Length(text: string): number {
@@ -108,6 +114,12 @@ export function createSyncEngine({ store, api, now = () => new Date() }: Deps) {
   return {
     async run(): Promise<SyncOutcome> {
       try {
+        // 送る前に、同期した相手と同じアカウントかを確かめる。違えば、端末の記録を送らずに止める
+        const sub = await api.account();
+        if (!sub) return { ok: false, error: 'server', retry: false }; // トークンに sub がない（ふつうは起きない）
+        const known = await store.account();
+        if (known && known !== sub) return { ok: false, error: 'accountChanged', retry: false };
+        if (!known) await store.rememberAccount(sub);
         const { sent, rejected } = await push();
         const applied = await pull();
         await store.setMeta('last_synced_at', now().toISOString());

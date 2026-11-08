@@ -2,7 +2,7 @@
  * アプリ用の API（docs/api/app-api.yaml）を呼ぶ小さなクライアント。同期の送信・受け取り・スナップショットだけ。トークンは Authorization ヘッダーにだけ載せる（URL に載せない）。
  * 401 のときは、トークンを1回だけ更新して送り直す（端末の時計がずれていて、期限の前に切れたときのため）
  */
-import { AuthError, fetchWithTimeout } from './auth/session';
+import { accessTokenSubject, AuthError, fetchWithTimeout } from './auth/session';
 
 /**
  * - signedOut：ログインしていない、ログインの期限が切れた
@@ -102,6 +102,11 @@ export function createApiClient({ baseUrl, getAccessToken, fetch: f = (...a) => 
   };
 
   return {
+    /** ログインしているアカウント（アクセストークンの sub）。読めなければ null。画面やログには出さない */
+    async account(): Promise<string | null> {
+      return accessTokenSubject(await token(false));
+    },
+
     /** 端末の変更を送る（25件まで）。1件ごとの結果を送った順に返す */
     async pushChanges(body: { device_id: string; changes: PushChange[] }): Promise<{ results: PushResult[]; cursor: number }> {
       const res = await request<{ results?: PushResult[]; cursor?: number }>('POST', '/v1/sync/changes', body);

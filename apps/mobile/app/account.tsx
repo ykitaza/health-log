@@ -6,11 +6,12 @@ import { Platform, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Button, Card, ConfirmDialog, Header, SectionTitle } from '@/components/ui';
+import type { AccountSwitch } from '@/db/repositories/sync';
 import { useAuth } from '@/hooks/auth';
 import { useSync } from '@/hooks/sync';
-import type { ApiErrorCode } from '@/lib/api';
 import { authConfig, NATIVE_REDIRECT_URI } from '@/lib/auth/config';
 import { AuthError, endpoints, SCOPES } from '@/lib/auth/session';
+import type { SyncErrorCode } from '@/lib/sync/engine';
 import { colors } from '@/theme';
 
 // web は、ログインの画面をポップアップで開き、自分の /callback に戻す（E2E と画面の確認用。Cognito には登録していない）
@@ -25,7 +26,8 @@ const signInErrorMessage = (e: unknown) => {
   return 'ログインできませんでした。もう一度ログインしてください。';
 };
 
-const syncErrorMessage = (code: ApiErrorCode) => ({
+const syncErrorMessage = (code: SyncErrorCode) => ({
+  accountChanged: '前に同期したのと違うアカウントでログインしたので、同期を止めています。',
   signedOut: 'ログインの期限が切れました。もう一度ログインしてください。',
   forbidden: 'サーバーに断られました（権限が足りません）。ログアウトして、ログインし直してください。',
   throttled: 'サーバーが混んでいます。少し待ってから、自動でやり直します。',
@@ -48,6 +50,8 @@ export default function AccountScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState<AccountSwitch | null>(null);
+  const [switchError, setSwitchError] = useState(false);
 
   // 認可の画面の URL（state と PKCE の値）を先に作っておく（web で、押してからポップアップを開くまでを短くするため）。
   // 毎回ログインの画面を出す（prompt=login）：ブラウザに残った Cognito のセッションだけで、別のアプリが torelog:// の戻りを受け取れないように
@@ -101,12 +105,42 @@ export default function AccountScreen() {
     }
   };
 
+  const switchAccount = async (mode: AccountSwitch) => {
+    setConfirmSwitch(null);
+    setBusy(true);
+    setSwitchError(false);
+    try {
+      await sync.switchAccount(mode);
+    } catch {
+      setSwitchError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Screen>
       <Header title="アカウント" onBack={() => router.back()} />
 
       {auth.status === 'signedIn' ? (
         <>
+          {sync.error === 'accountChanged' && (
+            <>
+              <SectionTitle title="アカウントが変わりました" />
+              {/* どれかを選ぶまで同期しない（端末の記録を、前と違うアカウントに勝手に送らない）。アカウントの ID は出さない */}
+              <Card style={{ gap: 12 }}>
+                <T bold size={16}>前と違うアカウントでログインしました</T>
+                <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
+                  この端末の記録は、前に同期したアカウントのものです。どうするかを選ぶまで、同期を止めています。
+                </T>
+                {switchError && <T size={13} color={colors.danger}>切り替えられませんでした。通信を確かめて、もう一度選んでください。</T>}
+                <Button label="この端末の記録を新しいアカウントに送る" variant="secondary" small onPress={() => setConfirmSwitch('send')} disabled={busy} />
+                <Button label="端末の記録を消して、新しいアカウントから受け取り直す" variant="secondary" small onPress={() => setConfirmSwitch('replace')} disabled={busy} />
+                <Button label="ログアウトする" variant="secondary" small onPress={() => setConfirmSignOut(true)} disabled={busy} />
+              </Card>
+            </>
+          )}
+
           <SectionTitle title="ログイン" />
           <Card style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -174,6 +208,23 @@ export default function AccountScreen() {
         confirmLabel="ログアウト"
         onConfirm={signOut}
         onCancel={() => setConfirmSignOut(false)}
+      />
+      <ConfirmDialog
+        visible={confirmSwitch === 'send'}
+        title="この端末の記録を送りますか？"
+        body="この端末にある記録（前のアカウントから受け取ったものも含む）を、今ログインしているアカウントに送ります。前のアカウントのサーバーの記録は、そのまま残ります。"
+        confirmLabel="送る"
+        danger={false}
+        onConfirm={() => void switchAccount('send')}
+        onCancel={() => setConfirmSwitch(null)}
+      />
+      <ConfirmDialog
+        visible={confirmSwitch === 'replace'}
+        title="端末の記録を消しますか？"
+        body={`この端末の記録を消して、今ログインしているアカウントの記録を受け取ります。前のアカウントにまだ送っていない変更（${sync.pending}件）も消えます。前のアカウントのサーバーの記録は、そのまま残ります。`}
+        confirmLabel="消して受け取る"
+        onConfirm={() => void switchAccount('replace')}
+        onCancel={() => setConfirmSwitch(null)}
       />
     </Screen>
   );

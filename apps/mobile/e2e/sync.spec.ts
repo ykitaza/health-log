@@ -2,6 +2,7 @@ import { BrowserContext, expect, Page, test } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
+import { fakeAccessToken } from '../test-utils/fakeToken';
 import { button, goTab, openApp, openSettings, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
@@ -30,9 +31,14 @@ async function routeSyncServer(context: BrowserContext, server: FakeSyncServer, 
   return seen;
 }
 
-async function signIn(page: Page, context: BrowserContext) {
-  await fakeCognito(context, { status: 200, body: { access_token: 'test-access', refresh_token: 'test-refresh', expires_in: 3600, token_type: 'Bearer' } });
+const ACCESS = fakeAccessToken('user-a');
+
+/** ログインの偽物。返すトークンは token.body を書き換えると変わる（別のアカウントでログインし直すとき） */
+async function signIn(page: Page, context: BrowserContext, accessToken = ACCESS) {
+  const token = { status: 200, body: { access_token: accessToken, refresh_token: 'test-refresh', expires_in: 3600, token_type: 'Bearer' } };
+  await fakeCognito(context, token);
   await fakeLoginPopup(page, { code: 'test-code' });
+  return token;
 }
 
 async function openAccount(page: Page) {
@@ -85,7 +91,7 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   expect(server.states('workout_set').filter((s) => s.fields.entry_id === entry.entity_id).map((s) => [s.fields.weight_kg, s.fields.reps]).sort())
     .toEqual([[100, 5], [105, 3]]);
   // トークンは Authorization ヘッダーだけに載せる
-  expect(seen.every((r) => r.authorization === 'Bearer test-access' && !r.url.includes('test-access'))).toBe(true);
+  expect(seen.every((r) => r.authorization === `Bearer ${ACCESS}` && !r.url.includes(ACCESS))).toBe(true);
   await openSettings(page);
   await expect(see(page, '記録はこの端末に保存し、サーバーと同期します。', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: /^ログイン ログイン/ }).click();
@@ -139,4 +145,38 @@ test('サーバーに断られた変更の件数と説明を出す（飛ばし�
   await expect(status(page, 'sync-rejected')).toHaveText('1件');
   await expect(see(page, 'サーバーが受け付けなかった変更です。', { exact: false })).toBeVisible();
   await expect(status(page, 'sync-pending')).toHaveText('0件');
+});
+
+test('別のアカウントでログインし直すと、同期を止めて、端末の記録をどうするかを聞く（選んだあとの決まりは jest の db/__tests__/sync.test.ts）', async ({ page, context }) => {
+  const server = createFakeSyncServer();
+  const token = await signIn(page, context);
+  const seen = await routeSyncServer(context, server);
+  await openApp(page);
+  await openAccount(page);
+  await button(page, 'パスキーでログイン').click();
+  await expect(status(page, 'sync-last')).toHaveText('11/8 10:00');
+  await expect(see(page, '前と違うアカウントでログインしました')).toHaveCount(0);
+
+  await button(page, 'ログアウト').click();
+  await page.getByRole('button', { name: 'ログアウト', exact: true }).last().click();
+  await expect(see(page, 'ログインしていません', { exact: true })).toBeVisible();
+
+  // ログアウトのあいだに記録したものは、別のアカウントには送らない
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '60', reps: '10' }] }]);
+  token.body.access_token = fakeAccessToken('user-b');
+  const before = seen.length;
+  await openAccount(page);
+  await button(page, 'パスキーでログイン').click();
+  await expect(see(page, '前と違うアカウントでログインしました')).toBeVisible();
+  await expect(see(page, '同期を止めています。', { exact: false }).first()).toBeVisible();
+  await expect(button(page, 'この端末の記録を新しいアカウントに送る')).toBeVisible();
+  await expect(button(page, '端末の記録を消して、新しいアカウントから受け取り直す')).toBeVisible();
+  await expect(button(page, 'ログアウトする')).toBeVisible();
+  await expect(status(page, 'sync-pending')).toHaveText('2件');
+  expect(seen.slice(before)).toEqual([]);
+  expect(server.states('workout_set')).toEqual([]);
+  // アカウントの ID は画面に出さない
+  await expect(see(page, 'user-', { exact: false })).toHaveCount(0);
 });
