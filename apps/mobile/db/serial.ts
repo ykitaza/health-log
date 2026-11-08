@@ -5,11 +5,21 @@ import type { Db } from './types';
 // （欄を離れたときの保存と単位の切り替え、↑ の2回押しなど）、トランザクションが入れ子になって片方が失敗したり、
 // 「探して、なければ足す」が両方とも「ない」と見て、行が2件できたりする。
 const queues = new WeakMap<Db, Promise<unknown>>();
+const listeners = new WeakMap<Db, Set<() => void>>();
 
-function oneAtATime<T>(db: Db, task: () => Promise<T>): Promise<T> {
+/** 同じ DB への書き込みの列に並んで、1つずつ行う（同期の当てはめも、記録の書き込みと重ならないようにここを通す） */
+export function oneAtATime<T>(db: Db, task: () => Promise<T>): Promise<T> {
   const next = (queues.get(db) ?? Promise.resolve()).then(task, task);
   queues.set(db, next.catch(() => undefined));
   return next;
+}
+
+/** 記録の書き込み（serializeWrites で包んだメソッド）が終わるたびに呼ぶ。同期を始めるのに使う。止める関数を返す */
+export function onLocalWrite(db: Db, listener: () => void): () => void {
+  const set = listeners.get(db) ?? new Set();
+  listeners.set(db, set);
+  set.add(listener);
+  return () => { set.delete(listener); };
 }
 
 /**
@@ -20,7 +30,11 @@ export function serializeWrites<R extends Record<string, unknown>, K extends key
   const out = { ...repo };
   for (const name of names) {
     const method = repo[name] as (...args: unknown[]) => Promise<unknown>;
-    out[name] = ((...args: unknown[]) => oneAtATime(db, () => method(...args))) as R[K];
+    out[name] = (async (...args: unknown[]) => {
+      const result = await oneAtATime(db, () => method(...args));
+      for (const listener of listeners.get(db) ?? []) listener();
+      return result;
+    }) as R[K];
   }
   return out;
 }
