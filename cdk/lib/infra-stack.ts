@@ -35,9 +35,10 @@ const APP_API_IDENTIFIER = 'torelog-api';
 // 使うのは本人だけなので、1秒あたり1回・瞬間的に5回まで（Claude は接続のときに数回まとめて送る）。
 // ずっと上限で叩かれても、月の費用に上限がかかる
 const THROTTLE = { rateLimit: 1, burstLimit: 5 };
-// アプリ用の API の流量の制限。アプリを開いたときに、送信（25件ずつ）と受け取りのページ送りが
-// 続けて数回から十数回届くので、MCP より多くする。トークンのない通信はオーソライザーが Lambda の前で断る
-const APP_THROTTLE = { rateLimit: 10, burstLimit: 20 };
+// アプリ用の API の流量の制限。アプリはまだ使っていないので、使い始めるまでは低くしておく（1秒2回・瞬間10回）。
+// 使い始めたら、アプリを開いたときの送信（25件ずつ）と受け取りのページ送り（続けて数回から十数回）に合わせて上げる。
+// トークンのない通信はオーソライザーが Lambda の前で断る
+const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
 
 // 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
 // 認可APIが書き込める /cognito-study/* の外に置く
@@ -99,6 +100,8 @@ export class InfraStack extends cdk.Stack {
       deletionProtection: true,
       // 誤って消したり書き換えたりしたときに、35日前までの任意の時点に戻せるようにする（費用はテーブルの大きさで決まり、数十 KB なのでほぼ0）
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+      // AWS マネージドキー（aws/dynamodb）で暗号化する。鍵の使用が CloudTrail に残る。鍵の月額はかからない
+      encryption: dynamodb.TableEncryptionV2.awsManagedKey(),
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -213,6 +216,8 @@ export class InfraStack extends cdk.Stack {
       deletionProtection: true,
       // 誤って消したり書き換えたりした記録を、35日前までの任意の時点に戻せるようにする（戻すと別のテーブルができる）
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+      // AWS マネージドキー（aws/dynamodb）で暗号化する。鍵の使用が CloudTrail に残る。鍵の月額はかからない
+      encryption: dynamodb.TableEncryptionV2.awsManagedKey(),
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 

@@ -51,6 +51,16 @@ describe('データを持つリソースを守る', () => {
     }
   });
 
+  test('DynamoDB のテーブルは、どれも AWS マネージドキー（aws/dynamodb）で暗号化する', () => {
+    for (const table of Object.values(template.findResources('AWS::DynamoDB::GlobalTable'))) {
+      // KMS で、鍵を指定しない（カスタマー管理キーではなく aws/dynamodb）
+      expect(table.Properties.SSESpecification).toEqual({ SSEEnabled: true, SSEType: 'KMS' });
+      for (const replica of table.Properties.Replicas) {
+        expect(replica.SSESpecification).toBeUndefined();
+      }
+    }
+  });
+
   test('既存のリソースの論理 ID が変わっていない（変わると作り直しになる）', () => {
     const ids = Object.keys(template.toJSON().Resources);
     for (const prefix of ['UserPool6BA7E5F2', 'UserPoolDomainD0EA232A', 'UserPoolRpClient06B6EADD', 'MealsTableCAABDBC9',
@@ -205,13 +215,13 @@ describe('アプリ用の API（同期）', () => {
     expect(routes['POST /v1/meals/goal-suggestions'].AuthorizationScopes).toEqual(['torelog-api/meals.read']);
   });
 
-  test('流量の制限は1秒10回・瞬間20回。MCP と認可API は1秒1回・瞬間5回のまま', () => {
+  test('流量の制限は、アプリが使い始めるまで1秒2回・瞬間10回。MCP と認可API は1秒1回・瞬間5回のまま', () => {
     const stages = Object.entries(resources).filter(([, r]) => r.Type === 'AWS::ApiGatewayV2::Stage');
     const throttle = Object.fromEntries(stages.map(([id, r]) => [id.replace(/DefaultStage.*/, ''), r.Properties.DefaultRouteSettings]));
     expect(throttle).toEqual({
       AuthzApi: { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 },
       MealsApi: { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 },
-      AppApi: { ThrottlingRateLimit: 10, ThrottlingBurstLimit: 20 },
+      AppApi: { ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 },
     });
   });
 

@@ -72,6 +72,76 @@ export const CLOUDTRAIL_TAMPER_PATTERN: events.EventPattern = {
   },
 };
 
+// 自分のスタック。CloudFormation の操作は、これ以外のスタックへのものを通知する（CDK のデプロイ・cdk diff で鳴らないように）。
+// 前方一致（CognitoStudy*）にすると、CognitoStudyEvil のような名前のスタックで紛れ込めるので、名前を並べる
+export const OWN_STACK_NAMES = ['CognitoStudy', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit'];
+
+// CDK のデプロイと cdk diff で、変更セットを作る・実行する・消すロール（cdk-*-deploy-role）
+const CDK_DEPLOY_ROLE_PREFIX = 'cdk-hnb659fds-deploy-role-';
+
+// 自分のスタック以外への CloudFormation の変更（作成・更新・削除・変更セット・スタックセットなど）。
+// 読むだけの操作（Describe・List・Get）は、EventBridge の既定のルールには届かない。
+// - stackName が自分のスタックの名前でなければ通知する。ARN の形のときは、自分のスタックでも通知する（CDK は名前で呼ぶ）
+// - stackName がない操作（スタックセット、拡張の登録など）も通知する。ただし、CDK のデプロイの CreateChangeSet は
+//   CloudTrail に requestParameters が記録されない（テンプレートが大きいため。このアカウントの記録で確かめた）ので、
+//   CDK のデプロイのロールによる、stackName のない操作は除く（そのあとの ExecuteChangeSet には stackName があるので、
+//   ほかのスタックへのデプロイはそこで通知される）
+export const CLOUDFORMATION_CHANGE_PATTERN: events.EventPattern = {
+  source: ['aws.cloudformation'],
+  detailType: ['AWS API Call via CloudTrail'],
+  detail: {
+    eventSource: ['cloudformation.amazonaws.com'],
+    eventName: ['Create', 'Update', 'Delete', 'Execute', 'Set', 'Import', 'Continue', 'Cancel', 'Rollback', 'Signal',
+      'Activate', 'Deactivate', 'Register', 'Deregister', 'Publish'].map((prefix) => ({ prefix })),
+    $or: [
+      { requestParameters: { stackName: [{ 'anything-but': OWN_STACK_NAMES }] } },
+      {
+        requestParameters: { stackName: [{ exists: false }] },
+        userIdentity: { sessionContext: { sessionIssuer: { userName: [{ 'anything-but': { prefix: CDK_DEPLOY_ROLE_PREFIX } }] } } },
+      },
+      {
+        requestParameters: { stackName: [{ exists: false }] },
+        userIdentity: { sessionContext: { sessionIssuer: { userName: [{ exists: false }] } } },
+      },
+    ],
+  },
+};
+
+// 監視の改ざん：アラームの削除・無効化、EventBridge のルールの削除・無効化・送り先の取り外し、
+// SNS のトピックと購読の削除、アラームのもとになるメトリクスフィルターの削除。
+// 監視のスタックを直すデプロイでアラームやルールを作り直すことがあるので、CDK のデプロイは除く
+export const MONITORING_TAMPER_PATTERN: events.EventPattern = {
+  source: ['aws.monitoring', 'aws.events', 'aws.sns', 'aws.logs'],
+  detailType: ['AWS API Call via CloudTrail'],
+  detail: {
+    eventSource: ['monitoring.amazonaws.com', 'events.amazonaws.com', 'sns.amazonaws.com', 'logs.amazonaws.com'],
+    eventName: ['DeleteAlarms', 'DisableAlarmActions', 'DeleteRule', 'DisableRule', 'RemoveTargets',
+      'DeleteTopic', 'Unsubscribe', 'DeleteMetricFilter'],
+    ...notByCdkDeploy,
+  },
+};
+
+// データを壊す操作：DynamoDB のテーブルの削除、削除の保護やポイントインタイムリカバリを外す変更、
+// Cognito のユーザープールの削除と、その削除の保護を外す変更。
+// CDK のデプロイがこれをすることはない（テーブルとユーザープールは RETAIN で、保護を外す変更もしない）ので、
+// CDK のデプロイでも通知する。CDK のデプロイの UpdateTable などは、保護を有効のまま送るので一致しない
+export const DATA_DESTRUCTION_PATTERN: events.EventPattern = {
+  source: ['aws.dynamodb', 'aws.cognito-idp'],
+  detailType: ['AWS API Call via CloudTrail'],
+  detail: {
+    $or: [
+      { eventSource: ['dynamodb.amazonaws.com'], eventName: ['DeleteTable'] },
+      { eventSource: ['dynamodb.amazonaws.com'], eventName: ['UpdateTable'],
+        requestParameters: { deletionProtectionEnabled: [false] } },
+      { eventSource: ['dynamodb.amazonaws.com'], eventName: ['UpdateContinuousBackups'],
+        requestParameters: { pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: [false] } } },
+      { eventSource: ['cognito-idp.amazonaws.com'], eventName: ['DeleteUserPool'] },
+      { eventSource: ['cognito-idp.amazonaws.com'], eventName: ['UpdateUserPool'],
+        requestParameters: { deletionProtection: ['INACTIVE'] } },
+    ],
+  },
+};
+
 export interface MonitoringStackProps extends cdk.StackProps {
   // API の ID → アクセスログのロググループ名を入れた SSM パラメータの名前（InfraStack.accessLogGroupParams）
   readonly accessLogGroupParams: Record<string, string>;
@@ -169,7 +239,7 @@ export class MonitoringStack extends cdk.Stack {
     alarm('ServerErrorsAlarm', sumPerHour('ServerErrors'), 3,
       'API の 5xx が1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
     alarm('ThrottledAlarm', sumPerHour('Throttled'), 10,
-      '流量の制限（認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒10回・瞬間20回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP と API を見る');
+      '流量の制限（認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒2回・瞬間10回）での拒否（429）が1時間に10件以上（30日間0件）。叩かれている兆し。アクセスログで送信元 IP と API を見る');
     alarm('TokenFailuresAlarm', sumPerHour('TokenFailures'), 10,
       '認可API の /token の失敗（4xx）が1時間に10件以上（これまでの最大は1時間1件）。認可コードやリフレッシュトークンの総当たりの兆し');
 
@@ -262,6 +332,17 @@ export class MonitoringStack extends cdk.Stack {
     });
     new events.Rule(this, 'CloudTrailTamperRule', {
       description: 'CloudTrail の停止・削除・変更', eventPattern: CLOUDTRAIL_TAMPER_PATTERN, targets: [topicTarget],
+    });
+    new events.Rule(this, 'CloudFormationChangeRule', {
+      description: '自分のスタック以外への CloudFormation の変更', eventPattern: CLOUDFORMATION_CHANGE_PATTERN, targets: [topicTarget],
+    });
+    new events.Rule(this, 'MonitoringTamperRule', {
+      description: 'アラーム・EventBridge のルール・SNS・メトリクスフィルターの削除や無効化', eventPattern: MONITORING_TAMPER_PATTERN,
+      targets: [topicTarget],
+    });
+    new events.Rule(this, 'DataDestructionRule', {
+      description: 'DynamoDB のテーブルと Cognito のユーザープールの削除、削除の保護・ポイントインタイムリカバリを外す変更',
+      eventPattern: DATA_DESTRUCTION_PATTERN, targets: [topicTarget],
     });
 
     new cdk.CfnOutput(this, 'AlertTopicArn', { value: topic.topicArn });
