@@ -57,7 +57,7 @@ export class InfraStack extends cdk.Stack {
     const domainPrefix = `oidc-study-${this.account}`;
 
     // ユーザープール（Cognito＝IdP）：ログインIDはメールアドレス。使うのは本人だけなので、
-    // ログイン画面からの新規登録はできなくし、ユーザーは管理者の操作（setup-local.sh）でだけ作る
+    // ログイン画面からの新規登録はできなくし、ユーザーは管理者の操作（docs/design.md の「パスキーを作る手順」）でだけ作る
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'cognito-study',
       featurePlan: cognito.FeaturePlan.ESSENTIALS,

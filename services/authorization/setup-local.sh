@@ -1,6 +1,8 @@
 #!/bin/sh
-# CDK でデプロイしたユーザープールから services/authorization/.env を作り、テスト用ユーザーを用意する。
-# クライアントシークレットとパスワードは画面に出さず、本人だけが読めるファイルに保存する。
+# CDK でデプロイしたユーザープールから、PC で認可API を動かすための services/authorization/.env を作る。
+# クライアントシークレットは画面に出さず、本人だけが読めるファイルに保存する。
+# ユーザーは作らない（パスワードでログインできるテスト用のユーザーを、本番のプールに置かないため）。
+# 本人のユーザーとパスキーは、docs/design.md の「パスキーを作る手順」で作る。
 set -eu
 cd "$(dirname "$0")"
 # AWS の認証情報は、環境変数（AWS_PROFILE など）で指定しておく
@@ -21,16 +23,3 @@ umask 077
     --query UserPoolClient.ClientSecret --output text)"
 } > .env
 echo ".env を書きました"
-
-USER=test1@example.com
-if aws cognito-idp admin-get-user --user-pool-id "$POOL" --username "$USER" >/dev/null 2>&1; then
-  echo "$USER はすでにあります"
-  exit 0
-fi
-aws cognito-idp admin-create-user --user-pool-id "$POOL" --username "$USER" \
-  --user-attributes Name=email,Value="$USER" Name=email_verified,Value=true \
-  --message-action SUPPRESS >/dev/null
-PW="$(openssl rand -base64 18 | tr -d '/+=')Aa1!"
-printf '%s\n' "$PW" > .test1-password
-aws cognito-idp admin-set-user-password --user-pool-id "$POOL" --username "$USER" --password "$PW" --permanent
-echo "$USER を作りました（パスワードは services/authorization/.test1-password）"
