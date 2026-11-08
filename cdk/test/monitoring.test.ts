@@ -1,6 +1,6 @@
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { newApp } from './app';
-import { COGNITO_CHANGE_PATTERN, MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
+import { COGNITO_CHANGE_PATTERN, MonitoringGlobalStack, MonitoringStack, OWN_STACK_NAMES } from '../lib/monitoring-stack';
 
 // InfraStack は Lambda のビルド（build-lambda.sh）が要るので、ここでは SSM パラメータの名前だけを渡す
 const env = { account: '123456789012', region: 'ap-northeast-1' };
@@ -281,6 +281,74 @@ describe('EventBridge のルール', () => {
         },
       },
     });
+  });
+
+  const topicTargets = [Match.objectLike({ Arn: { Ref: Match.stringLikeRegexp('AlertTopic') } })];
+
+  test('自分のスタック（名前を並べる）以外への CloudFormation の変更。CDK のデプロイの、stackName のない CreateChangeSet は除く', () => {
+    expect(OWN_STACK_NAMES).toEqual(['CognitoStudy', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit']);
+    template.hasResourceProperties('AWS::Events::Rule', {
+      EventPattern: {
+        source: ['aws.cloudformation'],
+        'detail-type': ['AWS API Call via CloudTrail'],
+        detail: {
+          eventSource: ['cloudformation.amazonaws.com'],
+          eventName: Match.arrayWith([{ prefix: 'Create' }, { prefix: 'Update' }, { prefix: 'Delete' }, { prefix: 'Execute' }]),
+          $or: [
+            { requestParameters: { stackName: [{ 'anything-but': OWN_STACK_NAMES }] } },
+            {
+              requestParameters: { stackName: [{ exists: false }] },
+              userIdentity: { sessionContext: { sessionIssuer: { userName: [{ 'anything-but': { prefix: 'cdk-hnb659fds-deploy-role-' } }] } } },
+            },
+            {
+              requestParameters: { stackName: [{ exists: false }] },
+              userIdentity: { sessionContext: { sessionIssuer: { userName: [{ exists: false }] } } },
+            },
+          ],
+        },
+      },
+      Targets: topicTargets,
+    });
+  });
+
+  test('監視の改ざん：アラーム・ルール・SNS・メトリクスフィルターの削除や無効化（CDK のデプロイを除く）', () => {
+    template.hasResourceProperties('AWS::Events::Rule', {
+      EventPattern: {
+        source: ['aws.monitoring', 'aws.events', 'aws.sns', 'aws.logs'],
+        'detail-type': ['AWS API Call via CloudTrail'],
+        detail: {
+          eventSource: ['monitoring.amazonaws.com', 'events.amazonaws.com', 'sns.amazonaws.com', 'logs.amazonaws.com'],
+          eventName: ['DeleteAlarms', 'DisableAlarmActions', 'DeleteRule', 'DisableRule', 'RemoveTargets',
+            'DeleteTopic', 'Unsubscribe', 'DeleteMetricFilter'],
+          ...notByCdk,
+        },
+      },
+      Targets: topicTargets,
+    });
+  });
+
+  test('データを壊す操作：テーブルとユーザープールの削除、保護を外す変更（CDK のデプロイでも通知する）', () => {
+    template.hasResourceProperties('AWS::Events::Rule', {
+      EventPattern: {
+        source: ['aws.dynamodb', 'aws.cognito-idp'],
+        'detail-type': ['AWS API Call via CloudTrail'],
+        detail: {
+          $or: [
+            { eventSource: ['dynamodb.amazonaws.com'], eventName: ['DeleteTable'] },
+            { eventSource: ['dynamodb.amazonaws.com'], eventName: ['UpdateTable'], requestParameters: { deletionProtectionEnabled: [false] } },
+            { eventSource: ['dynamodb.amazonaws.com'], eventName: ['UpdateContinuousBackups'],
+              requestParameters: { pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: [false] } } },
+            { eventSource: ['cognito-idp.amazonaws.com'], eventName: ['DeleteUserPool'] },
+            { eventSource: ['cognito-idp.amazonaws.com'], eventName: ['UpdateUserPool'], requestParameters: { deletionProtection: ['INACTIVE'] } },
+          ],
+        },
+      },
+      Targets: topicTargets,
+    });
+  });
+
+  test('東京の EventBridge のルールは6個', () => {
+    template.resourceCountIs('AWS::Events::Rule', 6);
   });
 
   test('us-east-1 の IAM の変更を、東京の既定のイベントバスに転送する', () => {

@@ -87,7 +87,7 @@ Authlib にない CIMD と RFC 8707（resource）、同意画面を自分で書�
 
 ![構成図](docs/architecture.drawio.svg)
 
-- 入口は API Gateway の HTTP API だけで、どれにも流量の制限を付けています（認可API と MCP は1秒1回・瞬間5回、スマホアプリ用の API は1秒10回・瞬間20回）
+- 入口は API Gateway の HTTP API だけで、どれにも流量の制限を付けています（認可API と MCP は1秒1回・瞬間5回、スマホアプリ用の API は、アプリが使い始めるまで1秒2回・瞬間10回）
 - スマホアプリ（トレログ）とは、変更の記録を送り合って同期します。MCP からの変更も同じ記録を通るので、アプリにも届きます（[同期の設計](docs/sync-design.md)、[アプリ用の API](docs/api/app-api.yaml)）
 - 認可API が Cognito でログインさせ、同意を得てから、この MCP サーバーだけに使えるアクセストークンを出します。ログインはパスキーで、パスワードはパスキーを作るときだけ使います（[パスキー](docs/design.md#パスキー)）
 - 怪しいアクセスや異常（4xx・5xx・429 の急増、ルートや MFA なしのログイン、IAM・Cognito の変更など）を検知してメールで知らせます（[監視](docs/monitoring.md)）

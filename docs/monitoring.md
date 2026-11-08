@@ -5,7 +5,7 @@
 
 | スタック | リージョン | 中身 |
 |---|---|---|
-| `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム7個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール3個 |
+| `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム7個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール6個 |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京の既定のイベントバスに転送するルール |
 
 `CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group` と、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`）だけでつないでいます。スタックをまたぐ Export は作りません。
@@ -23,7 +23,7 @@
 | `RequestsAlarm` | すべてのリクエスト（アクセスログ） | 1時間に300件以上 | これまでの最大は1時間32件、1日42件。300件は、多い日の7日分を1時間で使う量。費用の兆し |
 | `ClientErrorsAlarm` | 4xx（アクセスログ） | 1時間に50件以上 | 普段はスキャンが月10件ほど。コネクタをつないだ日でも 401 は1日38件。スキャンや総当たりの兆し |
 | `ServerErrorsAlarm` | 5xx（アクセスログ） | 1時間に3件以上 | 30日間0件。1件だけなら一時的な失敗のこともあるので、3件から |
-| `ThrottledAlarm` | 429（流量の制限での拒否。認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒10回・瞬間20回。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
+| `ThrottledAlarm` | 429（流量の制限での拒否。認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒2回・瞬間10回。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
 | `TokenFailuresAlarm` | 認可API の `/token` の 4xx（アクセスログ） | 1時間に10件以上 | これまでの最大は1時間1件。認可コードやリフレッシュトークンの総当たりの兆し |
 | `LambdaErrorsAlarm` | このアプリの3つの Lambda（`AuthzFunction`・`MealsFunction`・`AppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
 
@@ -38,11 +38,19 @@
 | IAM の変更（ユーザー、アクセスキー、パスワード、MFA、ポリシー、ロール、ID プロバイダー。名前が Create・Delete・Update・Put・Attach・Detach・Add・Remove・Set・Enable・Deactivate・Upload・Change・Resync で始まる操作） | us-east-1 の EventBridge → 東京の既定のイベントバス → `IamChangeRule` | CDK のデプロイ |
 | Cognito の変更（名前が Admin・Create・Update・Delete・Set・Add・Start・Complete で始まる操作と、SignUp・ChangePassword・ConfirmForgotPassword）。パスキーの登録と削除（`StartWebAuthnRegistration`・`CompleteWebAuthnRegistration`・`DeleteWebAuthnCredential`）と、マネージドログインの画面からのパスキーの登録（`passkeys_add_POST`）を含む | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
 | CloudTrail の停止・削除・変更（StopLogging、DeleteTrail、UpdateTrail、PutEventSelectors） | 東京の EventBridge `CloudTrailTamperRule` | なし（CDK のデプロイでも通知する） |
+| 自分のスタック以外への CloudFormation の変更（名前が Create・Update・Delete・Execute・Set・Import・Continue・Cancel・Rollback・Signal・Activate・Deactivate・Register・Deregister・Publish で始まる操作） | 東京の EventBridge `CloudFormationChangeRule` | `stackName` が `CognitoStudy`・`CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`・`CDKToolkit` のもの。CDK のデプロイのロールによる、`stackName` のない操作 |
+| 監視の改ざん（アラームの削除と通知の無効化 `DeleteAlarms`・`DisableAlarmActions`、EventBridge のルールの削除・無効化・送り先の取り外し `DeleteRule`・`DisableRule`・`RemoveTargets`、SNS のトピックと購読の削除 `DeleteTopic`・`Unsubscribe`、アラームのもとになるメトリクスフィルターの削除 `DeleteMetricFilter`） | 東京の EventBridge `MonitoringTamperRule` | CDK のデプロイ |
+| データを壊す操作（DynamoDB の `DeleteTable`、削除の保護を外す `UpdateTable`、ポイントインタイムリカバリを外す `UpdateContinuousBackups`、Cognito の `DeleteUserPool`、削除の保護を外す `UpdateUserPool`） | 東京の EventBridge `DataDestructionRule` | なし（CDK のデプロイでも通知する） |
 
 - **ログインをアラームで見る理由**：`ConsoleLogin` が記録されるリージョンは、利用者の種類と入口で変わります。ルートは us-east-1・us-east-2・us-west-2 のどれか、IAM ユーザーは us-east-1・us-east-2・eu-north-1・ap-southeast-2 のどれか、リージョンの入口を使えばそのリージョンです（[AWS Management Console sign-in events](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-aws-console-sign-in-events.html)）。このアカウントでも、直近のログインは5つのリージョンに記録されていました。EventBridge のルールはリージョンごとに要るので、すべてのリージョンを1つのロググループに集める証跡で数えます
 - **IAM を us-east-1 から転送する理由**：IAM はグローバルなサービスで、操作は us-east-1 にだけ記録され、us-east-1 の EventBridge にだけ届きます。送り先を東京の1つのトピックにまとめ、メールの購読を1回で済ませるために、東京のイベントバスに転送します
 - **CDK のデプロイを除く方法**：CloudFormation が使うロール `cdk-hnb659fds-cfn-exec-role-*` による操作を、`userIdentity.sessionContext.sessionIssuer.userName` の前方一致（`anything-but`）で除きます。`anything-but` は項目がない（IAM ユーザーやルートの操作）と一致しないので、`exists: false` と `$or` でつなぎます。その名前のロールを新しく作る操作は通知されるので、同じ名前で紛れ込むことはできません
 - **マネージドログインでのパスキーの登録**：画面（`/passkeys/add`）からの登録は API の呼び出しではなく、エンドポイントへのリクエストとして CloudTrail に記録されます（`eventType` が `AwsServiceEvent`、`eventName` が `passkeys_add_POST`。このアカウントの記録でも確かめた）。EventBridge には detail-type `AWS Service Event via CloudTrail` で届くはずなので、ルールに両方の detail-type を入れています。届くかはデプロイのあとに試して確かめます（下の「デプロイと、メールの購読の足し方」の手順4）
+- **自分のスタックを名前で並べる理由**：前方一致（`CognitoStudy*`）にすると、`CognitoStudyEvil` のような名前のスタックで紛れ込めるためです。スタックを足したら `OWN_STACK_NAMES`（`cdk/lib/monitoring-stack.ts`）に足します。`stackName` が ARN の形のときは、自分のスタックでも通知します（CDK は名前で呼びます）
+- **CDK のデプロイの `CreateChangeSet` を除く方法**：CDK のデプロイと `cdk diff` の `CreateChangeSet` は、CloudTrail に `requestParameters` が記録されません（テンプレートが大きいため。このアカウントの記録で確かめました）。`stackName` のない操作（スタックセットや拡張の登録など）も通知したいので、`stackName` がなく、かつ CDK のデプロイのロール `cdk-hnb659fds-deploy-role-*` によるものだけを除きます。そのあとの `ExecuteChangeSet` には `stackName` があるので、ほかのスタックへのデプロイはそこで通知されます
+- **データを壊す操作を CDK のデプロイでも通知する理由**：テーブルとユーザープールは RETAIN で、CDK のデプロイが消したり保護を外したりすることはありません。CDK のデプロイの `UpdateTable`・`UpdateContinuousBackups`・`UpdateUserPool` は保護を有効のまま送るので、一致しません（このアカウントの記録で確かめました）。Cognito の `DeleteUserPool` は `CognitoChangeRule` にも当たるので、CDK のデプロイ以外では2通届きます
+- **パターンの確かめ方**：合成したテンプレートのパターンを、`aws events test-event-pattern` で、CDK のデプロイの操作（除く）とほかの操作（通知する）の例に当てて確かめました（2026-11-08）
+- **見ていないもの**：CloudFormation・監視の改ざん・データを壊す操作のルールは東京だけです。ほかのリージョンでの操作は通知されません（証跡には残ります）。また、ルールを消したり無効にしたりする操作は、そのルール自身では通知されません（CloudTrail のイベントが届く前にルールがなくなるため）。`MonitoringTamperRule` が消されたときは通知が来ないので、ほかのルールは `MonitoringTamperRule` が、`MonitoringTamperRule` は証跡で見ます
 - 読むだけの操作（`AdminGetUser`、`ListWebAuthnCredentials` など）は、前方一致に当たっても、EventBridge の既定の状態（`ENABLED`）のルールには届かないので、通知されません
 - 通知の中身は CloudTrail のイベントそのもの（JSON）です。パスワードは CloudTrail が伏せて記録します
 
@@ -61,7 +69,7 @@
 | API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
 | ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）。90日残す |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
-| IAM・Cognito・CloudTrail の操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
+| IAM・Cognito・CloudTrail・CloudFormation・監視の改ざん・データを壊す操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
 Logs Insights のクエリの例です（CloudWatch → Logs Insights で、ロググループを選んで実行します）。
 
@@ -153,7 +161,7 @@ fields eventTime, awsRegion, eventSource, eventName, userIdentity.arn, errorCode
 | CloudTrail の証跡 | 管理イベントの1つ目の写し | 無料 |
 | CloudTrail → CloudWatch Logs | 管理イベントは1日 1,200件ほど（東京 1,070件、us-east-1 126件）。月 60MB ほど | 取り込みと保存は無料枠（5GB）の中。CloudTrail の配信の料金（$0.25/GB）が月 $0.02 ほど |
 | S3 | 17のリージョンのダイジェスト（1時間ごと）とログのファイルで、PUT が月 2〜3万回。保存は1GB 未満 | PUT は $0.0047/1,000回で月 $0.10〜0.15。保存は $0.025/GB |
-| EventBridge | AWS の管理イベント | 無料。東京への転送は、カスタムイベント（100万件で $1）として数えるが、月に数件 |
+| EventBridge | AWS の管理イベント（ルール6個） | 無料。東京への転送は、カスタムイベント（100万件で $1）として数えるが、月に数件 |
 | SNS | 通知は月に数件 | 無料枠（発行100万件、メール1,000通）の中 |
 
 出典：[CloudWatch の料金](https://aws.amazon.com/cloudwatch/pricing/)、[CloudTrail の料金](https://aws.amazon.com/cloudtrail/pricing/)、[EventBridge の料金](https://aws.amazon.com/eventbridge/pricing/)、[SNS の FAQ](https://aws.amazon.com/sns/faqs/)、[S3 の料金](https://aws.amazon.com/s3/pricing/)。東京の単価は AWS Price List API で確かめました（2026-11-08）。

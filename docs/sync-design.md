@@ -183,7 +183,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
   - スナップショットの `page_token` には sk の位置しか入れません。どの pk を読むかはクレームで決まるので、ほかの人の `page_token` を使っても自分の分しか読めません
 - Lambda の権限は、食事のテーブル（とその LSI）の `GetItem`・`BatchGetItem`・`Query`・`PutItem` だけです。変更の記録は追記だけなので、`DeleteItem`・`UpdateItem`・`Scan` は与えません
 - MCP の認可API のアクセストークンの `sub` は、Cognito の ID トークンの `sub` そのものです（`services/authorization/infrastructure/cognito_login.py`）。アプリのアクセストークンの `sub` も同じ Cognito のユーザーの `sub` なので、同じ人は同じ pk になります
-- 流量の制限は、1秒10回・瞬間20回です。アプリを開いたときに、送信と受け取りのページ送りが続けて数回から十数回届くためです（MCP は1秒1回・瞬間5回のまま）
+- 流量の制限は、アプリが使い始めるまで1秒2回・瞬間10回にしています。使い始めたら、アプリを開いたときに送信と受け取りのページ送りが続けて数回から十数回届くのに合わせて上げます（MCP は1秒1回・瞬間5回のまま）
 - アクセスログは30日残します
 
 ## 決めたこと（2026-11-08、本人と合意）
