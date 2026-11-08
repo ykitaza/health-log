@@ -1,11 +1,13 @@
 import * as path from 'path';
 import * as cdk from 'aws-cdk-lib/core';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
@@ -81,8 +83,25 @@ export class InfraStack extends cdk.Stack {
         defaultIntegration: new HttpLambdaIntegration(`${id}Integration`, fn),
         createDefaultStage: false, // 流量の制限を付けるため、ステージは自分で作る
       });
+      // 送信元 IP を記録し、ChatGPT・Claude の通信が公開されている IP の範囲から来るかを確かめる
+      const accessLogs = new logs.LogGroup(this, `${id}AccessLogs`, {
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      });
       new apigw.HttpStage(this, `${id}DefaultStage`, {
         httpApi: api, stageName: '$default', autoDeploy: true, throttle: THROTTLE,
+        accessLogSettings: {
+          destination: new apigw.LogGroupLogDestination(accessLogs),
+          format: apigateway.AccessLogFormat.custom(JSON.stringify({
+            requestId: '$context.requestId',
+            time: '$context.requestTime',
+            sourceIp: '$context.identity.sourceIp',
+            userAgent: '$context.identity.userAgent',
+            method: '$context.httpMethod',
+            path: '$context.path',
+            status: '$context.status',
+          })),
+        },
       });
       return api.apiEndpoint;
     };
