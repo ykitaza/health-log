@@ -1,5 +1,8 @@
 """同期する対象の種類と項目。docs/api/app-api.yaml の *Fields と同じ決まりで、送られた変更を確かめる。
 
+筋トレの範囲は、アプリの apps/mobile/lib/limits.ts に合わせる（アプリで通った記録を、同期で断らないように）。
+名前の長さは、アプリが書記素（絵文字も1文字）で40文字までにしているので、ここではコードポイントで200までにする。
+
 項目は「型が違う」「範囲の外」「知らない項目」を断る。null にできない項目に null を送っても断る
 （既定値の None は確かめないので、送らなかった項目は None のまま捨てる）。
 """
@@ -120,15 +123,18 @@ class DayTypeFields(_Fields):
     day_type: Literal["training", "rest"] = None
 
 
+TrainingName = Annotated[str, Field(min_length=1, max_length=200)]
+
+
 class BodyPartFields(_Fields):
-    name: Annotated[str, Field(min_length=1, max_length=100)] = None
+    name: TrainingName = None
     sort_order: SortOrder = None
     hidden: bool = None
 
 
 class ExerciseFields(_Fields):
     body_part_id: Ref = None
-    name: Annotated[str, Field(min_length=1, max_length=100)] = None
+    name: TrainingName = None
     record_type: Literal["weight_reps", "reps_only"] = None
     sort_order: SortOrder = None
     hidden: bool = None
@@ -143,7 +149,7 @@ class WorkoutEntryFields(_Fields):
 class WorkoutSetFields(_Fields):
     entry_id: Ref = None
     set_index: Annotated[int, Field(ge=0, le=1000)] = None
-    weight_kg: Annotated[float, Field(ge=0, le=1000)] | None = None
+    weight_kg: Annotated[float, Field(gt=0, le=500)] | None = None  # 回数だけの種目は null
     reps: Annotated[int, Field(ge=0, le=10000)] = None
     memo: Memo = None
     done: bool = None
@@ -152,11 +158,11 @@ class WorkoutSetFields(_Fields):
 class BodyRecordFields(_Fields):
     date: Day = None
     measured_at: Moment = None
-    weight_kg: Annotated[float, Field(ge=20, le=400)] | None = None
+    weight_kg: Annotated[float, Field(ge=30, le=300)] | None = None
     body_fat_pct: Annotated[float, Field(ge=0, le=100)] | None = None
     muscle_pct: Annotated[float, Field(ge=0, le=100)] | None = None
-    lean_mass_kg: Annotated[float, Field(ge=0, le=400)] | None = None
-    waist_cm: Annotated[float, Field(ge=0, le=300)] | None = None
+    lean_mass_kg: Annotated[float, Field(ge=0, le=300)] | None = None
+    waist_cm: Annotated[float, Field(ge=30, le=200)] | None = None
     memo: Memo = None
     source: Literal["manual", "health_connect"] = None
     external_id: Annotated[str, Field(max_length=200)] | None = None
