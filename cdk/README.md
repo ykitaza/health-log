@@ -22,4 +22,4 @@ npx cdk diff --all                # デプロイ済みのものとの差
 npx cdk deploy --all              # 4つのスタックをデプロイする
 ```
 
-初めてデプロイするときは、東京と us-east-1 の bootstrap が要ります。手順は [README のデプロイ](../README.md#デプロイする) にあります。
+初めてデプロイするときは、東京と us-east-1 の bootstrap が要ります。手順は [初めてのデプロイ](../docs/cd.md#初めてのデプロイ) にあります。
