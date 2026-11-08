@@ -20,6 +20,14 @@ const MEALS_URL_PARAM = `${PARAM_PREFIX}/meals/url`;
 const COGNITO_CLIENT_ID_PARAM = `${PARAM_PREFIX}/authorization/cognito-client-id`;
 const SIGNING_KEY_PARAM = `${PARAM_PREFIX}/authorization/signing-key`; // 認可APIが初回起動時に作る（SecureString）
 const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 同上。セッション Cookie の署名用
+// スマホアプリ（トレログ）が使う値。どれも秘密ではない
+const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
+const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
+const APP_COGNITO_DOMAIN_PARAM = `${PARAM_PREFIX}/app/cognito-domain`;
+
+// アプリ用の API の名前（Cognito のリソースサーバーの識別子）。アクセストークンの scope は「torelog-api/meals.read」の形になる。
+// scope は「対象.操作」にし、あとで筋トレ（training.read・training.write）を同じ形で足す
+const APP_API_IDENTIFIER = 'torelog-api';
 
 // HTTP API の流量の制限（3つの API それぞれに）。超えた分は 429 で断る。
 // 使うのは本人だけなので、1秒あたり1回・瞬間的に5回まで（Claude は接続のときに数回まとめて送る）。
@@ -221,11 +229,67 @@ export class InfraStack extends cdk.Stack {
       useCognitoProvidedValues: true,
     });
 
+    // ---- スマホアプリ（トレログ）のログイン ----
+
+    // アプリ用の API の scope。ルートごとに必須にし、ID トークンや認可API 用のクライアントのトークンを断る
+    const mealsRead = new cognito.ResourceServerScope({ scopeName: 'meals.read', scopeDescription: '食事の記録を読む' });
+    const mealsWrite = new cognito.ResourceServerScope({ scopeName: 'meals.write', scopeDescription: '食事の記録を書く' });
+    const appApi = userPool.addResourceServer('AppApiResourceServer', {
+      identifier: APP_API_IDENTIFIER,
+      userPoolResourceServerName: 'torelog-api',
+      scopes: [mealsRead, mealsWrite],
+    });
+
+    // アプリクライアント（スマホアプリ）：端末に秘密を置けないので、シークレットなしのパブリッククライアントにし、
+    // 認可コード＋PKCE だけを許す。戻り先はアプリのカスタムスキーム
+    const appClient = userPool.addClient('AppClient', {
+      userPoolClientName: 'torelog-app',
+      generateSecret: false,
+      authFlows: { user: true }, // マネージドログインで、パスキーとパスワードを選べるようにする
+      supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.resourceServer(appApi, mealsRead),
+          cognito.OAuthScope.resourceServer(appApi, mealsWrite),
+        ],
+        callbackUrls: ['torelog://callback'],
+        logoutUrls: ['torelog://signout'],
+      },
+      // 盗まれたときの被害を小さくするため、アクセストークンと ID トークンは短くする
+      accessTokenValidity: cdk.Duration.minutes(15),
+      idTokenValidity: cdk.Duration.minutes(15),
+      // 30日アプリを開かなければ、ログインし直し（パスキーなので手間は小さい）
+      refreshTokenValidity: cdk.Duration.days(30),
+      // リフレッシュトークンを使うたびに新しくする。通信が切れて取り直すときのために、古いものも10秒だけ使える
+      refreshTokenRotationGracePeriod: cdk.Duration.seconds(10),
+      enableTokenRevocation: true, // ログアウトのときに /oauth2/revoke で消せるようにする
+      preventUserExistenceErrors: true, // ユーザーがいるかどうかを、エラーの違いから知られないようにする
+    });
+
+    // アプリのクライアントのログイン画面のデザイン（既定のもの）
+    new cognito.CfnManagedLoginBranding(this, 'AppBranding', {
+      userPoolId: userPool.userPoolId,
+      clientId: appClient.userPoolClientId,
+      useCognitoProvidedValues: true,
+    });
+
+    new ssm.StringParameter(this, 'AppIssuerParam', { parameterName: APP_ISSUER_PARAM, stringValue: cognitoIssuer });
+    new ssm.StringParameter(this, 'AppClientIdParam', {
+      parameterName: APP_CLIENT_ID_PARAM, stringValue: appClient.userPoolClientId,
+    });
+    new ssm.StringParameter(this, 'AppCognitoDomainParam', {
+      parameterName: APP_COGNITO_DOMAIN_PARAM, stringValue: domain.baseUrl(),
+    });
+
     // services/authorization/.env に入れる値（クライアントシークレットは出力しない）
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new cdk.CfnOutput(this, 'CognitoIssuer', { value: cognitoIssuer });
     new cdk.CfnOutput(this, 'CognitoDomain', { value: domain.baseUrl() });
     new cdk.CfnOutput(this, 'ClientId', { value: client.userPoolClientId });
+    // アプリ（apps/mobile/）に入れる値。issuer とドメインは上の CognitoIssuer・CognitoDomain と同じ
+    new cdk.CfnOutput(this, 'AppClientId', { value: appClient.userPoolClientId });
     // Lambda で動かしている認可API と MCPサーバーの URL
     new cdk.CfnOutput(this, 'AuthzUrl', { value: authzUrl });
     new cdk.CfnOutput(this, 'MealsMcpServerUrl', { value: `${mealsUrl}/mcp` });
