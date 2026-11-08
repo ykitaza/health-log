@@ -130,7 +130,7 @@
         </mxCell>
 
         <!-- スマホのアプリ（ログインと同期は次の段階） -->
-        <mxCell id="mobile" value="スマホのアプリ（トレログ）&lt;br&gt;筋トレ・体組成の記録&lt;br&gt;今は端末の SQLite だけ&lt;br&gt;（ログインと同期は次の段階）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="mobile" value="スマホのアプリ（hlog）&lt;br&gt;筋トレ・体組成の記録&lt;br&gt;今は端末の SQLite だけ&lt;br&gt;（ログインと同期は次の段階）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="20" y="690" width="200" height="80" as="geometry" />
         </mxCell>
 

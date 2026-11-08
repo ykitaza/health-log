@@ -1,6 +1,6 @@
 # Pixel への配信（EAS）
 
-トレログを、Expo の EAS（Expo Application Services）で APK にして、自分の Pixel に入れます。Play ストアには出しません。
+hlog を、Expo の EAS（Expo Application Services）で APK にして、自分の Pixel に入れます。Play ストアには出しません。
 
 - **EAS Build**：APK を Expo のサーバーで作る。ネイティブの部分（ライブラリ、Expo の SDK）を変えたときに作り直す
 - **EAS Update**：JS と画像だけを、入っている APK に配信する。main に入った変更は、GitHub Actions が自動で配信する

@@ -1,4 +1,4 @@
-# トレログ（仮）
+# hlog
 
 筋トレ・体組成・食事を記録するスマホのアプリです。Expo（SDK 58）と expo-router で作り、Pixel（Android）で使う前提です。
 
@@ -54,7 +54,7 @@ npx expo start
 
 ## ログイン
 
-Cognito のマネージドログイン（MCP と同じユーザーのパスキー）に、認可コード＋PKCE でつなぎます。設計は [docs/design.md](../../docs/design.md#スマホアプリトレログのログイン) にあります。
+Cognito のマネージドログイン（MCP と同じユーザーのパスキー）に、認可コード＋PKCE でつなぎます。設計は [docs/design.md](../../docs/design.md#スマホアプリhlogのログイン) にあります。
 
 1. 設定 → ログイン →「パスキーでログイン」で、Chrome Custom Tabs にログインの画面が開く（毎回 `prompt=login`）
 2. パスキーで入ると `torelog://callback` に戻り、認可コードをトークンに換える（`lib/auth/session.ts`。シークレットは使わない）
