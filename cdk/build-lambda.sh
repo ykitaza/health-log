@@ -21,7 +21,7 @@ for app in authorization meals; do
   # Lambda Web Adapter がこのスクリプトでアプリを起動し、HTTP のリクエストを渡す。
   # 認可API は Flask（WSGI）なので gunicorn、食事記録は ASGI なので uvicorn で動かす
   if [ "$app" = authorization ]; then
-    server="gunicorn --bind 0.0.0.0:8080 'main:create_app()'"
+    server="gunicorn --bind 0.0.0.0:8080 --no-control-socket 'main:create_app()'"  # Lambda ではファイルを書けないので、制御用のソケットは作らない
   else
     server='uvicorn main:app --host 0.0.0.0 --port 8080'
   fi
