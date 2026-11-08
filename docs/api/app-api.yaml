@@ -1,0 +1,1631 @@
+# トレログ アプリ用 API（同期）。設計は docs/sync-design.md。
+# 生成したあとは、この YAML を直接直す。
+openapi: 3.1.0
+info:
+  title: トレログ アプリ用 API
+  version: 0.1.0
+  description: |-
+    スマホアプリ（トレログ）の同期の API。設計は docs/sync-design.md。
+
+    - 認可：Cognito のアプリ用クライアント（torelog-app）のアクセストークンを `Authorization: Bearer` で送る。ID トークンは断る
+    - 利用者はトークンの sub で決まる。本文や URL に利用者の ID は入れない
+    - 時刻は UTC の RFC 3339（ミリ秒まで）。日付と食事の時刻（time）は日本時間
+    - エラー：Lambda のエラーは application/problem+json（Problem）。API Gateway のエラー（401・403・429）は {"message": "..."}（GatewayError）
+    - 流量の制限：1秒10回・瞬間20回。超えると 429（Retry-After はない。少し待って送り直す）
+servers:
+- url: https://{apiId}.execute-api.ap-northeast-1.amazonaws.com
+  description: cdk deploy の出力 AppApiUrl
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+security: []
+paths:
+  /v1/sync/changes:
+    post:
+      operationId: pushChanges
+      summary: 端末の変更を送る（まとめて、冪等）
+      description: |-
+        1回に25件まで。1件ごとに accepted・duplicate・rejected を返す。rejected があっても、ほかの変更は受け付ける。
+        応答を受け取れなかったときは、同じ change_id のまま送り直す。
+      security:
+      - cognito:
+        - torelog-api/meals.write
+      - cognito:
+        - torelog-api/training.write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+      responses:
+        '200':
+          description: 1件ごとの結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResponse'
+        '400':
+          description: 本文の形が違う（JSON でない、changes が26件以上、change_id の重複など）。1件も受け付けていない
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: pullChanges
+      summary: カーソル以降の変更を受け取る（ページ送り）
+      description: seq が after より大きい変更を、seq の順に返す。読める scope のない種類は飛ばす。
+      security:
+      - cognito:
+        - torelog-api/meals.read
+      - cognito:
+        - torelog-api/training.read
+      parameters:
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+      responses:
+        '200':
+          description: 変更と、当てはめたあとの状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangesPage'
+        '400':
+          description: after・limit が範囲の外
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/sync/snapshot:
+    get:
+      operationId: getSnapshot
+      summary: 初回の全件の取得
+      description: '今の状態を全部返す（消えたものも deleted: true で返す）。最初のページの cursor を覚え、全部読んだら /v1/sync/changes?after=cursor を読む。'
+      security:
+      - cognito:
+        - torelog-api/meals.read
+      - cognito:
+        - torelog-api/training.read
+      parameters:
+      - name: page_token
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 2000
+        description: 前のページの next_page_token
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 200
+      responses:
+        '200':
+          description: 今の状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotPage'
+        '400':
+          description: page_token が壊れている、ほかの人のもの、limit が範囲の外
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/meals/goal-suggestions:
+    post:
+      operationId: suggestGoals
+      summary: 食事の目標の案を計算する（保存しない）
+      description: MCP の suggest_goals と同じ計算。案を本人が確かめたら、nutrition_goal の update を同期で送って保存する。
+      security:
+      - cognito:
+        - torelog-api/meals.read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalSuggestionRequest'
+      responses:
+        '200':
+          description: 目標の案
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalSuggestion'
+        '400':
+          description: 本文の形が違う（知らない項目、型、選択肢にない値）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: 値が決まりに合わない（例：維持なのにペースが 0 でない、増量なのにペースがない、年齢が15〜100の外）。detail ではなく title に理由が入る
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    cognito:
+      type: oauth2
+      description: Cognito のマネージドログイン（パスキー）。認可コード＋PKCE。毎回 prompt=login を付ける
+      flows:
+        authorizationCode:
+          authorizationUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/authorize
+          tokenUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/token
+          refreshUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/token
+          scopes:
+            openid: OIDC
+            torelog-api/meals.read: 食事の記録を読む
+            torelog-api/meals.write: 食事の記録を書く
+            torelog-api/training.read: 筋トレの記録を読む
+            torelog-api/training.write: 筋トレの記録を書く
+  responses:
+    Unauthorized:
+      description: トークンがない、期限切れ、issuer か audience が違う（ID トークンや認可API のトークンを含む）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    Forbidden:
+      description: ルートに要る scope がない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    TooManyRequests:
+      description: 流量の制限を超えた
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    InternalError:
+      description: サーバーの不具合。少し待って送り直す（送信は冪等なので同じ本文でよい）
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    MealFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+        slot:
+          type: string
+          enum:
+          - breakfast
+          - lunch
+          - dinner
+          - snack
+        time:
+          type:
+          - string
+          - 'null'
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          description: 食べた時刻（HH:MM、日本時間）。分からなければ null
+        description:
+          type: string
+          maxLength: 2000
+          description: 写真や言葉から読み取った説明
+        source:
+          type: string
+          enum:
+          - photo
+          - text
+          - numbers
+          - copy
+          - template
+      description: 食事。create では date, slot, description, source が要る。update では変えた項目だけを送る
+    MealItemFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 100000
+          description: 量の数
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
+          - 個
+          - 杯
+        kcal:
+          type: number
+          minimum: 0
+          maximum: 20000
+          description: この量でのエネルギー
+        protein_g:
+          type: number
+          minimum: 0
+          maximum: 5000
+        fat_g:
+          type: number
+          minimum: 0
+          maximum: 5000
+        carbs_g:
+          type: number
+          minimum: 0
+          maximum: 5000
+        confidence:
+          type: string
+          enum:
+          - high
+          - medium
+          - low
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 100000
+      description: 食事の中の品目。parent_id に食事の ID を入れる。create では name, amount, unit, kcal, protein_g, fat_g, carbs_g, confidence, sort_order が要る。update では変えた項目だけを送る
+    MealTemplateFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - name
+            - amount
+            - unit
+            - kcal
+            - protein_g
+            - fat_g
+            - carbs_g
+            - confidence
+            properties:
+              item_id:
+                type:
+                - string
+                - 'null'
+                minLength: 1
+                maxLength: 64
+                pattern: ^[A-Za-z0-9_-]+$
+                description: 品目の ID（省くとサーバーが並び順から決める）
+              name:
+                type: string
+                minLength: 1
+                maxLength: 200
+              amount:
+                type: number
+                exclusiveMinimum: 0
+                maximum: 100000
+                description: 量の数
+              unit:
+                type: string
+                enum:
+                - g
+                - ml
+                - 個
+                - 杯
+              kcal:
+                type: number
+                minimum: 0
+                maximum: 20000
+                description: この量でのエネルギー
+              protein_g:
+                type: number
+                minimum: 0
+                maximum: 5000
+              fat_g:
+                type: number
+                minimum: 0
+                maximum: 5000
+              carbs_g:
+                type: number
+                minimum: 0
+                maximum: 5000
+              confidence:
+                type: string
+                enum:
+                - high
+                - medium
+                - low
+          description: 品目の一覧。項目としては1つ（一覧ごと置き換わる）
+      description: いつもの。entity_id は uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)。名前を含む変更で合わなければ invalid_fields。create では name, items が要る。update では変えた項目だけを送る
+    NutritionGoalFields:
+      type: object
+      additionalProperties: false
+      properties:
+        policy:
+          type: string
+          enum:
+          - bulk
+          - maintain
+          - cut
+        body_weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          maximum: 300
+        protein_per_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          maximum: 5
+        targets:
+          type:
+          - object
+          - 'null'
+          additionalProperties: false
+          required:
+          - training_day
+          - rest_day
+          properties:
+            training_day:
+              type: object
+              additionalProperties: false
+              required:
+              - kcal
+              - fat_g
+              - carbs_g
+              properties:
+                kcal:
+                  type: number
+                  minimum: 0
+                  maximum: 20000
+                fat_g:
+                  type: number
+                  minimum: 0
+                  maximum: 5000
+                carbs_g:
+                  type: number
+                  minimum: 0
+                  maximum: 5000
+            rest_day:
+              type: object
+              additionalProperties: false
+              required:
+              - kcal
+              - fat_g
+              - carbs_g
+              properties:
+                kcal:
+                  type: number
+                  minimum: 0
+                  maximum: 20000
+                fat_g:
+                  type: number
+                  minimum: 0
+                  maximum: 5000
+                carbs_g:
+                  type: number
+                  minimum: 0
+                  maximum: 5000
+          description: 筋トレの日と休みの日の目標。両方そろえて1つの項目にする（片方だけにならないように）
+        eating_style:
+          type:
+          - string
+          - 'null'
+          enum:
+          - home_cooked
+          - eating_out
+          - convenience_store
+          - null
+        target_weight_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 300
+      description: 食事の目標。entity_id は current だけ。create では policy が要る。update では変えた項目だけを送る
+    DayTypeFields:
+      type: object
+      additionalProperties: false
+      properties:
+        day_type:
+          type: string
+          enum:
+          - training
+          - rest
+      description: 日の種類。entity_id は日付（YYYY-MM-DD）。create では day_type が要る。update では変えた項目だけを送る
+    BodyPartFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: アプリでは40文字まで（apps/mobile/lib/limits.ts）
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 100000
+        hidden:
+          type: boolean
+      description: 部位。create では name, sort_order, hidden が要る。update では変えた項目だけを送る
+    ExerciseFields:
+      type: object
+      additionalProperties: false
+      properties:
+        body_part_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: アプリでは40文字まで（apps/mobile/lib/limits.ts）
+        record_type:
+          type: string
+          enum:
+          - weight_reps
+          - reps_only
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 100000
+        hidden:
+          type: boolean
+      description: 種目。create では body_part_id, name, record_type, sort_order, hidden が要る。update では変えた項目だけを送る
+    WorkoutEntryFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+        exercise_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 100000
+      description: トレーニングの中の種目（1日の1種目ぶん）。sort_order はその日に行った順。create では date, exercise_id, sort_order が要る。update では変えた項目だけを送る
+    WorkoutSetFields:
+      type: object
+      additionalProperties: false
+      properties:
+        entry_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+        set_index:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          maximum: 500
+        reps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        memo:
+          type: string
+          maxLength: 1000
+        done:
+          type: boolean
+      description: セット。重さはいつも kg。回数だけの種目は weight_kg が null。create では entry_id, set_index, reps が要る。update では変えた項目だけを送る
+    BodyRecordFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+        measured_at:
+          type: string
+          format: date-time
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 300
+        body_fat_pct:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+        muscle_pct:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+        lean_mass_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 300
+        waist_cm:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 200
+        memo:
+          type: string
+          maxLength: 1000
+        source:
+          type: string
+          enum:
+          - manual
+          - health_connect
+        external_id:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+        origin_package:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+      description: '体組成。取り込み（origin: import）より手入力が勝つ。create では date, measured_at, source が要る。update では変えた項目だけを送る'
+    SettingFields:
+      type: object
+      additionalProperties: false
+      properties:
+        value:
+          type:
+          - string
+          - 'null'
+          maxLength: 1000
+      description: 設定。entity_id は設定の名前（weight_unit など）。create では value が要る。update では変えた項目だけを送る
+    EntityType:
+      type: string
+      enum:
+      - meal
+      - meal_item
+      - meal_template
+      - nutrition_goal
+      - day_type
+      - body_part
+      - exercise
+      - workout_entry
+      - workout_set
+      - body_record
+      - setting
+      description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外は training.* の scope で扱う
+    MealChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: meal
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/MealFields'
+          description: create・update のとき。delete・restore では送らない
+    MealItemChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      - parent_id
+      properties:
+        entity_type:
+          type: string
+          const: meal_item
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/MealItemFields'
+          description: create・update のとき。delete・restore では送らない
+    MealTemplateChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: meal_template
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/MealTemplateFields'
+          description: create・update のとき。delete・restore では送らない
+    NutritionGoalChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: nutrition_goal
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/NutritionGoalFields'
+          description: create・update のとき。delete・restore では送らない
+    DayTypeChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: day_type
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/DayTypeFields'
+          description: create・update のとき。delete・restore では送らない
+    BodyPartChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: body_part
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/BodyPartFields'
+          description: create・update のとき。delete・restore では送らない
+    ExerciseChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: exercise
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ExerciseFields'
+          description: create・update のとき。delete・restore では送らない
+    WorkoutEntryChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: workout_entry
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/WorkoutEntryFields'
+          description: create・update のとき。delete・restore では送らない
+    WorkoutSetChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: workout_set
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/WorkoutSetFields'
+          description: create・update のとき。delete・restore では送らない
+    BodyRecordChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: body_record
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/BodyRecordFields'
+          description: create・update のとき。delete・restore では送らない
+    SettingChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: setting
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/SettingFields'
+          description: create・update のとき。delete・restore では送らない
+    Change:
+      oneOf:
+      - $ref: '#/components/schemas/MealChange'
+      - $ref: '#/components/schemas/MealItemChange'
+      - $ref: '#/components/schemas/MealTemplateChange'
+      - $ref: '#/components/schemas/NutritionGoalChange'
+      - $ref: '#/components/schemas/DayTypeChange'
+      - $ref: '#/components/schemas/BodyPartChange'
+      - $ref: '#/components/schemas/ExerciseChange'
+      - $ref: '#/components/schemas/WorkoutEntryChange'
+      - $ref: '#/components/schemas/WorkoutSetChange'
+      - $ref: '#/components/schemas/BodyRecordChange'
+      - $ref: '#/components/schemas/SettingChange'
+      discriminator:
+        propertyName: entity_type
+        mapping:
+          meal: '#/components/schemas/MealChange'
+          meal_item: '#/components/schemas/MealItemChange'
+          meal_template: '#/components/schemas/MealTemplateChange'
+          nutrition_goal: '#/components/schemas/NutritionGoalChange'
+          day_type: '#/components/schemas/DayTypeChange'
+          body_part: '#/components/schemas/BodyPartChange'
+          exercise: '#/components/schemas/ExerciseChange'
+          workout_entry: '#/components/schemas/WorkoutEntryChange'
+          workout_set: '#/components/schemas/WorkoutSetChange'
+          body_record: '#/components/schemas/BodyRecordChange'
+          setting: '#/components/schemas/SettingChange'
+    PushRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - device_id
+      - changes
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 端末の ID（アプリを入れたときに作る UUID）
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            $ref: '#/components/schemas/Change'
+          description: 変えた順に並べる。25件より多いときは分けて送る
+    PushResult:
+      type: object
+      required:
+      - change_id
+      - status
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - accepted
+          - duplicate
+          - rejected
+          description: accepted：受け付けた。duplicate：前に受け付けた（状態は変わらない）。rejected：断った（送り直しても同じなので、端末で扱いを決める）
+        seq:
+          type:
+          - integer
+          - 'null'
+          description: 受け付けた変更の通し番号（rejected では null）
+        error:
+          oneOf:
+          - $ref: '#/components/schemas/ChangeError'
+          - type: 'null'
+    ChangeError:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          enum:
+          - invalid_fields
+          - missing_fields
+          - missing_parent_id
+          - parent_id_not_allowed
+          - fields_not_allowed
+          - insufficient_scope
+          description: invalid_fields：知らない項目・型（"10" と 10、1 と true は別）・範囲の違い、null にできない項目に null、entity_id・op・changed_at・origin の誤り。missing_fields：create に要る項目がない。missing_parent_id：meal_item に parent_id がない。parent_id_not_allowed：meal_item
+            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    PushResponse:
+      type: object
+      required:
+      - results
+      - cursor
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PushResult'
+          description: 送った順
+        cursor:
+          type: integer
+          description: サーバーの今の通し番号（受け取りの目安）
+    EntityState:
+      type: object
+      required:
+      - entity_type
+      - entity_id
+      - parent_id
+      - fields
+      - deleted
+      - created_at
+      - updated_at
+      - deleted_at
+      - seq
+      properties:
+        entity_type:
+          $ref: '#/components/schemas/EntityType'
+        entity_id:
+          type: string
+        parent_id:
+          type:
+          - string
+          - 'null'
+        fields:
+          type: object
+          description: 今の値（種類ごとの *Fields の形。まだ届いていない項目はない）
+        deleted:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          description: 当てはめた変更の時刻のうち、いちばん新しいもの
+        deleted_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        seq:
+          type: integer
+          description: この状態に最後に当てはめた変更の通し番号。端末は大きい方を残す
+    ChangeRecord:
+      type: object
+      required:
+      - seq
+      - change_id
+      - entity_type
+      - entity_id
+      - parent_id
+      - op
+      - fields
+      - changed_at
+      - received_at
+      - origin
+      - device_id
+      properties:
+        seq:
+          type: integer
+        change_id:
+          type: string
+        entity_type:
+          $ref: '#/components/schemas/EntityType'
+        entity_id:
+          type: string
+        parent_id:
+          type:
+          - string
+          - 'null'
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        fields:
+          type:
+          - object
+          - 'null'
+        changed_at:
+          type: string
+          format: date-time
+        received_at:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          - mcp
+          - migration
+        device_id:
+          type:
+          - string
+          - 'null'
+    ChangesPage:
+      type: object
+      required:
+      - entries
+      - next_cursor
+      - has_more
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            required:
+            - change
+            - state
+            properties:
+              change:
+                $ref: '#/components/schemas/ChangeRecord'
+              state:
+                $ref: '#/components/schemas/EntityState'
+        next_cursor:
+          type: integer
+          description: 次の after に使う（読めない種類の変更を飛ばした分も進む）
+        has_more:
+          type: boolean
+    SnapshotPage:
+      type: object
+      required:
+      - states
+      - cursor
+      - next_page_token
+      properties:
+        states:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityState'
+        cursor:
+          type: integer
+          description: 最初のページを読んだときの通し番号。全部読んだら、ここから /v1/sync/changes を読む
+        next_page_token:
+          type:
+          - string
+          - 'null'
+          description: null なら終わり
+    GoalSuggestionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - policy
+      properties:
+        policy:
+          type: string
+          enum:
+          - bulk
+          - maintain
+          - cut
+        pace_kg_per_week:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: 維持なら 0。増量・減量なら 0 より大きく 1 まで
+        protein_per_kg:
+          type: number
+          minimum: 1
+          maximum: 3
+          default: 2.0
+        sex:
+          type: string
+          enum:
+          - male
+          - female
+          - unspecified
+          default: unspecified
+        age:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          maximum: 120
+        height_cm:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          maximum: 300
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          maximum: 300
+        daily_activity:
+          type:
+          - string
+          - 'null'
+          enum:
+          - low
+          - moderate
+          - high
+          - null
+        training_minutes:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 600
+        eating_style:
+          type:
+          - string
+          - 'null'
+          enum:
+          - home_cooked
+          - eating_out
+          - convenience_store
+          - null
+        target_weight_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 300
+    GoalSuggestion:
+      type: object
+      required:
+      - goal
+      - notes
+      - used
+      properties:
+        goal:
+          $ref: '#/components/schemas/NutritionGoalFields'
+        notes:
+          type: array
+          items:
+            type: string
+          description: 出せなかった目標と、その理由
+        used:
+          type: object
+          description: 計算に使った体のデータ（答えなかった項目は含まない）
+    FieldError:
+      type: object
+      required:
+      - field
+      - message
+      properties:
+        field:
+          type: string
+          description: 例：changes[2].fields.amount
+        message:
+          type: string
+    Problem:
+      type: object
+      required:
+      - type
+      - title
+      - status
+      description: Lambda が返すエラー（RFC 9457）
+      properties:
+        type:
+          type: string
+          description: 例：https://torelog.invalid/problems/invalid-request
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    GatewayError:
+      type: object
+      required:
+      - message
+      description: API Gateway が Lambda の前で返すエラー（形は変えられない）。401：Unauthorized、403：Forbidden、429：Too Many Requests
+      properties:
+        message:
+          type: string

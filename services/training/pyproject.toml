@@ -1,0 +1,31 @@
+[project]
+name = "training"
+version = "0.1.0"
+description = "筋トレの境界づけられたコンテキスト（部位、種目、トレーニング、体組成、設定と、その計算）"
+requires-python = ">=3.12"
+dependencies = [
+    "anyio>=4.9",
+    "pydantic>=2.11",
+    "sync",
+]
+
+# アプリ用の API の組み立て（services/app_api）から path の依存で使うので、パッケージとして作れるようにする。
+# 食事のサービスは domain・application などをトップレベルに置いているので、ぶつからないよう training の下に入れる
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "training"
+module-root = ""
+
+[tool.uv.sources]
+sync = { path = "../sync", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

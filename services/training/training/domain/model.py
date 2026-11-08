@@ -1,0 +1,103 @@
+"""筋トレのドメインの言葉。項目はアプリの SQLite（apps/mobile/db/migrations.ts）と同じ。
+
+  部位（BodyPart）・種目（Exercise）       種目は1つの部位に属する。記録の仕方は「重量×回数」か「回数だけ」
+  トレーニング（Workout）                  その日の種目（WorkoutEntry）と、種目ごとのセット（WorkoutSet）
+  体組成（BodyRecord）                     1日に複数あり得る（体重計の取り込みと手入力など）
+  設定（Setting）                          weight_unit など
+重さはいつも kg で持つ（表示の単位は設定で変える）。日付は端末の暦の日付（YYYY-MM-DD）。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+
+class RecordType(Enum):
+    WEIGHT_REPS = "weight_reps"  # 重量 × 回数
+    REPS_ONLY = "reps_only"  # 回数だけ（自重など）
+
+
+@dataclass(frozen=True)
+class TraineeId:
+    """記録の持ち主。食事の「食べた人」と同じく、Cognito の sub。"""
+
+    value: str
+
+
+@dataclass(frozen=True)
+class BodyPart:
+    id: str
+    name: str
+    sort_order: int
+    hidden: bool
+
+
+@dataclass(frozen=True)
+class Exercise:
+    id: str
+    body_part_id: str
+    name: str
+    record_type: RecordType
+    sort_order: int
+    hidden: bool
+
+
+@dataclass(frozen=True)
+class WorkoutSet:
+    id: str
+    set_index: int
+    weight_kg: float | None  # 回数だけの種目は None
+    reps: int
+    memo: str = ""
+    done: bool = False
+
+
+@dataclass(frozen=True)
+class WorkoutEntry:
+    """1日の1種目ぶん。sort_order はその日に行った順。"""
+
+    id: str
+    date: str
+    exercise_id: str
+    sort_order: int
+    sets: tuple[WorkoutSet, ...] = ()
+
+
+@dataclass(frozen=True)
+class Workout:
+    """その日のトレーニング（種目とセット）。"""
+
+    date: str
+    entries: tuple[WorkoutEntry, ...]
+
+
+@dataclass(frozen=True)
+class SetRow:
+    """集計に使う1セット分の行（アプリの TrainingSetRow と同じ）。"""
+
+    date: str
+    exercise_id: str
+    body_part_id: str
+    weight_kg: float | None
+    reps: int | None
+
+
+@dataclass(frozen=True)
+class BodyRecord:
+    id: str
+    date: str
+    measured_at: str
+    weight_kg: float | None
+    body_fat_pct: float | None
+    muscle_pct: float | None
+    waist_cm: float | None
+    memo: str
+    source: str  # manual・health_connect
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class Setting:
+    id: str
+    value: str | None

@@ -308,7 +308,7 @@ def create_mcp_server(
         goal = suggestion.goal
         return {
             "goal": views.goal(goal),
-            "used": _used_inputs(profile),  # 計算に使った値（初期値のまま使った項目に気づけるように見せる）
+            "used": views.used_inputs(profile),  # 計算に使った値（初期値のまま使った項目に気づけるように見せる）
             "notes": list(suggestion.notes),
             "set_goals_arguments": {  # このまま set_goals に渡せる形
                 "policy": goal.policy.value,
@@ -374,16 +374,3 @@ def domain_errors():
 
 def _target_arguments(target: DailyTarget | None) -> dict | None:
     return None if target is None else {"kcal": target.kcal, "fat_g": target.fat_g, "carbs_g": target.carbs_g}
-
-
-def _used_inputs(profile: BodyProfile) -> dict:
-    """計算に使った体のデータ（答えなかった項目は含めない）。"""
-    used = {
-        "sex": profile.sex.value,
-        "age": profile.age,
-        "height_cm": profile.height_cm,
-        "weight_kg": profile.weight_kg,
-        "daily_activity": profile.daily_activity.value if profile.daily_activity else None,
-        "training_minutes": profile.training_minutes,
-    }
-    return {k: v for k, v in used.items() if v is not None}

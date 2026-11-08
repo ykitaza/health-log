@@ -1,6 +1,7 @@
 # 全体の設計
 
 食事記録そのもの（ドメイン、ツール、目標の計算）の設計は [meals-design.md](meals-design.md)、ログインからツールの呼び出しまでの流れは [シーケンス図](sequence.md) にあります。
+スマホアプリ（トレログ）とサーバーの同期は [sync-design.md](sync-design.md)、アプリ用の API の仕様は [api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
 
 ## なぜ Cognito の前に認可API を置くのか
 
@@ -16,6 +17,8 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 
 ```
 本人確認（Cognito）──IDトークン──► 認可（services/authorization/）──アクセストークン──► 食事記録（services/meals/）
+        │
+        └──アクセストークン（アプリ）──► 同期の入口（services/sync/）──► 食事記録・筋トレ（services/training/）の種類
 ```
 
 | コンテキスト | 扱う問い | 担当 |
@@ -23,6 +26,14 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 | 本人確認 | この人は誰か | 外部のシステム（Cognito） |
 | 認可 | どのクライアントに、誰の、何を許したか | `services/authorization/` |
 | 食事記録 | この人は何を食べ、目標とどれだけ違うか | `services/meals/`（MCP サーバー） |
+| 筋トレ | この人は何をどれだけ挙げ、体はどう変わったか | `services/training/`（MCP のツールはあとで足す） |
+
+同期（`services/sync/`）は、どのコンテキストにも属さない共通の部品です（変更の記録、当てはめ、冪等、カーソル、DynamoDB への保存、同期の API の入口）。
+
+- 同期は、食事や筋トレのドメインを import しません。対象の種類ごとの決まり（項目、確かめ方、親の種類、並びのキー）は、各コンテキストが `infrastructure/sync_entities.py` で同期の `Registry` に登録します。依存の向きは、コンテキスト → 同期です
+- 食事の MCP が変更の記録を通して書く処理は、食事の `infrastructure/sync_repositories.py` にあります（同期の部品を使う）
+- 3つを組み合わせるのは、アプリ用の Lambda の組み立て（`services/app_api/main.py`）だけです
+- 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/mobile/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
 
 - 本人確認 → 認可：`services/authorization/infrastructure/cognito_login.py`（腐敗防止層、Authlib）が IDトークンを `Subject` に変えます
 - 認可 → 食事記録：受け渡すのはアクセストークン（JWT）だけです。食事記録は、認可APIの iss と JWKS を手で設定して信じます
@@ -49,13 +60,17 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 
 ## フォルダ
 
-組み立て（DI）は各サービスの `main.py` で行います。食事記録は DDD の層（`presentation` → `application` → `domain` ← `infrastructure`）に分けています。
+組み立て（DI）は各サービスの `main.py` で行います。食事記録と筋トレは DDD の層（`presentation` → `application` → `domain` ← `infrastructure`）に分けています。
 
 | フォルダ | 中身 |
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
-| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個） |
-| `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可）、Lambda 2つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
+| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個）。同期への登録（`infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
+| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録と、同期された記録の読み取り |
+| `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
+| `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
+| `testdata/training/` | 筋トレの計算の、入力と期待する結果（サーバーとアプリで共有） |
+| `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
 | `tools/inspector/` | MCP Inspector 用の CIMD の文書（PC で食事記録を試すとき） |
 | `docs/` | 設計書と図 |
 
@@ -64,5 +79,86 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 本人だけで使うので、次のように絞っています。
 
 - 入口は API Gateway の HTTP API だけにしています（Lambda の関数 URL は使いません）
-- 流量の制限は 1秒1回・瞬間5回です。超えた分は 429 で断るので、叩かれ続けても月の費用に上限がかかります
+- 流量の制限は、認可API と MCP が 1秒1回・瞬間5回、スマホアプリ用の API が 1秒10回・瞬間20回です。超えた分は 429 で断るので、叩かれ続けても月の費用に上限がかかります
+- スマホアプリ用の API は、Cognito のアプリのクライアントのアクセストークンだけを受け付けます（下の「スマホアプリ用の API」）
 - Cognito のログイン画面からの新規登録はできません。ユーザーは管理者の操作（`setup-local.sh`）でだけ作ります
+- ユーザープールと DynamoDB のテーブルは、削除の保護を有効にし、`cdk destroy` でも消えない（RETAIN）ようにしています。ユーザーが消えると `sub`（食べた人の ID）が変わり、記録がたどれなくなるためです
+
+## パスキー
+
+ログインはパスキーで行います。設定はユーザープールにあり、どれも CloudFormation では置き換えにならない変更です。
+
+| 設定 | 値 | 理由 |
+|---|---|---|
+| 最初の要素（`SignInPolicy`） | パスワード、パスキー | パスワードは CloudFormation の決まりで外せない。下の移行の手順で、長いランダムな値にして捨てる |
+| RP ID | `oidc-study-<アカウント>.auth.ap-northeast-1.amazoncognito.com` | 今のプレフィックスのドメイン。**あとで独自ドメインを足すと、パスキーはすべて作り直しになる** |
+| 本人確認 | 必須（`required`） | 端末の指紋や PIN を必ず通す |
+| MFA | OFF | パスキーの本人確認で代える |
+| パスワードの再設定 | 管理者だけ（`AccountRecovery.NONE`） | 捨てたパスワードを、メールを読める人が作り直せないようにする |
+| クライアントの認証フロー | `ALLOW_USER_AUTH`（選択式のサインイン） | マネージドログインでパスキーを選ばせるのに要る |
+
+認可API 用のクライアント（`authz-api`）にも `ALLOW_USER_AUTH` を付けています。
+AWS の資料（[Configure authentication methods for managed login](https://docs.aws.amazon.com/cognito/latest/developerguide/authentication-flows-selection-managedlogin.html)）では、マネージドログインがサインインの方法（パスキーなど）を選ばせるのは、クライアントに `ALLOW_USER_AUTH` があるときです。
+CDK の `AuthFlow` の資料も、パスキーを有効にしたら `authFlows: { user: true }` を付けるように書いています。
+付けないと、Claude・ChatGPT からの接続（MCP）のログインでパスキーが使えません。
+`authFlows` を指定すると、既定で開いていた SRP とカスタム認証の入口（`ALLOW_USER_SRP_AUTH`・`ALLOW_CUSTOM_AUTH`）は閉じます。認可API はマネージドログインだけを使うので、影響はありません。
+
+### パスキーへの移行の手順
+
+管理者の操作は、AWS の個人のアカウントで行います。パスワードは画面に出さず、ファイルにも残しません。
+
+1. **デプロイ**する（`cd cdk && ./build-lambda.sh && npx cdk deploy`）。ここまでは、今のパスワードでそのままログインできます
+2. **管理者**が、本人のパスワードを長いランダムな値にする（この値は本人に渡し、手順4で捨てる）
+   ```sh
+   PW="$(openssl rand -base64 33 | tr -d '/+=')Aa1!"
+   aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> --username <メールアドレス> --password "$PW" --permanent
+   ```
+3. **本人**が、PC かスマホのブラウザで次の URL を開き、メールアドレスと手順2のパスワードでログインする。続けて「パスキーを追加」の画面で、端末のパスキー（Google パスワード マネージャーや iCloud キーチェーンなど）を作る
+   ```
+   https://<CognitoDomain>/passkeys/add?client_id=<ClientId>&redirect_uri=<AuthzUrl>/cognito/callback
+   ```
+   - `<CognitoDomain>`・`<ClientId>`・`<AuthzUrl>` は `cdk deploy` の出力です
+   - 管理者が作ったユーザーには、マネージドログインがパスキーの登録を勧めないので、この URL を直接開きます
+   - 作ったあと認可API に戻り、エラーの画面が出ることがあります（ログインの途中の状態がないため）。パスキーは作れているので、そのまま閉じてかまいません
+4. **管理者**が、パスワードを別のランダムな値に変え、その値はどこにも残さない（手順2のコマンドを、もう一度実行して `PW` を捨てる）
+5. **本人**が、PC で Claude か ChatGPT のコネクタをつなぎ直し、ログイン画面で「パスキーでサインイン」を選んで、パスワードなしで入れることを確かめる。スマホアプリでも同じように入れることを確かめる
+
+パスキーをなくしたときは、手順2〜4をもう一度行います。
+
+## スマホアプリ（トレログ）のログイン
+
+アプリは Cognito のマネージドログインに、OIDC（認可コード＋PKCE）でつなぎます。MCP の認可API は通しません。
+同じ Cognito のユーザーなので、アクセストークンの `sub` は MCP と同じです（認可API は Cognito の ID トークンの `sub` を、そのまま自分のアクセストークンの `sub` にしています。`services/authorization/infrastructure/cognito_login.py`）。
+
+| 設定 | 値 | 理由 |
+|---|---|---|
+| クライアント | `torelog-app`。シークレットなし（パブリック） | 端末に秘密を置けない。PKCE で守る |
+| フロー | 認可コードだけ。`ALLOW_USER_AUTH`（パスキー） | |
+| 戻り先 | `torelog://callback`、ログアウトは `torelog://signout` | |
+| アクセストークン・ID トークン | 15分 | 盗まれたときの被害を小さくする |
+| リフレッシュトークン | 30日。使うたびに新しくする（古いものは10秒だけ使える） | 10秒は、通信が切れて取り直すとき用 |
+| 失効・ユーザーの有無 | 失効を有効、ユーザーの有無をエラーから知られないようにする | |
+| scope | `openid`、`torelog-api/meals.read`・`meals.write`・`training.read`・`training.write` | アプリ用の API のルートで必須にし、ID トークンや認可API 用のクライアントのトークンを断る |
+
+scope はリソースサーバー `torelog-api` に置き、名前は「対象.操作」にして、食事（`meals.*`）と筋トレ（`training.*`）を分けています（MCP の認可API の scope `meals:read` とは別の名前空間です）。
+アプリが使う値（issuer、クライアント ID、Cognito のドメイン、API の URL）は、`cdk deploy` の出力（`CognitoIssuer`・`AppClientId`・`CognitoDomain`・`AppApiUrl`）と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
+
+## スマホアプリ用の API
+
+アプリは端末の SQLite に先に保存し、つながったときに変更の記録を送り合って同期します。仕組みは [sync-design.md](sync-design.md)、API の仕様は [api/app-api.yaml](api/app-api.yaml) にあります。
+
+```
+アプリ ──アクセストークン（Cognito）──► HTTP API（JWT のオーソライザー）──► AppApiFunction ─┐
+                                                                                            ├─► MealsTable（変更の記録と今の状態）
+Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API ──► MealsFunction（MCP）───────────┘
+```
+
+| 項目 | 中身 |
+|---|---|
+| ルート | `POST /v1/sync/changes`（送る）、`GET /v1/sync/changes`（受け取る）、`GET /v1/sync/snapshot`（初回の全件）、`POST /v1/meals/goal-suggestions`（目標の案） |
+| オーソライザー | issuer は Cognito、audience はアプリのクライアント ID だけ。ルートごとに scope を必須にする |
+| 利用者 | オーソライザーが確かめたクレームの `sub`。MCP のアクセストークンの `sub` も Cognito の `sub` そのものなので、同じ人は同じデータになる |
+| Lambda | MCP と別の関数。Lambda Web Adapter を通さない。権限は食事のテーブルの読み取りと追記だけ |
+| 流量の制限・ログ | 1秒10回・瞬間20回。アクセスログは30日（監視のスタックも読む） |
+
+体重は、体組成に一本化するまで同期しません（MCP の `record_weight` のまま）。

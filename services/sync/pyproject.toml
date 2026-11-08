@@ -1,0 +1,27 @@
+[project]
+name = "sync"
+version = "0.1.0"
+description = "同期の共通の部品（変更の記録、当てはめ、冪等、カーソル、DynamoDB、HTTP の入口）。どのコンテキストのドメインも知らない"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.11",
+]
+
+# ほかのサービス（meals・training・app_api）から path の依存で使うので、パッケージとして作れるようにする
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sync"
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "boto3>=1.43.111",
+    "moto>=5.2.4",
+    "pytest>=9.1.1",
+]
