@@ -12,17 +12,20 @@ for app in authorization meals; do
   uv pip install --quiet -r "$out/requirements.txt" --target "$out" \
     --python-platform aarch64-manylinux2014 --python-version 3.12 --only-binary :all:
   cp ../services/$app/*.py "$out/"
-  # DDD の層（domain/ application/ infrastructure/ presentation/ など）もコピーする。テストは載せない
+  # サブパッケージ（oauth/ infrastructure/ presentation/ など）もコピーする。テストは載せない
   for pkg in ../services/$app/*/__init__.py; do
     [ -e "$pkg" ] || continue  # サブパッケージがない場合
     dir=$(dirname "$pkg")
     [ "$(basename "$dir")" = tests ] || cp -R "$dir" "$out/"
   done
-  # Lambda Web Adapter がこのスクリプトでアプリを起動し、HTTP のリクエストを渡す
-  cat > "$out/run.sh" <<'EOF'
-#!/bin/sh
-exec python -m uvicorn main:app --host 0.0.0.0 --port 8080
-EOF
+  # Lambda Web Adapter がこのスクリプトでアプリを起動し、HTTP のリクエストを渡す。
+  # 認可API は Flask（WSGI）なので gunicorn、食事記録は ASGI なので uvicorn で動かす
+  if [ "$app" = authorization ]; then
+    server="gunicorn --bind 0.0.0.0:8080 'main:create_app()'"
+  else
+    server='uvicorn main:app --host 0.0.0.0 --port 8080'
+  fi
+  printf '#!/bin/sh\nexec python -m %s\n' "$server" > "$out/run.sh"
   chmod +x "$out/run.sh"
   echo "$out を作りました"
 done

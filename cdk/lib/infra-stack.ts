@@ -61,7 +61,7 @@ export class InfraStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // FastAPI / Starlette のアプリを、そのまま Lambda で動かすための仕組み（AWS 公式）
+    // Flask（認可API）・Starlette（食事記録）のアプリを、そのまま Lambda で動かすための仕組み（AWS 公式）
     const webAdapter = lambda.LayerVersion.fromLayerVersionArn(
       this, 'LambdaWebAdapter', `arn:aws:lambda:${this.region}:753240598075:layer:LambdaAdapterLayerArm64:30`);
     // cdk/build-lambda.sh で作ったものを載せる

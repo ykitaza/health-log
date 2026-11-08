@@ -5,9 +5,8 @@ import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from dotenv import load_dotenv
+from joserfc.jwk import RSAKey
 
 APP_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,9 +25,7 @@ class Settings:
 
 
 def new_private_key_pem() -> str:
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    return key.private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    return RSAKey.generate_key(2048, private=True).as_pem(private=True).decode()
 
 
 def load_local_settings() -> Settings:
