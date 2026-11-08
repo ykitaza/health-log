@@ -28,10 +28,13 @@ describe('セットの入力の確認', () => {
     expect(e.size).toBe(1);
     expect(e.get('b')).toEqual({ weight: '重量を入れてください' });
   });
-  test('回数がないか、整数でなければエラー', () => {
-    const e = validateSets([d('a', '80', ''), d('b', '80', '2.5')], 'weight_reps', 'kg');
-    expect(e.get('a')?.reps).toBeDefined();
-    expect(e.get('b')?.reps).toBeDefined();
+  test('回数がないか、整数でなければエラー。小数のときは空のときと文言を分ける', () => {
+    const e = validateSets([d('a', '80', ''), d('b', '80', '2.5'), d('c', '80', '0'), d('d', '', '0.5')], 'weight_reps', 'kg');
+    expect(e.get('a')?.reps).toBe('回数を入れてください');
+    expect(e.get('b')?.reps).toBe('回数は整数で入れてください');
+    expect(e.get('c')?.reps).toBe('回数を入れてください');
+    expect(e.get('d')).toEqual({ weight: '重量を入れてください', reps: '回数は整数で入れてください' });
+    expect(validateSets([d('a', '', '8.5')], 'reps_only', 'kg').get('a')).toEqual({ reps: '回数は整数で入れてください' });
   });
   test('空の行は無視し、回数だけの種目は重量を見ない', () => {
     expect(validateSets([d('a', '', '')], 'weight_reps', 'kg').size).toBe(0);

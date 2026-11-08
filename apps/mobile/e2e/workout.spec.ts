@@ -161,7 +161,7 @@ test.describe('重量と回数の入力の確かめ', () => {
     { name: '重量が 500kg を超える', weight: '500.5', reps: '1', error: '重量は 500kg までの正の数で入れてください' },
     { name: '回数が空', weight: '80', reps: '', error: '回数を入れてください' },
     { name: '回数が 0', weight: '80', reps: '0', error: '回数を入れてください' },
-    { name: '回数が小数', weight: '80', reps: '8.5', error: '回数を入れてください' },
+    { name: '回数が小数', weight: '80', reps: '8.5', error: '回数は整数で入れてください' },
   ];
   for (const c of cases) {
     test(`${c.name}なら保存しない`, async ({ page }) => {

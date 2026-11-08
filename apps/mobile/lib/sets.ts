@@ -37,7 +37,8 @@ export function validateSets(drafts: SetDraft[], recordType: RecordType, unit: W
     if (isBlank(d)) continue;
     const e: SetError = {};
     const reps = parseNumber(d.reps);
-    if (reps == null || reps <= 0 || !Number.isInteger(reps)) e.reps = '回数を入れてください';
+    if (reps == null || reps <= 0) e.reps = '回数を入れてください';
+    else if (!Number.isInteger(reps)) e.reps = '回数は整数で入れてください';
     if (recordType === 'weight_reps') {
       const kg = draftWeightKg(d, unit);
       if (d.weight.trim() === '') e.weight = '重量を入れてください';
