@@ -18,6 +18,7 @@ from typing import Callable, Literal
 from pydantic import ValidationError
 
 from sync.engine import SyncEngine
+from sync.model import Change
 from sync.registry import UUID_PATTERN, Registry, Rejection
 from sync.store import STATE_PREFIX
 
@@ -28,7 +29,9 @@ MAX_PUSH = 25
 # 送信の本文の上限（バイト）。盗まれたトークンで大きな書き込みを続けられ、DynamoDB の費用が膨らむのを抑える。
 # 品目50件のいつもの（名前が最大の200文字）でも1件は40KB ほどに収まる
 MAX_PUSH_BYTES = 64 * 1024
-# 1回の送信の delete がこの件数以上なら、ログに数を出す（メトリクスフィルターで数えて通知する。docs/monitoring.md）
+# 1回の送信で消される「親」（_delete_groups）がこの数以上なら、ログに数を出す（メトリクスフィルターで数えて通知する）。
+# 親といっしょに消える子（品目・セット）は親ごとに1つに数えるので、種目を1つ外すだけでは鳴らない。
+# 10 にした理由は docs/monitoring.md の BulkDeletesAlarm
 BULK_DELETE_THRESHOLD = 10
 PROBLEM_BASE = "https://torelog.invalid/problems/"
 
@@ -122,10 +125,14 @@ class SyncHttpApi:
         writable = self._types(caller, "write")
         parsed = [self.registry.parse_change(raw, writable, device_id) for raw in raw_changes]
         valid = [c for c in parsed if not isinstance(c, Rejection)]
-        deletes = sum(1 for c in valid if c.op == "delete")
-        if deletes >= BULK_DELETE_THRESHOLD:
-            # 利用者の ID と中身は出さない（数だけ）。docs/monitoring.md の BulkDeletes のメトリクスフィルターが数える
-            logger.warning("bulk_delete deletes=%d changes=%d", deletes, len(raw_changes))
+        deletes = [c for c in valid if c.op == "delete"]
+        # まとまりの数は delete の数を超えないので、少ないときは数えない（読み込みを増やさない）
+        if len(deletes) >= BULK_DELETE_THRESHOLD:
+            groups = self._delete_groups(caller.user, deletes)
+            if groups >= BULK_DELETE_THRESHOLD:
+                # 利用者の ID と中身は出さない（数だけ）。docs/monitoring.md の BulkDeletes のメトリクスフィルターが数える
+                logger.warning("bulk_delete deletes=%d delete_changes=%d changes=%d",
+                               groups, len(deletes), len(raw_changes))
         accepted = {a.change_id: a for a in self.engine.append(caller.user, valid)}
         results = []
         for n, (change_id, result) in enumerate(zip(ids, parsed)):
@@ -138,6 +145,27 @@ class SyncHttpApi:
                 results.append({"change_id": change_id, "status": "duplicate" if a.duplicate else "accepted",
                                 "seq": a.seq, "error": None})
         return {"results": results, "cursor": self.engine.head(caller.user)}
+
+    def _delete_groups(self, user: str, deletes: list[Change]) -> int:
+        """消される「親」の数。子は親ごとに1つに数え、親といっしょに送られたら親と同じ1つにする。
+
+        親と一緒に保存する子（品目）は parent_id で、別に保存する子（セット）は保存してある親の ID（entry_id）でまとめる。
+        親がわからない子（まだ保存していない・項目がない）は、それ自身を1つに数える。
+        """
+        owned = {(c.entity_type, c.entity_id) for c in deletes if self.registry.owner(c.entity_type)}
+        docs = self.engine.docs(user, owned) if owned else {}
+        groups = set()
+        for c in deletes:
+            owner = self.registry.owner(c.entity_type)
+            doc = docs.get((c.entity_type, c.entity_id))
+            owner_id = doc.own.values.get(owner[1]) if owner and doc and doc.own else None
+            if c.parent_type:
+                groups.add((c.parent_type, c.parent_id))
+            elif owner and isinstance(owner_id, str):
+                groups.add((owner[0], owner_id))
+            else:
+                groups.add((c.entity_type, c.entity_id))
+        return len(groups)
 
     def pull(self, caller: Caller, event: dict) -> dict:
         query = event.get("queryStringParameters") or {}

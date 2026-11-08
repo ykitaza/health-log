@@ -70,6 +70,7 @@ def register(registry: Registry) -> None:
     registry.register("exercise", EntitySpec(
         ExerciseFields, ("body_part_id", "name", "record_type", "sort_order", "hidden"), AREA))
     registry.register("workout_entry", EntitySpec(WorkoutEntryFields, ("date", "exercise_id", "sort_order"), AREA))
-    registry.register("workout_set", EntitySpec(WorkoutSetFields, ("entry_id", "set_index", "reps"), AREA))
+    registry.register("workout_set", EntitySpec(WorkoutSetFields, ("entry_id", "set_index", "reps"), AREA,
+                                                owner=("workout_entry", "entry_id")))
     registry.register("body_record", EntitySpec(BodyRecordFields, ("date", "measured_at", "source"), AREA))
     registry.register("setting", EntitySpec(SettingFields, ("value",), AREA))

@@ -36,6 +36,9 @@ class EntitySpec:
     required: tuple[str, ...]  # create で要る項目
     area: str  # scope の対象（「meals」なら torelog-api/meals.read・meals.write）
     parent_type: str | None = None  # 親と一緒に保存する種類なら、親の種類（parent_id が要る）
+    # 別に保存するが、親といっしょに消える種類なら（親の種類, 親の ID を持つ項目）。例：セットは種目の entry_id。
+    # 大量の削除の数え方（presentation/http_api.py の _delete_groups）だけが使う
+    owner: tuple[str, str] | None = None
     valid_id: Callable[[str], bool] = lambda entity_id: True
     # 項目の組み合わせの決まり（例：いつものの ID は名前から決める）。合わなければ Rejection
     check: Callable[[str, dict], Rejection | None] = lambda entity_id, fields: None
@@ -61,6 +64,10 @@ class Registry:
     def parent_type(self, entity_type: str) -> str | None:
         spec = self.specs.get(entity_type)
         return spec.parent_type if spec else None
+
+    def owner(self, entity_type: str) -> tuple[str, str] | None:
+        spec = self.specs.get(entity_type)
+        return spec.owner if spec else None
 
     def index_key(self, doc: Doc) -> str | None:
         spec = self.specs.get(doc.entity_type)

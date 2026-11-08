@@ -210,18 +210,63 @@ def test_64KB_ちょうどの本文は受け付ける(api):
     assert api("POST", "/v1/sync/changes", raw_body=raw)[0] == 200
 
 
+def bulk_logs(caplog):
+    return [r.getMessage() for r in caplog.records if "bulk_delete" in r.getMessage()]
+
+
+def set_of(n, entry):
+    return change(entity_id=f"s{n}", fields={**SET, "entry_id": entry})
+
+
 def test_delete_が多い送信はログに数を出す(api, caplog):
-    push(api, *[change(entity_id=f"s{n}") for n in range(12)])
+    # セットの親（種目）がみな違う：親の数で10
+    push(api, *[set_of(n, f"e{n}") for n in range(12)])
     with caplog.at_level("WARNING", logger="sync.http_api"):
         push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(9)])
-        assert not [r for r in caplog.records if "bulk_delete" in r.getMessage()]
+        assert not bulk_logs(caplog)
         push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(9, 12)],
              *[change(entity_id=f"s{n}", op="restore") for n in range(9)])
-        assert not [r for r in caplog.records if "bulk_delete" in r.getMessage()]
+        assert not bulk_logs(caplog)
         push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(10)])
-    [record] = [r for r in caplog.records if "bulk_delete" in r.getMessage()]
-    assert record.getMessage() == "bulk_delete deletes=10 changes=10"
-    assert "alice" not in record.getMessage()
+    assert bulk_logs(caplog) == ["bulk_delete deletes=10 delete_changes=10 changes=10"]
+    assert "alice" not in bulk_logs(caplog)[0]
+
+
+def test_種目を外すだけなら_セットが多くても鳴らない(api, caplog):
+    # 種目1件とそのセット15件。セットは保存してある entry_id で親にまとめ、種目と同じ1つに数える
+    push(api, *[set_of(n, "e1") for n in range(15)])
+    with caplog.at_level("WARNING", logger="sync.http_api"):
+        push(api, change("workout_entry", "e1", op="delete"),
+             *[change(entity_id=f"s{n}", op="delete") for n in range(15)])
+        # 種目を残してセットだけ15件消しても（記録を直したとき）1つ
+        push(api, *[set_of(n, "e2") for n in range(15, 30)])
+        push(api, *[change(entity_id=f"s{n}", op="delete") for n in range(15, 30)])
+    assert not bulk_logs(caplog)
+
+
+def test_食事を消すときの品目は数えない(api, caplog):
+    push(api, change("meal", "m1", fields=MEAL), *[change("meal_item", f"i{n}", fields=ITEM, parent_id="m1")
+                                                   for n in range(20)])
+    with caplog.at_level("WARNING", logger="sync.http_api"):
+        push(api, change("meal", "m1", op="delete"),
+             *[change("meal_item", f"i{n}", op="delete", parent_id="m1") for n in range(20)])
+    assert not bulk_logs(caplog)
+
+
+def test_親が10あれば子といっしょでも鳴る(api, caplog):
+    # 1日の記録を全部消す（種目10件とそれぞれのセット）。1回の送信は25件までなので、種目10件＋セット15件
+    push(api, *[set_of(n, f"e{n % 10}") for n in range(15)])
+    with caplog.at_level("WARNING", logger="sync.http_api"):
+        push(api, *[change("workout_entry", f"e{n}", op="delete") for n in range(10)],
+             *[change(entity_id=f"s{n}", op="delete") for n in range(15)])
+    assert bulk_logs(caplog) == ["bulk_delete deletes=10 delete_changes=25 changes=25"]
+
+
+def test_親のわからない子は1件ずつ数える(api, caplog):
+    # まだ保存していないセット（親を読めない）は、それぞれを1つに数える
+    with caplog.at_level("WARNING", logger="sync.http_api"):
+        push(api, *[change(entity_id=f"x{n}", op="delete") for n in range(10)])
+    assert bulk_logs(caplog) == ["bulk_delete deletes=10 delete_changes=10 changes=10"]
 
 
 @pytest.mark.parametrize("token", ["!!!", base64.urlsafe_b64encode(b'{"after": "SYNC#LOG#1"}').decode(),
