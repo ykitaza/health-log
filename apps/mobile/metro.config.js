@@ -1,0 +1,21 @@
+// Metro の設定。expo-sqlite を web で動かすための設定だけを足す
+// （https://docs.expo.dev/versions/latest/sdk/sqlite/#web-setup）。
+// Android と iOS の動きは変わらない。
+const { getDefaultConfig } = require('expo/metro-config');
+
+const config = getDefaultConfig(__dirname);
+
+// expo-sqlite の web 版は SQLite の wasm を読み込む
+config.resolver.assetExts.push('wasm');
+
+// SharedArrayBuffer を使うために、開発サーバー（npx expo start --web）で COEP と COOP のヘッダーを付ける。
+// 書き出したもの（npx expo export --platform web）の配信では、e2e/serve.mjs が同じヘッダーを付ける
+config.server.enhanceMiddleware = (middleware) => {
+  return (req, res, next) => {
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    middleware(req, res, next);
+  };
+};
+
+module.exports = config;
