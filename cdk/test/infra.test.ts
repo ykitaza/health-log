@@ -266,4 +266,22 @@ describe('Lambda の権限', () => {
       ['authorization/session-secret', 'authorization/signing-key'].map(paramArn));
     expect(put.Condition).toEqual({ StringNotEquals: { 'ssm:Overwrite': 'true' } });
   });
+
+  const dynamodbOf = (fnPrefix: string) =>
+    statementsOf(fnPrefix).filter((s) => actionsOf(s).some((a: string) => a.startsWith('dynamodb:')));
+
+  test('認可API の DynamoDB：StateTable の PutItem・GetItem・DeleteItem だけ', () => {
+    const [s, ...rest] = dynamodbOf('AuthzFunction');
+    expect(rest).toHaveLength(0);
+    expect(actionsOf(s)).toEqual(['dynamodb:DeleteItem', 'dynamodb:GetItem', 'dynamodb:PutItem']);
+    expect(s.Resource).toEqual({ 'Fn::GetAtt': [expect.stringMatching(/^StateTable/), 'Arn'] });
+  });
+
+  test('MCP の DynamoDB：MealsTable（と LSI）の読み取りと PutItem だけ', () => {
+    const [s, ...rest] = dynamodbOf('MealsFunction');
+    expect(rest).toHaveLength(0);
+    expect(actionsOf(s)).toEqual(['dynamodb:BatchGetItem', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:Query']);
+    expect(JSON.stringify(s.Resource)).toContain('MealsTable');
+    expect(JSON.stringify(s.Resource)).not.toContain('StateTable');
+  });
 });

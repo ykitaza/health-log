@@ -168,7 +168,11 @@ export class InfraStack extends cdk.Stack {
       MEALS_URL_PARAM,
     }));
     const authzUrl = publicApi('AuthzApi', authzFn);
-    stateTable.grantReadWriteData(authzFn);
+    // ログインの途中の状態とリフレッシュトークンの系列を、置く・読む・取り出して消す（services/authorization/infrastructure/stores.py）
+    authzFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:PutItem', 'dynamodb:GetItem', 'dynamodb:DeleteItem'],
+      resources: [stateTable.tableArn],
+    }));
     // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
     const paramArn = (name: string) => `arn:aws:ssm:${this.region}:${this.account}:parameter${name}`;
     // 読むのは、起動時に読む5つだけ（services/authorization/infrastructure/settings.py の load_lambda_settings）
@@ -211,14 +215,20 @@ export class InfraStack extends cdk.Stack {
     });
 
     // 食事と筋トレのツールを1つにまとめた MCP サーバー（services/mcp）。論理 ID と URL は、食事記録だけだったときのまま。
-    // 筋トレも同じテーブルの同期の項目（SYNC#…）を読み書きするので、権限は食事のテーブルの読み書きのまま
+    // 筋トレも同じテーブルの同期の項目（SYNC#…）を読み書きする
     const mealsFn = new lambda.Function(this, 'MealsFunction', pythonWebApp('mcp', {
       AUTHZ_ISSUER: authzUrl, // 信頼関係（手で設定する）：信じる認可API
       MCP_URL_PARAM: MEALS_URL_PARAM,
       MEALS_TABLE: mealsTable.tableName,
     }));
     const mealsUrl = publicApi('MealsApi', mealsFn);
-    mealsTable.grantReadWriteData(mealsFn);
+    // 同期の仕組み（services/sync/sync/store.py）と体重（services/meals/infrastructure/dynamodb_repositories.py）が使う操作だけ。
+    // 同期の変更は追記で、体重は上書き（PutItem）なので、消す・書き換える（Delete・Update）・全体を読む（Scan）は与えない。
+    // TransactWriteItems は、中の操作（Put。条件は Put に付ける）の権限で許される
+    mealsFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:GetItem', 'dynamodb:BatchGetItem', 'dynamodb:Query', 'dynamodb:PutItem'],
+      resources: [mealsTable.tableArn, `${mealsTable.tableArn}/index/*`],
+    }));
     mealsFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
       resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${MEALS_URL_PARAM}`],
