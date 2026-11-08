@@ -15,7 +15,7 @@ mcp = ["mcp>=2.3.0"]
 
 # 組み立ての場所（services/mcp・services/app_api）から path の依存で使うので、パッケージとして作れるようにする（training・sync と同じ形）
 [build-system]
-requires = ["uv_build>=0.10.9,<0.11"]
+requires = ["uv_build>=0.13.7,<0.14"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
