@@ -1,0 +1,121 @@
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Share, TextInput, View } from 'react-native';
+import { Screen } from '@/components/Screen';
+import { T } from '@/components/Text';
+import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
+import { useFocusData } from '@/hooks/data';
+import { toCsv } from '@/lib/csv';
+import { kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
+import { colors, fonts } from '@/theme';
+
+export default function SettingsScreen() {
+  const { data: settings, reload, repos } = useFocusData((r) => r.settings.get());
+  const [height, setHeight] = useState('');
+  const [goal, setGoal] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  const unit = settings?.weightUnit ?? 'kg';
+  // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
+  const loaded = settings != null;
+  useEffect(() => {
+    if (!settings) return;
+    setHeight(settings.heightCm == null ? '' : trimNumber(settings.heightCm));
+    setGoal(settings.goalWeightKg == null ? '' : trimNumber(kgToUnit(settings.goalWeightKg, settings.weightUnit)));
+  }, [loaded, settings?.weightUnit]);
+
+  const save = async (patch: Parameters<typeof repos.settings.update>[0]) => { await repos.settings.update(patch); reload(); };
+
+  const saveHeight = () => {
+    const v = parseNumber(height);
+    if (height.trim() !== '' && (v == null || v < 50 || v > 250)) { setMessage('身長は 50〜250 cm で入れてください'); return; }
+    setMessage(null);
+    save({ heightCm: v });
+  };
+  const saveGoal = () => {
+    const v = parseNumber(goal);
+    if (goal.trim() !== '' && (v == null || v <= 0)) { setMessage('目標体重は正の数で入れてください'); return; }
+    setMessage(null);
+    save({ goalWeightKg: v == null ? null : unitToKg(v, unit) });
+  };
+
+  const exportCsv = async () => {
+    const rows = await repos.workouts.exportRows();
+    const csv = toCsv(
+      ['日付', '部位', '種目', 'セット', '重量(kg)', '回数', 'メモ', '完了'],
+      rows.map((r) => [r.date, r.body_part, r.exercise, r.set_index + 1, r.weight_kg, r.reps, r.memo, r.done ? 1 : 0]),
+    );
+    await Share.share({ title: 'トレログの記録（CSV）', message: csv });
+  };
+
+  return (
+    <Screen>
+      <Header title="設定" onBack={() => router.back()} />
+
+      <SectionTitle title="記録の初期値" />
+      <Card style={{ gap: 14 }}>
+        <View style={{ gap: 8 }}>
+          <T bold size={16}>重さの単位</T>
+          <Segmented<WeightUnit> options={[{ key: 'kg', label: 'kg' }, { key: 'lb', label: 'lb' }]} value={unit} onChange={(u) => save({ weightUnit: u })} />
+        </View>
+        <View style={{ gap: 8 }}>
+          <T bold size={16}>セット数の初期値</T>
+          <T size={12} color={colors.sub}>種目を追加したときに用意するセット数</T>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <Chip key={n} label={`${n}セット`} active={settings?.defaultSetCount === n} onPress={() => save({ defaultSetCount: n })} />
+            ))}
+          </View>
+        </View>
+      </Card>
+
+      <SectionTitle title="体の情報" />
+      <Card style={{ gap: 12 }}>
+        <Field label="身長" unit="cm" value={height} onChange={setHeight} onDone={saveHeight} />
+        <Field label="目標体重" unit={unit} value={goal} onChange={setGoal} onDone={saveGoal} />
+        {message && <T size={12} color={colors.danger}>{message}</T>}
+        <T size={12} color={colors.sub}>身長は体組成の自動計算（BMI など）に、目標体重は体組成の「目標体重まで」に使います。空にすると消えます。</T>
+      </Card>
+
+      <SectionTitle title="種目" />
+      <Card style={{ padding: 0 }}>
+        <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
+      </Card>
+
+      <SectionTitle title="データ" />
+      <Card style={{ padding: 0 }}>
+        <ListRow first title="筋トレの記録を CSV で書き出す" subtitle="共有のメニューから、保存先やアプリを選びます" onPress={exportCsv} />
+      </Card>
+      <T size={12} color={colors.sub} style={{ marginTop: 8 }}>
+        記録はこの端末の中だけに保存されます。アプリを消すと記録も消えます。
+      </T>
+
+      <SectionTitle title="次の段階で使えるようになるもの" />
+      <Card style={{ padding: 0 }}>
+        {['アカウントと同期', '食事の目標', 'チャットとの連携'].map((t, i) => (
+          <ListRow key={t} first={i === 0} title={t} dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
+        ))}
+      </Card>
+    </Screen>
+  );
+}
+
+function Field({ label, unit, value, onChange, onDone }: { label: string; unit: string; value: string; onChange: (t: string) => void; onDone: () => void }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <T bold size={16} style={{ flex: 1 }}>{label}</T>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        onBlur={onDone}
+        onSubmitEditing={onDone}
+        keyboardType="decimal-pad"
+        placeholder="未設定"
+        placeholderTextColor={colors.sub}
+        accessibilityLabel={label}
+        style={{ width: 110, height: 44, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.bold, fontSize: 16, textAlign: 'right', paddingHorizontal: 12 }}
+      />
+      <T size={13} color={colors.sub} style={{ width: 24 }}>{unit}</T>
+    </View>
+  );
+}

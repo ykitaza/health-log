@@ -21,6 +21,16 @@ updates:
       npm-minor-and-patch:
         update-types: [minor, patch]
 
+  # Expo のアプリ。Expo の SDK に合わせる版（expo install で決まるもの）があるので、
+  # SDK を上げるときは npx expo install --fix で揃える
+  - package-ecosystem: npm
+    directory: /apps/mobile
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
   # ワークフローのアクション（SHA で固定したものも、版のコメントごと更新される）
   - package-ecosystem: github-actions
     directory: /
