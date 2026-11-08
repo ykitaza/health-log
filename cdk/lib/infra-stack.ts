@@ -26,7 +26,15 @@ const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 
 // ずっと上限で叩かれても、月の費用に上限がかかる
 const THROTTLE = { rateLimit: 1, burstLimit: 5 };
 
+// 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
+// 認可APIが書き込める /cognito-study/* の外に置く
+const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
+
 export class InfraStack extends cdk.Stack {
+  // API の ID（AuthzApi など）→ アクセスログのロググループ名を入れた SSM パラメータの名前。
+  // 監視のスタックはこの名前でロググループを引く（スタックをまたぐ Export を作らないため）
+  public readonly accessLogGroupParams: Record<string, string> = {};
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -88,6 +96,11 @@ export class InfraStack extends cdk.Stack {
         retention: logs.RetentionDays.ONE_MONTH, // 30日
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       });
+      const accessLogGroupParam = `${MONITORING_PARAM_PREFIX}/${id}/access-log-group`;
+      new ssm.StringParameter(this, `${id}AccessLogGroupParam`, {
+        parameterName: accessLogGroupParam, stringValue: accessLogs.logGroupName,
+      });
+      this.accessLogGroupParams[id] = accessLogGroupParam;
       new apigw.HttpStage(this, `${id}DefaultStage`, {
         httpApi: api, stageName: '$default', autoDeploy: true, throttle: THROTTLE,
         accessLogSettings: {
