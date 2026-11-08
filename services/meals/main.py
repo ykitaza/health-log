@@ -13,6 +13,7 @@ from application.templates import TemplateService
 from application.weights import WeightService
 from infrastructure import dynamodb_repositories as dynamo
 from infrastructure import memory_repositories as memory
+from infrastructure import sync_repositories as synced
 from infrastructure.access_token_verifier import AuthzApiTokenVerifier
 from infrastructure.authz_session import AuthzApiSession
 from infrastructure.settings import load_settings
@@ -20,6 +21,8 @@ from infrastructure.subject_as_eater_id import SubjectAsEaterId
 from presentation.mcp_server import Services, create_mcp_server
 from presentation.icons import IconMiddleware
 from presentation.request_log import JsonRpcLogMiddleware
+from sync.engine import SyncEngine
+from sync.store import DynamoDBSyncStore, InMemorySyncStore
 
 JST = timezone(timedelta(hours=9))
 
@@ -30,18 +33,18 @@ def today() -> date:
 
 
 settings = load_settings()
+# 食事・いつもの・目標・日の種類は、同期の仕組み（変更の記録と今の状態）で読み書きする。アプリと同じものが見える。
+# 体重は、体組成に一本化するまで今のまま
 if settings.table_name:
-    meals = dynamo.DynamoDBMealRepository(settings.table_name)
-    templates = dynamo.DynamoDBMealTemplateRepository(settings.table_name)
-    goals = dynamo.DynamoDBGoalRepository(settings.table_name)
-    day_types = dynamo.DynamoDBDayTypeRepository(settings.table_name)
+    engine = SyncEngine(DynamoDBSyncStore(settings.table_name))
     weights = dynamo.DynamoDBWeightRepository(settings.table_name)
 else:
-    meals = memory.InMemoryMealRepository()
-    templates = memory.InMemoryMealTemplateRepository()
-    goals = memory.InMemoryGoalRepository()
-    day_types = memory.InMemoryDayTypeRepository()
+    engine = SyncEngine(InMemorySyncStore())
     weights = memory.InMemoryWeightRepository()
+meals = synced.SyncMealRepository(engine)
+templates = synced.SyncMealTemplateRepository(engine)
+goals = synced.SyncGoalRepository(engine)
+day_types = synced.SyncDayTypeRepository(engine)
 
 eaters = SubjectAsEaterId()
 mcp = create_mcp_server(

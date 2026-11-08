@@ -3,6 +3,7 @@
 from dataclasses import astuple
 
 from domain.body_weight import GoalProgress
+from domain.goal_suggestion import BodyProfile
 from domain.meal import Meal
 from domain.meal_template import MealTemplate
 from domain.nutrition_goal import NutritionGoal
@@ -111,3 +112,16 @@ def progress(p: GoalProgress) -> dict:
         "on_track": p.on_track,
         "records": [{"date": r.day.isoformat(), "kg": r.kg} for r in p.records],
     }
+
+
+def used_inputs(profile: BodyProfile) -> dict:
+    """計算に使った体のデータ（答えなかった項目は含めない）。"""
+    used = {
+        "sex": profile.sex.value,
+        "age": profile.age,
+        "height_cm": profile.height_cm,
+        "weight_kg": profile.weight_kg,
+        "daily_activity": profile.daily_activity.value if profile.daily_activity else None,
+        "training_minutes": profile.training_minutes,
+    }
+    return {k: v for k, v in used.items() if v is not None}
