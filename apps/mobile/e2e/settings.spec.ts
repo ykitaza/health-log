@@ -67,7 +67,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   // CSV は kg のまま書き出す
   await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
   await expect.poll(async () => (await shared(page)).length).toBe(1);
-  expect((await shared(page))[0].title).toBe('トレログの記録（CSV）');
+  expect((await shared(page))[0].title).toBe('hlog の記録（CSV）');
   const csv = (await shared(page))[0].text!;
   expect(csv.split('\r\n')[0]).toBe('日付,部位,種目,セット,重量(kg),回数,メモ,完了');
   expect(csv).toContain('2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n');
@@ -155,7 +155,7 @@ test('CSV：共有のメニューに渡す。閉じただけならエラーを�
   await exportButton.click();
   await expect.poll(async () => (await shared(page)).length).toBe(1);
   // 記録がなければ見出しだけ
-  expect((await shared(page))[0]).toMatchObject({ title: 'トレログの記録（CSV）', text: '日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n' });
+  expect((await shared(page))[0]).toMatchObject({ title: 'hlog の記録（CSV）', text: '日付,部位,種目,セット,重量(kg),回数,メモ,完了\r\n' });
 
   await page.evaluate(() => { (window as unknown as { __abort: boolean }).__abort = true; });
   await exportButton.click();
