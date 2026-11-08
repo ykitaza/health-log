@@ -1,6 +1,7 @@
 # 全体の設計
 
 食事記録そのもの（ドメイン、ツール、目標の計算）の設計は [meals-design.md](meals-design.md)、ログインからツールの呼び出しまでの流れは [シーケンス図](sequence.md) にあります。
+スマホアプリ（トレログ）とサーバーの同期は [sync-design.md](sync-design.md)、アプリ用の API の仕様は [api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
 
 ## なぜ Cognito の前に認可API を置くのか
 
