@@ -1,3 +1,4 @@
+import time
 from collections.abc import Awaitable, Callable
 
 import httpx2
@@ -15,10 +16,19 @@ class AuthzApiTokenVerifier:
     HTTP クライアントは MCP SDK と同じ httpx2（Workers の上では fetch を使う版に切り替わる）。
     """
 
-    def __init__(self, trusted_issuer: str, resource_url: str, fetch_jwks: JwksFetcher | None = None):
+    # 知らない kid が来ても、前に JWKS を取ってからこの秒数は取り直さない。
+    # でたらめな kid のトークンを送り続けられても、認可APIへの問い合わせが増えないようにする
+    JWKS_MIN_REFETCH_SECONDS = 60
+    # 必ず要るクレーム。ないトークンは、ほかの不正なトークンと同じく断る（SDK が 401 を返す）
+    REQUIRED_CLAIMS = ["iss", "aud", "exp", "sub", "client_id"]
+
+    def __init__(self, trusted_issuer: str, resource_url: str, fetch_jwks: JwksFetcher | None = None,
+                 clock: Callable[[], float] = time.monotonic):
         self.trusted_issuer, self.resource_url = trusted_issuer, resource_url
         self.fetch_jwks = fetch_jwks or self._fetch_jwks
+        self.clock = clock
         self.keys: dict[str, jwt.PyJWK] = {}  # kid → 公開鍵。知らない kid が来たときだけ取り直す
+        self.fetched_at: float | None = None  # 最後に JWKS を取れた時刻
 
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
@@ -31,7 +41,8 @@ class AuthzApiTokenVerifier:
                 return None
             # 署名・iss（信じる発行者か）・aud（自分宛てか）・exp（期限内か）を検証する
             claims = jwt.decode(
-                token, key, algorithms=["RS256"], issuer=self.trusted_issuer, audience=self.resource_url)
+                token, key, algorithms=["RS256"], issuer=self.trusted_issuer, audience=self.resource_url,
+                options={"require": self.REQUIRED_CLAIMS})
         except (jwt.PyJWTError, httpx2.HTTPError):
             return None  # SDK が 401 と resource_metadata を返す
         return AccessToken(
@@ -45,10 +56,15 @@ class AuthzApiTokenVerifier:
         )
 
     async def _key(self, kid: str | None) -> jwt.PyJWK | None:
-        if kid not in self.keys:  # 鍵が替わった（または初回）
+        if kid not in self.keys and self._may_refetch():  # 鍵が替わった（または初回）
             jwks = jwt.PyJWKSet.from_dict(await self.fetch_jwks())
             self.keys = {k.key_id: k for k in jwks.keys}
+            self.fetched_at = self.clock()
         return self.keys.get(kid)
+
+    def _may_refetch(self) -> bool:
+        # 取れたことがなければ取る（取れなかったときは、次のリクエストでまた試す）
+        return self.fetched_at is None or self.clock() - self.fetched_at >= self.JWKS_MIN_REFETCH_SECONDS
 
     async def _fetch_jwks(self) -> dict:
         async with httpx2.AsyncClient(timeout=5) as client:

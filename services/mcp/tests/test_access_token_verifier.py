@@ -47,3 +47,40 @@ def test_accepts_valid_token():
 ])
 def test_rejects_invalid_tokens(bad):
     assert verify(bad) is None
+
+
+@pytest.mark.parametrize("claim", ["client_id", "sub", "exp", "iss", "aud"])
+def test_rejects_tokens_missing_required_claims(claim):
+    # 500 ではなく、ほかの不正なトークンと同じく None（SDK が 401 を返す）
+    t = token()
+    claims = jwt.decode(t, options={"verify_signature": False})
+    del claims[claim]
+    assert verify(jwt.encode(claims, REAL_KEY, algorithm="RS256", headers={"kid": "k", "typ": "at+jwt"})) is None
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_unknown_kid_does_not_refetch_jwks_every_time():
+    fetched, clock = [], Clock()
+
+    async def counting_jwks():
+        fetched.append(clock.now)
+        return await stub_jwks()
+
+    verifier = AuthzApiTokenVerifier(ISSUER, RESOURCE, fetch_jwks=counting_jwks, clock=clock)
+    run = lambda t: asyncio.run(verifier.verify_token(t))  # noqa: E731
+    assert run(token()) is not None and len(fetched) == 1  # 初回は取る
+    unknown = token(headers={"kid": "unknown", "typ": "at+jwt"})
+    for _ in range(5):
+        assert run(unknown) is None
+    assert len(fetched) == 1  # 前に取ってから間もないので、知らない kid が来ても取り直さない
+    clock.now += AuthzApiTokenVerifier.JWKS_MIN_REFETCH_SECONDS
+    assert run(unknown) is None and len(fetched) == 2  # 間があけば取り直す（鍵が替わったかもしれない）
+    assert run(unknown) is None and len(fetched) == 2
+    assert run(token()) is not None and len(fetched) == 2  # 知っている kid は今の鍵で検証する
