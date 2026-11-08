@@ -8,10 +8,11 @@ import { Button, Card, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
+import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
-import { copyOf, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
+import { copyOf, hasChanges, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
@@ -36,6 +37,7 @@ export default function EntryScreen() {
   const repos = useRepos();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [drafts, setDrafts] = useState<SetDraft[]>([]);
+  const [initial, setInitial] = useState<SetDraft[]>([]); // 開いたときのセット（保存していない変更があるかを見る）
   const [errors, setErrors] = useState<Map<string, SetError>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
@@ -59,19 +61,22 @@ export default function EntryScreen() {
       const position = entry ? day.findIndex((d) => d.id === entry.id) + 1 : day.length + 1;
       setLoaded({ exercise, entry, previous, best: personalBests(rows, date).get(exerciseId) ?? null, settings, position });
       const unit = settings.weightUnit;
-      setDrafts(
-        entry
-          ? entry.sets.map((s) => ({
-              key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
-              weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
-            }))
-          : Array.from({ length: settings.defaultSetCount }, blank),
-      );
+      const start = entry
+        ? entry.sets.map((s) => ({
+            key: newKey(), id: s.id, weight: s.weightKg == null ? '' : trimNumber(kgToUnit(s.weightKg, unit)),
+            weightKg: s.weightKg ?? undefined, reps: String(s.reps), memo: s.memo, done: s.done,
+          }))
+        : Array.from({ length: settings.defaultSetCount }, blank);
+      setDrafts(start);
+      setInitial(start);
     })();
     return () => { alive = false; };
   }, [repos, params.entryId, params.exerciseId, date]);
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+
+  // 保存していない変更があれば、戻る前に確かめる（Figma の「入力をやめますか？」）
+  const { dialog, allowLeave } = useConfirmDiscard(hasChanges(initial, drafts), 'まだ追加していないセットは保存されません。');
 
   if (!loaded) return <Screen><Header title="" onBack={() => router.back()} /></Screen>;
 
@@ -123,6 +128,7 @@ export default function EntryScreen() {
     setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
+      allowLeave();
       if (router.canGoBack()) router.back();
       else router.replace({ pathname: '/workout', params: { date } });
     } catch (e) {
@@ -149,6 +155,7 @@ export default function EntryScreen() {
         </>
       }
     >
+      {dialog}
       <Header
         title={exercise.name}
         subtitle={`${exercise.bodyPartName} ・ ${isToday ? '今日' : formatJpDate(date)}の${loaded.position}種目目`}

@@ -196,8 +196,9 @@ test.describe('重量と回数の入力の確かめ', () => {
       await saveButton(page).click();
       await expect(see(page, c.error, { exact: true })).toBeVisible();
       await expect(see(page, '入力を確かめてください')).toBeVisible();
-      // 戻ると、何も保存されていない
+      // 確かめて戻ると、何も保存されていない
       await button(page, '戻る').click();
+      await button(page.getByRole('dialog'), 'やめる').click();
       await expect(see(page, 'まだ種目がありません')).toBeVisible();
     });
   }
@@ -338,28 +339,80 @@ test('同じ日に同じ種目を選ぶと、新しく足さずに既存の記�
   await expect(see(page, '種目2セット3')).toBeVisible();
 });
 
-test('入力の途中で戻ると、保存しない', async ({ page }) => {
+test('入力の途中で戻るときは「入力をやめますか？」と確かめる。変更がなければ確かめない', async ({ page }) => {
+  await openApp(page);
+  await openToday(page);
+  // 何も入れずに戻るなら確かめない（空のセットを足しただけでも同じ）
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'ベンチプレス');
+  await button(page, 'セットを追加').click();
+  await button(page, '戻る').click();
+  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // 入れてから戻ると確かめる。キャンセルなら入力はそのまま
+  await button(page, '種目を追加').click();
+  await chooseExercise(page, 'ベンチプレス');
+  await fillSets(page, [{ weight: '80', reps: '8' }]);
+  await button(page, '戻る').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('入力をやめますか？');
+  await expect(dialog).toContainText('まだ追加していないセットは保存されません。');
+  await button(dialog, 'キャンセル').click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByLabel('セット1の重量')).toHaveValue('80');
+  // 「やめる」と、保存せずに戻る
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+
+  // 保存して戻るときは確かめない
+  await addEntry(page, 'ベンチプレス', [{ weight: '80', reps: '8' }]);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // 既存の記録：開いて何も変えずに戻るなら確かめない
+  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
+  await expect(saveButton(page)).toHaveText('変更を保存');
+  await button(page, '戻る').click();
+  await expect(see(page, '種目1セット1')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // 完了の印を変えただけでも確かめる。やめると元のまま
+  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
+  await page.getByRole('checkbox', { name: 'セット1の完了' }).click();
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
+  await expect(page.getByRole('checkbox', { name: 'セット1の完了' })).toHaveAttribute('aria-checked', 'false');
+
+  // 値を変えてセットを消しても、やめると元のまま
+  await fillSets(page, [{ weight: '200' }]);
+  await button(page, 'セット1を削除').click();
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
+  await expect(see(page, '種目1セット1')).toBeVisible();
+
+  // 種目の選択から戻っても、確かめず、何も足されない
+  await button(page, '種目を追加').click();
+  await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(() => entryOrder(page)).toEqual(['ベンチプレス']);
+});
+
+test('ブラウザの戻るでも、入力の途中なら確かめる', async ({ page }) => {
   await openApp(page);
   await openToday(page);
   await button(page, '種目を追加').click();
   await chooseExercise(page, 'ベンチプレス');
   await fillSets(page, [{ weight: '80', reps: '8' }]);
-  await button(page, '戻る').click();
+  await page.goBack();
+  await expect(page.getByRole('dialog')).toContainText('入力をやめますか？');
+  await button(page.getByRole('dialog'), 'キャンセル').click();
+  await expect(page.getByLabel('セット1の重量')).toHaveValue('80');
+  await page.goBack();
+  await button(page.getByRole('dialog'), 'やめる').click();
   await expect(see(page, 'まだ種目がありません')).toBeVisible();
-
-  // 既存の記録を直している途中で戻っても、元のまま
-  await addEntry(page, 'ベンチプレス', [{ weight: '80', reps: '8' }]);
-  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
-  await fillSets(page, [{ weight: '200' }]);
-  await button(page, 'セット1を削除').click();
-  await button(page, '戻る').click();
-  await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
-  await expect(see(page, '種目1セット1')).toBeVisible();
-
-  // 種目の選択から戻っても何も足されない
-  await button(page, '種目を追加').click();
-  await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
-  await button(page, '戻る').click();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
-  await expect.poll(() => entryOrder(page)).toEqual(['ベンチプレス']);
 });

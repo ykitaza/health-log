@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Header, ListRow } from '@/components/ui';
+import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
 import { colors, fonts } from '@/theme';
 
@@ -19,6 +20,7 @@ export default function ManageScreen() {
   const [adding, setAdding] = useState(false);
   const [partName, setPartName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { dialog } = useConfirmDiscard(adding && partName.trim() !== '', '入力した部位は追加されません。');
 
   const toggleExercise = async (id: string, hidden: boolean) => { await repos.catalog.setExerciseHidden(id, !hidden); reload(); };
   const togglePart = async (id: string, hidden: boolean) => { await repos.catalog.setBodyPartHidden(id, !hidden); reload(); };
@@ -34,6 +36,7 @@ export default function ManageScreen() {
 
   return (
     <Screen>
+      {dialog}
       <Header
         title="種目と部位の管理"
         onBack={() => router.back()}

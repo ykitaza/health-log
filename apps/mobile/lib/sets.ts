@@ -64,6 +64,15 @@ export function toSetInputs(drafts: SetDraft[], recordType: RecordType, unit: We
     }));
 }
 
+/** 保存したときに変わる中身（空の行は保存しないので含めない。画面の key も含めない） */
+const savedShape = (drafts: SetDraft[]) =>
+  JSON.stringify(drafts.filter((d) => !isBlank(d)).map((d) => [d.id ?? null, d.weight.trim(), d.reps.trim(), d.memo.trim(), d.done]));
+
+/** 開いたときから、保存していない変更があるか（入力の途中で戻るときの確認に使う） */
+export function hasChanges(initial: SetDraft[], current: SetDraft[]): boolean {
+  return savedShape(initial) !== savedShape(current);
+}
+
 /** 「上のセットをコピー」で写すセット：重量か回数が入っている最後のセット（なければ null） */
 export function lastFilledSet(drafts: SetDraft[]): SetDraft | null {
   for (let i = drafts.length - 1; i >= 0; i--) {

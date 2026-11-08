@@ -196,3 +196,37 @@ test('非表示にした種目は、新しく足せないが、すでにある�
   await button(page.getByRole('dialog'), '外す').click();
   await expect(see(page, 'まだ種目がありません')).toBeVisible();
 });
+
+test('種目と部位の追加の途中で戻るときも確かめる。名前が空なら確かめない', async ({ page }) => {
+  await openApp(page);
+  await openSelect(page);
+  const name = page.getByPlaceholder('例：インクラインベンチプレス');
+  await button(page, '種目を追加').click();
+  await expect(name).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await button(page, '種目を追加').click();
+  await name.fill('片手ケーブルクロス');
+  await button(page, '戻る').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('入力をやめますか？');
+  await expect(dialog).toContainText('入力した種目は追加されません。');
+  await button(dialog, 'キャンセル').click();
+  await expect(name).toHaveValue('片手ケーブルクロス');
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
+  await expect(row(page, '片手ケーブルクロス')).toHaveCount(0);
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  await openManage(page);
+  await button(page, '部位を追加').click();
+  await page.getByPlaceholder('部位の名前（例：前腕）').fill('前腕');
+  await button(page, '戻る').click();
+  await expect(page.getByRole('dialog')).toContainText('入力した部位は追加されません。');
+  await button(page.getByRole('dialog'), 'やめる').click();
+  await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
+});

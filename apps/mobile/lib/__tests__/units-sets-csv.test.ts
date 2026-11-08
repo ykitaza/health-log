@@ -1,5 +1,5 @@
 import { toCsv } from '../csv';
-import { copyOf, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
+import { copyOf, hasChanges, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '../units';
 
 test('数の読み取り', () => {
@@ -62,6 +62,21 @@ describe('セットの入力の確認', () => {
     expect(lastFilledSet([d('a', '70', ''), d('b', '', '')])?.key).toBe('a');
     expect(lastFilledSet([d('a', '', ''), d('b', '', '', 'メモだけ')])).toBeNull();
     expect(lastFilledSet([])).toBeNull();
+  });
+  test('保存していない変更があるか（空の行の増減と、画面の key の違いは変更にしない）', () => {
+    const blank3 = [d('a', '', ''), d('b', '', ''), d('c', '', '')];
+    expect(hasChanges(blank3, [d('x', '', ''), d('y', '', '')])).toBe(false);
+    expect(hasChanges(blank3, [...blank3, d('z', '', '')])).toBe(false);
+    expect(hasChanges(blank3, [d('a', '80', ''), d('b', '', ''), d('c', '', '')])).toBe(true);
+    expect(hasChanges(blank3, [d('a', '', '', 'メモ'), d('b', '', ''), d('c', '', '')])).toBe(true);
+
+    const saved = [{ ...d('a', '80', '8'), id: 's1' }, { ...d('b', '80', '6'), id: 's2', done: true }];
+    expect(hasChanges(saved, saved.map((x) => ({ ...x, key: x.key + '2' })))).toBe(false);
+    expect(hasChanges(saved, [saved[0], { ...saved[1], done: false }])).toBe(true);
+    expect(hasChanges(saved, [saved[0], { ...saved[1], reps: '7' }])).toBe(true);
+    expect(hasChanges(saved, [saved[0]])).toBe(true); // セットを消した
+    expect(hasChanges(saved, [saved[1], saved[0]])).toBe(true); // 並びが変わった
+    expect(hasChanges(saved, [...saved, d('c', '', '')])).toBe(false);
   });
   test('上のセットを写す', () => {
     expect(copyOf({ ...d('a', '80', '8', 'メモ'), done: true, id: 'x' }, 'b')).toEqual(d('b', '80', '8'));
