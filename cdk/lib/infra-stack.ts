@@ -28,7 +28,7 @@ const THROTTLE = { rateLimit: 1, burstLimit: 5 };
 
 // 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
 // 認可APIが書き込める /cognito-study/* の外に置く
-export const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
+const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
 
 export class InfraStack extends cdk.Stack {
   // API の ID（AuthzApi など）→ アクセスログのロググループ名を入れた SSM パラメータの名前。

@@ -78,8 +78,6 @@ export interface MonitoringStackProps extends cdk.StackProps {
 
 // 東京に置く監視。通知の送り先（SNS）、アラーム、CloudTrail の証跡、東京で起きる操作の EventBridge のルール
 export class MonitoringStack extends cdk.Stack {
-  public readonly topic: sns.Topic;
-
   constructor(scope: Construct, id: string, props: MonitoringStackProps) {
     super(scope, id, props);
 
@@ -87,35 +85,35 @@ export class MonitoringStack extends cdk.Stack {
 
     // 暗号化しない：AWS マネージドキー（aws/sns）はキーポリシーを変えられず、CloudWatch と EventBridge が発行できない。
     // カスタマー管理キーは月1ドルかかる。通知に秘密の値は入らない（CloudTrail はパスワードを伏せて記録する）
-    this.topic = new sns.Topic(this, 'AlertTopic', {
+    const topic = new sns.Topic(this, 'AlertTopic', {
       topicName: 'cognito-study-alerts',
       displayName: 'cognito-study alerts',
       enforceSSL: true, // TLS 以外での発行を拒否する
     });
     // 発行できるのは、このアカウントの、このリージョンのアラームとルールだけにする
-    this.topic.addToResourcePolicy(new iam.PolicyStatement({
+    topic.addToResourcePolicy(new iam.PolicyStatement({
       sid: 'AllowCloudWatchAlarms',
       principals: [new iam.ServicePrincipal('cloudwatch.amazonaws.com')],
       actions: ['sns:Publish'],
-      resources: [this.topic.topicArn],
+      resources: [topic.topicArn],
       conditions: {
         StringEquals: { 'aws:SourceAccount': this.account },
         ArnLike: { 'aws:SourceArn': `arn:aws:cloudwatch:${this.region}:${this.account}:alarm:*` },
       },
     }));
-    this.topic.addToResourcePolicy(new iam.PolicyStatement({
+    topic.addToResourcePolicy(new iam.PolicyStatement({
       sid: 'AllowEventBridgeRules',
       principals: [new iam.ServicePrincipal('events.amazonaws.com')],
       actions: ['sns:Publish'],
-      resources: [this.topic.topicArn],
+      resources: [topic.topicArn],
       conditions: {
         StringEquals: { 'aws:SourceAccount': this.account },
         ArnLike: { 'aws:SourceArn': `arn:aws:events:${this.region}:${this.account}:rule/*` },
       },
     }));
     // ルールの送り先。targets.SnsTopic は条件なしの許可を足すので使わず、上の条件付きの許可で発行させる
-    const topicTarget: events.IRuleTarget = { bind: () => ({ arn: this.topic.topicArn }) };
-    const alarmAction = new cwActions.SnsAction(this.topic);
+    const topicTarget: events.IRuleTarget = { bind: () => ({ arn: topic.topicArn }) };
+    const alarmAction = new cwActions.SnsAction(topic);
 
     const alarm = (alarmId: string, metric: cloudwatch.IMetric, threshold: number, description: string) => {
       const a = new cloudwatch.Alarm(this, alarmId, {
@@ -127,7 +125,6 @@ export class MonitoringStack extends cdk.Stack {
         alarmDescription: description,
       });
       a.addAlarmAction(alarmAction);
-      return a;
     };
     const sumPerHour = (metricName: string) => new cloudwatch.Metric({
       namespace: METRIC_NAMESPACE, metricName, statistic: cloudwatch.Stats.SUM, period: cdk.Duration.hours(1),
@@ -252,7 +249,7 @@ export class MonitoringStack extends cdk.Stack {
       description: 'CloudTrail の停止・削除・変更', eventPattern: CLOUDTRAIL_TAMPER_PATTERN, targets: [topicTarget],
     });
 
-    new cdk.CfnOutput(this, 'AlertTopicArn', { value: this.topic.topicArn });
+    new cdk.CfnOutput(this, 'AlertTopicArn', { value: topic.topicArn });
     new cdk.CfnOutput(this, 'TrailBucketName', { value: trailBucket.bucketName });
   }
 }
