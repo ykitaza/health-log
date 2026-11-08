@@ -1,4 +1,4 @@
-import { LIMITS, parseInRange, rangeMessage } from '../limits';
+import { LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange, rangeMessage, REPS_MAX } from '../limits';
 import { SetDraft, validateSets } from '../sets';
 import { kgToUnit, trimNumber } from '../units';
 
@@ -58,5 +58,26 @@ describe('セットの重量の範囲', () => {
     // 500kg は 1102.31lb と出る。これを kg に戻すと 500.00008kg になる
     const draft: SetDraft = { ...d('a', trimNumber(kgToUnit(500, 'lb')), '1'), weightKg: 500 };
     expect(validateSets([draft], 'weight_reps', 'lb').size).toBe(0);
+  });
+});
+
+describe('回数とメモの上限（同期のサーバーと同じ）', () => {
+  const d = (key: string, reps: string, memo = ''): SetDraft => ({ key, weight: '', reps, memo, done: false });
+  test(`回数は ${REPS_MAX} 回まで`, () => {
+    expect(validateSets([d('a', String(REPS_MAX))], 'reps_only', 'kg').size).toBe(0);
+    expect(validateSets([d('a', String(REPS_MAX + 1))], 'reps_only', 'kg').get('a'))
+      .toEqual({ reps: `回数は ${REPS_MAX} 回までで入れてください` });
+  });
+  test(`セットのメモは ${MEMO_MAX_LENGTH} 文字まで（コードポイントで数える）`, () => {
+    expect(validateSets([d('a', '1', 'あ'.repeat(MEMO_MAX_LENGTH))], 'reps_only', 'kg').size).toBe(0);
+    expect(validateSets([d('a', '1', '💪'.repeat(MEMO_MAX_LENGTH))], 'reps_only', 'kg').size).toBe(0);
+    expect(validateSets([d('a', '1', 'あ'.repeat(MEMO_MAX_LENGTH + 1))], 'reps_only', 'kg').get('a'))
+      .toEqual({ memo: `メモは ${MEMO_MAX_LENGTH} 文字以内で入れてください（今は${MEMO_MAX_LENGTH + 1}文字）` });
+    // 前後の空白は保存しないので数えない
+    expect(validateSets([d('a', '1', ` ${'あ'.repeat(MEMO_MAX_LENGTH)} `)], 'reps_only', 'kg').size).toBe(0);
+  });
+  test('体組成のメモ', () => {
+    expect(memoLengthError('あ'.repeat(MEMO_MAX_LENGTH))).toBeNull();
+    expect(memoLengthError('あ'.repeat(MEMO_MAX_LENGTH + 1))).toMatch(/1000 文字以内/);
   });
 });

@@ -189,6 +189,7 @@ test.describe('重量と回数の入力の確かめ', () => {
     { name: '回数が空', weight: '80', reps: '', error: '回数を入れてください' },
     { name: '回数が 0', weight: '80', reps: '0', error: '回数を入れてください' },
     { name: '回数が小数', weight: '80', reps: '8.5', error: '回数は整数で入れてください' },
+    { name: '回数が 10000 回を超える', weight: '80', reps: '10001', error: '回数は 10000 回までで入れてください' },
   ];
   for (const c of cases) {
     test(`${c.name}なら保存しない`, async ({ page }) => {
@@ -215,6 +216,13 @@ test.describe('重量と回数の入力の確かめ', () => {
     await expect(see(page, '入力を確かめてください')).toBeHidden();
     await saveButton(page).click();
     await expect(see(page, '80.0 kg × 5 回')).toBeVisible();
+  });
+
+  test('メモは 1000 文字で止まり、回数は 10000 回まで受ける', async ({ page }) => {
+    await fillSets(page, [{ weight: '80', reps: '10000', memo: 'あ'.repeat(1001) }]);
+    await expect(page.getByLabel('セット1のメモ', { exact: true })).toHaveValue('あ'.repeat(1000));
+    await saveButton(page).click();
+    await expect(see(page, '80.0 kg × 10000 回')).toBeVisible();
   });
 
   test('小数、全角の数字、「,」の小数点、上限の 500kg は受ける', async ({ page }) => {

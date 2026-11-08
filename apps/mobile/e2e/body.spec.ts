@@ -120,6 +120,18 @@ test('不正な値（範囲の外、負の数、数字でない）は保存し�
   await expect(field(page, '体重')).toHaveValue('');
 });
 
+test('メモは 1000 文字で止まる', async ({ page }) => {
+  await openApp(page);
+  await openBody(page);
+  await enter(page, 'ウエスト', '80');
+  await enter(page, 'メモ（例：朝・起床後に計測）', 'あ'.repeat(1001));
+  await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('あ'.repeat(1000));
+  await expectInTrend(page, 'ウエスト', ['80.0', 'あ'.repeat(1000)]);
+  await page.reload();
+  await openBody(page);
+  await expect(field(page, 'メモ（例：朝・起床後に計測）')).toHaveValue('あ'.repeat(1000));
+});
+
 test('範囲の両端は受ける：体重 30〜300kg、体脂肪率と筋肉率 0〜100%、ウエスト 30〜200cm', async ({ page }) => {
   await openApp(page);
   await openBody(page);

@@ -10,7 +10,7 @@ import { useFocusData } from '@/hooks/data';
 import { BodyMetric, bmi, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, addMonths, formatJpDate, todayKey } from '@/lib/date';
-import { Limit, LIMITS, parseInRange } from '@/lib/limits';
+import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -91,6 +91,9 @@ export default function BodyScreen() {
   const commitMemo = async () => {
     editing.current.delete('memo');
     if (texts.memo.trim() === (day?.memo ?? '')) return;
+    const tooLong = memoLengthError(texts.memo);
+    if (tooLong) { setError(tooLong); return; }
+    setError(null);
     await repos.body.saveManual(date, { memo: texts.memo.trim() });
     reload();
   };
@@ -161,6 +164,7 @@ export default function BodyScreen() {
             value={texts.memo}
             onChangeText={(t) => { editing.current.add('memo'); setTexts((x) => ({ ...x, memo: t })); }}
             onBlur={commitMemo}
+            maxLength={MEMO_MAX_LENGTH}
             placeholder="メモ（例：朝・起床後に計測）"
             placeholderTextColor={colors.sub}
             style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}

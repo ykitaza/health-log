@@ -1,4 +1,4 @@
-import { inRange, LIMITS, rangeMessage } from './limits';
+import { inRange, LIMITS, memoLengthError, rangeMessage, REPS_MAX } from './limits';
 import { kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from './units';
 
 /** 記録の入力画面の1セット（入力中の文字列のまま持つ） */
@@ -15,7 +15,7 @@ export type SetDraft = {
 
 export type RecordType = 'weight_reps' | 'reps_only';
 
-export type SetError = { weight?: string; reps?: string };
+export type SetError = { weight?: string; reps?: string; memo?: string };
 
 /** 重さも回数もメモもない行（保存しない） */
 export function isBlank(d: SetDraft): boolean {
@@ -39,12 +39,15 @@ export function validateSets(drafts: SetDraft[], recordType: RecordType, unit: W
     const reps = parseNumber(d.reps);
     if (reps == null || reps <= 0) e.reps = '回数を入れてください';
     else if (!Number.isInteger(reps)) e.reps = '回数は整数で入れてください';
+    else if (reps > REPS_MAX) e.reps = `回数は ${REPS_MAX} 回までで入れてください`;
     if (recordType === 'weight_reps') {
       const kg = draftWeightKg(d, unit);
       if (d.weight.trim() === '') e.weight = '重量を入れてください';
       else if (kg == null || !inRange(kg, LIMITS.setWeight)) e.weight = rangeMessage(LIMITS.setWeight, unit);
     }
-    if (e.weight || e.reps) errors.set(d.key, e);
+    const memo = memoLengthError(d.memo);
+    if (memo) e.memo = memo;
+    if (e.weight || e.reps || e.memo) errors.set(d.key, e);
   }
   return errors;
 }

@@ -12,6 +12,7 @@ import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
+import { MEMO_MAX_LENGTH } from '@/lib/limits';
 import { copyOf, hasChanges, lastFilledSet, SetDraft, SetError, toSetInputs, validateSets } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
@@ -228,8 +229,8 @@ export default function EntryScreen() {
                   <Icon name="check" size={20} color={d.done ? colors.onAccent : colors.sub} />
                 </Pressable>
               </View>
-              {(err?.weight || err?.reps) && (
-                <T size={12} color={colors.danger} style={{ marginLeft: 38 }}>{[err.weight, err.reps].filter(Boolean).join('・')}</T>
+              {(err?.weight || err?.reps || err?.memo) && (
+                <T size={12} color={colors.danger} style={{ marginLeft: 38 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 38 }}>
                 <View style={s.memo}>
@@ -237,6 +238,7 @@ export default function EntryScreen() {
                   <TextInput
                     value={d.memo}
                     onChangeText={(t) => update(d.key, { memo: t })}
+                    maxLength={MEMO_MAX_LENGTH}
                     placeholder="メモを追加"
                     placeholderTextColor={colors.sub}
                     accessibilityLabel={`セット${i + 1}のメモ`}

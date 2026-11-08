@@ -17,6 +17,22 @@ export const LIMITS = {
 /** 種目と部位の名前の長さの上限（前後の空白を取ってから数える） */
 export const NAME_MAX_LENGTH = 40;
 
+/**
+ * メモ（セットと体組成）の長さの上限。同期のサーバーの Memo（max_length=1000）と同じ。
+ * サーバー（Python の str）と同じく、コードポイントで数える（前後の空白を取ってから）。
+ * 入力欄の maxLength は UTF-16 の単位で数えるので、欄で止まる長さはこれ以下になる（絵文字は2単位）
+ */
+export const MEMO_MAX_LENGTH = 1000;
+
+/** セットの回数の上限。同期のサーバーの workout_set.reps（le=10000）と同じ */
+export const REPS_MAX = 10000;
+
+/** メモが長すぎるときの文言。長すぎなければ null */
+export function memoLengthError(memo: string): string | null {
+  const n = [...memo.trim()].length;
+  return n > MEMO_MAX_LENGTH ? `メモは ${MEMO_MAX_LENGTH} 文字以内で入れてください（今は${n}文字）` : null;
+}
+
 /** 名前が長すぎるときの文言（長さは文字の数。絵文字も1文字と数える）。長すぎなければ null */
 export function nameLengthError(what: '種目' | '部位', name: string): string | null {
   const n = [...name].length;
