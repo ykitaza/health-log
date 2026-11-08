@@ -32,7 +32,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
 - 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
-- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`sync/entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
+- いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`services/meals/infrastructure/sync_entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
 - 体重は、体組成（`body_record`）に一本化するまで、今の MCP と同じ扱い（同期しない）にします
 
@@ -135,7 +135,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 消えたいつもの・目標・日の種類を MCP が保存し直すときは、`restore` してから書きます
 - `changed_at` と `received_at` はサーバーの時刻、`origin` は `mcp` です。食事の時刻は `HH:MM`（秒は持たない。MCP の出力も `HH:MM`）
 - 1回のトランザクションに入れる変更は30件までで、それより多いとき（写真をまとめて記録したとき）は分けて書きます
-- MCP のツールの入力と出力、今のテストは変えません。今のテスト（リポジトリ・サービス・MCP のツール）は、同期の実装でも同じものを流しています（`tests/sync/test_existing_suites.py`）
+- MCP のツールの入力と出力、今のテストは変えません。今のテスト（リポジトリ・サービス・MCP のツール）は、同期の実装でも同じものを流しています（`services/meals/tests/sync/test_existing_suites.py`）
 
 ## 今あるデータの移行
 
@@ -175,7 +175,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 - 種類ごとの scope は、Lambda がもう一度確かめます（上の表のどれか1つで通るため）
 - 利用者は、オーソライザーを通ったあとに API Gateway が渡すクレームの `sub` だけで決めます。本文や URL に利用者の ID は入れません
-  - アプリ用の Lambda（`AppApiFunction`、`app_api_main.handler`）は、Lambda Web Adapter を通さず、API Gateway のイベント（`requestContext.authorizer.jwt.claims`）からクレームを読みます。利用者が送るヘッダーは読みません
+  - アプリ用の Lambda（`AppApiFunction`、`services/app_api/main.py` の `handler`）は、Lambda Web Adapter を通さず、API Gateway のイベント（`requestContext.authorizer.jwt.claims`）からクレームを読みます。利用者が送るヘッダーは読みません
   - Lambda でも、`token_use` が `access`、`client_id` がアプリのクライアントであることを、もう一度確かめます
   - スナップショットの `page_token` には sk の位置しか入れません。どの pk を読むかはクレームで決まるので、ほかの人の `page_token` を使っても自分の分しか読めません
 - Lambda の権限は、食事のテーブル（とその LSI）の `GetItem`・`BatchGetItem`・`Query`・`PutItem` だけです。変更の記録は追記だけなので、`DeleteItem`・`UpdateItem`・`Scan` は与えません
@@ -188,5 +188,26 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 1. **保存先のテーブル**：今の食事のテーブル（`MealsTable`）に `SYNC#…` の項目を足す。pk は今の `EATER#<sub>`。今の LSI `by_day` をそのまま使い、テーブルは変えない（置き換えなし）。筋トレの記録も、名前は「MealsTable」のテーブルに入る（論理 ID は変えられない）
 2. **目標の計算**：`POST /v1/meals/goal-suggestions` は計算だけ（MCP の `suggest_goals` と同じ）。保存は同期（`nutrition_goal` の `update`）で行う
 3. **日の種類**：本人が決めた日だけを保存する。のちに筋トレの記録から求める結果より、本人が決めたものを優先する
-4. **同期のコードの置き場所**：`services/meals/sync/`。筋トレの対象も同じ Lambda で扱う。`services/training/` ができたら、共通の部分を分けるか決める
+4. **同期のコードの置き場所**：はじめは `services/meals/sync/` に置く案だったが、境界づけられたコンテキストの考え方に合わせて変えた（下の「コードの置き場所」）
 5. **アプリのリフレッシュトークンの猶予**：10秒
+
+## コードの置き場所
+
+| 場所 | 中身 | 知っているもの |
+|---|---|---|
+| `services/sync/`（パッケージ `sync`） | 変更の記録と当てはめ（`model.py`）、種類の登録と変更の確かめ（`registry.py`、`fields.py`）、冪等とカーソル（`engine.py`）、保存先（`store.py`）、同期の API の入口（`presentation/http_api.py`） | どのコンテキストも知らない |
+| `services/meals/infrastructure/sync_entities.py` | 食事の5つの種類を登録する | 食事、sync |
+| `services/meals/infrastructure/sync_repositories.py` | MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 食事、sync |
+| `services/meals/presentation/app_routes.py` | `POST /v1/meals/goal-suggestions` | 食事、sync の入口の型 |
+| `services/training/training/infrastructure/` | 筋トレの6つの種類を登録する、同期された記録を読む | 筋トレ、sync |
+| `services/app_api/main.py` | アプリ用の Lambda の組み立て。登録とルートをまとめる | すべて |
+
+依存の向きは、コンテキスト（食事・筋トレ）→ sync です。sync はコンテキストを import しません。
+
+### パッケージの分け方と、Lambda へのまとめ方
+
+- **uv の path の依存**（`[tool.uv.sources] sync = { path = "../sync", editable = true }`）にしました。[uv の資料](https://docs.astral.sh/uv/concepts/projects/dependencies/#path)の書き方どおりで、`editable` にすると、`sync` を直したらすぐ meals・training のテストに効きます
+  - uv のワークスペースにすると、ロックファイルが1つになり、CI のジョブ（サービスごとに `uv sync --locked` と、`uv.lock` でのキャッシュ）を作り直すことになります。サービスごとのロックと CI の形を保つため、path の依存にしました
+- `sync` と `training` はパッケージ（ビルドのバックエンドは `uv_build`）にし、インポートの名前に `sync`・`training` を付けます。食事は今までどおり `domain`・`application` などをトップレベルに置くアプリなので、パッケージにしません。トップレベルの名前がぶつからないよう、筋トレは `training.domain` のように名前空間の下に置きます
+- `services/app_api` は、`sync`・`training` を path の依存で入れ、食事はテストで `pythonpath` に `../meals` を足して読みます
+- Lambda（`cdk/build-lambda.sh`）では、外部の依存を `uv export --no-emit-local` で書き出して Lambda 用の wheel を入れ、同じリポジトリのパッケージ（`sync`・`training`・食事の層）はソースをコピーします。wheel を作るより速く、中身がそのまま見えます。`__pycache__` は載せません

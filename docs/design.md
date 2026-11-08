@@ -17,6 +17,8 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 
 ```
 本人確認（Cognito）──IDトークン──► 認可（services/authorization/）──アクセストークン──► 食事記録（services/meals/）
+        │
+        └──アクセストークン（アプリ）──► 同期の入口（services/sync/）──► 食事記録・筋トレ（services/training/）の種類
 ```
 
 | コンテキスト | 扱う問い | 担当 |
@@ -24,6 +26,14 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 | 本人確認 | この人は誰か | 外部のシステム（Cognito） |
 | 認可 | どのクライアントに、誰の、何を許したか | `services/authorization/` |
 | 食事記録 | この人は何を食べ、目標とどれだけ違うか | `services/meals/`（MCP サーバー） |
+| 筋トレ | この人は何をどれだけ挙げ、体はどう変わったか | `services/training/`（MCP のツールはあとで足す） |
+
+同期（`services/sync/`）は、どのコンテキストにも属さない共通の部品です（変更の記録、当てはめ、冪等、カーソル、DynamoDB への保存、同期の API の入口）。
+
+- 同期は、食事や筋トレのドメインを import しません。対象の種類ごとの決まり（項目、確かめ方、親の種類、並びのキー）は、各コンテキストが `infrastructure/sync_entities.py` で同期の `Registry` に登録します。依存の向きは、コンテキスト → 同期です
+- 食事の MCP が変更の記録を通して書く処理は、食事の `infrastructure/sync_repositories.py` にあります（同期の部品を使う）
+- 3つを組み合わせるのは、アプリ用の Lambda の組み立て（`services/app_api/main.py`）だけです
+- 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/mobile/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
 
 - 本人確認 → 認可：`services/authorization/infrastructure/cognito_login.py`（腐敗防止層、Authlib）が IDトークンを `Subject` に変えます
 - 認可 → 食事記録：受け渡すのはアクセストークン（JWT）だけです。食事記録は、認可APIの iss と JWKS を手で設定して信じます
@@ -50,12 +60,16 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 
 ## フォルダ
 
-組み立て（DI）は各サービスの `main.py` で行います。食事記録は DDD の層（`presentation` → `application` → `domain` ← `infrastructure`）に分けています。
+組み立て（DI）は各サービスの `main.py` で行います。食事記録と筋トレは DDD の層（`presentation` → `application` → `domain` ← `infrastructure`）に分けています。
 
 | フォルダ | 中身 |
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
-| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個）。スマホアプリ用の API の入口（`presentation/app_api.py`、`app_api_main.py`）と、同期の仕組み（`sync/`）、移行のスクリプト（`scripts/`） |
+| `services/meals/` | MCP サーバー。食事の記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合・ログアウト（ツール18個）。同期への登録（`infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
+| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録と、同期された記録の読み取り |
+| `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
+| `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
+| `testdata/training/` | 筋トレの計算の、入力と期待する結果（サーバーとアプリで共有） |
 | `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
 | `tools/inspector/` | MCP Inspector 用の CIMD の文書（PC で食事記録を試すとき） |
 | `docs/` | 設計書と図 |

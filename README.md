@@ -92,8 +92,8 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 ### テスト
 
 ```sh
-(cd services/authorization && uv run pytest)
-(cd services/meals && uv run pytest)
+for s in authorization meals sync training app_api; do (cd services/$s && uv run pytest); done
+(cd apps/mobile && npx jest)   # testdata/training/*.json で、アプリの計算がサーバーと同じかも確かめる
 ```
 
 ### 片付け
