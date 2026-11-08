@@ -7,12 +7,13 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
-from typing import Callable, Protocol
+from typing import Annotated, Callable, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
+from pydantic import Field
 
 from meals.application.commands import MealChanges
 from meals.application.goals import GoalService
@@ -22,6 +23,7 @@ from meals.application.templates import TemplateService
 from meals.application.weights import WeightService
 from meals.domain.errors import MealError
 from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
+from meals.domain.meal import MAX_ITEMS
 from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from meals.domain.values import DayType, EaterId, MealSlot
 from meals.presentation import views
@@ -243,7 +245,7 @@ def register_meal_tools(
     async def update_meal(
         meal_id: str,
         change_amounts: list[AmountChange] | None = None,
-        add_items: list[ItemInput] | None = None,
+        add_items: Annotated[list[ItemInput], Field(max_length=MAX_ITEMS)] | None = None,
         remove_item_ids: list[str] | None = None,
         move_to: WhenInput | None = None,
     ) -> dict:

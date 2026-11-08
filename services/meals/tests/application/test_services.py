@@ -95,6 +95,18 @@ async def test_まとめて修正する(app):
 
 
 @pytest.mark.anyio
+async def test_品目は1回の食事に50件まで(app):
+    with pytest.raises(MealError, match="50件"):
+        await app["meals"].record("alice", NewMeal(LUNCH, (RICE,) * 51, "多すぎ", Source.TEXT))
+    meal = await app["meals"].record("alice", NewMeal(LUNCH, (RICE,) * 50, "50件", Source.TEXT))
+    with pytest.raises(MealError, match="50件"):
+        await app["meals"].update("alice", meal.id, MealChanges(add=(RICE,)))
+    # 足した分だけ消せば、50件のまま入れ替えられる
+    swapped = await app["meals"].update("alice", meal.id, MealChanges(add=(CHICKEN,), remove=(meal.items[0].id,)))
+    assert len(swapped.items) == 50
+
+
+@pytest.mark.anyio
 async def test_昨日と同じを記録する(app):
     meal = await record_lunch(app)
     copy = await app["meals"].copy("alice", meal.id, EatenOn(date(2026, 10, 13), MealSlot.LUNCH))

@@ -113,6 +113,19 @@ def test_ドメインの決まりに反すると理由を返す(call):
 
 
 
+def test_品目は1回の食事に50件まで(call):
+    item = LUNCH["items"][0]
+    with pytest.raises(ToolError):
+        call("record_meal", meal={**LUNCH, "items": [item] * 51})
+    with pytest.raises(ToolError):
+        call("record_meals", meals=[{**LUNCH, "items": [item] * 51}])
+    meal = call("record_meal", meal={**LUNCH, "items": [item] * 50})["meals"][0]
+    with pytest.raises(ToolError):
+        call("update_meal", meal_id=meal["meal_id"], add_items=[item] * 51)
+    with pytest.raises(ToolError, match="50件"):
+        call("update_meal", meal_id=meal["meal_id"], add_items=[item])
+
+
 def test_食事の一覧の期間は366日まで(call):
     assert call("list_meals", start="2025-10-12", end="2026-10-12")["meals"] == []  # 366日
     with pytest.raises(ToolError, match="366日"):

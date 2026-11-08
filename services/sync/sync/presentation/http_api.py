@@ -25,6 +25,11 @@ logger = logging.getLogger("sync.http_api")
 
 SCOPE_PREFIX = "torelog-api/"
 MAX_PUSH = 25
+# 送信の本文の上限（バイト）。盗まれたトークンで大きな書き込みを続けられ、DynamoDB の費用が膨らむのを抑える。
+# 品目50件のいつもの（名前が最大の200文字）でも1件は40KB ほどに収まる
+MAX_PUSH_BYTES = 64 * 1024
+# 1回の送信の delete がこの件数以上なら、ログに数を出す（メトリクスフィルターで数えて通知する。docs/monitoring.md）
+BULK_DELETE_THRESHOLD = 10
 PROBLEM_BASE = "https://torelog.invalid/problems/"
 
 
@@ -94,7 +99,7 @@ class SyncHttpApi:
     # --- 同期 ---
 
     def push(self, caller: Caller, event: dict) -> dict:
-        body = parse_body(event)
+        body = parse_body(event, MAX_PUSH_BYTES)
         if not isinstance(body, dict) or set(body) - {"device_id", "changes"}:
             raise HttpError(400, "invalid-request", "本文は device_id と changes だけにしてください")
         device_id, raw_changes = body.get("device_id"), body.get("changes")
@@ -116,8 +121,12 @@ class SyncHttpApi:
 
         writable = self._types(caller, "write")
         parsed = [self.registry.parse_change(raw, writable, device_id) for raw in raw_changes]
-        accepted = {a.change_id: a for a in self.engine.append(
-            caller.user, [c for c in parsed if not isinstance(c, Rejection)])}
+        valid = [c for c in parsed if not isinstance(c, Rejection)]
+        deletes = sum(1 for c in valid if c.op == "delete")
+        if deletes >= BULK_DELETE_THRESHOLD:
+            # 利用者の ID と中身は出さない（数だけ）。docs/monitoring.md の BulkDeletes のメトリクスフィルターが数える
+            logger.warning("bulk_delete deletes=%d changes=%d", deletes, len(raw_changes))
+        accepted = {a.change_id: a for a in self.engine.append(caller.user, valid)}
         results = []
         for n, (change_id, result) in enumerate(zip(ids, parsed)):
             if isinstance(result, Rejection):
@@ -148,13 +157,14 @@ class SyncHttpApi:
         return {"states": states, "cursor": cursor, "next_page_token": _encode_page_token(last) if last else None}
 
 
-def parse_body(event: dict):
-    """本文の JSON（NaN・Infinity は断る）。"""
+def parse_body(event: dict, max_bytes: int | None = None):
+    """本文の JSON（NaN・Infinity は断る）。max_bytes を超える本文は 413 で断る（大きさは base64 を戻したあとのバイト数）。"""
     raw = event.get("body") or ""
     try:
-        if event.get("isBase64Encoded"):
-            raw = base64.b64decode(raw).decode()
-        return json.loads(raw, parse_constant=_reject_constant)
+        data = base64.b64decode(raw) if event.get("isBase64Encoded") else raw.encode()
+        if max_bytes is not None and len(data) > max_bytes:
+            raise HttpError(413, "payload-too-large", f"本文は {max_bytes // 1024}KB までにしてください。changes を分けて送ってください")
+        return json.loads(data.decode(), parse_constant=_reject_constant)
     except (ValueError, binascii.Error, UnicodeDecodeError) as e:
         raise HttpError(400, "invalid-request", "本文が JSON ではありません") from e
 
@@ -171,7 +181,9 @@ def _int(query: dict, name: str, default: int, low: int, high: int | None) -> in
     if name not in query:
         return default
     text = query[name]
-    if not text.isdigit() or int(text) < low or (high is not None and int(text) > high):
+    # isdigit だけだと「²」なども通り、int() で落ちて 500 になるので、ASCII の数字に限る。
+    # 桁が多すぎる数（4300桁を超える）も int() で落ちるので、18桁までにする
+    if not (text.isascii() and text.isdigit() and len(text) <= 18) or int(text) < low or (high is not None and int(text) > high):
         bound = f"{low}〜{high}" if high is not None else f"{low}以上"
         raise HttpError(400, "invalid-request", f"{name} は {bound} の整数にしてください",
                         [{"field": name, "message": bound}])

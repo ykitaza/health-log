@@ -3,6 +3,10 @@ from dataclasses import dataclass, replace
 from meals.domain.errors import MealError, NotFound
 from meals.domain.values import Confidence, EatenOn, EaterId, Nutrition, Quantity, Source
 
+# 1回の食事の品目の上限。いつもの（infrastructure/sync_entities.py の MealTemplateFields）と同じ。
+# 同期の項目は1つの食事を1つの DynamoDB の項目（400KB まで）に入れるので、大きくなりすぎないようにする
+MAX_ITEMS = 50
+
 
 @dataclass(frozen=True)
 class FoodItem:

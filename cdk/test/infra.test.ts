@@ -170,6 +170,19 @@ describe('スマホアプリ用のクライアント', () => {
     }
   });
 
+  test('監視のスタックが読むテーブル名と、アプリ用の API の Lambda のロググループ名を SSM に置く', () => {
+    for (const tableId of ['MealsTable', 'StateTable']) {
+      template.hasResourceProperties('AWS::SSM::Parameter', {
+        Name: `/cognito-study-monitoring/${tableId}/table-name`, Type: 'String',
+        Value: { Ref: Match.stringLikeRegexp(`^${tableId}`) },
+      });
+    }
+    template.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/cognito-study-monitoring/AppApiFunction/log-group', Type: 'String',
+      Value: { Ref: 'AppApiFunctionLogGroupA294EE67' },
+    });
+  });
+
   test('アプリが使う値を SSM と出力に置く', () => {
     for (const name of ['/cognito-study/app/issuer', '/cognito-study/app/client-id', '/cognito-study/app/cognito-domain',
       '/cognito-study/app/api-url']) {

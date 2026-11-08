@@ -15,6 +15,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field
 
+from meals.domain.meal import MAX_ITEMS
 from meals.domain.values import MealSlot
 from sync.fields import Day, FieldsModel, Ref, SortOrder, is_date
 from sync.model import Doc
@@ -88,7 +89,7 @@ class TemplateItem(_ItemCore):
 
 class MealTemplateFields(FieldsModel):
     name: TemplateName = None
-    items: Annotated[list[TemplateItem], Field(min_length=1, max_length=50)] = None
+    items: Annotated[list[TemplateItem], Field(min_length=1, max_length=MAX_ITEMS)] = None
 
 
 class DailyTarget(FieldsModel):

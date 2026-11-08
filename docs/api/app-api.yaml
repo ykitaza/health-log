@@ -25,7 +25,7 @@ paths:
       operationId: pushChanges
       summary: 端末の変更を送る（まとめて、冪等）
       description: |-
-        1回に25件まで。1件ごとに accepted・duplicate・rejected を返す。rejected があっても、ほかの変更は受け付ける。
+        1回に25件まで、本文は 64KB（65536 バイト）まで。1件ごとに accepted・duplicate・rejected を返す。rejected があっても、ほかの変更は受け付ける。
         応答を受け取れなかったときは、同じ change_id のまま送り直す。
       security:
       - cognito:
@@ -47,6 +47,12 @@ paths:
                 $ref: '#/components/schemas/PushResponse'
         '400':
           description: 本文の形が違う（JSON でない、changes が26件以上、change_id の重複など）。1件も受け付けていない
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '413':
+          description: 本文が 64KB を超える。1件も受け付けていない。changes を分けて送る
           content:
             application/problem+json:
               schema:
