@@ -14,7 +14,7 @@ FILES = {  # パス → （ファイル名, Content-Type）
     "/favicon.svg": ("icon.svg", "image/svg+xml"),
     "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
 }
-INDEX_HTML = b"""<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>\xe9\xa3\x9f\xe4\xba\x8b\xe8\xa8\x98\xe9\x8c\xb2</title>
+INDEX_HTML = b"""<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>\xe9\xa3\x9f\xe4\xba\x8b\xe3\x81\xa8\xe7\xad\x8b\xe3\x83\x88\xe3\x83\xac\xe3\x81\xae\xe8\xa8\x98\xe9\x8c\xb2</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"></head><body></body></html>"""
 

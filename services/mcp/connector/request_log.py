@@ -3,7 +3,7 @@
 import json
 import logging
 
-logger = logging.getLogger("meals.requests")
+logger = logging.getLogger("mcp.requests")
 
 
 class JsonRpcLogMiddleware:

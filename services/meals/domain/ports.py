@@ -64,3 +64,14 @@ class DayTypeRepository(Protocol):
     async def get(self, eater_id: EaterId, day: date) -> DayType | None:
         """決めていない日は None。"""
         ...
+
+
+class TrainingDayProvider(Protocol):
+    """筋トレの記録がある日を教える（筋トレのコンテキストが持つ記録。つなぐのは組み立ての場所）。
+
+    日の種類を本人が決めていない日は、ここで筋トレの記録がある日を「筋トレの日」にする。
+    """
+
+    async def training_days(self, eater_id: EaterId, start: date, end: date) -> set[date]:
+        """start から end まで（両端を含む）のうち、筋トレの記録がある日。"""
+        ...
