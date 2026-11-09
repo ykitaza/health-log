@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { BodyweightRatioField } from '@/components/BodyweightRatio';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -9,6 +10,7 @@ import { BodyPart, HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
+import { defaultRatio, parseRatioPct, ratioToPct } from '@/lib/bodyweight';
 import type { RecordType } from '@/lib/sets';
 import { colors, fonts } from '@/theme';
 
@@ -17,7 +19,7 @@ const TYPES: { key: RecordType; title: string; body: string }[] = [
   { key: 'reps_only', title: '回数だけ', body: '腕立て伏せ、懸垂など自重の種目' },
 ];
 
-/** 種目の追加（名前、部位、記録のしかた） */
+/** 種目の追加（名前、部位、記録のしかた。回数だけの種目は体重に対する割合も） */
 export default function NewExerciseScreen() {
   const params = useLocalSearchParams<{ bodyPartId?: string }>();
   const repos = useRepos();
@@ -25,6 +27,10 @@ export default function NewExerciseScreen() {
   const [name, setName] = useState('');
   const [partId, setPartId] = useState<string | null>(params.bodyPartId ?? null);
   const [type, setType] = useState<RecordType>('weight_reps');
+  // 体重に対する割合（%）。自分で変えるまでは、名前から決めた値にする
+  const [ratioText, setRatioText] = useState<string | null>(null);
+  const [ratioInvalid, setRatioInvalid] = useState(false);
+  const ratio = ratioText ?? ratioToPct(defaultRatio(name));
   const [error, setError] = useState<string | null>(null);
   const [hiddenDup, setHiddenDup] = useState<HiddenDuplicateError | null>(null);
   const { dialog, allowLeave } = useConfirmDiscard(name.trim() !== '', '入力した種目は追加されません。');
@@ -41,8 +47,10 @@ export default function NewExerciseScreen() {
   const submit = () => run(async (stayBusy) => {
     if (name.trim() === '') { setError('種目の名前を入れてください'); return; }
     if (!partId) { setError('部位を選んでください'); return; }
+    const pct = parseRatioPct(ratio);
+    if (type === 'reps_only' && pct == null) { setRatioInvalid(true); setError('体重に対する割合を 0〜100 で入れてください'); return; }
     try {
-      await repos.catalog.createExercise({ name, bodyPartId: partId, recordType: type });
+      await repos.catalog.createExercise({ name, bodyPartId: partId, recordType: type, ...(type === 'reps_only' ? { bodyweightRatio: pct! / 100 } : {}) });
       stayBusy();
       allowLeave();
       router.back();
@@ -109,6 +117,9 @@ export default function NewExerciseScreen() {
           </Pressable>
         ))}
       </Card>
+      {type === 'reps_only' && (
+        <BodyweightRatioField value={ratio} invalid={ratioInvalid} onChange={(t) => { setRatioText(t); setRatioInvalid(false); setError(null); }} />
+      )}
     </Screen>
   );
 }

@@ -38,8 +38,8 @@ export type EntitySpec = {
   readOnly?: true;
 };
 
-/** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類） */
-export const TRAINING_ENTITIES: EntitySpec[] = [
+/** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類）。版2・版4のマイグレーションは、この形でトリガーを作る */
+export const TRAINING_ENTITIES_V2: EntitySpec[] = [
   {
     type: 'body_part', table: 'body_parts',
     columns: { name: 'text', sort_order: 'int', hidden: 'bool' },
@@ -136,6 +136,10 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
     imported: 'always',
   },
 ];
+
+/** 筋トレの今の形。版8で、種目に体重に対する割合（bodyweight_ratio。回数だけの種目の自重の負荷量に使う）を足した */
+export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V2.map((s) =>
+  s.type === 'exercise' ? { ...s, columns: { ...s.columns, bodyweight_ratio: 'real' } } : s);
 
 /** 食事の今の形。版7で、食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した */
 export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>

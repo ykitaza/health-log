@@ -97,7 +97,12 @@ describe('マイグレーション：ログインの前の記録も、最初の�
     });
     const r = repos(db, deps);
     deps.advance(60_000);
-    const exId = await r.catalog.createExercise({ name: 'ブルガリアンスクワット', bodyPartId: SEED_BODY_PARTS[3].id, recordType: 'weight_reps' });
+    // 版1の表には割合の列（版8）がないので、種目は SQL で足す（catalog.createExercise は今の表に書く）
+    const exId = 'bulgarian';
+    await db.runAsync(
+      `INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at)
+       VALUES (?, ?, 'ブルガリアンスクワット', 'weight_reps', 5, 0, ?, ?)`, [exId, SEED_BODY_PARTS[3].id, deps.now().toISOString(), deps.now().toISOString()],
+    );
     const keep = await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: exId, sets: sets([40, 10]) });
     const gone = await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: SQUAT, sets: sets([100, 5]) });
     await r.workouts.deleteEntry(gone);

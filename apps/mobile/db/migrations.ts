@@ -5,7 +5,8 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, SQL_UUID, TRAINING_ENTITIES,
+  TRAINING_ENTITIES_V2, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
 
@@ -121,8 +122,8 @@ CREATE TABLE sync_held (
 );
 INSERT INTO sync_meta (key, value) VALUES ('device_id', ${SQL_UUID});
 `);
-      await backfillOutbox(db, TRAINING_ENTITIES, false);
-      for (const spec of TRAINING_ENTITIES) await db.execAsync(triggerSql(spec, false));
+      await backfillOutbox(db, TRAINING_ENTITIES_V2, false);
+      for (const spec of TRAINING_ENTITIES_V2) await db.execAsync(triggerSql(spec, false));
     },
   },
   {
@@ -192,7 +193,7 @@ DELETE FROM sync_meta WHERE key = 'cursor';
     version: 4,
     up: async (db) => {
       await db.execAsync(`ALTER TABLE sync_outbox ADD COLUMN origin TEXT NOT NULL DEFAULT 'app' CHECK (origin IN ('app', 'import'));`);
-      for (const spec of [...TRAINING_ENTITIES, ...MEAL_ENTITIES_V3]) {
+      for (const spec of [...TRAINING_ENTITIES_V2, ...MEAL_ENTITIES_V3]) {
         await db.execAsync(`DROP TRIGGER sync_${spec.table}_insert; DROP TRIGGER sync_${spec.table}_update;`);
         await db.execAsync(triggerSql(spec));
       }
@@ -275,6 +276,22 @@ DELETE FROM sync_meta WHERE key = 'cursor';
       for (const spec of [...MEAL_ENTITIES.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES]) await db.execAsync(triggerSql(spec));
     },
   },
+  {
+    // 自重の種目（回数だけ）の負荷量に使う、種目の体重に対する割合（0〜1。lib/bodyweight.ts）。重量×回数の種目は NULL。
+    // 列を足して種目のトリガーを作り直す（割合を変えると outbox に積んで送る）。今までの種目は NULL のままにし、
+    // 読むときに名前から決める（ratioOf）。サーバーも割合のない種目は同じ決まりで名前から決めるので、両方で同じ値になる。
+    // ここで値を書き込むと、入れたばかりの端末が初期の種目の変更を送ることになり、送らないと名前を変えたときに食い違うため。
+    // 範囲（0〜1）はサーバーと画面で確かめ、表には CHECK を付けない（受け取った値の当てはめを止めないため）
+    version: 8,
+    up: async (db) => {
+      await db.execAsync(`
+ALTER TABLE exercises ADD COLUMN bodyweight_ratio REAL;
+DROP TRIGGER sync_exercises_insert;
+DROP TRIGGER sync_exercises_update;
+`);
+      for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
+    },
+  },
 ];
 
 /** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
@@ -310,6 +327,8 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, wit
     body_parts: new Map(SEED_BODY_PARTS.map((p, i) => [p.id, { name: p.name, sort_order: i, hidden: 0 }])),
     exercises: new Map(SEED_EXERCISES.map((e, i) => [e.id, {
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
+      // 割合（版8）は、初期の値を持たない（NULL は名前から決める）。画面で決めた割合は、変えた項目として送る
+      bodyweight_ratio: null,
     }])),
   };
   const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null,

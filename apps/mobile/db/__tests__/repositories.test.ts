@@ -302,7 +302,7 @@ describe('筋トレの記録', () => {
     await r.workouts.deleteEntry(b);
     expect((await r.workouts.getDay('2026-11-08')).map((e) => e.id)).toEqual([a]);
     expect(await r.workouts.allSetRows()).toEqual([
-      { date: '2026-11-08', exerciseId: BENCH, bodyPartId: CHEST, weightKg: 80, reps: 8 },
+      { date: '2026-11-08', exerciseId: BENCH, bodyPartId: CHEST, weightKg: 80, reps: 8, bodyweightRatio: null },
     ]);
     // 外したあとに足した種目は、最後に並ぶ
     const c = await r.workouts.saveEntry({ date: '2026-11-08', exerciseId: SQUAT, sets: [set(100, 5)] });

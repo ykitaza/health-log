@@ -18,6 +18,7 @@ import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday
 import { formatMinutes } from '@/lib/health';
 import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
 import { tonnes } from '@/lib/format';
+import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { daysInMonth, periodTotals, totalVolume, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
@@ -108,6 +109,9 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {data != null && recentMissingBodyweight(rows, today) && (
+        <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
+      )}
       {!isToday && (
         <View style={s.pickedRow}>
           <T variant="bodyM" color={colors.sub}>{formatJpDate(selected)}を表示しています</T>
