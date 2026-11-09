@@ -5,9 +5,7 @@
 
 ## 流れ
 
-![デプロイの流れ](deploy-flow.drawio.svg)
-
-図の元は [architecture.drawio](architecture.drawio) のページ「デプロイの流れ」です。3つめの流れがこの文書の中身です。
+[構成図](architecture.drawio.svg) の左下の緑の線（GitHub から AWS への cdk deploy）が、この文書の中身です。
 
 手で起動する（Actions の画面で deploy を選び、main で Run workflow）→ テスト → `cdk diff` → environment `aws-prod` の承認 → `cdk deploy CognitoStudy` → `cdk deploy CognitoStudyMonitoring CognitoStudyMonitoringGlobal`
 
