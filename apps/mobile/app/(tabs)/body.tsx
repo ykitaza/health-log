@@ -4,10 +4,12 @@ import { StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
+import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber, Shake } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
+import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '@/lib/body';
@@ -34,7 +36,7 @@ const FIELD_LIMITS: Record<Field, Limit> = {
 /** 体組成（日付ごとの入力、自動の計算、目標体重、体重の推移） */
 export default function BodyScreen() {
   const [date, setDate] = useState(todayKey);
-  const { data, reload, repos } = useFocusData(async (r) => {
+  const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
     const [daily, settings, sleep, heart] = await Promise.all([
       r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date),
     ]);
@@ -121,6 +123,8 @@ export default function BodyScreen() {
   };
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）。保存していない欄は元の日に保存する
   const today = useToday((next, prev) => { if (date === prev) changeDate(next); });
+  // 前の日を見ているときは、Android の戻るでまず今日に戻す（保存していない欄は元の日に保存する）
+  useBackToToday(date === today, () => changeDate(today));
 
   const height = data?.settings.heightCm ?? null;
   const w = day?.weightKg ?? null;
@@ -135,6 +139,8 @@ export default function BodyScreen() {
   const goal = data?.settings.goalWeightKg ?? null;
   const { from, recent, pace, progress, monthChange } = weightOverview(data?.daily ?? [], goal, today);
   const openTrend = (metric: BodyMetric) => router.push({ pathname: '/body-trend', params: { metric } });
+
+  if (loadError) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen tab>

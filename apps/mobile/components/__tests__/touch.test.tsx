@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { MIN_TOUCH } from '@/lib/touch';
-import { Button, Chip, CHIP_HEIGHT, IconButton } from '../ui';
+import { Button, Chip, CHIP_HEIGHT, ConfirmDialog, IconButton } from '../ui';
 
 // 動きの部品（Reanimated）は、ここでは要らない。props だけを見る
 jest.mock('../motion', () => ({ PressableScale: 'PressableScale', Sheet: 'Sheet' }));
@@ -29,5 +29,36 @@ describe('押せる部品の最小の大きさ', () => {
     const el = Button({ label: '保存', onPress: () => {}, small: true });
     const { minHeight } = StyleSheet.flatten(el.props.style);
     expect(minHeight + slop(el.props.hitSlop, 'top') + slop(el.props.hitSlop, 'bottom')).toBeGreaterThanOrEqual(MIN_TOUCH);
+  });
+});
+
+describe('処理中のボタン（二重押しを止める）', () => {
+  test('busy のボタンは押せず、読み上げで処理中と伝える', () => {
+    const el = Button({ label: '保存しています…', onPress: () => {}, busy: true });
+    expect(el.props.disabled).toBe(true);
+    expect(el.props['aria-busy']).toBe(true);
+    expect(StyleSheet.flatten(el.props.style).opacity).toBeLessThan(1);
+  });
+
+  test('busy でないボタンは押せる', () => {
+    const el = Button({ label: '保存', onPress: () => {} });
+    expect(el.props.disabled).toBeFalsy();
+    expect(el.props['aria-busy']).toBe(false);
+  });
+
+  test('確認のダイアログは、処理中ならどちらのボタンも押せない', () => {
+    const el = ConfirmDialog({ visible: true, title: '消しますか？', confirmLabel: '消す', onConfirm: () => {}, onCancel: () => {}, busy: true });
+    const buttons: { props: { disabled?: boolean; busy?: boolean } }[] = [];
+    const walk = (n: unknown) => {
+      if (!n || typeof n !== 'object') return;
+      const node = n as { type?: unknown; props?: { children?: unknown } };
+      if (node.type === Button) buttons.push(node as never);
+      const c = node.props?.children;
+      (Array.isArray(c) ? c : [c]).forEach(walk);
+    };
+    walk(el);
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].props.disabled).toBe(true);
+    expect(buttons[1].props.busy).toBe(true);
   });
 });

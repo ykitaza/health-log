@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { CountUpText, LineChart } from '@/components/charts';
+import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, Segmented } from '@/components/ui';
@@ -23,7 +24,7 @@ export default function BodyTrendScreen() {
   const [metric, setMetric] = useState<BodyMetric>(METRICS.includes(params.metric as BodyMetric) ? (params.metric as BodyMetric) : 'weight');
   const [period, setPeriod] = useState<Period>('1m');
   const today = todayKey();
-  const { data } = useFocusData(async (r) => {
+  const { data, error, reload } = useFocusData(async (r) => {
     const [daily, settings] = await Promise.all([r.body.listDaily(), r.settings.get()]);
     return { daily, settings };
   });
@@ -41,6 +42,8 @@ export default function BodyTrendScreen() {
   const inRange = filterSince(points, from);
   const last = inRange[inRange.length - 1];
   const change = inRange.length >= 2 ? inRange[inRange.length - 1].value - inRange[0].value : null;
+
+  if (error) return <Screen><Header title={BODY_METRICS[metric].trendTitle} onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen>

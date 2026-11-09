@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { CountUpText, LineChart, StackedBarChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
+import { LoadError } from '@/components/LoadError';
 import { MealWeekly } from '@/components/MealWeekly';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { Screen } from '@/components/Screen';
@@ -35,9 +36,10 @@ export default function HistoryScreen() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('3m');
   const [dayEntries, setDayEntries] = useState<Entry[]>([]);
+  const [dayFailed, setDayFailed] = useState(false);
   const repos = useRepos();
 
-  const { data } = useFocusData(async (r) => {
+  const { data, error, reload } = useFocusData(async (r) => {
     const [parts, exercises, rows, settings] = await Promise.all([
       r.catalog.listBodyParts(), r.catalog.listExercises({ includeHidden: true }), r.workouts.allSetRows(), r.settings.get(),
     ]);
@@ -74,9 +76,13 @@ export default function HistoryScreen() {
   }, [marked, month]);
 
   useEffect(() => {
-    if (!selectedDay) { setDayEntries([]); return; }
+    if (!selectedDay) { setDayEntries([]); setDayFailed(false); return; }
     let alive = true;
-    repos.workouts.getDay(selectedDay).then((es) => { if (alive) setDayEntries(es); });
+    // 読めなかったときは、読み直し（reload で data が変わる）でもう一度読む
+    repos.workouts.getDay(selectedDay).then(
+      (es) => { if (alive) { setDayEntries(es); setDayFailed(false); } },
+      () => { if (alive) setDayFailed(true); },
+    );
     return () => { alive = false; };
   }, [repos, selectedDay, data]);
 
@@ -89,6 +95,8 @@ export default function HistoryScreen() {
 
       {mode === 'meals' ? (
         <MealWeekly />
+      ) : error || dayFailed ? (
+        <LoadError onRetry={reload} />
       ) : data && rows.length === 0 ? (
         <EmptyState title="まだ記録がありません" body={'ホームの「本日のトレーニングを追加」から\n記録すると、ここに履歴とグラフが出ます'} />
       ) : (

@@ -3,9 +3,11 @@ import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
+import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
+import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, lastDoneLabel, todayKey } from '@/lib/date';
 import { searchExercises } from '@/lib/exercises';
@@ -19,7 +21,7 @@ export default function SelectExerciseScreen() {
   const { date = today } = useLocalSearchParams<{ date?: string }>();
   const [query, setQuery] = useState('');
   const [part, setPart] = useState<string | null>(null);
-  const { data, repos } = useFocusData(async (r) => {
+  const { data, error, reload, repos } = useFocusData(async (r) => {
     const [parts, exercises, rows, settings, day] = await Promise.all([
       r.catalog.listBodyParts(), r.catalog.listExercises(), r.workouts.allSetRows(), r.settings.get(), r.workouts.getDay(date),
     ]);
@@ -39,10 +41,15 @@ export default function SelectExerciseScreen() {
   const filtered = searchExercises(data?.exercises ?? [], part, query);
   const groups = (data?.parts ?? []).map((p) => ({ part: p, items: filtered.filter((e) => e.bodyPartId === p.id) })).filter((g) => g.items.length > 0);
 
-  const choose = async (exerciseId: string) => {
+  // 続けて押しても、記録の入力を2つ開かない
+  const { run } = useBusy();
+  const choose = (exerciseId: string) => run(async (stayBusy) => {
     const existing = data?.day.find((e) => e.exerciseId === exerciseId) ?? (await repos.workouts.findEntry(date, exerciseId));
+    stayBusy();
     router.replace({ pathname: '/workout/entry', params: existing ? { date, entryId: existing.id } : { date, exerciseId } });
-  };
+  });
+
+  if (error) return <Screen><Header title="種目を選ぶ" onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen>

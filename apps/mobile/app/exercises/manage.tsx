@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
+import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, Header, ListRow } from '@/components/ui';
 import { HiddenDuplicateError } from '@/db/repositories/catalog';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
 import { touchRoom } from '@/lib/touch';
@@ -16,7 +18,7 @@ const TYPE_LABEL = { weight_reps: '重量×回数', reps_only: '回数だけ' } 
 
 /** 種目と部位の管理。使わなくなったものは消さずに非表示にする */
 export default function ManageScreen() {
-  const { data, reload, repos } = useFocusData(async (r) => {
+  const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
     const [parts, exercises] = await Promise.all([r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true })]);
     return { parts, exercises };
   });
@@ -32,34 +34,38 @@ export default function ManageScreen() {
     adding ? '入力した部位は追加されません。' : '部位の名前は変わりません。',
   );
 
-  const renamePart = async () => {
+  // 書き込み（名前を変える・表示を切り替える・足す）は1つずつ。続けて押しても2回書かない
+  const { busy, run } = useBusy();
+  const renamePart = () => run(async () => {
     if (!renaming) return;
     try {
       await repos.catalog.renameBodyPart(renaming.id, renaming.name);
       setRenaming(null); setRenameError(null);
-      reload();
+      await reload();
     } catch (e) {
       setRenameError(e instanceof Error ? e.message : String(e));
     }
-  };
-  const togglePart = async (id: string, hidden: boolean) => { await repos.catalog.setBodyPartHidden(id, !hidden); reload(); };
-  const addPart = async () => {
+  });
+  const togglePart = (id: string, hidden: boolean) => run(async () => { await repos.catalog.setBodyPartHidden(id, !hidden); await reload(); });
+  const addPart = () => run(async () => {
     try {
       await repos.catalog.createBodyPart(partName);
       setPartName(''); setAdding(false); setError(null);
-      reload();
+      await reload();
     } catch (e) {
       if (e instanceof HiddenDuplicateError) setHiddenDup(e);
       else setError(e instanceof Error ? e.message : String(e));
     }
-  };
+  });
   // 非表示の部位と同じ名前なら、新しく足さずに、その部位を表示に戻す
-  const showHiddenPart = async () => {
+  const showHiddenPart = () => run(async () => {
     if (!hiddenDup) return;
     await repos.catalog.setBodyPartHidden(hiddenDup.id, false);
     setHiddenDup(null); setPartName(''); setAdding(false); setError(null);
-    reload();
-  };
+    await reload();
+  });
+
+  if (loadError) return <Screen><Header title="種目と部位の管理" onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen>
@@ -72,6 +78,7 @@ export default function ManageScreen() {
         danger={false}
         onCancel={() => setHiddenDup(null)}
         onConfirm={showHiddenPart}
+        busy={busy}
       />
       <Header
         title="種目と部位の管理"
@@ -106,7 +113,7 @@ export default function ManageScreen() {
                 {renameError && <T size={12} color={colors.danger}>{renameError}</T>}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Button label="キャンセル" variant="secondary" small style={{ flex: 1 }} onPress={() => { setRenaming(null); setRenameError(null); }} />
-                  <Button label="名前を保存" small style={{ flex: 1 }} onPress={renamePart} />
+                  <Button label={busy ? '保存しています…' : '名前を保存'} small style={{ flex: 1 }} onPress={renamePart} busy={busy} />
                 </View>
               </Card>
             ) : (
@@ -123,7 +130,7 @@ export default function ManageScreen() {
                 <View style={{ flex: 1 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <T size={12} color={colors.sub}>{items.length}種目{hiddenCount ? `・非表示 ${hiddenCount}` : ''}</T>
-                  <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}>
+                  <Pressable accessibilityRole="button" onPress={() => togglePart(p.id, p.hidden)} disabled={busy} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={busy && { opacity: 0.45 }}>
                     <T size={12} bold color={colors.accent}>{p.hidden ? '部位を表示' : '部位を非表示'}</T>
                   </Pressable>
                 </View>
@@ -166,7 +173,7 @@ export default function ManageScreen() {
             {error && <T size={12} color={colors.danger}>{error}</T>}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button label="キャンセル" variant="secondary" small style={{ flex: 1 }} onPress={() => { setAdding(false); setPartName(''); setError(null); }} />
-              <Button label="追加する" small style={{ flex: 1 }} onPress={addPart} />
+              <Button label={busy ? '追加しています…' : '追加する'} small style={{ flex: 1 }} onPress={addPart} busy={busy} />
             </View>
           </Card>
         ) : (

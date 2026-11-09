@@ -6,6 +6,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, Segmented } from '@/components/ui';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
@@ -50,6 +51,8 @@ export default function MealDetailScreen() {
   const dirty = !!meal && (date !== meal.date || slot !== meal.slot || rows.length !== meal.items.length
     || rows.some((r, i) => r.saved?.id !== meal.items[i].id || r.amountText !== trimNumber(meal.items[i].amount)));
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '直した内容は保存されません。');
+  // 保存・消す・いつものに保存は1つずつ。続けて押しても2回書かず、2つ前の画面まで戻らない
+  const { busy, run } = useBusy();
 
   if (meal === undefined) return <Screen><Header title="" onBack={() => router.back()} /></Screen>;
   if (meal === null) {
@@ -84,7 +87,7 @@ export default function MealDetailScreen() {
     setDraft(null);
   };
 
-  const save = async () => {
+  const save = () => run(async (stayBusy) => {
     for (const r of rows) {
       const n = parseNumber(r.amountText);
       if (n == null || n <= 0 || n > AMOUNT_MAX) { setError(`${r.item.name}：量は 0 より大きく ${AMOUNT_MAX.toLocaleString('en-US')} までで入れてください`); return; }
@@ -94,19 +97,21 @@ export default function MealDetailScreen() {
     setError(null);
     try {
       await repos.meals.update(meal.id, { date, slot, items: rows.map((r) => (r.saved ? r.item : { ...r.item, id: undefined })) });
+      stayBusy();
       allowLeave();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  };
-  const remove = async () => {
+  });
+  const remove = () => run(async (stayBusy) => {
     setConfirmDelete(false);
     await repos.meals.remove(meal.id);
+    stayBusy();
     allowLeave();
     router.back();
-  };
-  const saveTemplate = async () => {
+  });
+  const saveTemplate = () => run(async () => {
     const name = (templateName ?? '').trim();
     const e = templateNameError(name);
     if (e) { setError(e); return; }
@@ -114,13 +119,13 @@ export default function MealDetailScreen() {
     await repos.meals.saveTemplateFromMeal(meal.id, name);
     setTemplateName(null);
     setNotice(`いつもの「${name}」として保存しました`);
-  };
+  });
 
   const today = todayKey();
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="この食事を消す" variant="danger" onPress={() => setConfirmDelete(true)} /></>}>
+    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="この食事を消す" variant="danger" onPress={() => setConfirmDelete(true)} disabled={busy} /></>}>
       <Header title={mealTitle(meal)} onBack={() => router.back()}
-        right={<Pressable accessibilityRole="button" onPress={save} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}><T bold size={16} color={colors.accent}>保存</T></Pressable>} />
+        right={<Pressable accessibilityRole="button" onPress={save} disabled={busy} aria-busy={busy} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={busy && { opacity: 0.45 }}><T bold size={16} color={colors.accent}>保存</T></Pressable>} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {SLOTS.map((x) => <Chip key={x} label={SLOT_LABELS[x]} active={x === slot} onPress={() => setSlot(x)} />)}
       </View>
@@ -217,7 +222,7 @@ export default function MealDetailScreen() {
             <Input value={templateName} onChangeText={setTemplateName} accessibilityLabel="いつものの名前" maxLength={TEMPLATE_NAME_MAX} style={s.text} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Button label="キャンセル" variant="secondary" small onPress={() => setTemplateName(null)} style={{ flex: 1 }} />
-              <Button label="いつものに保存" small onPress={saveTemplate} style={{ flex: 1 }} />
+              <Button label={busy ? '保存しています…' : 'いつものに保存'} small onPress={saveTemplate} busy={busy} style={{ flex: 1 }} />
             </View>
           </>
         )}
@@ -225,7 +230,7 @@ export default function MealDetailScreen() {
       </Card>
 
       <ConfirmDialog visible={confirmDelete} title="この食事を消しますか？" body={`${formatJpDate(meal.date)}の${SLOT_LABELS[meal.slot]}「${mealTitle(meal)}」を消します。`}
-        confirmLabel="消す" onCancel={() => setConfirmDelete(false)} onConfirm={remove} />
+        confirmLabel="消す" onCancel={() => setConfirmDelete(false)} onConfirm={remove} busy={busy} />
       {dialog}
     </Screen>
   );

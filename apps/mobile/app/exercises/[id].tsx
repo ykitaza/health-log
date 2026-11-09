@@ -6,6 +6,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Chip, Header } from '@/components/ui';
 import { BodyPart, Exercise } from '@/db/repositories/catalog';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { colors, fonts } from '@/theme';
@@ -37,20 +38,22 @@ export default function EditExerciseScreen() {
     });
   }, [repos, id]);
 
-  const submit = async () => {
+  const { busy, run } = useBusy();
+  const submit = () => run(async (stayBusy) => {
     if (!exercise) return;
     try {
       await repos.catalog.updateExercise(exercise.id, { name, bodyPartId: partId });
       if (hidden !== exercise.hidden) await repos.catalog.setExerciseHidden(exercise.id, hidden);
+      stayBusy();
       allowLeave();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  };
+  });
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="変更を保存" onPress={submit} disabled={!exercise} /></>}>
+    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '保存しています…' : '変更を保存'} onPress={submit} disabled={!exercise} busy={busy} /></>}>
       {dialog}
       <Header title="種目を編集" onBack={() => router.back()} />
       {exercise && (
