@@ -49,17 +49,17 @@ describe('マイグレーション', () => {
 describe('設定', () => {
   test('初期値と更新', async () => {
     const { r } = await setup();
-    expect(await r.settings.get()).toEqual({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null });
     await r.settings.update({ weightUnit: 'lb', defaultSetCount: 5, heightCm: 170 });
-    await r.settings.update({ heightCm: null, goalWeightKg: 65 });
-    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 5, heightCm: null, goalWeightKg: 65 });
+    await r.settings.update({ heightCm: null, goalWeightKg: 65, activity: 'light' });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 5, heightCm: null, goalWeightKg: 65, activity: 'light' });
     await expect(r.settings.update({ defaultSetCount: 7 })).rejects.toThrow();
   });
 
   test('今の値と同じなら書かない（初期値と同じ値も、空を空にするのも）', async () => {
     const { r, db, deps } = await setup();
     const rows = () => db.raw.prepare('SELECT id, value, updated_at FROM settings ORDER BY id').all();
-    await r.settings.update({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null });
+    await r.settings.update({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null });
     expect(rows()).toEqual([]);
     await r.settings.update({ heightCm: 170 });
     const saved = rows();
@@ -78,7 +78,7 @@ describe('設定', () => {
     // 身長の欄を離れたときの保存と、単位の切り替えなどが同時に走る。トランザクションが入れ子になって失敗していた
     const { r } = await setup();
     await Promise.all([r.settings.update({ heightCm: 170 }), r.settings.update({ goalWeightKg: 65 }), r.settings.update({ weightUnit: 'lb' })]);
-    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65 });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65, activity: null });
   });
 
   test('最後に選んだチャットのアプリは端末だけに覚え、同期に載せない', async () => {
@@ -93,6 +93,26 @@ describe('設定', () => {
     // 知らない値は覚えていないことにする
     db.raw.prepare("UPDATE sync_meta SET value = 'other' WHERE key = 'chat.last_app'").run();
     expect(await r.settings.lastChatApp()).toBeNull();
+  });
+
+  test('活動の量は設定（同期する）。性別・生まれた年・自動計算の体重は端末だけに覚え、同期に載せない', async () => {
+    const { r, db } = await setup();
+    await r.settings.update({ activity: 'moderate' });
+    expect(db.raw.prepare("SELECT entity_id FROM sync_outbox WHERE entity_type = 'setting'").all()).toEqual([{ entity_id: 'activity_level' }]);
+    expect(await r.settings.profile()).toEqual({ sex: null, birthYear: null });
+    await r.settings.setProfile({ sex: 'female', birthYear: 1990 });
+    await r.settings.setAutoGoalWeight(68.3);
+    expect(await r.settings.profile()).toEqual({ sex: 'female', birthYear: 1990 });
+    expect(await r.settings.autoGoalWeight()).toBe(68.3);
+    await r.settings.setProfile({ birthYear: null });
+    expect(await r.settings.profile()).toEqual({ sex: 'female', birthYear: null });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 1 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 1 });
+    // 知らない値は入れていないことにする
+    db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'profile.sex'").run();
+    db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'activity_level'").run();
+    expect((await r.settings.profile()).sex).toBeNull();
+    expect((await r.settings.get()).activity).toBeNull();
   });
 });
 

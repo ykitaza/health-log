@@ -1,3 +1,4 @@
+import { Activity, isActivity, isSex, Sex } from '@/lib/autoGoal';
 import { ChatApp, isChatApp } from '@/lib/chat';
 import type { WeightUnit } from '@/lib/units';
 import { serializeWrites } from '../serial';
@@ -8,9 +9,22 @@ export type Settings = {
   defaultSetCount: number; // 1〜6
   heightCm: number | null;
   goalWeightKg: number | null;
+  /** ふだんの活動の量（食事の目標の自動計算に使う） */
+  activity: Activity | null;
 };
 
-export const DEFAULT_SETTINGS: Settings = { weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null };
+export const DEFAULT_SETTINGS: Settings = { weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null };
+
+/**
+ * 性別と生まれた年（食事の目標の自動計算に使う）。個人の情報なので、同期しない sync_meta に置き、端末の外に出さない。
+ * 別の端末やアプリを入れ直したときは、もう一度入れてもらう
+ */
+export type Profile = { sex: Sex | null; birthYear: number | null };
+const PROFILE_KEYS = { sex: 'profile.sex', birthYear: 'profile.birth_year' } as const;
+/** 前回、自動で計算した目標を保存したときの体重（kg）。端末だけに覚え、体重が変わったら計算し直すかを聞く */
+const AUTO_GOAL_WEIGHT = 'goal.auto_weight_kg';
+/** アカウントを切り替えて端末の記録を消すときに、いっしょに消す（db/repositories/sync.ts の switchAccount） */
+export const SQL_DELETE_PROFILE = `DELETE FROM sync_meta WHERE key IN ('${PROFILE_KEYS.sex}', '${PROFILE_KEYS.birthYear}', '${AUTO_GOAL_WEIGHT}')`;
 
 /** 最後に選んだチャットのアプリ。端末だけに覚える（同期しない sync_meta に置く） */
 const LAST_CHAT_APP = 'chat.last_app';
@@ -20,6 +34,7 @@ const KEYS: Record<keyof Settings, string> = {
   defaultSetCount: 'default_set_count',
   heightCm: 'height_cm',
   goalWeightKg: 'goal_weight_kg',
+  activity: 'activity_level',
 };
 
 function num(v: string | null | undefined): number | null {
@@ -41,8 +56,16 @@ export function settingsRepository(db: Db, deps: Deps) {
       defaultSetCount: sets != null && sets >= 1 && sets <= 6 ? Math.round(sets) : DEFAULT_SETTINGS.defaultSetCount,
       heightCm: num(m.get(KEYS.heightCm)),
       goalWeightKg: num(m.get(KEYS.goalWeightKg)),
+      activity: isActivity(m.get(KEYS.activity)) ? (m.get(KEYS.activity) as Activity) : null,
     };
   }
+
+  const meta = async (key: string) =>
+    (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [key]))?.value ?? null;
+  const putMeta = async (key: string, value: string | null) => {
+    if (value == null) await db.runAsync('DELETE FROM sync_meta WHERE key = ?', [key]);
+    else await db.runAsync('INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [key, value]);
+  };
 
   return serializeWrites(db, {
     get,
@@ -51,6 +74,21 @@ export function settingsRepository(db: Db, deps: Deps) {
       const v = (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [LAST_CHAT_APP]))?.value;
       return isChatApp(v) ? v : null;
     },
+
+    /** 性別と生まれた年（端末だけ。同期しない） */
+    async profile(): Promise<Profile> {
+      const sex = await meta(PROFILE_KEYS.sex);
+      return { sex: isSex(sex) ? sex : null, birthYear: num(await meta(PROFILE_KEYS.birthYear)) };
+    },
+
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない。null で消す */
+    async setProfile(patch: Partial<Profile>): Promise<void> {
+      if (patch.sex !== undefined) await putMeta(PROFILE_KEYS.sex, patch.sex);
+      if (patch.birthYear !== undefined) await putMeta(PROFILE_KEYS.birthYear, patch.birthYear == null ? null : String(patch.birthYear));
+    },
+
+    autoGoalWeight: async (): Promise<number | null> => num(await meta(AUTO_GOAL_WEIGHT)),
+    setAutoGoalWeight: (kg: number | null): Promise<void> => putMeta(AUTO_GOAL_WEIGHT, kg == null ? null : String(kg)),
 
     /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
     async setLastChatApp(app: ChatApp): Promise<void> {
