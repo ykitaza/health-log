@@ -211,11 +211,12 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await expect(see(page, '85.0 kg × 3 回')).toBeVisible();
   await expect(see(page, '種目3セット4')).toBeVisible();
 
-  // 外すときの確認。キャンセルなら残る
+  // 外すときの確認。やめるなら残る
   await button(page, 'ベンチプレスを外す').click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('ベンチプレスを外しますか？');
-  await expect(dialog).toContainText('入力したセットとメモも消えます。');
+  // 題は短く1行、種目の名前とセットの数は本文に
+  await expect(dialog).toContainText('種目を外しますか？');
+  await expect(dialog).toContainText('ベンチプレスと、そのセット 2 件を今日の記録から外します。メモも消えます。');
   await button(dialog, 'やめる').click();
   await expect(dialog).toBeHidden();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);

@@ -1,19 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
-import { Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, SectionTitle } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, lastDoneLabel, todayKey } from '@/lib/date';
 import { searchExercises } from '@/lib/exercises';
 import { formatSetShort } from '@/lib/format';
 import { lastTopSets } from '@/lib/training';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, radius, space } from '@/theme';
 
 /** 種目の選択（検索、部位のチップ、部位ごとの一覧、前回の記録） */
 export default function SelectExerciseScreen() {
@@ -58,29 +57,26 @@ export default function SelectExerciseScreen() {
         subtitle={`${date === today ? '今日' : formatJpDate(date)}に記録`}
         onBack={() => router.back()}
         right={
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/exercises/new', params: part ? { bodyPartId: part } : {} })} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="plus" size={18} color={colors.accent} />
-            <T bold size={14} color={colors.accent}>種目を追加</T>
-          </Pressable>
+          <Button label="種目を追加" icon="plus" variant="text" small onPress={() => router.push({ pathname: '/exercises/new', params: part ? { bodyPartId: part } : {} })} style={{ paddingLeft: 12, paddingRight: 12 }} />
         }
       />
       <DayNote date={date} today={today} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: 14, height: 48, marginVertical: 10 }}>
-        <Icon name="search" size={18} color={colors.sub} />
+      {/* M3 の search bar（高さ 56、角を丸めきる） */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.l, backgroundColor: colors.card, borderRadius: radius.full, paddingHorizontal: space.l, height: 56, marginTop: space.s, marginBottom: space.xs }}>
+        <Icon name="search" size={24} color={colors.sub} />
         <Input
           value={query}
           onChangeText={setQuery}
           placeholder="種目を検索"
           accessibilityLabel="種目を検索"
-          placeholderTextColor={colors.sub}
-          style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', color: colors.text, fontFamily: fonts.regular, fontSize: 15 }}
+          style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', color: colors.text, fontFamily: fonts.regular, fontSize: 16 }}
         />
       </View>
       <ChipRow>
         <Chip label="すべて" active={part == null} onPress={() => setPart(null)} />
         {data?.parts.map((p) => <Chip key={p.id} label={p.name} active={part === p.id} onPress={() => setPart(p.id)} />)}
       </ChipRow>
-      {data && groups.length === 0 && <EmptyState icon="search" title="見つかりません" body="「＋ 種目を追加」で新しい種目を作れます" />}
+      {data && groups.length === 0 && <EmptyState icon="search" title="見つかりません" body="右上の「種目を追加」で新しい種目を作れます" />}
       {groups.map((g) => (
         <View key={g.part.id}>
           <SectionTitle title={g.part.name} />

@@ -32,6 +32,8 @@ type ButtonProps = {
   testID?: string;
   /** 処理中（保存など）。押せなくし、読み上げで「処理中」と伝える。文言は呼ぶ側で「保存しています…」などに変える */
   busy?: boolean;
+  /** 読み上げの名前（並びの中で見た目の文字が同じとき、「ベンチプレスを外す」のように区別する） */
+  accessibilityLabel?: string;
 };
 
 const BUTTON_BG: Record<ButtonVariant, string> = {
@@ -42,7 +44,7 @@ const BUTTON_FG: Record<ButtonVariant, string> = {
 };
 
 /** M3 の button。角は丸めきる。使えないときは灰色の地と 38% の文字（色だけにしない：押しても反応しない・読み上げで使用不可） */
-export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, testID, busy }: ButtonProps) {
+export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, testID, busy, accessibilityLabel }: ButtonProps) {
   const disabled = off || busy;
   const filled = variant === 'primary' || variant === 'tonal' || variant === 'secondary';
   const bg = disabled && filled ? colors.disabledContainer : BUTTON_BG[variant];
@@ -50,6 +52,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled: of
   return (
     <PressableScale
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       disabled={disabled}
       aria-busy={!!busy}
@@ -104,7 +107,7 @@ export function IconButton({ name, onPress, label, color, bg, variant = 'standar
   );
 }
 
-/** M3 の small top app bar（高さ 64）。戻るボタンと題。overline は題の上、subtitle は題の下の補足 */
+/** M3 の small top app bar（高さ 64）。戻るボタンと題。overline と subtitle（補足）は題の上に出す（Figma の TopAppBar） */
 export function Header({ title, subtitle, onBack, right, overline }: {
   title: string; subtitle?: string; overline?: string; onBack?: () => void; right?: ReactNode;
 }) {
@@ -112,9 +115,8 @@ export function Header({ title, subtitle, onBack, right, overline }: {
     <View style={[s.header, !onBack && { paddingLeft: 12 }]}>
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} />}
       <View style={{ flex: 1 }}>
-        {overline && <T variant="bodyS" color={colors.sub}>{overline}</T>}
+        {(overline || subtitle) && <T variant="bodyS" color={colors.sub} numberOfLines={1}>{[overline, subtitle].filter(Boolean).join(' ・ ')}</T>}
         <T variant="titleL" numberOfLines={1} accessibilityRole="header">{title}</T>
-        {subtitle && <T variant="bodyS" color={colors.sub}>{subtitle}</T>}
       </View>
       {right}
     </View>
@@ -326,11 +328,11 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
   );
 }
 
-/** 区分けの見出し（緑の 14、M3 の titleSmall） */
-export function SectionTitle({ title, right }: { title: string; right?: string }) {
+/** 区分けの見出し（14、M3 の titleSmall）。accent なら緑（設定の区分けなど） */
+export function SectionTitle({ title, right, accent }: { title: string; right?: string; accent?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.xl, marginBottom: space.s }}>
-      <T variant="titleS" color={colors.accent} accessibilityRole="header">{title}</T>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.l, marginBottom: space.s }}>
+      <T variant="titleS" color={accent ? colors.accent : colors.sub} accessibilityRole="header">{title}</T>
       {right && <T variant="bodyS" color={colors.sub}>{right}</T>}
     </View>
   );

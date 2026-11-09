@@ -51,7 +51,7 @@ test('種目の検索と部位のチップ。一致がなければ空の状態',
   await button(page, 'すべて').click();
   await search(page).fill('存在しない種目');
   await expect(see(page, '見つかりません')).toBeVisible();
-  await expect(see(page, '「＋ 種目を追加」で新しい種目を作れます')).toBeVisible();
+  await expect(see(page, '右上の「種目を追加」で新しい種目を作れます')).toBeVisible();
 });
 
 test('種目の追加：名前が空、同じ名前、回数だけ', async ({ page }) => {
