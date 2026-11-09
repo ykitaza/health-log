@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AI_RECORD_LABEL, useChatChooser } from '@/components/ChatSheet';
+import { AI_RECORD_LABEL, AiRecordButton, useChatChooser } from '@/components/ChatSheet';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
@@ -12,14 +12,14 @@ import { DailyHighlights } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { MealWeekly } from '@/components/MealWeekly';
-import { Button, Card, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
+import { Button, Card, IconButton, PrimaryTabs, Segmented, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
-import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
+import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, slotAt } from '@/lib/meals';
 import { TAB_AREAS } from '@/lib/reports';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
@@ -59,8 +59,16 @@ export default function MealsScreen() {
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
+  // 「記録」の下：「AI で記録」と「食事を追加」（筋トレと同じ並び）。未来の日はどちらも押せない
+  const footer = pane === 'day' ? (
+    <View style={{ flexDirection: 'row', gap: space.s }}>
+      <AiRecordButton prompt={{ kind: 'meal', date, today }} disabled={date > today} style={{ flex: 1 }} />
+      <Button label="食事を追加" icon="plus" disabled={date > today} onPress={() => setAdding(slotAt(new Date().getHours()))} style={{ flex: 1 }} testID="meal-add" />
+    </View>
+  ) : undefined;
+
   return (
-    <Screen tab>
+    <Screen tab footer={footer}>
       <TabHeader title="食事" />
       <PrimaryTabs<'day' | 'week'>
         options={[{ key: 'day', label: '記録', icon: 'meal' }, { key: 'week', label: '週のまとめ', icon: 'chart' }]}
@@ -147,9 +155,10 @@ export default function MealsScreen() {
         date={date}
         templates={data?.templates ?? []}
         yesterday={data?.yesterday ?? []}
+        onSlot={setAdding}
         onClose={() => setAdding(null)}
         onRecord={(record) => run(async () => { setAdding(null); await record(); await reload(); })}
-        onAi={() => { setAdding(null); chat.record({ kind: 'meal', date, today }); }}
+        onAi={(slot) => { setAdding(null); chat.record({ kind: 'meal', date, today, slot }); }}
       />
       {chat.sheet}
     </Screen>
@@ -174,10 +183,10 @@ function MealRow({ meal }: { meal: Meal }) {
   );
 }
 
-/** 記録の方法を選ぶ（いつもの・昨日と同じ・品目を入力・kcal と PFC だけ） */
-function AddSheet({ slot, date, templates, yesterday, onClose, onRecord, onAi }: {
+/** 記録の方法を選ぶ（いつもの・昨日と同じ・品目を入力・kcal と PFC だけ）。上の切り替えで区分を選び直せる */
+function AddSheet({ slot, date, templates, yesterday, onSlot, onClose, onRecord, onAi }: {
   slot: Slot | null; date: string; templates: { id: string; name: string; items: { kcal: number }[] }[]; yesterday: Meal[];
-  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: () => void;
+  onSlot: (slot: Slot) => void; onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: (slot: Slot) => void;
 }) {
   const repos = useRepos();
   const insets = useSafeAreaInsets();
@@ -187,14 +196,14 @@ function AddSheet({ slot, date, templates, yesterday, onClose, onRecord, onAi }:
   const shown = slot ?? last;
   return (
     <Sheet visible={slot != null} onClose={onClose}>
-      {shown && <AddSheetBody slot={shown} date={date} templates={templates} yesterday={yesterday.filter((m) => m.slot === shown)} insetBottom={insets.bottom} onClose={onClose} onRecord={onRecord} onAi={onAi} repos={repos} />}
+      {shown && <AddSheetBody slot={shown} date={date} templates={templates} yesterday={yesterday.filter((m) => m.slot === shown)} insetBottom={insets.bottom} onSlot={onSlot} onClose={onClose} onRecord={onRecord} onAi={() => onAi(shown)} repos={repos} />}
     </Sheet>
   );
 }
 
-function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, onRecord, onAi, repos }: {
+function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onSlot, onClose, onRecord, onAi, repos }: {
   slot: Slot; date: string; templates: { id: string; name: string; items: { kcal: number }[] }[]; yesterday: Meal[]; insetBottom: number;
-  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: () => void; repos: ReturnType<typeof useRepos>;
+  onSlot: (slot: Slot) => void; onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: () => void; repos: ReturnType<typeof useRepos>;
 }) {
   const to = { date, slot };
   const open = (mode: 'items' | 'numbers') => { onClose(); router.push({ pathname: '/meals/new', params: { date, slot, mode } }); };
@@ -204,6 +213,7 @@ function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, 
         <T bold size={22}>{SLOT_LABELS[slot]}を記録</T>
         <T size={13} color={colors.sub}>{formatJpDate(date)}</T>
       </View>
+      <Segmented<Slot> options={SLOTS.map((k) => ({ key: k, label: SLOT_LABELS[k] }))} value={slot} onChange={onSlot} />
       {templates.length > 0 && (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

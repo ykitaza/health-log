@@ -1,5 +1,5 @@
 import {
-  floatSum, GoalDraft, ItemDraft, mealTitle, parseGoal, parseItem, pfcRatio, templateNameError, weekDates,
+  floatSum, GoalDraft, ItemDraft, mealTitle, parseGoal, parseItem, pfcRatio, slotAt, templateNameError, weekDates,
 } from '../meals';
 import { uuid5 } from '../uuid5';
 
@@ -93,4 +93,17 @@ test('7日（古い順）と、数の並びの合計（誤差を補う）', () =
 test('UUID v5（RFC 9562 の例と同じ）', () => {
   // Python：uuid.uuid5(uuid.NAMESPACE_DNS, "www.example.com")
   expect(uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', 'www.example.com')).toBe('2ed6657d-e927-568b-95e1-2665a8aea6a2');
+});
+
+describe('今の時刻から近い区分（食事を追加で初めに選ぶ）', () => {
+  test('4〜10 時 朝食、10〜15 時 昼食、15〜21 時 夕食、それ以外は間食', () => {
+    const got = Array.from({ length: 24 }, (_, h) => slotAt(h));
+    expect(got).toEqual([
+      'snack', 'snack', 'snack', 'snack',
+      'breakfast', 'breakfast', 'breakfast', 'breakfast', 'breakfast', 'breakfast',
+      'lunch', 'lunch', 'lunch', 'lunch', 'lunch',
+      'dinner', 'dinner', 'dinner', 'dinner', 'dinner', 'dinner',
+      'snack', 'snack', 'snack',
+    ]);
+  });
 });

@@ -1,7 +1,7 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, controlDb, enter, goTab, openApp, openBody, openMealWeek, see, setBodyInfo } from './helpers';
+import { button, controlDb, enter, goTab, openApp, openBody, openMealWeek, see, setBodyInfo, TODAY } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
 const bmi = (page: Page) => page.getByRole('button', { name: 'BMIの推移' }).filter({ visible: true }).last();
@@ -66,6 +66,29 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await button(page, '消す').click();
   await expect(see(page, '昼食はまだ記録していません')).toBeVisible();
   await expect(totalKcal(page)).toHaveText('0');
+});
+
+test('下の「食事を追加」：今の時刻に近い区分を選んだシートが開き、区分を選び直して記録できる', async ({ page }) => {
+  // 夜 7 時半なら夕食を選んでおく
+  await page.clock.setFixedTime(new Date(`${TODAY}T19:30:00+09:00`));
+  await page.goto('/');
+  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await goTab(page, '食事');
+  await button(page, '食事を追加').click();
+  await expect(see(page, '夕食を記録', { exact: true })).toBeVisible();
+  await expect(button(page, '夕食')).toHaveAttribute('aria-selected', 'true');
+  await button(page, '間食').click();
+  await expect(see(page, '間食を記録', { exact: true })).toBeVisible();
+  await expect(button(page, '間食')).toHaveAttribute('aria-selected', 'true');
+  await button(page, '品目を入力').click();
+  await field(page, '品目1の品名').fill('ヨーグルト');
+  await field(page, '品目1の量').fill('100');
+  await field(page, '品目1のエネルギー').fill('60');
+  await button(page, '記録する').click();
+  await expect(button(page, 'ヨーグルトを開く')).toBeVisible();
+  await expect(see(page, '夕食はまだ記録していません')).toBeVisible();
+  await expect(see(page, '間食はまだ記録していません')).toBeHidden();
+  await expect(totalKcal(page)).toHaveText('60');
 });
 
 test('過去の日に記録 → 次の日に「昨日と同じ」と「いつもの」で記録 → 週のふり返り', async ({ page }) => {

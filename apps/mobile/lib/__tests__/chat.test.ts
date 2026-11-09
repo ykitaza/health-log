@@ -22,6 +22,20 @@ describe('チャットに入れる文', () => {
   });
 });
 
+describe('食事の区分を入れた文', () => {
+  test('区分を選んでいれば、決まった形で区分を入れる（今日は「今日の」）', () => {
+    expect(promptText({ kind: 'meal', date: TODAY, today: TODAY, slot: 'dinner' })).toBe('hlog に今日の夕食を記録して');
+    expect(promptText({ kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'breakfast' })).toBe('hlog に 11月6日 の朝食を記録して');
+    expect(promptText({ kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'snack' })).toBe('hlog に 11月6日 の間食を記録して');
+  });
+
+  test('決まった区分でなければ、区分を入れない', () => {
+    const slot = 'x&q=1' as unknown as 'lunch';
+    expect(promptText({ kind: 'meal', date: TODAY, today: TODAY, slot })).toBe('hlog に食事を記録して');
+    expect(promptText({ kind: 'meal', date: '2026-11-06', today: TODAY, slot })).toBe('hlog に 11月6日 の食事を記録して');
+  });
+});
+
 describe('開く URL', () => {
   test('選んだアプリの URL に、エンコードした文を q で入れる', () => {
     expect(chatUrl('chatgpt', { kind: 'meal', date: TODAY, today: TODAY }))
