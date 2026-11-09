@@ -45,6 +45,12 @@ export const springs = {
 export const STAGGER_MS = 40;
 export const STAGGER_TOTAL_MS = 300;
 
+/**
+ * わざと待つ長さ（80ms まで）。2つの動きを順に見せるとき（レポートの帯のあとに調子のアイコンがポンと出る、
+ * 指標のタイルが出たあとに変化の矢印が出る）に使う
+ */
+export const HOLD_MS = 80;
+
 /** 動きを減らす設定なら 0 */
 export function motionDuration(ms: number, reduced: boolean): number {
   return reduced ? 0 : ms;

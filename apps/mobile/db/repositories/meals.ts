@@ -6,7 +6,10 @@ import {
 import { serializeWrites } from '../serial';
 import type { Bind, Db, Deps } from '../types';
 
-type MealRow = { id: string; date: string; slot: string; time: string | null; description: string; source: string; created_at: string; deleted_at: string | null };
+type MealRow = {
+  id: string; date: string; slot: string; time: string | null; description: string; source: string; basis: string | null;
+  created_at: string; deleted_at: string | null;
+};
 type ItemRow = {
   meal_id: string; id: string; name: string; amount: number; unit: string; kcal: number; protein_g: number;
   fat_g: number; carbs_g: number; confidence: string; sort_order: number; deleted_at: string | null;
@@ -31,7 +34,7 @@ export type NewItem = ItemInput & { id?: string; confidence?: MealItem['confiden
 export function mealRepository(db: Db, deps: Deps) {
   async function load(where: string, params: Bind[]): Promise<Meal[]> {
     const meals = await db.getAllAsync<MealRow>(
-      `SELECT id, date, slot, time, description, source, created_at, deleted_at FROM meals WHERE deleted_at IS NULL AND ${where}`, params,
+      `SELECT id, date, slot, time, description, source, basis, created_at, deleted_at FROM meals WHERE deleted_at IS NULL AND ${where}`, params,
     );
     if (meals.length === 0) return [];
     const items = await db.getAllAsync<ItemRow>(
@@ -39,7 +42,7 @@ export function mealRepository(db: Db, deps: Deps) {
     );
     const states: MealState[] = meals.map((m) => ({
       id: m.id, deleted: false, createdAt: m.created_at,
-      fields: { date: m.date, slot: m.slot, time: m.time, description: m.description, source: m.source },
+      fields: { date: m.date, slot: m.slot, time: m.time, description: m.description, source: m.source, basis: m.basis },
       items: items.filter((i) => i.meal_id === m.id).map((i) => ({
         id: i.id, deleted: i.deleted_at != null, fields: Object.fromEntries(ITEM_COLUMNS.map((c) => [c, i[c]])),
       })),
@@ -54,14 +57,14 @@ export function mealRepository(db: Db, deps: Deps) {
     if (n > MAX_ITEMS) throw new MealRuleError(`品目は1回の食事に${MAX_ITEMS}件までです`);
   }
 
-  async function insertMeal(m: { date: DateKey; slot: Slot; time: string | null; description: string; source: Source; items: NewItem[] }) {
+  async function insertMeal(m: { date: DateKey; slot: Slot; time: string | null; description: string; source: Source; items: NewItem[]; basis?: string | null }) {
     checkCount(m.items.length);
     const id = deps.newId();
     const now = deps.now().toISOString();
     await db.withTransactionAsync(async () => {
       await db.runAsync(
-        'INSERT INTO meals (id, date, slot, time, description, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, m.date, m.slot, m.time, m.description, m.source, now, now],
+        'INSERT INTO meals (id, date, slot, time, description, source, basis, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, m.date, m.slot, m.time, m.description, m.source, m.basis ?? null, now, now],
       );
       for (const [order, item] of m.items.entries()) await insertItem(id, item, order, now);
     });
@@ -186,7 +189,8 @@ export function mealRepository(db: Db, deps: Deps) {
     async copy(id: string, to: { date: DateKey; slot: Slot }): Promise<string> {
       const meal = await getMeal(id);
       if (!meal) throw new MealRuleError('食事が見つかりません');
-      return insertMeal({ ...to, time: null, description: meal.description, source: 'copy', items: meal.items });
+      // 推定の根拠も引き継ぐ（MCP の copy_meal と同じ）
+      return insertMeal({ ...to, time: null, description: meal.description, source: 'copy', items: meal.items, basis: meal.basis });
     },
 
     listTemplates: readTemplates,

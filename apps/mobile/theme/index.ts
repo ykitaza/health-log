@@ -47,6 +47,18 @@ export const colors = {
 /** 入力のヒント（placeholder）の色 */
 export const placeholderColor = colors.sub;
 
+/**
+ * レポートの調子（overall_tone・highlights の tone）の色（Figma の color/tone-good・tone-good-container など）。
+ * accent はアイコン・ラベル・帯の色、container は面の色、onToneSub は面の上の補足の文字（color/on-tone-variant）。どれも文字が面に対して 4.5:1 以上（lib/__tests__/contrast.test.ts）。
+ * 気をつけたいは赤を使わず琥珀色にする（責める感じにしない）
+ */
+export const toneColors = {
+  good: { accent: '#5BE49B', container: '#173A28' },
+  steady: { accent: '#A9BCCF', container: '#1F2833' },
+  caution: { accent: '#F5B54A', container: '#3A2A0C' },
+} as const;
+export const onToneSub = '#C8CED8';
+
 /** 部位の色（グラフ用）。部位の並び順で選ぶ */
 export const PART_COLORS = ['#5BE49B', '#6FA8FF', '#B98CFF', '#F5A524', '#FF8FB1', '#4DD4E6', '#E6D85B', '#FF7A59'];
 export const partColor = (index: number) => PART_COLORS[((index % PART_COLORS.length) + PART_COLORS.length) % PART_COLORS.length];

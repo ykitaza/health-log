@@ -5,6 +5,7 @@ import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
+import { LatestReportCard } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Button, Fab, TabHeader } from '@/components/ui';
@@ -133,6 +134,7 @@ export default function HomeScreen() {
           onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
         />
       </View>
+      <LatestReportCard />
     </Screen>
     <Fab
       label={isToday ? '今日のトレーニングを追加' : `${dayLabel}のトレーニングを追加`}

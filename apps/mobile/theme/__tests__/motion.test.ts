@@ -1,5 +1,5 @@
 import {
-  BAR_STAGGER_TOTAL_MS, barDelay, duration, EASE_IN, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay,
+  BAR_STAGGER_TOTAL_MS, barDelay, duration, EASE_IN, HOLD_MS, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay,
 } from '../motion';
 
 describe('動きの長さ（CLAUDE.local の決まり）', () => {
@@ -78,4 +78,8 @@ describe('グラフ', () => {
   test('動きを減らす設定なら、ずらしは 0', () => {
     expect(barDelay(3, 8, true)).toBe(0);
   });
+});
+
+test('わざと待つのは 80ms まで（レポートの調子のアイコン、変化の矢印）', () => {
+  expect(HOLD_MS).toBeLessThanOrEqual(80);
 });

@@ -35,6 +35,8 @@ export type MealItem = Nutrition & { id: string; name: string; amount: number; u
 export type Meal = {
   id: string; date: DateKey; slot: Slot; time: string | null; description: string; source: Source;
   items: MealItem[]; createdAt: string;
+  /** kcal と PFC を推定したときの根拠（MCP が書く。アプリで記録した食事は null）。画面に出すだけで、アプリでは変えない */
+  basis: string | null;
 };
 
 export type DailyTarget = { kcal: number; fat_g: number; carbs_g: number };
@@ -201,6 +203,7 @@ export function readableMeals(states: MealState[]): Meal[] {
     meals.push({
       id: s.id, date: f.date as string, slot: f.slot as Slot, time: (f.time as string | null) ?? null,
       description: f.description as string, source: f.source as Source, createdAt: s.createdAt,
+      basis: typeof f.basis === 'string' && f.basis.trim() !== '' ? f.basis : null,
       items: items.map((i) => ({
         id: i.id, name: i.fields.name as string, amount: i.fields.amount as number, unit: i.fields.unit as Unit,
         kcal: i.fields.kcal as number, protein_g: i.fields.protein_g as number, fat_g: i.fields.fat_g as number,

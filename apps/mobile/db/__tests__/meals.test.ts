@@ -27,7 +27,7 @@ describe('食事の記録・修正・削除・複製', () => {
     ]);
     const rows = d.outbox();
     expect(outboxOf(rows).slice(0, 2)).toEqual([
-      ['meal', 'create', null, { date: DAY, slot: 'lunch', time: null, description: '', source: 'text' }],
+      ['meal', 'create', null, { date: DAY, slot: 'lunch', time: null, description: '', source: 'text', basis: null }],
       ['meal_item', 'create', lunch, { ...rice, confidence: 'high', sort_order: 0 }],
     ]);
     expect(toPushChange(rows[1] as never)).toMatchObject({ entity_type: 'meal_item', parent_id: lunch, fields: { name: '白米' } });
