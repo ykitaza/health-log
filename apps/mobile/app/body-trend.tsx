@@ -1,8 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { LineChart } from '@/components/charts';
-import { RollNumber } from '@/components/motion';
+import { CountUpText, LineChart } from '@/components/charts';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, Segmented } from '@/components/ui';
@@ -60,18 +59,21 @@ export default function BodyTrendScreen() {
       ) : (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 18 }}>
-            <RollNumber num bold size={60} value={fmt1(conv(last.value))} />
+            <CountUpText num bold size={60} value={conv(last.value)} format={fmt1} animKey={`${metric}-${period}`} />
             <T size={16} color={colors.sub}>{unitLabel}</T>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {change != null && (
-              <T bold size={13} color={colors.accent}>{PERIOD_LABELS[period]}で {change >= 0 ? '+' : '−'}{fmt1(Math.abs(conv(change)))}{unitLabel}</T>
+              <CountUpText
+                bold size={13} color={colors.accent} value={Math.abs(conv(change))} animKey={`${metric}-${period}`}
+                format={(v) => `${PERIOD_LABELS[period]}で ${change >= 0 ? '+' : '−'}${fmt1(v)}${unitLabel}`}
+              />
             )}
             <T size={12} color={colors.sub}>{formatJpDate(last.date)} 時点</T>
           </View>
           <Card style={{ marginTop: 14 }}>
             {inRange.length >= 2 ? (
-              <LineChart points={datePoints(inRange, (p) => conv(p.value), from, today)} xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} />
+              <LineChart points={datePoints(inRange, (p) => conv(p.value), from, today)} xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`} />
             ) : (
               <T size={13} color={colors.sub}>記録が2日以上になると、グラフが出ます</T>
             )}

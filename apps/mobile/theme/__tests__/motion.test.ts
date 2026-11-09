@@ -1,5 +1,5 @@
 import {
-  duration, EASE_IN, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay,
+  BAR_STAGGER_TOTAL_MS, barDelay, duration, EASE_IN, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay,
 } from '../motion';
 
 describe('動きの長さ（CLAUDE.local の決まり）', () => {
@@ -57,5 +57,25 @@ describe('並んだものを順に出すときのずらし', () => {
   test('最後の行が出終わるまでが 300ms 以内（後ろの行は一緒に出す）', () => {
     for (let i = 0; i < 30; i++) expect(staggerDelay(i, false) + duration.listItem).toBeLessThanOrEqual(STAGGER_TOTAL_MS);
     expect(staggerDelay(10, false)).toBe(STAGGER_TOTAL_MS - duration.listItem);
+  });
+});
+
+describe('グラフ', () => {
+  test('線は 600ms で描く。はね返りは付けない（ease-out の曲線だけ）', () => {
+    expect(duration.draw).toBe(600);
+  });
+
+  test('棒は 40ms ずつずらす', () => {
+    expect([0, 1, 2, 3].map((i) => barDelay(i, 4, false))).toEqual([0, 40, 80, 120]);
+  });
+
+  test('本数が多いときは、ずらしを小さくして、最後の棒が伸び始めるまでを 300ms に収める', () => {
+    expect(barDelay(19, 20, false)).toBeLessThanOrEqual(BAR_STAGGER_TOTAL_MS);
+    expect(barDelay(19, 20, false)).toBeCloseTo(300);
+    expect(barDelay(1, 20, false)).toBeLessThan(40);
+  });
+
+  test('動きを減らす設定なら、ずらしは 0', () => {
+    expect(barDelay(3, 8, true)).toBe(0);
   });
 });
