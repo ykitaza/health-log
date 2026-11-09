@@ -2,6 +2,7 @@ import type { EntityState, PushChange } from '@/lib/api';
 import { backfillOutbox, insertSeeds } from '../migrations';
 import { oneAtATime } from '../serial';
 import { SQL_DELETE_HC_TOKENS } from './healthConnect';
+import { SQL_DELETE_PROFILE } from './settings';
 import { ENTITIES, EntitySpec, SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Db } from '../types';
 
@@ -196,6 +197,8 @@ export function syncStore(db: Db) {
           await insertSeeds(db, nowIso);
           // Health Connect の取り込みも、初めからやり直す（消した取り込みの記録を、次の取り込みで過去30日から読み直す）
           await db.runAsync(SQL_DELETE_HC_TOKENS, []);
+          // 食事の目標の自動計算に使う性別・生まれた年も消す（端末だけに置いている。別の人の記録に混ぜない）
+          await db.runAsync(SQL_DELETE_PROFILE, []);
         } else {
           await backfillOutbox(db);
         }

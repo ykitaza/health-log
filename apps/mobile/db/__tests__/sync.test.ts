@@ -376,6 +376,8 @@ describe('別のアカウントでログインし直したとき（docs/sync-des
     await d.engine.run();
     await d.r.body.saveManual('2026-11-08', { weightKg: 70 });
     await d.r.settings.update({ weightUnit: 'lb' });
+    await d.r.settings.setProfile({ sex: 'male', birthYear: 1990 });
+    await d.r.settings.setAutoGoalWeight(70);
 
     const serverB = createFakeSyncServer({ clock: () => '2026-11-08T04:00:00.000Z' });
     serverB.append([
@@ -387,6 +389,8 @@ describe('別のアカウントでログインし直したとき（docs/sync-des
     expect(await d.r.workouts.getDay('2026-11-08')).toEqual([]);
     expect(await d.r.body.getDay('2026-11-08')).toBeNull();
     expect((await d.r.settings.get()).weightUnit).toBe('kg');
+    expect(await d.r.settings.profile()).toEqual({ sex: null, birthYear: null });
+    expect(await d.r.settings.autoGoalWeight()).toBeNull();
     expect((await d.r.catalog.listExercises()).length).toBe(SEED_EXERCISES.length);
 
     expect(await engineFor(d, serverB).run()).toMatchObject({ ok: true, sent: 0, applied: 2 });

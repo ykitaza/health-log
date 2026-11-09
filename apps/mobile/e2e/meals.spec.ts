@@ -1,9 +1,10 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, controlDb, goTab, openApp, openMealWeek, see } from './helpers';
+import { button, controlDb, enter, goTab, openApp, openBody, openMealWeek, see, setBodyInfo } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
+const bmi = (page: Page) => page.getByRole('button', { name: 'BMIの推移' }).filter({ visible: true }).last();
 const totalKcal = (page: Page) => page.getByTestId('total-kcal').filter({ visible: true });
 
 /** 食事タブで、区分の「＋」から品目を入れて記録する */
@@ -112,4 +113,58 @@ test('「記録する」を続けて押しても1つだけ記録し、記録し�
   await expect(button(page, '白米を開く')).toBeVisible();
   await page.reload();
   await expect(button(page, '白米を開く')).toHaveCount(1);
+});
+
+test('目標の自動で計算：足りない項目を入れる → 値が入る → 直して保存。体重が変わると計算し直すかを聞く', async ({ page }) => {
+  // 計算の式・境目・丸めは jest（lib/__tests__/autoGoal.test.ts）。ここは画面の流れと、代表の値が欄に入ること
+  await openApp(page);
+  await setBodyInfo(page, { height: '170', goal: '65' });
+  await openBody(page);
+  await enter(page, '体重', '68');
+  await expect(bmi(page)).toContainText('BMI23.5'); // 保存を待つ
+  await goTab(page, '食事');
+  await button(page, '食事の目標を見る・決める').click();
+
+  // 性別・生まれた年・活動の量がないので、先に入れてもらう（身長は設定にある）
+  await button(page, '自動で計算').click();
+  await expect(see(page, '計算に使う項目を入れてください')).toBeVisible();
+  await expect(field(page, '身長')).toHaveCount(0);
+  await button(page, '保存して計算').click();
+  await expect(see(page, '性別を選んでください')).toBeVisible();
+  await button(page, '男性').click();
+  await field(page, '生まれた年').fill('1991');
+  await button(page, '少し動く').click();
+  await button(page, '保存して計算').click();
+
+  // 68kg・170cm・35歳・少し動く・目標 65kg → 減量。休み 1810kcal・F50・C204、筋トレ 2090kcal・F58・C256
+  await expect(see(page, '計算のもと')).toBeVisible();
+  await expect(see(page, '1,573kcal（Mifflin-St Jeor の式）')).toBeVisible();
+  await expect(see(page, '−350kcal')).toBeVisible();
+  await expect(field(page, '休みの日の kcal')).toHaveValue('1810');
+  await expect(field(page, '休みの日の炭水化物')).toHaveValue('204');
+  await expect(field(page, '筋トレの日の kcal')).toHaveValue('2090');
+  await expect(field(page, '筋トレの日の脂質')).toHaveValue('58');
+  await expect(field(page, '筋トレの日の炭水化物')).toHaveValue('256');
+  await expect(field(page, '体重')).toHaveValue('68');
+  await expect(button(page, '減量')).toHaveAttribute('aria-selected', 'true');
+
+  // 直してから保存する
+  await field(page, '筋トレの日の kcal').fill('2100');
+  await button(page, '目標を保存').click();
+  await button(page, '食事の目標を見る・決める').click();
+  await expect(see(page, /2,100kcal/)).toBeVisible();
+  await expect(see(page, '体重が変わりました', { exact: false })).toHaveCount(0);
+  await button(page, '戻る').click();
+
+  // 体重が 2% 以上変わると、計算し直すかを聞く（勝手に書き換えない）
+  await openBody(page);
+  await enter(page, '体重', '70');
+  await expect(bmi(page)).toContainText('BMI24.2');
+  await goTab(page, '食事');
+  await button(page, '食事の目標を見る・決める').click();
+  await expect(see(page, '体重が変わりました（前回 68.0kg → 今 70.0kg）。計算し直しますか？')).toBeVisible();
+  await expect(field(page, '筋トレの日の kcal')).toHaveValue('2100');
+  await button(page, '計算し直す').click();
+  await expect(see(page, '体重が変わりました', { exact: false })).toHaveCount(0);
+  await expect(field(page, '体重')).toHaveValue('70');
 });
