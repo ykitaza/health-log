@@ -18,11 +18,15 @@ type Props = {
   /** これより後の日は押せない（薄く出す）。未来の日を選ばせないため */
   maxDate?: DateKey;
   cell?: number;
+  /** 週の行どうしの間 */
+  rowGap?: number;
+  /** 曜日の下に線を引く */
+  divider?: boolean;
   testID?: string;
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
@@ -30,8 +34,8 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
   const grow = reduced ? undefined : ZoomIn.duration(duration.enter).easing(easeOut);
   return (
     <LayoutAnimationConfig skipEntering>
-      <View style={{ gap: 6 }} testID={testID}>
-        <View style={s.row}>
+      <View style={{ gap: rowGap }} testID={testID}>
+        <View style={[s.row, divider && s.divider]}>
           {WEEKDAY_EN.map((w) => (
             <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
           ))}
@@ -81,4 +85,5 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
 const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   cellBox: { alignItems: 'center', justifyContent: 'center' },
+  divider: { borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 4 },
 });
