@@ -221,6 +221,38 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
   );
 }
 
+/**
+ * M3 の primary tabs（タブの画面の中の切り替え：「今日」と「履歴」など）。高さ 48、選んだものは緑の文字と下の線。
+ * 下の線は選んだものへ横にすべる（250ms、行き帰り同じ）
+ */
+export function PrimaryTabs<K extends string>({ options, value, onChange }: { options: { key: K; label: string; icon?: IconName }[]; value: K; onChange: (k: K) => void }) {
+  const [layouts, setLayouts] = useLayouts();
+  const mark = layouts[value];
+  return (
+    <View accessibilityRole="tablist" style={s.tabs}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="tab"
+            aria-selected={active}
+            onPress={() => onChange(o.key)}
+            onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
+            style={s.tabItem}
+          >
+            {o.icon && <Icon name={o.icon} size={24} color={active ? colors.accent : colors.sub} />}
+            <T variant="titleS" color={active ? colors.accent : colors.sub}>{o.label}</T>
+            {active && !mark && <View style={[s.tabMark, { left: 16, right: 16 }]} />}
+          </Pressable>
+        );
+      })}
+      {/* 下の線は文字の幅（左右 16 を除く） */}
+      <SlidingMark layout={mark && { x: mark.x + 16, width: mark.width - 32 }} style={s.tabMark} />
+    </View>
+  );
+}
+
 /** 並んだものの位置と幅（key ごと）。選んだ印をすべらせるのに使う */
 export function useLayouts(): [Record<string, ItemLayout | undefined>, (key: string, l: ItemLayout) => void] {
   const [layouts, set] = useState<Record<string, ItemLayout | undefined>>({});
@@ -342,6 +374,9 @@ const s = StyleSheet.create({
   tabHeader: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginRight: -12 },
   dayNote: { flexDirection: 'row', alignItems: 'center', gap: space.s, borderRadius: radius.m, paddingHorizontal: space.l, paddingVertical: space.m, marginTop: space.xs },
   chip: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, height: CHIP_HEIGHT, borderRadius: radius.s, borderWidth: 1 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginHorizontal: -space.screen },
+  tabItem: { flex: 1, minHeight: sz.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.l },
+  tabMark: { position: 'absolute', bottom: 0, height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: colors.accent },
   segment: { flexDirection: 'row', height: sz.touch },
   segmentFrame: { position: 'absolute', left: 0, right: 0, top: 4, bottom: 4, borderRadius: radius.full, borderWidth: 1, borderColor: colors.outline, overflow: 'hidden' },
   segmentItem: { flex: 1, height: sz.touch, justifyContent: 'center' },

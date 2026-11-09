@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { openApp, recordOn, moveToDate, TODAY, see } from './helpers';
+import { button, goTab, homeCard, openApp, recordOn, moveToDate, TODAY, see, tab } from './helpers';
 
 // 総負荷量・週ごとの棒・日数の計算は jest（lib/__tests__/screen-logic.test.ts の「ホームの数字」）。ここは画面に出ること
 
@@ -17,7 +17,21 @@ test('記録がないときのホーム（まっさらなデータから始ま�
     await expect(visible(page, id)).toContainText('0.00t');
     await expect(visible(page, id)).toContainText('× 0.0');
   }
-  await expect(see(page, 'まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。')).toBeVisible();
+  // 今日のトレーニング・食事・体調の小さなカード。記録がない日も出す
+  await expect(homeCard(page, 'training')).toContainText('今日のトレーニング');
+  await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
+  await expect(homeCard(page, 'meals')).toContainText('今日の食事');
+  await expect(homeCard(page, 'meals')).toContainText('0 kcal ・ まだ記録がありません');
+  await expect(homeCard(page, 'condition')).toContainText('今日の体調');
+  await expect(homeCard(page, 'condition')).toContainText('まだ記録がありません');
+  await expect(button(page, '今日のトレーニングを追加')).toBeVisible();
+
+  // 食事のカードは食事のタブ、体調のカードはからだのタブを開く
+  await homeCard(page, 'meals').click();
+  await expect(tab(page, '食事')).toHaveAttribute('aria-selected', 'true');
+  await goTab(page, 'ホーム');
+  await homeCard(page, 'condition').click();
+  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('記録したあとの総負荷量のカード、週ごとの棒、カレンダーの印、今日の記録', async ({ page }) => {
@@ -49,15 +63,16 @@ test('記録したあとの総負荷量のカード、週ごとの棒、カレ�
   await expect(visible(page, 'archive')).toContainText('2days');
   await expect(visible(page, 'archive')).toContainText('TOTAL2 days');
 
-  // 今日の記録：推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
+  // 今日のトレーニングのカード：2種目・4セット・1980kg
+  await expect(homeCard(page, 'training')).toContainText('2種目 ・ 4セット ・ 1.98 t');
+
+  // カードを押すと、今日のトレーニングが開く。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
+  await homeCard(page, 'training').click();
+  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
   await expect(see(page, '推定1RM 101.3kg')).toBeVisible();
   await expect(see(page, '80.0 kg × 8 回')).toHaveCount(2);
   await expect(see(page, '70.0 kg × 10 回')).toBeVisible();
   await expect(see(page, '最後きつい')).toBeVisible();
   await expect(see(page, '懸垂', { exact: true })).toBeVisible();
   await expect(see(page, '10 回', { exact: true })).toBeVisible();
-
-  // 今日の記録を押すと、今日のトレーニングが開く
-  await see(page, '懸垂', { exact: true }).click();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
 });

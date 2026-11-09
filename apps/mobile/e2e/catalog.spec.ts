@@ -1,9 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, openApp, openSettings, recordToday, see, tab } from './helpers';
+import { button, chooseExercise, goPane, goTab, openApp, openSettings, recordToday, see, tab } from './helpers';
 
 /** ホーム → 今日のトレーニング → 種目の選択 */
 async function openSelect(page: Page) {
-  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '今日のトレーニングを追加').click();
   await button(page, '種目を追加').click();
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
 }
@@ -142,10 +142,12 @@ test('非表示にした種目と部位は選択から消え、過去の記録�
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 
-  // ホームの今日の記録と履歴には残る
+  // 筋トレの今日と履歴には残る
+  await goTab(page, '筋トレ');
+  await goPane(page, '今日');
   await expect(see(page, 'ベンチプレス', { exact: true })).toBeVisible();
   await expect(see(page, 'クランチ', { exact: true })).toBeVisible();
-  await tab(page, '履歴／分析').click();
+  await goPane(page, '履歴');
   await expect(button(page, 'ベンチプレス')).toBeVisible();
   await expect(button(page, 'クランチ')).toBeVisible();
   await expect(see(page, '11月8日（日） ベンチプレス')).toBeVisible();
@@ -288,9 +290,11 @@ test('種目の名前を変えると、過去の記録・履歴・選択に新�
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 
-  // ホームの今日の記録と履歴に、新しい名前で出る
+  // 筋トレの今日と履歴に、新しい名前で出る
+  await goTab(page, '筋トレ');
+  await goPane(page, '今日');
   await expect(see(page, 'バーベルベンチプレス', { exact: true })).toBeVisible();
-  await tab(page, '履歴／分析').click();
+  await goPane(page, '履歴');
   await expect(button(page, 'バーベルベンチプレス')).toBeVisible();
   await expect(see(page, '11月8日（日） バーベルベンチプレス')).toBeVisible();
   await tab(page, 'ホーム').click();

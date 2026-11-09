@@ -1,22 +1,24 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, SetNo, TabHeader } from '@/components/ui';
+import { Badge, Button, Fab, TabHeader } from '@/components/ui';
+import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, yearMonth } from '@/lib/date';
-import { formatSetLong, tonnes } from '@/lib/format';
-import { bestSet, daysInMonth, periodTotals, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
-import { fmt1, kgToUnit } from '@/lib/units';
-import { touchRoom } from '@/lib/touch';
-import { colors } from '@/theme';
+import { formatMinutes } from '@/lib/health';
+import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
+import { tonnes } from '@/lib/format';
+import { daysInMonth, periodTotals, totalVolume, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
+import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
+import { colors, radius, size, space } from '@/theme';
 
 const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週前'];
 const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo: 'plane' };
@@ -32,11 +34,16 @@ export default function HomeScreen() {
   // 過去の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(isToday, () => setPicked(null));
   const { data, error, reload } = useFocusData(async (r) => {
-    const [rows, todays, settings] = await Promise.all([r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get()]);
-    return { rows, todays, settings, day: selected };
+    const [rows, todays, settings, meals, daily, sleep, heart] = await Promise.all([
+      r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get(), r.meals.summaries(selected, selected),
+      r.body.listDaily(), r.health.sleepDay(selected), r.health.heartRateDay(selected),
+    ]);
+    const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
+    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected };
   }, selected);
   // 日を選び直した直後は、読み終わるまで前の日の記録を出さない
   const dayEntries = data?.day === selected ? data.todays : null;
+  const meal = data?.day === selected ? data.meal : null;
 
   const { year, month } = yearMonth(today);
   const rows = data?.rows ?? [];
@@ -49,8 +56,9 @@ export default function HomeScreen() {
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
-    <Screen tab>
-      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} />
+    <View style={{ flex: 1 }}>
+    <Screen tab bottomSpace={size.fab + space.l * 2}>
+      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} actions={<Button label="RM計算機" icon="calc" variant="text" small onPress={() => router.push('/rm')} />} />
 
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         <View style={{ flex: 1.55 }}>
@@ -80,7 +88,7 @@ export default function HomeScreen() {
             <View style={{ gap: 3, marginTop: 8 }}>
               {weekly.map((v, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <T size={9} color={i === 0 ? colors.text : colors.sub} style={{ width: 30 }}>{WEEK_LABELS[i]}</T>
+                  <T variant="labelS" bold={i === 0} color={i === 0 ? colors.text : colors.sub} style={{ width: 34 }}>{WEEK_LABELS[i]}</T>
                   <View style={{ flex: 1, height: 6 }}>
                     <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : colors.accentMuted }} />
                   </View>
@@ -93,66 +101,82 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-        <Button
-          label={isToday ? '本日のトレーニングを追加' : `${dayLabel}のトレーニングを追加`}
-          icon="plus"
-          onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
-          style={{ flex: 1 }}
-        />
-        <Button label="RM計算機" icon="calc" variant="outline" onPress={() => router.push('/rm')} />
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(15, { top: 22, bottom: 10 }) }}>
-        <T bold size={17}>{dayLabel}の記録</T>
-        {isToday ? (
-          <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={{ top: 15, bottom: 15, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="calendar" size={15} color={colors.accent} />
-            <T bold size={13} color={colors.accent}>今日に戻る</T>
-          </Pressable>
-        )}
-      </View>
-      {dayEntries?.length === 0 && (
-        <Card>
-          <T color={colors.sub} size={13}>
-            {isToday
-              ? 'まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。'
-              : `${formatJpDate(selected)}の記録はありません。「${dayLabel}のトレーニングを追加」から記録できます。`}
-          </T>
-        </Card>
+      {!isToday && (
+        <View style={s.pickedRow}>
+          <T variant="bodyM" color={colors.sub}>{formatJpDate(selected)}を表示しています</T>
+          <Button label="今日に戻る" icon="calendar" variant="text" small onPress={() => setPicked(null)} style={{ paddingLeft: 12, paddingRight: 12 }} />
+        </View>
       )}
-      <View style={{ gap: 10 }}>
-        {dayEntries?.map((e) => {
-          const best = bestSet(e.sets);
-          return (
-            <PressableScale key={e.id} accessibilityRole="button" accessibilityLabel={`${e.exerciseName}の記録を開く`} scaleTo={0.98} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
-              <Card>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>
-                  {best && <T bold size={13} color={colors.accent}>推定1RM {fmt1(kgToUnit(best.e1rm, unit))}{unit}</T>}
-                </View>
-                {e.sets.map((st, i) => (
-                  <View key={st.id} style={{ marginTop: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <SetNo n={i + 1} />
-                      <T num bold size={17}>{formatSetLong(st.weightKg, st.reps, unit)}</T>
-                    </View>
-                    {st.memo !== '' && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 34, marginTop: 2 }}>
-                        <Icon name="pencil" size={13} color={colors.sub} />
-                        <T size={12} color={colors.sub}>{st.memo}</T>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </Card>
-            </PressableScale>
-          );
-        })}
+      <View style={{ gap: space.l, marginTop: isToday ? space.l : space.s }}>
+        <SummaryCard
+          testID="home-training"
+          icon="dumbbell"
+          title={`${dayLabel}のトレーニング`}
+          body={dayEntries == null ? '' : dayEntries.length === 0
+            ? 'まだ記録がありません'
+            : `${dayEntries.length}種目 ・ ${dayEntries.reduce((n, e) => n + e.sets.length, 0)}セット ・ ${tonnes(dayEntries.reduce((n, e) => n + totalVolume(e.sets), 0), unit)} ${unit === 'kg' ? 't' : 'k lb'}`}
+          onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
+        />
+        <SummaryCard
+          testID="home-meals"
+          icon="meal"
+          title={`${dayLabel}の食事`}
+          badge={meal ? DAY_TYPE_LABELS[meal.dayType] : undefined}
+          body={meal == null ? '' : mealLine(meal)}
+          onPress={() => router.navigate({ pathname: '/meals', params: { date: selected } })}
+        />
+        <SummaryCard
+          testID="home-condition"
+          icon="scale"
+          title={`${dayLabel}の体調`}
+          body={data?.day === selected ? conditionLine(data.weightKg, data.sleep, data.heart, unit) : ''}
+          onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
+        />
       </View>
     </Screen>
+    <Fab
+      label={isToday ? '今日のトレーニングを追加' : `${dayLabel}のトレーニングを追加`}
+      onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
+      style={s.fab}
+    />
+    </View>
+  );
+}
+
+/** 食事のカードの1行：目標があれば kcal とたんぱく質の残り、なければ食べた kcal */
+function mealLine(d: DaySummary): string {
+  const r = d.remaining;
+  if (r?.kcal == null) return `${fmtInt(d.total.kcal)} kcal${d.meals.length === 0 ? ' ・ まだ記録がありません' : ''}`;
+  const left = (n: number, u: string) => (n >= 0 ? `残り ${fmtInt(n)} ${u}` : `${fmtInt(-n)} ${u} 超え`);
+  return [left(r.kcal, 'kcal'), r.protein_g != null ? `たんぱく質 ${left(r.protein_g, 'g')}` : null].filter(Boolean).join(' ・ ');
+}
+
+/** 体調のカードの1行：体重・睡眠・安静時心拍（ない値は出さない） */
+function conditionLine(weightKg: number | null, sleep: SleepDay | null, heart: HeartRateDay | null, unit: 'kg' | 'lb'): string {
+  const parts = [
+    weightKg != null ? `体重 ${fmt1(kgToUnit(weightKg, unit))} ${unit}` : null,
+    sleep ? `睡眠 ${formatMinutes(sleep.asleepMin)}` : null,
+    heart?.restingBpm != null ? `安静時 ${Math.round(heart.restingBpm)} 拍/分` : null,
+  ].filter(Boolean);
+  return parts.length === 0 ? 'まだ記録がありません' : parts.join(' ・ ');
+}
+
+/** ホームの小さなカード（今日のトレーニング・食事・体調）。押すとそれぞれの画面へ */
+function SummaryCard({ testID, icon, title, badge, body, onPress }: {
+  testID: string; icon: IconName; title: string; badge?: string; body: string; onPress: () => void;
+}) {
+  return (
+    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={`${title}を開く。${badge ? `${badge}。` : ''}${body}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
+      <View style={s.summaryIcon}><Icon name={icon} size={24} color={colors.onAccentDark} /></View>
+      <View style={{ flex: 1, gap: space.xs }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+          <T variant="titleM" style={{ flexShrink: 1 }} numberOfLines={1}>{title}</T>
+          {badge && <Badge label={badge} />}
+        </View>
+        <T variant="bodyM" color={colors.sub}>{body}</T>
+      </View>
+      <Icon name="chevron" size={24} color={colors.sub} />
+    </PressableScale>
   );
 }
 
@@ -161,11 +185,11 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
 }) {
   return (
     <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
-      <T size={10} color={colors.sub}>{title}</T>
+      <T variant="labelS" color={colors.sub}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {/* 読み込みが終わる前の 0 から変わるときは動かさない（ready） */}
         <RollNumber num bold size={26} value={tonnes(kg, unit)} ready={ready} />
-        <T size={10} color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
+        <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
@@ -177,6 +201,10 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
 }
 
 const s = StyleSheet.create({
+  pickedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: space.l, backgroundColor: colors.card, borderRadius: radius.l, padding: space.l, minHeight: 80 },
+  summaryIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
+  fab: { position: 'absolute', right: space.l, bottom: space.l },
   archive: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed', marginTop: 10, paddingTop: 10 },
   volume: { backgroundColor: colors.input, borderRadius: 12, padding: 10 },
 });

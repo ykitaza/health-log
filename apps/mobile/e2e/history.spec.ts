@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, moveToDate, openApp, recordOn, recordToday, saveButton, see, tab, TODAY } from './helpers';
+import { button, goTab, moveToDate, openApp, openMealWeek, openTrainingHistory, recordOn, recordToday, saveButton, see, tab, TODAY } from './helpers';
 
 // 総負荷量・推定1RM・増減・自己ベストの計算は jest（lib/__tests__/screen-logic.test.ts の「履歴の数字」）。ここは画面の切り替えと表示
 
@@ -19,24 +19,23 @@ async function seed(page: Page) {
     { exercise: '懸垂', sets: [{ reps: '10' }] },
   ]);
   await moveToDate(page, TODAY);
-  await tab(page, '履歴／分析').click();
-  await expect(see(page, '履歴／分析', { exact: true })).toBeVisible();
+  await openTrainingHistory(page);
 }
 
 const day = (page: Page, date: string) => page.getByTestId('history-calendar').getByTestId(`day-${date}`);
 
 test('記録がないとき（筋トレと食事）。回数だけの記録しかないときの自己ベスト', async ({ page }) => {
   await openApp(page);
-  await tab(page, '履歴／分析').click();
+  await openTrainingHistory(page);
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
-  await button(page, '食事').click();
+  await openMealWeek(page);
   await expect(see(page, 'この週はまだ記録がありません')).toBeVisible();
-  await button(page, '筋トレ').click();
+  await goTab(page, '筋トレ');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
 
   await tab(page, 'ホーム').click();
   await recordToday(page, [{ exercise: '懸垂', sets: [{ reps: '10' }] }]);
-  await tab(page, '履歴／分析').click();
+  await openTrainingHistory(page);
   await button(page, 'グラフ').click();
   await expect(see(page, '重量のある種目の記録がまだありません')).toBeVisible();
   await expect(see(page, '週の平均 0.0t ・ 先週より +0.0t')).toBeVisible();

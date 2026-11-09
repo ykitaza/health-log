@@ -24,10 +24,11 @@ export async function moveToDate(page: Page, date: string) {
   await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 }
 
-export const tab = (page: Page, name: 'ホーム' | '食事' | '履歴／分析' | '体組成') => page.getByRole('tab', { name });
+export type TabName = 'ホーム' | '筋トレ' | '食事' | 'からだ';
+export const tab = (page: Page, name: TabName) => page.getByRole('tab', { name, exact: true });
 
 /** タブを切り替える。前のタブが隠れる（aria-hidden になる）まで待つ */
-export async function goTab(page: Page, name: 'ホーム' | '食事' | '履歴／分析' | '体組成') {
+export async function goTab(page: Page, name: TabName) {
   await tab(page, name).click();
   await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
   // 設定の歯車はどのタブにもある（隠れたタブのものは数えない）
@@ -75,11 +76,11 @@ export async function addEntry(page: Page, exercise: string, sets: SetSpec[]) {
 
 /** ホームから、今日の記録を足してホームに戻る */
 export async function recordToday(page: Page, entries: { exercise: string; sets: SetSpec[] }[]) {
-  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '今日のトレーニングを追加').click();
   await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
   for (const e of entries) await addEntry(page, e.exercise, e.sets);
   await button(page, '戻る').click();
-  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
+  await expect(homeCard(page, 'training')).toBeVisible();
 }
 
 /** その日を「今日」にして記録する（過去の日の記録を、画面の操作だけで作る） */
@@ -147,9 +148,31 @@ export async function controlDb(page: Page) {
   };
 }
 
-/** ホームから体組成のタブを開く */
+/** ホームの小さなカード（今日のトレーニング・食事・体調） */
+export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
+
+/** タブの中の切り替え（筋トレの「今日」「履歴」、食事の「記録」「週のまとめ」） */
+export async function goPane(page: Page, name: '今日' | '履歴' | '記録' | '週のまとめ') {
+  const t = page.getByRole('tab', { name, exact: true }).filter({ visible: true });
+  await t.click();
+  await expect(t).toHaveAttribute('aria-selected', 'true');
+}
+
+/** 筋トレのタブの「履歴」を開く（前の履歴／分析のタブの筋トレ） */
+export async function openTrainingHistory(page: Page) {
+  await goTab(page, '筋トレ');
+  await goPane(page, '履歴');
+}
+
+/** 食事のタブの「週のまとめ」を開く（前の履歴／分析のタブの食事） */
+export async function openMealWeek(page: Page) {
+  await goTab(page, '食事');
+  await goPane(page, '週のまとめ');
+}
+
+/** ホームからからだのタブを開く */
 export async function openBody(page: Page) {
-  await goTab(page, '体組成');
+  await goTab(page, 'からだ');
   await expect(see(page, '自動で計算', { exact: false }).first()).toBeVisible();
 }
 

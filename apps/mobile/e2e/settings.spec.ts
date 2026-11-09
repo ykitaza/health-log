@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, goTab, openApp, openBody, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, goTab, homeCard, openApp, openBody, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -25,7 +25,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await enter(page, '体重', '70');
   await expect(see(page, '目標 65.0kg')).toBeVisible();
 
-  // lb にする（体組成の歯車から）
+  // lb にする（からだの歯車から）
   await openSettings(page);
   await chooseUnit(page, 'lb');
   // 目標体重の欄も lb で出る：65 ÷ 0.45359237 = 143.30
@@ -33,19 +33,22 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await expect(see(page, 'lb', { exact: true }).last()).toBeVisible();
   await button(page, '戻る').click();
 
-  // 体組成：70kg = 154.32lb、目標 143.3lb、残り 11.0lb
+  // からだ：70kg = 154.32lb、目標 143.3lb、残り 11.0lb
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toHaveValue('154.32');
   await expect(see(page, '目標 143.3lb')).toBeVisible();
   await expect(see(page, '11.0', { exact: true })).toBeVisible();
 
-  // ホーム：80kg = 176.4lb、推定1RM 101.33kg = 223.4lb、負荷量 640kg = 1410.96lb → 1.41 k lb
+  // ホーム：負荷量 640kg = 1410.96lb → 1.41 k lb。筋トレの今日：80kg = 176.4lb、推定1RM 101.33kg = 223.4lb
   await goTab(page, 'ホーム');
+  await expect(page.getByTestId('volume-total')).toContainText('1.41k lb');
+  await expect(homeCard(page, 'training')).toContainText('1.41 k lb');
+  await goTab(page, '筋トレ');
   await expect(see(page, '176.4 lb × 8 回')).toBeVisible();
   await expect(see(page, '推定1RM 223.4lb')).toBeVisible();
-  await expect(page.getByTestId('volume-total')).toContainText('1.41k lb');
+  await goTab(page, 'ホーム');
 
   // lb で入れた記録は kg で保存する：100lb = 45.36kg
-  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '今日のトレーニングを追加').click();
   await button(page, '種目を追加').click();
   await chooseExercise(page, 'スクワット');
   await expect(see(page, '重量（lb）')).toBeVisible();
@@ -73,6 +76,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   expect(csv).toContain('2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n');
   expect(csv).toMatch(/2026-11-08,脚,スクワット,1,45\.359237\d*,5,,0\r\n/);
   await button(page, '戻る').click();
+  await goTab(page, '筋トレ');
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
   await expect(see(page, '45.4 kg × 5 回')).toBeVisible();
 });
@@ -87,7 +91,7 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
   await expect(button(page, '3セット')).toHaveAttribute('aria-selected', 'false');
   await button(page, '戻る').click();
 
-  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '今日のトレーニングを追加').click();
   await button(page, '種目を追加').click();
   await chooseExercise(page, 'スクワット');
   await expect(page.getByLabel(/^セット\d+の回数$/)).toHaveCount(5);

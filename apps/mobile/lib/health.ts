@@ -1,4 +1,4 @@
-// 睡眠・心拍の表示（体組成のタブ）
+// 睡眠・心拍の表示（からだのタブ、ホームの体調のカード）
 
 /** 分を「7時間12分」に（1時間未満は「45分」） */
 export function formatMinutes(min: number): string {
