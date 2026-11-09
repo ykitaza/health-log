@@ -81,6 +81,11 @@ export function formatJpDate(key: DateKey): string {
   return `${m}月${d}日（${WEEKDAY_JA[weekday(key)]}）`;
 }
 
+/** カレンダーの日のマスの読み上げの名前（「11月5日（木） 今日 記録あり」）。「2026-11-05」と数字を読ませない */
+export function dayLabel(key: DateKey, { today, marked }: { today?: boolean; marked?: boolean }): string {
+  return [formatJpDate(key), today ? '今日' : '', marked ? '記録あり' : ''].filter(Boolean).join(' ');
+}
+
 /** 11月8日 */
 export function formatMonthDay(key: DateKey): string {
   const [, m, d] = parts(key);

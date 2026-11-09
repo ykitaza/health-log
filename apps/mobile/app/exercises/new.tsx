@@ -74,6 +74,7 @@ export default function NewExerciseScreen() {
         value={name}
         onChangeText={(t) => { setName(t); setError(null); }}
         placeholder="例：インクラインベンチプレス"
+        accessibilityLabel="種目の名前"
         placeholderTextColor={colors.sub}
         autoFocus
         style={{ height: 52, borderRadius: 12, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.accent, color: colors.text, fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: 14 }}

@@ -19,6 +19,7 @@ import {
   totalVolume, trainingDates, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors, partColor } from '@/theme';
 
 const ALL = 'all';
@@ -83,7 +84,7 @@ export default function HistoryScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26}>履歴／分析</T></View>
+      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">履歴／分析</T></View>
       <Segmented options={[{ key: 'training', label: '筋トレ' }, { key: 'meals', label: '食事' }]} value={mode} onChange={setMode} />
 
       {mode === 'meals' ? (
@@ -113,7 +114,7 @@ export default function HistoryScreen() {
           ) : view === 'calendar' ? (
             <>
               <Card style={{ marginTop: 14 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { bottom: 10 }) }}>
                   <IconButton name="prev" label="前の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, -1))} />
                   <T num bold size={24}>{MONTH_NAMES_EN[m - 1]} {year}</T>
                   <IconButton name="next" label="次の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
@@ -127,7 +128,7 @@ export default function HistoryScreen() {
                 const best = bestSet(e.sets);
                 return (
                   <Card key={e.id} style={{ marginTop: 12, gap: 6 }}>
-                    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/workout', params: { date: selectedDay } })} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Pressable accessibilityRole="button" hitSlop={{ top: 13, bottom: 13 }} onPress={() => router.push({ pathname: '/workout', params: { date: selectedDay } })} style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <T bold size={16} style={{ flex: 1 }}>{formatJpDate(selectedDay)} {e.exerciseName}</T>
                       <Icon name="chevron" size={16} color={colors.sub} />
                     </Pressable>
@@ -203,6 +204,8 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
           <Pressable
             key={p}
             accessibilityRole="button"
+            aria-selected={period === p}
+            hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }}
             onPress={() => setPeriod(p)}
             onLayout={(e) => setLayouts(p, e.nativeEvent.layout)}
             style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p && !mark ? colors.input : 'transparent' }}

@@ -82,7 +82,7 @@ test('カレンダー：月の移動、記録のある日・ない日の選択�
   await button(page, 'ベンチプレス').click();
   await expect(see(page, 'ベンチプレスをした日：今月 2回')).toBeVisible();
   await expect(see(page, '11月8日（日） 懸垂')).toBeHidden();
-  await expect(day(page, '2026-11-05')).toHaveAttribute('aria-label', '2026-11-05 記録あり');
+  await expect(day(page, '2026-11-05')).toHaveAttribute('aria-label', '11月5日（木） 記録あり');
   await button(page, '前の月').click();
   await expect(see(page, 'ベンチプレスをした日：今月 0回')).toBeVisible();
   await expect(see(page, 'この月の記録はありません')).toBeVisible();

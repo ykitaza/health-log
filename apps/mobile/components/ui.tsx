@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
 import { colors, radius } from '@/theme';
+import { touchSlop } from '@/lib/touch';
 import { Icon, IconName } from './Icon';
 import { ItemLayout, PressableScale, SlidingMark } from './motion';
 import { T } from './Text';
@@ -28,6 +29,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, st
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
+      hitSlop={small ? { top: touchSlop(44), bottom: touchSlop(44) } : undefined}
       style={[
         s.button,
         { backgroundColor: bg, opacity: disabled ? 0.45 : 1, minHeight: small ? 44 : 56 },
@@ -41,15 +43,17 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, st
   );
 }
 
-export function IconButton({ name, onPress, label, color = colors.text, bg = colors.card, size = 44 }: {
-  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number;
+/** アイコンだけのボタン。押せる範囲は hitSlop で 48 以上にする。disabled は押せなくし、読み上げで「使用不可」（色は呼ぶ側が決める） */
+export function IconButton({ name, onPress, label, color = colors.text, bg = colors.card, size = 44, disabled }: {
+  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number; disabled?: boolean;
 }) {
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      hitSlop={6}
+      disabled={disabled}
+      hitSlop={touchSlop(size, 6)}
       scaleTo={0.92}
       style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}
     >
@@ -67,7 +71,7 @@ export function Header({ title, subtitle, onBack, right, overline }: {
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} />}
       <View style={{ flex: 1 }}>
         {overline && <T size={12} color={colors.sub}>{overline}</T>}
-        <T bold size={overline ? 20 : 22} numberOfLines={1}>{title}</T>
+        <T bold size={overline ? 20 : 22} numberOfLines={1} accessibilityRole="header">{title}</T>
         {subtitle && <T size={12} color={colors.sub}>{subtitle}</T>}
       </View>
       {right}
@@ -98,6 +102,7 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
       accessibilityRole="button"
       aria-selected={!!active}
       onPress={onPress}
+      hitSlop={{ top: touchSlop(CHIP_HEIGHT), bottom: touchSlop(CHIP_HEIGHT) }}
       style={[s.chip, active ? { backgroundColor: colors.accentDark, borderColor: colors.accent } : { backgroundColor: colors.input, borderColor: colors.input }]}
     >
       <T size={13} bold={active} color={active ? colors.accent : colors.sub}>{label}</T>
@@ -106,8 +111,10 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
 }
 
 export function ChipRow({ children }: { children: ReactNode }) {
+  // チップの上下の hitSlop が届くように、見た目を変えずに上下を広げる（Android では hitSlop が親の外に出ない）
+  const room = touchSlop(CHIP_HEIGHT);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: -room }} contentContainerStyle={{ gap: 8, paddingRight: 16, paddingVertical: room }}>
       {children}
     </ScrollView>
   );
@@ -161,8 +168,8 @@ export function EmptyState({ icon = 'dumbbell', title, body }: { icon?: IconName
 }
 
 /** 確認のダイアログ */
-export function ConfirmDialog({ visible, title, body, confirmLabel, onConfirm, onCancel, danger = true }: {
-  visible: boolean; title: string; body?: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
+export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'キャンセル', onConfirm, onCancel, danger = true }: {
+  visible: boolean; title: string; body?: string; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -171,7 +178,7 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, onConfirm, o
           <T bold size={17}>{title}</T>
           {body && <T size={13} color={colors.sub} style={{ lineHeight: 20 }}>{body}</T>}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-            <Button label="キャンセル" variant="secondary" onPress={onCancel} style={{ flex: 1 }} small />
+            <Button label={cancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} small />
             <Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onPress={onConfirm} style={{ flex: 1 }} small />
           </View>
         </View>
@@ -205,7 +212,7 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
 export function SectionTitle({ title, right }: { title: string; right?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-      <T bold size={13} color={colors.sub}>{title}</T>
+      <T bold size={13} color={colors.sub} accessibilityRole="header">{title}</T>
       {right && <T size={12} color={colors.sub}>{right}</T>}
     </View>
   );
@@ -219,12 +226,14 @@ export function Badge({ label, color = colors.accent, bg = colors.accentDark }: 
   );
 }
 
+export const CHIP_HEIGHT = 34;
+
 const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   dayNote: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4 },
-  chip: { paddingHorizontal: 14, height: 34, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { paddingHorizontal: 14, height: CHIP_HEIGHT, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   segment: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 4 },
   segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },

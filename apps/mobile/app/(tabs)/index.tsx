@@ -13,6 +13,7 @@ import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday
 import { formatSetLong, tonnes } from '@/lib/format';
 import { bestSet, daysInMonth, periodTotals, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors } from '@/theme';
 
 const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週前'];
@@ -45,7 +46,7 @@ export default function HomeScreen() {
     <Screen tab>
       <View style={s.topBar}>
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} bg="transparent" />
-        <T bold size={18} accessibilityLabel="hlog">hl<T bold size={18} color={colors.accent}>o</T>g</T>
+        <T bold size={18} accessibilityLabel="hlog" accessibilityRole="header">hl<T bold size={18} color={colors.accent}>o</T>g</T>
         <View style={{ width: 44 }} />
       </View>
 
@@ -100,12 +101,12 @@ export default function HomeScreen() {
         <Button label="RM計算機" icon="calc" variant="outline" onPress={() => router.push('/rm')} />
       </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(15, { top: 22, bottom: 10 }) }}>
         <T bold size={17}>{dayLabel}の記録</T>
         {isToday ? (
           <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={{ top: 15, bottom: 15, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="calendar" size={15} color={colors.accent} />
             <T bold size={13} color={colors.accent}>今日に戻る</T>
           </Pressable>
@@ -124,7 +125,7 @@ export default function HomeScreen() {
         {dayEntries?.map((e) => {
           const best = bestSet(e.sets);
           return (
-            <PressableScale key={e.id} scaleTo={0.98} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
+            <PressableScale key={e.id} accessibilityRole="button" accessibilityLabel={`${e.exerciseName}の記録を開く`} scaleTo={0.98} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
               <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>
@@ -157,7 +158,7 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
   testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; ready: boolean; children?: React.ReactNode;
 }) {
   return (
-    <View style={s.volume} testID={testID}>
+    <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
       <T size={10} color={colors.sub}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {/* 読み込みが終わる前の 0 から変わるときは動かさない（ready） */}

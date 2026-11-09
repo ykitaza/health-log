@@ -20,6 +20,7 @@ import { onFeedback } from '@/lib/feedback';
 import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave, SetDraft, SetError } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors, fonts } from '@/theme';
 
 let keySeq = 0;
@@ -157,7 +158,7 @@ export default function EntryScreen() {
           {undo && (
             <View style={s.banner}>
               <T size={14}>セット{undo.index + 1}を削除しました</T>
-              <Pressable accessibilityRole="button" onPress={restore} hitSlop={8}><T bold color={colors.accent}>元に戻す</T></Pressable>
+              <Pressable accessibilityRole="button" onPress={restore} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}><T bold color={colors.accent}>元に戻す</T></Pressable>
             </View>
           )}
           {formError && <T size={13} color={colors.danger} align="center">{formError}</T>}
@@ -176,9 +177,9 @@ export default function EntryScreen() {
       <Card style={{ marginTop: 8, gap: 8 }}>
         {previous ? (
           <>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(14) }}>
               <T size={13} color={colors.sub}>前回 {formatJpDate(previous.date)}</T>
-              <Pressable accessibilityRole="button" onPress={copyPrevious} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} hitSlop={8}>
+              <Pressable accessibilityRole="button" onPress={copyPrevious} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}>
                 <Icon name="copy" size={16} color={colors.accent} />
                 <T bold size={14} color={colors.accent}>前回をコピー</T>
               </Pressable>
@@ -240,6 +241,7 @@ export default function EntryScreen() {
                     if (!d.done) onFeedback('complete');
                     update(d.key, { done: !d.done });
                   }}
+                  hitSlop={2}
                   style={[s.done, d.done ? { backgroundColor: colors.accent } : { backgroundColor: colors.input }]}
                 >
                   <CheckPop done={d.done}>
@@ -256,7 +258,7 @@ export default function EntryScreen() {
               {(err?.weight || err?.reps || err?.memo) && (
                 <T size={12} color={colors.danger} style={{ marginLeft: 44 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 44 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 44, ...touchRoom(8) }}>
                 <View style={s.memo}>
                   <Icon name="pencil" size={14} color={colors.sub} />
                   <Input

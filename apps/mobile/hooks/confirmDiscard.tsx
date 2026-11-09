@@ -15,7 +15,8 @@ export function useConfirmDiscard(dirty: boolean, body: string) {
       visible={leave != null}
       title="入力をやめますか？"
       body={body}
-      confirmLabel="やめる"
+      confirmLabel="保存せずに戻る"
+      cancelLabel="入力を続ける"
       onCancel={() => setLeave(null)}
       onConfirm={() => {
         const go = leave;

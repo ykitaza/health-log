@@ -15,6 +15,7 @@ import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors, radius } from '@/theme';
 
 /** 食事（その日の区分ごとの食事、合計と目標の残り）。日付は過去にも戻れる。今日が初め */
@@ -42,25 +43,25 @@ export default function MealsScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26}>食事</T></View>
+      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">食事</T></View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
       </Card>
 
       {day && (
         <Card style={{ marginTop: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(12) }}>
             <T bold size={15}>{date === today ? '今日の合計' : 'この日の合計'}</T>
-            <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType}
+            <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
               style={[s.badge, day.dayType === 'training' ? { backgroundColor: colors.accentDark } : { backgroundColor: colors.input }]}>
               <T size={12} bold color={day.dayType === 'training' ? colors.accent : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
             </Pressable>
           </View>
           <NutritionSummary total={day.total} target={day.target} remaining={day.remaining} />
           {!data?.goal && (
-            <Pressable accessibilityRole="button" onPress={() => router.push('/meals/goal')} style={{ marginTop: 10 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="目標が未設定です。目標を決める" onPress={() => router.push('/meals/goal')} hitSlop={{ top: 15, bottom: 15 }} style={{ marginTop: 10 }}>
               <T size={12} color={colors.sub}>目標が未設定です。<T size={12} bold color={colors.accent}>目標を決める</T>（Claude・ChatGPT でも決められます）</T>
             </Pressable>
           )}
@@ -94,7 +95,7 @@ export default function MealsScreen() {
         );
       })}
 
-      <PressableScale accessibilityRole="button" accessibilityLabel="目標" onPress={() => router.push('/meals/goal')}>
+      <PressableScale accessibilityRole="button" accessibilityLabel="食事の目標を見る・決める" onPress={() => router.push('/meals/goal')}>
         <Card style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <T bold size={15}>目標</T>
@@ -240,7 +241,7 @@ function MethodIcon({ name }: { name: 'copy' | 'pencil' | 'calc' }) {
 
 const s = StyleSheet.create({
   badge: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 },
+  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { top: 18, bottom: 8 }) },
   empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.card, padding: 16, alignItems: 'center' },
   mealRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
   group: { backgroundColor: colors.input, borderRadius: radius.card },

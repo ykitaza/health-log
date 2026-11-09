@@ -139,13 +139,13 @@ export default function BodyScreen() {
   return (
     <Screen tab>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
-        <T bold size={26}>体組成</T>
+        <T bold size={26} accessibilityRole="header">体組成</T>
         <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} />
       </View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, padding: 0 }}>
@@ -183,6 +183,7 @@ export default function BodyScreen() {
             onBlur={commitMemo}
             maxLength={MEMO_MAX_LENGTH}
             placeholder="メモ（例：朝・起床後に計測）"
+            accessibilityLabel="体組成のメモ"
             placeholderTextColor={colors.sub}
             style={{ flex: 1, minWidth: 0, height: 44, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}
           />
@@ -257,7 +258,7 @@ export default function BodyScreen() {
         </Card>
       )}
 
-      <PressableScale accessibilityRole="button" scaleTo={0.98} onPress={() => openTrend('weight')}>
+      <PressableScale accessibilityRole="button" accessibilityLabel="体重の推移を見る" scaleTo={0.98} onPress={() => openTrend('weight')}>
         <Card style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
             <T bold size={16}>体重の推移</T>

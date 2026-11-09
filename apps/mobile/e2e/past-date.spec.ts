@@ -28,7 +28,7 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   // ホーム：選んだ日に出て、カレンダーに印が付く
   await expect(see(page, '11月3日の記録', { exact: true })).toBeVisible();
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
-  await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '2026-11-03 記録あり');
+  await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '11月3日（火） 記録あり');
 
   // 今日に戻ると、今日の記録には出ない
   await button(page, '今日に戻る').click();
