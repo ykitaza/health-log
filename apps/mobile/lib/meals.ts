@@ -9,6 +9,13 @@ export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 /** 区分の順番（サーバーの MealSlot の順。並べるときもこの順） */
 export const SLOTS: Slot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 export const SLOT_LABELS: Record<Slot, string> = { breakfast: '朝食', lunch: '昼食', dinner: '夕食', snack: '間食' };
+/** 今の時刻（0〜23 時）から近い区分。「食事を追加」で初めに選んでおく。4〜10 時 朝食、10〜15 時 昼食、15〜21 時 夕食、それ以外は間食 */
+export function slotAt(hour: number): Slot {
+  if (hour >= 4 && hour < 10) return 'breakfast';
+  if (hour >= 10 && hour < 15) return 'lunch';
+  if (hour >= 15 && hour < 21) return 'dinner';
+  return 'snack';
+}
 
 export type Unit = 'g' | 'ml' | '個' | '杯';
 export const UNITS: Unit[] = ['g', 'ml', '個', '杯'];

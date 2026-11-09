@@ -54,9 +54,26 @@ test('食事の記録の方法に「AI で記録」があり、食事の文で�
   await button(page, '朝食を記録').click();
   await expect(see(page, '写真や文を送ると、推定して記録します')).toBeVisible();
   await page.getByTestId('meal-ai-record').filter({ visible: true }).click();
-  await expect(see(sheet(page), '「hlog に食事を記録して」と入れて開きます')).toBeVisible();
+  // 区分を選んでいるので、決まった形で区分を入れる
+  await expect(see(sheet(page), '「hlog に今日の朝食を記録して」と入れて開きます')).toBeVisible();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
-  expect(await opened(page)).toEqual([chatgpt('hlog に食事を記録して')]);
+  expect(await opened(page)).toEqual([chatgpt('hlog に今日の朝食を記録して')]);
+});
+
+test('食事のタブの下の「AI で記録」：今日は日付なし、過去の日はその日付で開く', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, '食事');
+  await button(page, AI_RECORD).click();
+  await expect(see(sheet(page), '「hlog に食事を記録して」と入れて開きます')).toBeVisible();
+  await button(page, 'Claude で開く（外のアプリ）').click();
+  await expect(sheet(page)).toBeHidden();
+  expect(await opened(page)).toEqual([claude('hlog に食事を記録して')]);
+
+  await button(page, '前の日').click();
+  await button(page, '前の日').click();
+  await button(page, AI_RECORD).click();
+  await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  expect(await opened(page)).toEqual([claude('hlog に食事を記録して'), chatgpt('hlog に 11月6日 の食事を記録して')]);
 });
 
 test('レポートの「チャットで作る」：期間を選んでから開く（初めは今日）', async ({ page }) => {

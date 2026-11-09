@@ -1,4 +1,5 @@
 import { Linking } from 'react-native';
+import { SLOT_LABELS, SLOTS, Slot } from './meals';
 
 /**
  * チャット（ChatGPT・Claude）を開くショートカット。https の URL を開くだけ（Android の App Links で、
@@ -15,9 +16,9 @@ const BASE: Record<ChatApp, string> = { chatgpt: 'https://chatgpt.com/', claude:
 export type ReportSpan = 'day' | 'week' | 'month';
 export const REPORT_SPAN_LABELS: Record<ReportSpan, string> = { day: '今日', week: '今週', month: '今月' };
 
-/** 頼むこと。date は記録する日（'YYYY-MM-DD'）。今日なら文に日付を入れない */
+/** 頼むこと。date は記録する日（'YYYY-MM-DD'）。今日なら文に日付を入れない。食事の slot は、区分を選んでいるときだけ */
 export type ChatPrompt =
-  | { kind: 'meal'; date: string; today: string }
+  | { kind: 'meal'; date: string; today: string; slot?: Slot }
   | { kind: 'training'; date: string; today: string }
   | { kind: 'report'; span: ReportSpan };
 
@@ -31,7 +32,12 @@ function dayText(date: string): string | null {
 export function promptText(p: ChatPrompt): string {
   if (p.kind === 'report') return `${REPORT_SPAN_LABELS[p.span]}のまとめを作って`;
   const day = p.date === p.today ? null : dayText(p.date);
-  if (p.kind === 'meal') return day ? `hlog に ${day} の食事を記録して` : 'hlog に食事を記録して';
+  if (p.kind === 'meal') {
+    // 区分は決まった4つの名前だけ（それ以外は文に入れない）
+    const slot = p.slot && SLOTS.includes(p.slot) ? SLOT_LABELS[p.slot] : null;
+    if (slot) return day ? `hlog に ${day} の${slot}を記録して` : `hlog に今日の${slot}を記録して`;
+    return day ? `hlog に ${day} の食事を記録して` : 'hlog に食事を記録して';
+  }
   return day ? `hlog に ${day} の筋トレを記録して` : 'hlog に今日の筋トレを記録して';
 }
 
