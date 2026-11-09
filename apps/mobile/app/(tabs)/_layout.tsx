@@ -1,20 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Easing, View } from 'react-native';
+import { Easing } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon, IconName } from '@/components/Icon';
+import { IconName } from '@/components/Icon';
 import { tabBarStyle } from '@/components/tabBar';
-import { T } from '@/components/Text';
-import { colors } from '@/theme';
+import { TabButton } from '@/components/TabItem';
 import { duration, EASE_OUT } from '@/theme/motion';
-
-function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
-  return (
-    <View style={{ width: 64, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.accentDark : 'transparent' }}>
-      <Icon name={name} color={focused ? colors.onAccentDark : colors.sub} size={24} />
-    </View>
-  );
-}
 
 const TABS: { name: string; title: string; icon: IconName }[] = [
   { name: 'index', title: 'ホーム', icon: 'home' },
@@ -25,26 +16,23 @@ const TABS: { name: string; title: string; icon: IconName }[] = [
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  // タブの切り替えは、さりげなく重ねて切り替える（150ms）。動きを減らす設定なら切り替えるだけ
+  // タブの画面の切り替えは、重ねて切り替える（行き帰り同じ 250ms）。動きを減らす設定なら切り替えるだけ
   const reduced = useReducedMotion();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         animation: reduced ? 'none' : 'fade',
-        transitionSpec: { animation: 'timing', config: { duration: duration.text, easing: Easing.bezier(...EASE_OUT) } },
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.sub,
+        transitionSpec: { animation: 'timing', config: { duration: duration.toggle, easing: Easing.bezier(...EASE_OUT) } },
         tabBarStyle: tabBarStyle(insets.bottom),
-        // 選んだタブのラベルは太字（色だけで伝えない）
-        tabBarLabel: ({ focused, children }) => <T variant="labelM" bold={focused} color={focused ? colors.text : colors.sub} style={{ marginTop: 4 }}>{children}</T>,
       }}
     >
       {TABS.map((t) => (
         <Tabs.Screen
           key={t.name}
           name={t.name}
-          options={{ title: t.title, tabBarIcon: ({ focused }) => <TabIcon name={t.icon} focused={focused} /> }}
+          // アイコン・印・ラベルは、波紋を出さない自前のボタンで描く
+          options={{ title: t.title, tabBarButton: (props) => <TabButton {...props} icon={t.icon} label={t.title} /> }}
         />
       ))}
     </Tabs>
