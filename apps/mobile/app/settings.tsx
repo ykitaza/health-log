@@ -2,7 +2,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, Share, View } from 'react-native';
+import { Platform, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Input } from '@/components/Input';
 import { Shake } from '@/components/motion';
 import { LoadError } from '@/components/LoadError';
@@ -15,7 +15,7 @@ import { versionLines } from '@/lib/appVersion';
 import { workoutCsv } from '@/lib/csv';
 import { LIMITS, parseInRange } from '@/lib/limits';
 import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, radius, space } from '@/theme';
 
 export default function SettingsScreen() {
   const { data: settings, error, reload, repos } = useFocusData((r) => r.settings.get());
@@ -86,7 +86,7 @@ export default function SettingsScreen() {
     <Screen>
       <Header title="設定" onBack={() => router.back()} />
 
-      <SectionTitle title="アカウント" />
+      <SectionTitle title="アカウント" accent />
       <Card style={{ padding: 0 }}>
         <ListRow
           first
@@ -98,51 +98,54 @@ export default function SettingsScreen() {
         <ListRow title="Health Connect" subtitle="体重計・睡眠・心拍の取り込み（Android）" onPress={() => router.push('/health-connect')} />
       </Card>
 
-      <SectionTitle title="記録の初期値" />
-      <Card style={{ gap: 14 }}>
-        <View style={{ gap: 8 }}>
-          <T bold size={16}>重さの単位</T>
+      {/* 筋トレ：記録の初期値と種目。食事：目標（前は「種目」の区分けに食事の目標が入っていた） */}
+      <SectionTitle title="筋トレ" accent />
+      <Card style={{ gap: space.l }}>
+        <View style={{ gap: space.s }}>
+          <T variant="titleM">重さの単位</T>
           <Segmented<WeightUnit> options={[{ key: 'kg', label: 'kg' }, { key: 'lb', label: 'lb' }]} value={unit} onChange={changeUnit} />
         </View>
-        <View style={{ gap: 8 }}>
-          <T bold size={16}>セット数の初期値</T>
-          <T size={12} color={colors.sub}>種目を追加したときに用意するセット数</T>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ gap: space.xs }}>
+          <T variant="titleM">セット数の初期値</T>
+          <T variant="bodyM" color={colors.sub}>種目を追加したときに用意するセット数</T>
+          <View style={{ flexDirection: 'row', columnGap: space.s, flexWrap: 'wrap' }}>
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <Chip key={n} label={`${n}セット`} active={settings?.defaultSetCount === n} onPress={() => save({ defaultSetCount: n })} />
             ))}
           </View>
         </View>
       </Card>
+      <Card style={{ padding: 0, marginTop: space.m }}>
+        <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
+      </Card>
 
-      <SectionTitle title="体の情報" />
-      <Card style={{ gap: 12 }}>
+      <SectionTitle title="食事" accent />
+      <Card style={{ padding: 0 }}>
+        <ListRow first title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
+      </Card>
+
+      <SectionTitle title="体の情報" accent />
+      <Card style={{ gap: space.l }}>
         <Field label="身長" unit="cm" shake={bad?.field === 'height' ? bad.count : 0} value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
         <Field label="目標体重" unit={unit} shake={bad?.field === 'goal' ? bad.count : 0} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
-        {message && <T size={12} color={colors.danger}>{message}</T>}
-        <T size={12} color={colors.sub}>身長は体組成の自動計算（BMI など）に、目標体重は体組成の「目標体重まで」に使います。空にすると消えます。</T>
+        {message && <T variant="bodyS" color={colors.danger}>{message}</T>}
+        <T variant="bodyS" color={colors.sub}>身長はからだの自動計算（BMI など）に、目標体重はからだの「目標体重まで」に使います。空にすると消えます。</T>
       </Card>
 
-      <SectionTitle title="種目" />
-      <Card style={{ padding: 0 }}>
-        <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
-        <ListRow title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
-      </Card>
-
-      <SectionTitle title="データ" />
+      <SectionTitle title="データ" accent />
       <Card style={{ padding: 0 }}>
         <ListRow first title="筋トレの記録を CSV で書き出す" subtitle="共有のメニューから、保存先やアプリを選びます" onPress={exportCsv} />
       </Card>
-      {exportError && <T size={12} color={colors.danger} style={{ marginTop: 8 }}>{exportError}</T>}
-      <T size={12} color={colors.sub} style={{ marginTop: 8 }}>
+      {exportError && <T variant="bodyS" color={colors.danger} style={{ marginTop: space.s }}>{exportError}</T>}
+      <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>
         {authStatus === 'signedIn'
           ? '記録はこの端末に保存し、サーバーと同期します。同期の様子はアカウントの画面で見られます。'
           : '記録はこの端末の中だけに保存されます。アプリを消すと記録も消えます。ログインすると、サーバーと同期します。'}
       </T>
 
-      <SectionTitle title="次の段階で使えるようになるもの" />
+      <SectionTitle title="次の段階で使えるようになるもの" accent />
       <Card style={{ padding: 0 }}>
-        <ListRow first title="チャットとの連携" dim right={<Badge label="準備中" color={colors.sub} bg={colors.input} />} />
+        <ListRow first title="チャットとの連携" dim right={<Badge label="準備中" tone="neutral" />} />
       </Card>
 
       <AppVersion />
@@ -150,32 +153,40 @@ export default function SettingsScreen() {
   );
 }
 
+/** M3 の outlined text field（高さ 56、枠 3.7:1、ラベルは枠の上）。選んでいるときは緑の 2px、間違いは赤の 2px */
 function Field({ label, unit, value, shake, onChange, onDone }: {
   label: string; unit: string; value: string; shake: number; onChange: (t: string) => void; onDone: () => void;
 }) {
+  const [focused, setFocused] = useState(false);
+  const tone = shake > 0 ? colors.danger : focused ? colors.accent : null;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <T bold size={16} style={{ flex: 1 }}>{label}</T>
-      <Shake trigger={shake}>
+    <Shake trigger={shake}>
+      <View style={[s.field, tone != null && { borderColor: tone, borderWidth: 2 }]}>
         <Input
           value={value}
           onChangeText={onChange}
-          onBlur={onDone}
+          onFocus={() => setFocused(true)}
+          onBlur={() => { setFocused(false); onDone(); }}
           onSubmitEditing={onDone}
           keyboardType="decimal-pad"
           placeholder="未設定"
-          placeholderTextColor={colors.sub}
           accessibilityLabel={label}
-          style={{
-            width: 110, height: 44, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.bold, fontSize: 16, textAlign: 'right', paddingHorizontal: 12,
-            borderWidth: 1.5, borderColor: shake > 0 ? colors.danger : colors.input,
-          }}
+          style={s.fieldInput}
         />
-      </Shake>
-      <T size={13} color={colors.sub} style={{ width: 24 }}>{unit}</T>
-    </View>
+        <T variant="bodyM" color={colors.sub}>{unit}</T>
+        <View style={s.fieldLabel} pointerEvents="none">
+          <T variant="bodyS" color={tone ?? colors.sub}>{label}</T>
+        </View>
+      </View>
+    </Shake>
   );
 }
+
+const s = StyleSheet.create({
+  field: { flexDirection: 'row', alignItems: 'center', height: 56, borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, paddingHorizontal: space.l, gap: space.s },
+  fieldInput: { flex: 1, minWidth: 0, height: 52, color: colors.text, fontFamily: fonts.regular, fontSize: 16 },
+  fieldLabel: { position: 'absolute', top: -9, left: 12, paddingHorizontal: 4, backgroundColor: colors.card },
+});
 
 /** アプリの版とアップデートの情報。長押しで共有のメニューに出す（不具合の報告用） */
 function AppVersion() {
@@ -194,7 +205,7 @@ function AppVersion() {
   const share = () => { Share.share({ message: lines.join('\n') }).catch(() => {}); };
   return (
     <Pressable onLongPress={share} accessibilityLabel="アプリのバージョン" accessibilityHint="長押しで共有" style={{ marginTop: 24, gap: 2, alignItems: 'center' }}>
-      {lines.map((l) => <T key={l} size={11} color={colors.sub}>{l}</T>)}
+      {lines.map((l) => <T key={l} variant="labelS" bold={false} color={colors.sub}>{l}</T>)}
     </Pressable>
   );
 }

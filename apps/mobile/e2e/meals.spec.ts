@@ -46,8 +46,8 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await recordItems(page, '昼食', [{ name: '白米', amount: '200', kcal: '312', p: '5' }, { name: '鶏むね肉', amount: '100', kcal: '108', p: '22' }]);
   await expect(button(page, '白米、鶏むね肉を開く')).toBeVisible();
   await expect(totalKcal(page)).toHaveText('420');
-  await expect(see(page, '残り 1,580kcal')).toBeVisible();
-  await expect(see(page, '残り 113.0g')).toBeVisible();
+  await expect(see(page, '残り 1,580 kcal')).toBeVisible();
+  await expect(see(page, '残り 113.0 g')).toBeVisible();
 
   // 量を半分にすると、kcal も半分になる
   await button(page, '白米、鶏むね肉を開く').click();

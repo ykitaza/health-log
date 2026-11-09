@@ -35,13 +35,13 @@ export function NutritionSummary({ total, target, remaining }: { total: Nutritio
     <View testID="meal-summary">
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          <RollNumber num bold size={44} testID="total-kcal" value={fmtInt(total.kcal)} />
-          <T size={14} color={colors.sub}>{target?.kcal != null ? `/ ${fmtInt(target.kcal)} kcal` : 'kcal'}</T>
+          <RollNumber num bold size={48} testID="total-kcal" value={fmtInt(total.kcal)} />
+          <T variant="bodyM" color={colors.sub}>{target?.kcal != null ? `/ ${fmtInt(target.kcal)} kcal` : 'kcal'}</T>
         </View>
-        {remaining?.kcal != null && <Remain r={remaining.kcal} unit="kcal" fmt={fmtInt} size={13} bold color={remaining.kcal >= 0 ? colors.accent : colors.star} />}
+        {remaining?.kcal != null && <Remain r={remaining.kcal} unit=" kcal" fmt={fmtInt} size={14} bold color={remaining.kcal >= 0 ? colors.accent : colors.star} />}
       </View>
       <View style={{ marginTop: 8 }}><Bar value={total.kcal} target={target?.kcal ?? null} /></View>
-      <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
         {PFC.map((p) => {
           const t = target?.[p.key] ?? null;
           const r = remaining?.[p.key] ?? null;
@@ -49,14 +49,14 @@ export function NutritionSummary({ total, target, remaining }: { total: Nutritio
             <View key={p.key} style={{ flex: 1, gap: 4 }} accessibilityLabel={`${p.label} ${fmt1(total[p.key])}g${t != null ? ` 目標 ${fmt1(t)}g` : ''}`}>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
                 <T num bold size={16} color={colors.accent}>{p.letter}</T>
-                <T size={12} color={colors.sub}>{p.label}</T>
+                <T variant="bodyS" color={colors.sub}>{p.label}</T>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-                <RollNumber num bold size={20} value={fmt1(total[p.key])} />
-                <T size={11} color={colors.sub}>{t != null ? `/ ${fmt1(t)}g` : 'g'}</T>
+                <RollNumber num bold size={18} value={fmt1(total[p.key])} />
+                <T variant="labelS" bold={false} color={colors.sub}>{t != null ? `/ ${fmt1(t)}g` : 'g'}</T>
               </View>
               <Bar value={total[p.key]} target={t} height={6} />
-              {r != null && <Remain r={r} unit="g" size={11} color={r >= 0 ? colors.sub : colors.star} />}
+              {r != null && <Remain r={r} unit=" g" size={12} color={r >= 0 ? colors.sub : colors.star} />}
             </View>
           );
         })}

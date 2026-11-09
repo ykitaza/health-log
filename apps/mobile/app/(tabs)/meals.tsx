@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
@@ -10,7 +10,7 @@ import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { MealWeekly } from '@/components/MealWeekly';
-import { Card, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
+import { Button, Card, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
@@ -19,8 +19,7 @@ import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
-import { touchRoom } from '@/lib/touch';
-import { colors, radius } from '@/theme';
+import { colors, radius, space } from '@/theme';
 
 /** 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「週のまとめ」は週のふり返り */
 export default function MealsScreen() {
@@ -65,27 +64,32 @@ export default function MealsScreen() {
         onChange={setPane}
       />
       {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
-        <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
+      <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs, marginTop: space.l }}>
+        <IconButton name="prev" label="前の日" onPress={() => setDate(addDays(date, -1))} />
+        <T variant="titleM">{formatJpDate(date)}</T>
+        <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && setDate(addDays(date, 1))} />
       </Card>
 
       {day && (
-        <Card style={{ marginTop: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(12) }}>
-            <T bold size={15}>{date === today ? '今日の合計' : 'この日の合計'}</T>
-            <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-              disabled={busy} aria-busy={busy}
-              style={[s.badge, day.dayType === 'training' ? { backgroundColor: colors.accentDark } : { backgroundColor: colors.input }, busy && { opacity: 0.45 }]}>
-              <T size={12} bold color={day.dayType === 'training' ? colors.accent : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
-            </Pressable>
+        <Card style={{ marginTop: space.m }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: -space.xs }}>
+            <T variant="titleM">{date === today ? '今日の合計' : 'この日の合計'}</T>
+            {/* 日の種類は、押して切り替えられると分かる assist chip（入れ替えのアイコン付き、押せる範囲 48） */}
+            <PressableScale accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType}
+              disabled={busy} aria-busy={busy} style={s.chipTouch}>
+              <View style={[s.dayChip, day.dayType === 'training' ? { backgroundColor: colors.accentDark, borderColor: colors.accentDark } : { borderColor: colors.outline }, busy && { opacity: 0.38 }]}>
+                <Icon name="swap" size={18} color={day.dayType === 'training' ? colors.onAccentDark : colors.sub} />
+                <T variant="labelL" color={day.dayType === 'training' ? colors.onAccentDark : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
+              </View>
+            </PressableScale>
           </View>
           <NutritionSummary total={day.total} target={day.target} remaining={day.remaining} />
           {!data?.goal && (
-            <Pressable accessibilityRole="button" accessibilityLabel="目標が未設定です。目標を決める" onPress={() => router.push('/meals/goal')} hitSlop={{ top: 15, bottom: 15 }} style={{ marginTop: 10 }}>
-              <T size={12} color={colors.sub}>目標が未設定です。<T size={12} bold color={colors.accent}>目標を決める</T>（Claude・ChatGPT でも決められます）</T>
-            </Pressable>
+            // 文と、押せる「目標を決める」を分ける
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s, marginTop: space.s }}>
+              <T variant="bodyS" color={colors.sub} style={{ flex: 1 }}>目標が未設定です（Claude・ChatGPT でも決められます）</T>
+              <Button label="目標を決める" variant="text" small accessibilityLabel="目標が未設定です。目標を決める" onPress={() => router.push('/meals/goal')} style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }} />
+            </View>
           )}
         </Card>
       )}
@@ -96,14 +100,14 @@ export default function MealsScreen() {
         return (
           <View key={slot}>
             <View style={s.slotHead}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-                <T bold size={16}>{SLOT_LABELS[slot]}</T>
-                <T size={13} color={colors.sub}>{fmtInt(kcal)}kcal</T>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s }}>
+                <T variant="titleM">{SLOT_LABELS[slot]}</T>
+                <T variant="bodyM" color={colors.sub}>{fmtInt(kcal)} kcal</T>
               </View>
-              <IconButton name="plus" label={`${SLOT_LABELS[slot]}を記録`} bg={colors.card} color={colors.accent} onPress={() => setAdding(slot)} />
+              <IconButton name="plus" label={`${SLOT_LABELS[slot]}を記録`} variant="tonal" onPress={() => setAdding(slot)} />
             </View>
             {meals.length === 0 ? (
-              <View style={s.empty}><T size={13} color={colors.sub}>{SLOT_LABELS[slot]}はまだ記録していません</T></View>
+              <View style={s.empty}><T variant="bodyM" color={colors.sub}>{SLOT_LABELS[slot]}はまだ記録していません</T></View>
             ) : (
               <View style={{ gap: 8 }}>
                 {meals.map((m, i) => (
@@ -151,14 +155,14 @@ function MealRow({ meal }: { meal: Meal }) {
     <PressableScale accessibilityRole="button" accessibilityLabel={`${mealTitle(meal)}を開く`} onPress={() => router.push({ pathname: '/meals/[id]', params: { id: meal.id } })}
       style={s.mealRow}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T bold size={16} numberOfLines={1}>{mealTitle(meal)}</T>
-        <T size={12} color={colors.sub}>P {fmt1(t.protein_g)}・F {fmt1(t.fat_g)}・C {fmt1(t.carbs_g)}{meal.source === 'photo' ? '　写真から推定' : ''}</T>
+        <T variant="titleM" numberOfLines={1}>{mealTitle(meal)}</T>
+        <T variant="bodyS" color={colors.sub}>P {fmt1(t.protein_g)}・F {fmt1(t.fat_g)}・C {fmt1(t.carbs_g)}{meal.source === 'photo' ? '　写真から推定' : ''}</T>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-        <T num bold size={22}>{fmtInt(t.kcal)}</T>
-        <T size={11} color={colors.sub}>kcal</T>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.xs }}>
+        <T variant="numM" bold>{fmtInt(t.kcal)}</T>
+        <T variant="labelS" bold={false} color={colors.sub}>kcal</T>
       </View>
-      <Icon name="chevron" color={colors.sub} size={18} />
+      <Icon name="chevron" color={colors.sub} size={24} />
     </PressableScale>
   );
 }
@@ -263,10 +267,13 @@ function MethodIcon({ name }: { name: 'copy' | 'pencil' | 'calc' }) {
 }
 
 const s = StyleSheet.create({
-  badge: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { top: 18, bottom: 8 }) },
-  empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.card, padding: 16, alignItems: 'center' },
-  mealRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
+  chipTouch: { minHeight: 48, justifyContent: 'center' },
+  dayChip: { flexDirection: 'row', alignItems: 'center', gap: space.s, height: 32, borderRadius: radius.s, borderWidth: 1, paddingLeft: space.s, paddingRight: space.l },
+  slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
+  // まだ記録していない枠の点線（3.7:1 の outline）
+  empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card, padding: space.l, alignItems: 'center' },
+  // 食事の行（高さ 72 の押せる行）
+  mealRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
   group: { backgroundColor: colors.input, borderRadius: radius.card },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
