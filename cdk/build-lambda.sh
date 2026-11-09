@@ -2,8 +2,8 @@
 # authorization・mcp・app_api を、Lambda（arm64、Python 3.12）に載せる形にまとめて cdk/build/ に置く。
 # cdk deploy の前に実行する。Docker は使わず、uv で Lambda 用のパッケージを入れる。
 #
-# mcp は MCP サーバーの組み立て（services/mcp）で、食事・筋トレ・同期のコードを一緒に載せる（MealsFunction）。
-# 外部の依存は uv export で書き出し、Lambda 用の wheel を入れる。同じリポジトリのパッケージ（sync・meals・training）は
+# mcp は MCP サーバーの組み立て（services/mcp）で、食事・筋トレ・レポート・同期のコードを一緒に載せる（MealsFunction）。
+# 外部の依存は uv export で書き出し、Lambda 用の wheel を入れる。同じリポジトリのパッケージ（sync・meals・training・reports）は
 # path の依存なので書き出さず（--no-emit-local）、ソースをそのままコピーする（wheel を作るより速く、中身が見てわかる）。
 set -eu
 cd "$(dirname "$0")"
@@ -33,8 +33,9 @@ for app in authorization mcp app_api; do
   copy_sources "$services/$app" "$out"
   case "$app" in
     mcp | app_api)
-      # 食事と筋トレと同期を載せる。組み立ての場所どうしで共有するもの（services/composition）も載せる
-      cp -R "$services/sync/sync" "$services/meals/meals" "$services/training/training" "$services/composition/composition" "$out/" ;;
+      # 食事・筋トレ・レポートと同期を載せる。組み立ての場所どうしで共有するもの（services/composition）も載せる
+      cp -R "$services/sync/sync" "$services/meals/meals" "$services/training/training" "$services/reports/reports" \
+        "$services/composition/composition" "$out/" ;;
   esac
   # PC でテストを動かしたときのキャッシュは載せない（中身が同じでも、アセットのハッシュが変わるため）
   find "$out" -name __pycache__ -type d -prune -exec rm -rf {} +

@@ -81,7 +81,7 @@ def data(result):
     return json.loads(result.content[0].text)
 
 
-def test_食事と筋トレとログアウトのツールが1つのサーバーにある(server):
+def test_食事と筋トレとレポートとログアウトのツールが1つのサーバーにある(server):
     async def body(client):
         return {t.name for t in (await client.list_tools()).tools}
 
@@ -89,8 +89,9 @@ def test_食事と筋トレとログアウトのツールが1つのサーバー�
     assert {"record_meal", "today_status", "set_day_type", "weekly_review", "record_weight"} <= names
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
             "sleep_summary", "heart_rate_summary"} <= names
+    assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
     assert "logout" in names
-    assert len(names) == 17 + 14 + 1
+    assert len(names) == 17 + 14 + 4 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):
@@ -177,6 +178,28 @@ def test_応答にアプリの最後の同期の時刻が入る(server):
     assert meal["last_app_sync_at"] is None and workout["last_app_sync_at"] is None  # MCP の変更では変わらない
     assert meals["last_app_sync_at"] == body_["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"  # 日本時間
     assert body_["latest"]["weight_kg"] == 70.0  # アプリから同期された記録が見える
+
+
+def test_MCP_で保存したレポートは_同期の受け取りでアプリに届き_アプリから消せる(server):
+    engine = server["engine"]
+    report = {"title": "今週のまとめ", "overall_tone": "good", "headline": "よく続いた", "kind": "weekly",
+              "period_start": "2026-11-02", "period_end": "2026-11-08", "body": "## 筋トレ"}
+
+    async def body(client):
+        saved = data(await client.call_tool("save_report", report))["report"]
+        pulled, _, _ = engine.pull("alice", 0, 100, engine.registry.types_in({"training"}))
+        # アプリが消す（同期の送信と同じ確かめ方。アプリからは delete だけ）
+        change = engine.registry.parse_change({
+            "change_id": str(uuid.uuid4()), "entity_type": "report", "entity_id": saved["report_id"], "op": "delete",
+            "changed_at": "2026-11-08T12:00:00.000Z"}, {"report"}, "pixel")
+        engine.append("alice", [change])
+        listed = data(await client.call_tool("list_reports", {}))
+        return saved, pulled, listed
+
+    saved, pulled, listed = run(server, ALL_SCOPES, body)
+    (entry,) = [e for e in pulled if e.change.entity_type == "report"]
+    assert entry.state["entity_id"] == saved["report_id"] and entry.state["fields"]["headline"] == "よく続いた"
+    assert listed["reports"] == []
 
 
 def test_筋トレの_scope_がない今のコネクタも_食事のツールはそのまま使え_筋トレは断られる(server):

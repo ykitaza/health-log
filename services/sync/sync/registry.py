@@ -44,6 +44,8 @@ class EntitySpec:
     check: Callable[[str, dict], Rejection | None] = lambda entity_id, fields: None
     # 並びのキー（DynamoDB の LSI by_day に入れる値）。1つの種類だけが使う。なければ None
     index_key: Callable[[Doc], str | None] | None = None
+    # アプリ（端末）から受け付ける op。サーバー（MCP）だけが書く種類は、アプリからは delete だけにする（例：レポート）
+    app_ops: tuple[str, ...] = OPS
 
 
 class Registry:
@@ -117,6 +119,8 @@ class Registry:
             return Rejection("parent_id_not_allowed", f"{entity_type} には parent_id を入れません")
         if op not in OPS:
             return Rejection("invalid_fields", "op が違います")
+        if op not in spec.app_ops:
+            return Rejection("op_not_allowed", f"{entity_type} はアプリから {op} できません（{'・'.join(spec.app_ops)} だけ）")
         origin = raw.get("origin", "app")
         if origin not in APP_ORIGINS:
             return Rejection("invalid_fields", "origin は app か import にしてください")

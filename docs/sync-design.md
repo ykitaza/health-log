@@ -18,7 +18,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 | 種類 | 中身 | ID | scope |
 |---|---|---|---|
-| `meal` | 食事（日付・区分・時刻・説明・記録の仕方） | UUID | `meals.*` |
+| `meal` | 食事（日付・区分・時刻・説明・記録の仕方・推定の根拠） | UUID | `meals.*` |
 | `meal_item` | 食事の中の品目（名前・量・単位・栄養・確かさ・並び順） | 食事の中で一意。`parent_id` に食事の ID を入れる | `meals.*` |
 | `meal_template` | いつもの（名前、品目の一覧） | 名前から決める（下の注） | `meals.*` |
 | `nutrition_goal` | 食事の目標（1人に1つ） | `current` だけ | `meals.*` |
@@ -31,12 +31,15 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `setting` | 設定 | 設定の名前（`weight_unit` など） | `training.*` |
 | `sleep_session` | 睡眠（Health Connect の取り込みだけ。起きた日・寝た時刻・起きた時刻・眠っていた分・起きていた分） | 取り込みの ID（下の「Health Connect の取り込み」） | `training.*` |
 | `heart_rate_day` | 心拍の1日のまとめ（Health Connect の取り込みだけ。安静時・平均・最低・最高・サンプルの数） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
+| `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩） | UUID | `training.*` |
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
 - 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
 - いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`services/meals/meals/infrastructure/sync_entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
+- 食事の推定の根拠（`basis`）は、MCP が kcal と PFC を推定したときだけ書きます（1000字まで）。アプリで記録した食事は null で、アプリは書き換えません（アプリの画面に出すだけ）
+- レポート（`report`）は、筋トレと食事の両方をまとめるので、筋トレの scope（`training.*`）で扱います（新しい scope は作らない。MCP では接続のところで食事の scope、ツールで筋トレの scope を確かめるので、両方が要る）。書くのは MCP だけで、アプリから受け付けるのは `delete` だけです（`EntitySpec.app_ops`。`create`・`update`・`restore` は `op_not_allowed` で断る）。大きさは、本文 20,000字まで、項目を JSON にして 150,000 バイトまで（変更の記録には項目と今の状態の両方が入るので、DynamoDB の1項目 400KB に収まるように）、1人200件まで（`services/reports/reports/domain/report.py`）。受け取りとスナップショットは DynamoDB の1回の読み取り（1MB まで）でページが切れるので、大きなレポートが続いても応答は Lambda の上限（6MB）に届きません
 - 体重は、体組成（`body_record`）に一本化しています。MCP の `record_weight` も体組成の記録を書きます（[design.md](design.md#mcp-サーバーの組み立て)）
 
 ## 変更の記録
@@ -297,15 +300,16 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 | `services/meals/meals/infrastructure/sync_repositories.py` | MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 食事、sync |
 | `services/meals/meals/presentation/app_routes.py` | `POST /v1/meals/goal-suggestions` | 食事、sync の入口の型 |
 | `services/training/training/infrastructure/` | 筋トレの6つの種類を登録する、MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 筋トレ、sync |
+| `services/reports/reports/infrastructure/` | レポートの種類を登録する（アプリからは delete だけ）、MCP の読み書き | レポート、sync |
 | `services/app_api/main.py` | アプリ用の Lambda の組み立て。登録とルートをまとめる | すべて |
 | `services/mcp/main.py` | MCP サーバーの Lambda の組み立て。食事と筋トレのツールをまとめる | すべて |
 
-依存の向きは、コンテキスト（食事・筋トレ）→ sync です。sync はコンテキストを import しません。
+依存の向きは、コンテキスト（食事・筋トレ・レポート）→ sync です。sync はコンテキストを import しません。
 
 ### パッケージの分け方と、Lambda へのまとめ方
 
 - **uv の path の依存**（`[tool.uv.sources] sync = { path = "../sync", editable = true }`）にしました。[uv の資料](https://docs.astral.sh/uv/concepts/projects/dependencies/#path)の書き方どおりで、`editable` にすると、`sync` を直したらすぐ meals・training のテストに効きます
   - uv のワークスペースにすると、ロックファイルが1つになり、CI のジョブ（サービスごとに `uv sync --locked` と、`uv.lock` でのキャッシュ）を作り直すことになります。サービスごとのロックと CI の形を保つため、path の依存にしました
-- `sync`・`meals`・`training` はパッケージ（ビルドのバックエンドは `uv_build`）にし、インポートの名前に `sync`・`meals`・`training` を付けます。トップレベルの名前がぶつからないよう、食事は `meals.domain`、筋トレは `training.domain` のように名前空間の下に置きます
-- `services/app_api`・`services/mcp` は、`sync`・`meals`・`training` を path の依存で入れます（MCP のツールを使う `services/mcp` だけ、extra の `mcp` も入れる）
-- Lambda（`cdk/build-lambda.sh`）では、外部の依存を `uv export --no-emit-local` で書き出して Lambda 用の wheel を入れ、同じリポジトリのパッケージ（`sync`・`meals`・`training`）はソースをコピーします。wheel を作るより速く、中身がそのまま見えます。`__pycache__` は載せません
+- `sync`・`meals`・`training`・`reports` はパッケージ（ビルドのバックエンドは `uv_build`）にし、インポートの名前に `sync`・`meals`・`training`・`reports` を付けます。トップレベルの名前がぶつからないよう、食事は `meals.domain`、筋トレは `training.domain` のように名前空間の下に置きます
+- `services/app_api`・`services/mcp` は、`sync`・`meals`・`training`・`reports` を path の依存で入れます（MCP のツールを使う `services/mcp` だけ、extra の `mcp` も入れる）
+- Lambda（`cdk/build-lambda.sh`）では、外部の依存を `uv export --no-emit-local` で書き出して Lambda 用の wheel を入れ、同じリポジトリのパッケージ（`sync`・`meals`・`training`・`reports`）はソースをコピーします。wheel を作るより速く、中身がそのまま見えます。`__pycache__` は載せません

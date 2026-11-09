@@ -54,11 +54,16 @@ jobs:
               - services/training/**
               - services/sync/**
               - testdata/**
+            reports:
+              - *workflow
+              - services/reports/**
+              - services/sync/**
             app_api:
               - *workflow
               - services/app_api/**
               - services/meals/**
               - services/training/**
+              - services/reports/**
               - services/sync/**
               - services/composition/**
               - testdata/**
@@ -67,6 +72,7 @@ jobs:
               - services/mcp/**
               - services/meals/**
               - services/training/**
+              - services/reports/**
               - services/sync/**
               - services/composition/**
               - testdata/**
@@ -89,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [authorization, meals, sync, training, app_api, mcp]
+        service: [authorization, meals, sync, training, reports, app_api, mcp]
     env:
       RUN: ${{ needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), matrix.service) }}
     defaults:

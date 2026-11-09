@@ -179,3 +179,34 @@ def test_アプリから届く空白だけの名前も断る(entity_type, entity
     raw["fields"] = {**fields, "name": " 卵 "}
     raw["entity_id"] = synced.template_id(" 卵 ") if entity_type == "meal_template" else entity_id
     assert isinstance(REGISTRY.parse_change(raw, set(REGISTRY.specs), None), Change)
+
+
+def test_推定の根拠を記録すると_同期の項目に入り_複製にも残り_量を直しても消えない(call, engine):
+    basis = "ごはんは茶碗1杯 150g として"
+    meal = call("record_meal", meal={**LUNCH, "basis": basis})["meals"][0]
+    assert meal["basis"] == basis
+    rice = meal["items"][0]["item_id"]
+    call("update_meal", meal_id=meal["meal_id"], change_amounts=[{"item_id": rice, "amount": 100}])
+    assert call("get_meal", meal_id=meal["meal_id"])["basis"] == basis
+    copy = call("copy_meal", meal_id=meal["meal_id"], to={"date": "2026-10-13", "slot": "lunch"})["meals"][0]
+    assert copy["basis"] == basis
+    doc = engine.doc("alice", "meal", meal["meal_id"])
+    assert doc.own.values["basis"] == basis
+
+
+def test_推定の根拠がない食事は_basis_を書かず_null_を返す(call, engine):
+    meal = call("record_meal", meal=LUNCH)["meals"][0]
+    assert meal["basis"] is None
+    assert "basis" not in engine.doc("alice", "meal", meal["meal_id"]).own.values
+
+
+def test_推定の根拠は1000文字まで(call):
+    with pytest.raises(ToolError, match="basis"):
+        call("record_meal", meal={**LUNCH, "basis": "あ" * 1001})
+
+
+def test_アプリの食事の_basis_は_null_でも受け付ける():
+    raw = {"change_id": str(uuid.uuid4()), "entity_type": "meal", "entity_id": str(uuid.uuid4()), "op": "create",
+           "fields": {"date": "2026-10-12", "slot": "lunch", "time": None, "description": "", "source": "text",
+                      "basis": None}, "changed_at": "2026-10-12T12:00:00Z"}
+    assert isinstance(REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel"), Change)

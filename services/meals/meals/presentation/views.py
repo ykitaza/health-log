@@ -27,6 +27,7 @@ def meal(m: Meal) -> dict:
         "time": m.eaten_on.at.strftime("%H:%M") if m.eaten_on.at else None,
         "description": m.description,
         "source": m.source.value,
+        "basis": m.basis or None,  # kcal と PFC を推定したときの根拠。なければ null
         "items": [
             {
                 "item_id": i.id,

@@ -53,11 +53,15 @@ def _item_from(item_id: str, v: dict) -> FoodItem:
 
 
 def meal_fields(m: Meal) -> dict:
-    return {
+    fields = {
         "date": m.eaten_on.day.isoformat(), "slot": m.eaten_on.slot.value,
         "time": m.eaten_on.at.strftime("%H:%M") if m.eaten_on.at else None,
         "description": m.description, "source": m.source.value,
     }
+    # 推定の根拠は、あるときだけ書く（ないときに空を書くと、アプリや前の記録の値を消してしまうため）
+    if m.basis:
+        fields["basis"] = m.basis
+    return fields
 
 
 def meal_item_fields(i: FoodItem, order: int) -> dict:
@@ -81,7 +85,7 @@ def meal_from_doc(doc: Doc, eater: EaterId) -> Meal | None:
         eaten_on = EatenOn(date.fromisoformat(v["date"]), MealSlot(v["slot"]),
                            time.fromisoformat(v["time"]) if v.get("time") else None)
         return Meal(doc.entity_id, eater, eaten_on, tuple(_item_from(c.entity_id, c.values) for c in children),
-                    v["description"], Source(v["source"]))
+                    v["description"], Source(v["source"]), v.get("basis") or "")
     except (MealError, ValueError) as e:
         _unreadable("meal", eater, doc.entity_id, e)
         return None

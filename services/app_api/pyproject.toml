@@ -1,19 +1,21 @@
 [project]
 name = "app-api"
 version = "0.1.0"
-description = "スマホアプリ用の API の Lambda の組み立て（同期の入口に、食事と筋トレの種類とルートを登録する）"
+description = "スマホアプリ用の API の Lambda の組み立て（同期の入口に、食事・筋トレ・レポートの種類とルートを登録する）"
 requires-python = ">=3.12"
-# sync・meals・training はパッケージなので path の依存で入れる（MCP のツールは使わないので、extra の mcp は入れない）。
+# sync・meals・training・reports はパッケージなので path の依存で入れる（MCP のツールは使わないので、extra の mcp は入れない）。
 # Lambda には、cdk/build-lambda.sh がソースをコピーする。
 # 組み立ての場所どうしで共有するもの（services/composition）はパッケージにせず、pythonpath に足す
 dependencies = [
     "meals",
+    "reports",
     "sync",
     "training",
 ]
 
 [tool.uv.sources]
 meals = { path = "../meals", editable = true }
+reports = { path = "../reports", editable = true }
 sync = { path = "../sync", editable = true }
 training = { path = "../training", editable = true }
 

@@ -1,4 +1,4 @@
-"""組み立て：食事と筋トレの両方の種類が登録され、scope ごとに分かれ、MCP の記録と同じ人のデータになる。"""
+"""組み立て：食事・筋トレ・レポートの種類が登録され、scope ごとに分かれ、MCP の記録と同じ人のデータになる。"""
 
 import asyncio
 import json
@@ -20,7 +20,7 @@ from sync.store import BY_DAY_INDEX, InMemorySyncStore
 APP_CLIENT = "app-client"
 MEALS = {"meal", "meal_item", "meal_template", "nutrition_goal", "day_type"}
 TRAINING = {"body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session",
-            "heart_rate_day"}
+            "heart_rate_day", "report"}  # レポートは筋トレの scope で扱う（reports/infrastructure/sync_entities.py）
 
 
 def event(method, path, sub="cognito-sub-1", scope="torelog-api/meals.read torelog-api/meals.write "
@@ -30,7 +30,7 @@ def event(method, path, sub="cognito-sub-1", scope="torelog-api/meals.read torel
         "body": json.dumps(body) if body is not None else None}
 
 
-def test_食事と筋トレの種類を登録し_scope_で分ける():
+def test_食事と筋トレとレポートの種類を登録し_scope_で分ける():
     registry = main.create_registry()
     assert registry.types_in({"meals"}) == MEALS and registry.types_in({"training"}) == TRAINING
 
@@ -56,6 +56,24 @@ def test_MCP_で記録した人と_アプリの人は_同じ_sub_なら同じデ
     assert res["results"][0]["status"] == "accepted"
     meals_only = json.loads(api.handle(event("GET", "/v1/sync/snapshot", scope="torelog-api/meals.read"))["body"])
     assert {s["entity_type"] for s in meals_only["states"]} == {"meal", "meal_item"}
+
+
+def test_レポートはアプリから消せるが_作ったり書き換えたりするのは断る():
+    registry = main.create_registry()
+    engine = SyncEngine(InMemorySyncStore(registry.index_key), registry)
+    api = main.create_api(engine, APP_CLIENT)
+    report_id = str(uuid.uuid4())
+
+    def push(op, fields=None):
+        change = {"change_id": str(uuid.uuid4()), "entity_type": "report", "entity_id": report_id, "op": op,
+                  "changed_at": "2026-11-09T09:00:00Z", **({"fields": fields} if fields else {})}
+        res = api.handle(event("POST", "/v1/sync/changes", body={"device_id": "pixel", "changes": [change]}))
+        return json.loads(res["body"])["results"][0]
+
+    created = push("create", {"title": "偽のレポート", "body": "x", "kind": "other"})
+    assert (created["status"], created["error"]["code"]) == ("rejected", "op_not_allowed")
+    assert push("update", {"title": "書き換え"})["error"]["code"] == "op_not_allowed"
+    assert push("delete")["status"] == "accepted"
 
 
 def test_目標の案のルートもある():

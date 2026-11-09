@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field
 
-from meals.domain.meal import MAX_ITEMS
+from meals.domain.meal import MAX_BASIS, MAX_ITEMS
 from meals.domain.values import MealSlot
 from sync.fields import Day, FieldsModel, Ref, SortOrder, is_date
 from sync.model import Doc
@@ -58,6 +58,7 @@ class MealFields(FieldsModel):
     time: Annotated[str, Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")] | None = None
     description: Annotated[str, Field(max_length=2000)] = None
     source: Literal["photo", "text", "numbers", "copy", "template"] = None
+    basis: Annotated[str, Field(max_length=MAX_BASIS)] | None = None  # 推定の根拠（MCP が書く。アプリの食事は null）
 
 
 class _ItemCore(FieldsModel):

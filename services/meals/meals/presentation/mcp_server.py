@@ -141,7 +141,10 @@ def register_meal_tools(
 
     @mcp.tool(annotations=WRITE)
     async def record_meal(meal: MealInput) -> dict:
-        """食事を1回分記録する。推定した内容を表で見せ、利用者の了承を得てから呼ぶ。"""
+        """食事を1回分記録する。推定した内容を表で見せ、利用者の了承を得てから呼ぶ。
+
+        kcal と PFC を推定したときは、その根拠（量と、何として計算したか）を basis に一文で入れる（アプリの食事の画面に出る）。
+        """
         sub = subject()
         with domain_errors():
             return await with_today([views.meal(await s.meals.record(sub, meal.to_command()))], sub)

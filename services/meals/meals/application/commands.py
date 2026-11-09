@@ -31,6 +31,7 @@ class NewMeal:
     items: tuple[NewItem, ...]
     description: str
     source: Source
+    basis: str = ""  # kcal と PFC を推定したときの根拠
 
 
 @dataclass(frozen=True)

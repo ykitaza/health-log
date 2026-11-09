@@ -1,7 +1,8 @@
-"""MCP サーバーの組み立て（DI）。食事と筋トレのツールを、1つの MCP サーバー（1つのコネクタ）に登録する。
+"""MCP サーバーの組み立て（DI）。食事・筋トレ・レポートのツールを、1つの MCP サーバー（1つのコネクタ）に登録する。
 
 ツールの中身は、それぞれのコンテキストが持つ（食事は services/meals/meals/presentation/mcp_server.py、
-筋トレは services/training/training/presentation/mcp_tools.py）。ここでは次のことだけをする。
+筋トレは services/training/training/presentation/mcp_tools.py、
+レポートは services/reports/reports/presentation/mcp_tools.py）。ここでは次のことだけをする。
 - サーバー（MCPServer）と認証（アクセストークンの検証、scope）を作る。MCP のプロトコルは公式の SDK に任せる
 - 食事と筋トレのリポジトリを、同じ同期の仕組み（変更の記録と今の状態）の上に作る
 - コンテキストをまたぐもの（食事の目標の「筋トレの日」、食事の目標体重までの進み具合に使う体重、アプリの最後の同期の時刻）を、
@@ -35,6 +36,8 @@ from meals.domain.values import EaterId
 from meals.infrastructure import sync_repositories as synced
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from meals.presentation import mcp_server as meal_tools
+from reports.main import create_service as create_report_service
+from reports.presentation import mcp_tools as report_tools
 from sync.engine import SyncEngine
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
 from training.application.commands import TrainingCommands
@@ -60,7 +63,10 @@ INSTRUCTIONS = f"""食事と筋トレを記録するサーバー。食事のツ�
 {meal_tools.INSTRUCTIONS}
 
 # 筋トレ
-{training_tools.INSTRUCTIONS}"""
+{training_tools.INSTRUCTIONS}
+
+# レポート
+{report_tools.INSTRUCTIONS}"""
 
 
 def today() -> date:
@@ -157,6 +163,7 @@ def create_server(
 
     training_tools.register_training_tools(
         mcp, training_commands, training_queries, today=today, sync_status=sync_status)
+    report_tools.register_report_tools(mcp, create_report_service(engine))
     register_connector_tools(mcp, session)
     return mcp
 
