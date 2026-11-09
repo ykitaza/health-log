@@ -64,18 +64,19 @@ export default function HomeScreen() {
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         {/* 左右の列の下の端をそろえる：短いほうの列も下まで伸ばし、最後の要素を下に寄せる */}
         <View style={{ flex: 1.55 }}>
-          <T num bold size={28} style={{ marginBottom: 8 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
+          {/* 大きさは Figma（ホーム 1. ホーム）に合わせる：見出し 30、日の丸 26、行の間 8、曜日の下に線 */}
+          <T num bold size={30} style={{ marginBottom: 4 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
           <MonthCalendar
-            year={year} month={month} today={today} marked={new Set(dates)} cell={29} testID="home-calendar"
+            year={year} month={month} today={today} marked={new Set(dates)} cell={26} rowGap={8} divider testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
           />
           <View style={{ flexGrow: 1 }} />
           <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <T num bold size={14} style={{ lineHeight: 15 }}>{'MONTHLY\nARCHIVE'}</T>
+              <T num bold size={15} style={{ lineHeight: 14 }}>{'MONTHLY\nARCHIVE'}</T>
               <View style={{ width: 2, height: 30, backgroundColor: colors.text }} />
               <T num bold size={36}>{daysInMonth(dates, year, month)}</T>
-              <T num size={14}>days</T>
+              <T num size={15}>days</T>
             </View>
             <View style={{ alignItems: 'center' }}>
               <T num bold size={12}>TOTAL</T>
@@ -88,10 +89,10 @@ export default function HomeScreen() {
 
         <View style={{ flex: 1, gap: 8, justifyContent: 'space-between' }}>
           <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit} ready={data != null}>
-            <View style={{ gap: 3, marginTop: 8 }}>
+            <View style={{ gap: 3, marginTop: 6 }}>
               {weekly.map((v, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <T variant="labelS" bold={i === 0} color={i === 0 ? colors.text : colors.sub} style={{ width: 34 }}>{WEEK_LABELS[i]}</T>
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 12 }}>
+                  <T variant="labelS" bold={i === 0} color={i === 0 ? colors.text : colors.sub} style={{ width: 34, lineHeight: 12 }}>{WEEK_LABELS[i]}</T>
                   <View style={{ flex: 1, height: 6 }}>
                     <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : colors.accentMuted }} />
                   </View>
@@ -189,15 +190,15 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
 }) {
   return (
     <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
-      <T variant="labelS" color={colors.sub}>{title}</T>
+      <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {/* 読み込みが終わる前の 0 から変わるときは動かさない（ready） */}
-        <RollNumber num bold size={26} value={tonnes(kg, unit)} ready={ready} />
+        <RollNumber num bold size={22} value={tonnes(kg, unit)} ready={ready} />
         <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
-        <RollNumber num bold size={15} color={colors.accent} prefix="× " value={vehicleRatio(kg, vehicle).toFixed(1)} ready={ready} />
+        <RollNumber num bold size={13} color={colors.accent} prefix="× " value={vehicleRatio(kg, vehicle).toFixed(1)} ready={ready} />
       </View>
       {children}
     </View>
@@ -210,5 +211,5 @@ const s = StyleSheet.create({
   summaryIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
   fab: { position: 'absolute', right: space.l, bottom: space.l },
   archive: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed', marginTop: 10, paddingTop: 10 },
-  volume: { backgroundColor: colors.input, borderRadius: 12, padding: 10 },
+  volume: { backgroundColor: colors.input, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, gap: 2 },
 });
