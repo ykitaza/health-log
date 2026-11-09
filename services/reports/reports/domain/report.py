@@ -37,6 +37,7 @@ MAX_ENCODED_BYTES = 150_000
 
 
 class Kind(StrEnum):
+    DAILY = "daily"  # 日のまとめ（period_start と period_end が同じ日）
     WEEKLY = "weekly"  # 週のまとめ
     MONTHLY = "monthly"  # 月のまとめ
     OTHER = "other"  # その他（種目の分析など）
@@ -118,6 +119,8 @@ class Report:
                 raise ReportError("period_end は period_start と同じか後の日にしてください")
             if (self.period_end - self.period_start).days >= MAX_PERIOD_DAYS:
                 raise ReportError(f"期間は{MAX_PERIOD_DAYS}日までにしてください")
+        if self.kind is Kind.DAILY and (self.period_start is None or self.period_start != self.period_end):
+            raise ReportError("日のまとめ（daily）は、period_start と period_end を同じ日にしてください")
 
 
 def _check_metric(m: Metric) -> None:

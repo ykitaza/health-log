@@ -73,6 +73,7 @@ def test_ツールの一覧と説明():
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     assert set(tools) == {"save_report", "list_reports", "get_report", "delete_report"}
     assert "今週のまとめを作って" in tools["save_report"].description  # いつ使うかが分かる
+    assert "今日のまとめを作って" in tools["save_report"].description
     assert tools["delete_report"].annotations.destructive_hint is True
 
 
@@ -94,6 +95,23 @@ def test_一覧は新しい順で_種類と件数で絞れる(call):
     assert [r["report_id"] for r in call("list_reports")["reports"]] == [second, first]
     assert [r["report_id"] for r in call("list_reports", kind="weekly")["reports"]] == [first]
     assert len(call("list_reports", limit=1)["reports"]) == 1
+
+
+def test_日のまとめは_その日だけを期間にして保存できる(call):
+    day = {**WEEKLY, "title": "今日のまとめ", "kind": "daily", "period_start": "2026-11-09", "period_end": "2026-11-09"}
+    saved = call("save_report", **day)["report"]
+    assert (saved["kind"], saved["period_start"], saved["period_end"]) == ("daily", "2026-11-09", "2026-11-09")
+    assert [r["report_id"] for r in call("list_reports", kind="daily")["reports"]] == [saved["report_id"]]
+
+
+@pytest.mark.parametrize("period", [
+    {"period_start": "2026-11-08", "period_end": "2026-11-09"},
+    {"period_start": None, "period_end": None},
+])
+def test_日のまとめは_期間が同じ日でないと断る(call, period):
+    with pytest.raises(ToolError, match="daily"):
+        call("save_report", **{**WEEKLY, "kind": "daily", **period})
+    assert call("list_reports")["reports"] == []
 
 
 def test_消すと_一覧から消え_もう一度は消せない(call):
@@ -129,7 +147,7 @@ def test_筋トレの_scope_がなければ断る(call):
     ({"body": "あ" * (limits.MAX_BODY + 1)}, "body"),
     ({"headline": "あ" * (limits.MAX_HEADLINE + 1)}, "headline"),
     ({"overall_tone": "bad"}, "overall_tone"),
-    ({"kind": "daily"}, "kind"),
+    ({"kind": "yearly"}, "kind"),
     ({"period_end": None}, "両方"),
     ({"period_end": "2026-11-01"}, "period_end"),
     ({"period_start": "2025-01-01", "period_end": "2026-11-08"}, "366日"),

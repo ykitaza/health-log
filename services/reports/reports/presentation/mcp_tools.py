@@ -42,8 +42,9 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
+INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
 「今週のまとめを作って」「レポートにして」「ふり返りを残して」と頼まれたら、先に記録のツール（weekly_review、weekly_training_review、body_progress、sleep_summary など）で数字を読んでから書き、save_report で保存する。
+「今日のまとめを作って」と頼まれたら kind は daily で、その日（period_start = period_end）の筋トレ・食事・からだ・睡眠を記録のツール（get_workout、today_status、body_progress、sleep_summary など）で読んでまとめる。日のまとめは短めにする（highlights は3件ほど、next_steps は1〜2件）。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 
@@ -52,7 +53,7 @@ WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
 
 ToneName = Literal["good", "steady", "caution"]
-KindName = Literal["weekly", "monthly", "other"]
+KindName = Literal["daily", "weekly", "monthly", "other"]
 Number = Annotated[float, Field(ge=-MAX_METRIC_VALUE, le=MAX_METRIC_VALUE)]
 
 
@@ -102,7 +103,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         body: Annotated[str, Field(max_length=MAX_BODY, description=(
             "くわしい本文（Markdown。見出し #、箇条書き - と 1.、太字 ** だけを使う。"
             "表・リンク・画像・HTML はアプリでは文字のまま出る）"))] = "",
-        kind: Annotated[KindName, Field(description="weekly（週のまとめ）、monthly（月のまとめ）、other（種目の分析など）")] = "other",
+        kind: Annotated[KindName, Field(description="daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）、other（種目の分析など）")] = "other",
         period_start: Annotated[date | None, Field(description="対象の期間の初日（YYYY-MM-DD）。期間がなければ省く")] = None,
         period_end: Annotated[date | None, Field(description="対象の期間の最後の日（YYYY-MM-DD。両端を含む）")] = None,
     ) -> dict:
@@ -112,6 +113,9 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         先に記録のツール（weekly_review、weekly_training_review、body_progress、sleep_summary、heart_rate_summary など）で
         期間の数字を読み、それにもとづいて書く。数字（metric の value・delta）は記録のツールが返したものだけを使い、推測で作らない。
         tone は数字で決める（目標に近づいた・増えたなら good、変わらないなら steady、離れた・少ないなら caution）。責める言い方はしない。
+        「今日のまとめを作って」と頼まれたら kind は daily にし、period_start と period_end をその日（同じ日）にする。
+        その日の筋トレ（get_workout）・食事（today_status）・からだ（body_progress）・睡眠（sleep_summary）を読んでまとめる。
+        日のまとめは短めに（highlights は3件ほど、next_steps は1〜2件）。
         保存は1回の依頼につき1回。同じ内容を2回保存しない。保存したら、アプリのホームに出ることを一言伝える。
         """
         sub = subject(WRITE_SCOPE)

@@ -763,9 +763,11 @@ components:
         kind:
           type: string
           enum:
+          - daily
           - weekly
           - monthly
           - other
+          description: daily（日のまとめ。period_start と period_end が同じ日）・weekly（週のまとめ）・monthly（月のまとめ）・other（その他）
         period_start:
           type:
           - string

@@ -11,7 +11,7 @@ import { useFocusData } from '@/hooks/data';
 import { Highlight, Metric, NEXT_TITLES, ReportKind } from '@/lib/reports';
 import { colors } from '@/theme';
 
-const VS: Record<ReportKind, string> = { weekly: '先週より', monthly: '先月より', other: '前より' };
+const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先週より', monthly: '先月より', other: '前より' };
 
 /** レポートの中身。上に調子の帯、指標のタイル、分野ごとのカード、次の一歩、くわしい本文。消せる（確認のダイアログ） */
 export default function ReportScreen() {

@@ -6,7 +6,7 @@ import { DateKey, formatJpDate, formatMonthDay, toDateKey } from './date';
 
 export type Tone = 'good' | 'steady' | 'caution';
 export type Area = 'training' | 'meals' | 'body' | 'sleep';
-export type ReportKind = 'weekly' | 'monthly' | 'other';
+export type ReportKind = 'daily' | 'weekly' | 'monthly' | 'other';
 
 export type Metric = { label: string; value: number; unit: string; delta: number | null; deltaGood: boolean | null };
 export type Highlight = { area: Area; tone: Tone; text: string; metric: Metric | null };
@@ -36,14 +36,14 @@ export type ReportRow = {
 export const TONE_LABELS: Record<Tone, string> = { good: '良い調子', steady: 'いつもどおり', caution: '気をつけたい' };
 /** 分野ごとのカードの印（短く） */
 export const TONE_SHORT: Record<Tone, string> = { good: '良い', steady: '変わらない', caution: '気をつけたい' };
-export const KIND_LABELS: Record<ReportKind, string> = { weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' };
+export const KIND_LABELS: Record<ReportKind, string> = { daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' };
 export const AREA_LABELS: Record<Area, string> = { training: '筋トレ', meals: '食事', body: 'からだ', sleep: '睡眠' };
-/** 次の一歩の見出し（週のまとめなら来週、月なら来月） */
-export const NEXT_TITLES: Record<ReportKind, string> = { weekly: '来週の一歩', monthly: '来月の一歩', other: '次の一歩' };
+/** 次の一歩の見出し（日のまとめなら明日、週のまとめなら来週、月なら来月） */
+export const NEXT_TITLES: Record<ReportKind, string> = { daily: '明日の一歩', weekly: '来週の一歩', monthly: '来月の一歩', other: '次の一歩' };
 
 const TONES: Tone[] = ['good', 'steady', 'caution'];
 const AREAS: Area[] = ['training', 'meals', 'body', 'sleep'];
-const KINDS: ReportKind[] = ['weekly', 'monthly', 'other'];
+const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly', 'other'];
 // サーバーの上限（services/reports/reports/domain/report.py）。壊れた値で画面が長くなりすぎないよう、読むときも切る
 const MAX_HIGHLIGHTS = 6;
 const MAX_NEXT_STEPS = 3;

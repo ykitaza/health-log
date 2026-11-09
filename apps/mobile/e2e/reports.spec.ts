@@ -100,6 +100,30 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect.poll(() => server.state('report', REPORT)?.deleted, { timeout: 15_000 }).toBe(true);
 });
 
+test('日のまとめ（daily）は、種類の名前・その日だけの期間・前の日との比べ・明日の一歩を出す', async ({ page, context }) => {
+  const server = createFakeSyncServer({ clock: () => '2026-11-09T12:00:00.000Z' });
+  const at = '2026-11-09T12:00:00.000Z';
+  server.append([{
+    parent_id: null, changed_at: at, origin: 'mcp', device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: REPORT, op: 'create', fields: {
+      title: '今日のまとめ', kind: 'daily', period_start: '2026-11-09', period_end: '2026-11-09', overall_tone: 'good',
+      headline: 'たんぱく質が目標に届いた',
+      highlights: [{ area: 'meals', tone: 'good', text: 'たんぱく質が目標どおり', metric: { label: 'たんぱく質', value: 130, unit: 'g', delta: 12, delta_good: true } }],
+      next_steps: ['23時までに寝る'], body: '',
+    },
+  }]);
+  await connect(page, context, server);
+  await openApp(page);
+  await signInAndSync(page);
+  await page.getByRole('button', { name: /^良い調子、今日のまとめ、/ }).filter({ visible: true }).click();
+
+  const band = page.getByTestId('report-band').filter({ visible: true });
+  await expect(see(band, '日のまとめ ・ 11月9日に作成')).toBeVisible();
+  await expect(see(band, '11月9日（月）', { exact: true })).toBeVisible();
+  await expect(see(page, '前の日より', { exact: true })).toBeVisible();
+  await expect(see(page, '明日の一歩', { exact: true })).toBeVisible();
+});
+
 test('MCP で推定した食事は、詳しい画面に推定の根拠を出す', async ({ page, context }) => {
   const server = serverWithReport();
   await connect(page, context, server);
