@@ -29,6 +29,10 @@ export const SQL_DELETE_PROFILE = `DELETE FROM sync_meta WHERE key IN ('${PROFIL
 /** 最後に選んだチャットのアプリ。端末だけに覚える（同期しない sync_meta に置く） */
 const LAST_CHAT_APP = 'chat.last_app';
 
+/** 履歴の総負荷量のグラフを、週ごと・日ごとのどちらで見るか。端末だけに覚える（同期しない sync_meta に置く） */
+export type VolumeRange = 'week' | 'day';
+const VOLUME_RANGE = 'history.volume_range';
+
 const KEYS: Record<keyof Settings, string> = {
   weightUnit: 'weight_unit',
   defaultSetCount: 'default_set_count',
@@ -86,6 +90,11 @@ export function settingsRepository(db: Db, deps: Deps) {
       if (patch.sex !== undefined) await putMeta(PROFILE_KEYS.sex, patch.sex);
       if (patch.birthYear !== undefined) await putMeta(PROFILE_KEYS.birthYear, patch.birthYear == null ? null : String(patch.birthYear));
     },
+
+    /** 履歴の総負荷量のグラフの「週・日」。覚えていない・知らない値なら週 */
+    volumeRange: async (): Promise<VolumeRange> => ((await meta(VOLUME_RANGE)) === 'day' ? 'day' : 'week'),
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
+    setVolumeRange: (range: VolumeRange): Promise<void> => putMeta(VOLUME_RANGE, range),
 
     autoGoalWeight: async (): Promise<number | null> => num(await meta(AUTO_GOAL_WEIGHT)),
     setAutoGoalWeight: (kg: number | null): Promise<void> => putMeta(AUTO_GOAL_WEIGHT, kg == null ? null : String(kg)),

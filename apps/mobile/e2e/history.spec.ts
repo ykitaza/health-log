@@ -124,6 +124,44 @@ test('カレンダー：月の移動、記録のある日・ない日の選択�
   await expect(see(page, '1,120 kg')).toBeVisible();
 });
 
+test('「すべて」の総負荷量：週 → 日の切り替えで棒が日ごとになり、開き直しても覚えている', async ({ page }) => {
+  await seed(page);
+  await button(page, 'グラフ').click();
+  // 初めは週ごと
+  await expect(button(page, '週')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('volume-chart-week')).toBeVisible();
+  await expect(page.getByTestId('volume-chart-day')).toHaveCount(0);
+
+  // 日ごと：4週（10/18〜11/14）の 28 日。10/20 の 500、11/5 の 1280、11/8 の 425（懸垂は体重がないので 0）
+  await button(page, '日').click();
+  await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
+  const chart = page.getByTestId('volume-chart-day');
+  await expect(chart).toBeVisible();
+  await expect(page.getByTestId('volume-chart-week')).toHaveCount(0);
+  await expect(see(page, '日ごとの総負荷量', { exact: true })).toBeVisible();
+  await expect(see(page, '2.2', { exact: true })).toBeVisible(); // 2205kg
+  await expect(see(page, 'いちばん多い日 11/5 1.3t ・ 3日')).toBeVisible();
+  // 棒は記録のあった3日だけ。日付の軸は週の始まり（日曜）
+  await expect(chart.locator('rect')).toHaveCount(3);
+  for (const d of ['10/18', '10/25', '11/1', '11/8']) await expect(chart.getByText(d, { exact: true })).toBeVisible();
+  // いちばん多い日だけ、棒の上に値
+  await expect(chart.getByText('1.3t', { exact: true })).toBeVisible();
+  // 読み上げの要約（期間の合計と、いちばん多い日）
+  await expect(chart).toHaveAttribute('aria-label', '日ごとの総負荷量のグラフ。10月18日から今日までの合計 2.2トン、3日。いちばん多い日は11月5日で 1.3トン');
+
+  // 開き直しても「日」のまま
+  await moveToDate(page, TODAY);
+  await openTrainingHistory(page);
+  await button(page, 'グラフ').click();
+  await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('volume-chart-day')).toBeVisible();
+
+  // 週に戻す
+  await button(page, '週').click();
+  await expect(page.getByTestId('volume-chart-week')).toBeVisible();
+  await expect(see(page, '週の平均 0.3t ・ 先週より −0.9t')).toBeVisible();
+});
+
 test('グラフ：期間の切り替え、記録が1件以下、回数だけの種目。「すべて」：週ごとの総負荷量と自己ベスト', async ({ page }) => {
   await seed(page);
   await button(page, 'ベンチプレス').click();

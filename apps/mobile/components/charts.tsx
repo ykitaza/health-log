@@ -19,6 +19,7 @@ export function CountUpText({ value, format, animKey, ...text }: Omit<ComponentP
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 
 /**
  * グラフを描く動きの進み（0〜1）。開いたときと animKey（期間など）が変わったときに 0 から描き直す。
@@ -132,8 +133,11 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
   );
 }
 
-/** 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大） */
-export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY, max: maxProp }: {
+/**
+ * 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大）。
+ * peak を渡すと、その棒の上に値を出す（棒が伸びきったら出る）。accessibilityLabel は読み上げのグラフの要約
+ */
+export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY, max: maxProp, labelAnchor = 'middle', peak, accessibilityLabel, testID }: {
   bars: { label: string; segments: { value: number; color: string }[] }[];
   height?: number;
   animKey?: string;
@@ -141,20 +145,38 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
   formatY?: (v: number) => string;
   /** 縦の最大（ないときは棒の最大） */
   max?: number;
+  /** 軸の文字を棒のまん中に置くか、棒の左から始めるか（棒が細くて多いときの、週の始まりの日付など） */
+  labelAnchor?: 'middle' | 'start';
+  /** 値を出す棒（いちばん多い日など）と、その文字 */
+  peak?: { index: number; label: string };
+  accessibilityLabel?: string;
+  testID?: string;
 }) {
   const reducedMotion = useReducedMotion();
   const total = barDelay(bars.length - 1, bars.length, reducedMotion) + duration.barGrow;
   const { progress, reduced } = useDrawProgress(animKey, total);
   const [width, onLayout] = useWidth();
-  const top = 6, bottom = 22;
+  const top = peak ? 20 : 6, bottom = 22;
   const left = formatY ? 36 : 0;
   const max = maxProp ?? Math.max(1, ...bars.map((b) => b.segments.reduce((a, s) => a + s.value, 0)));
   const slot = (width - left) / Math.max(1, bars.length);
   const barW = Math.min(32, slot * 0.6);
   const plotH = height - top - bottom;
   const yOf = (v: number) => top + plotH - (v / max) * plotH;
+  const peakText = peak && bars[peak.index] && (() => {
+    const cx = left + peak.index * slot + slot / 2;
+    const v = bars[peak.index].segments.reduce((a, sg) => a + sg.value, 0);
+    // 端の棒でも文字が切れないよう、端に寄せる
+    const anchor: 'start' | 'middle' | 'end' = cx < left + 24 ? 'start' : cx > width - 24 ? 'end' : 'middle';
+    const x = anchor === 'start' ? left + peak.index * slot + (slot - barW) / 2 : anchor === 'end' ? left + peak.index * slot + (slot + barW) / 2 : cx;
+    const text = { x, y: yOf(v) - 6, fill: colors.text, fontSize: 11, fontFamily: fonts.num, textAnchor: anchor };
+    const at = (barDelay(peak.index, bars.length, reduced) + duration.barGrow) / total;
+    return reduced
+      ? <SvgText {...text}>{peak.label}</SvgText>
+      : <FadingText {...text} at={at} progress={progress}>{peak.label}</FadingText>;
+  })();
   return (
-    <View onLayout={onLayout}>
+    <View onLayout={onLayout} testID={testID} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel}>
       <Svg width={width} height={height}>
         {formatY && [0, max / 2, max].map((t) => (
           <G key={`y${t}`}>
@@ -180,11 +202,12 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
                   ? <Rect key={j} {...rect} />
                   : <GrowingRect key={j} {...rect} base={base} from={from} to={to} progress={progress} />;
               })}
-              <SvgText x={x + barW / 2} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num}
-                textAnchor={i === 0 && formatY ? 'start' : i === bars.length - 1 && formatY ? 'end' : 'middle'}>{b.label}</SvgText>
+              <SvgText x={labelAnchor === 'start' ? x : x + barW / 2} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num}
+                textAnchor={labelAnchor === 'start' ? 'start' : i === 0 && formatY ? 'start' : i === bars.length - 1 && formatY ? 'end' : 'middle'}>{b.label}</SvgText>
             </G>
           );
         })}
+        {peakText}
         {refLine != null && (
           <Line x1={left} x2={width} y1={yOf(refLine)} y2={yOf(refLine)} stroke={colors.text} strokeWidth={1.5} strokeDasharray={[4, 4]} />
         )}
@@ -209,6 +232,12 @@ function Dot({ x, y, r, at, progress }: { x: number; y: number; r: number; at: n
     return { r: r * q };
   });
   return <AnimatedCircle cx={x} cy={y} fill={colors.accent} animatedProps={props} />;
+}
+
+/** 棒が伸びきったら（全体の進みが at を過ぎたら）出る文字 */
+function FadingText({ at, progress, children, ...text }: ComponentProps<typeof SvgText> & { at: number; progress: SharedValue<number> }) {
+  const props = useAnimatedProps(() => ({ opacity: progress.get() >= Math.min(at, 0.999) ? 1 : 0 }));
+  return <AnimatedSvgText {...text} animatedProps={props}>{children}</AnimatedSvgText>;
 }
 
 /** 下から伸びる棒の一片。全体の進みのうち from〜to の区間で、下の線（base）から伸びる */
