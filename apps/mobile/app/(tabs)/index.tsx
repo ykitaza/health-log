@@ -7,7 +7,7 @@ import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { LatestReportCard } from '@/components/reports';
 import { Screen } from '@/components/Screen';
-import { SyncStatusLine } from '@/components/SyncStatus';
+import { SyncAlertLine } from '@/components/SyncStatus';
 import { T } from '@/components/Text';
 import { Badge, Button, Fab, TabHeader } from '@/components/ui';
 import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
@@ -61,8 +61,8 @@ export default function HomeScreen() {
     <View style={{ flex: 1 }}>
     <Screen tab fab bottomSpace={size.fab + space.l * 2}>
       <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} actions={<Button label="RM計算機" icon="calc" variant="text" small onPress={() => router.push('/rm')} />} />
-      {/* 同期の状態（同期 2分前・未送信・失敗）。見出しの下に1行で */}
-      <SyncStatusLine />
+      {/* 同期が続けて失敗しているときだけ、見出しの下に1行で知らせる（ふだんは出さない。時刻と未送信の件数はアカウントの画面） */}
+      <SyncAlertLine />
 
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         {/* 左右の列の下の端をそろえる：短いほうの列も下まで伸ばし、最後の要素を下に寄せる */}
