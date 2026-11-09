@@ -95,6 +95,20 @@ describe('設定', () => {
     expect(await r.settings.lastChatApp()).toBeNull();
   });
 
+  test('履歴の総負荷量のグラフの「週・日」は端末だけに覚え、同期に載せない。初めは週', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.volumeRange()).toBe('week');
+    await r.settings.setVolumeRange('day');
+    expect(await r.settings.volumeRange()).toBe('day');
+    await r.settings.setVolumeRange('week');
+    expect(await r.settings.volumeRange()).toBe('week');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    // 知らない値は週
+    db.raw.prepare("UPDATE sync_meta SET value = 'month' WHERE key = 'history.volume_range'").run();
+    expect(await r.settings.volumeRange()).toBe('week');
+  });
+
   test('活動の量は設定（同期する）。性別・生まれた年・自動計算の体重は端末だけに覚え、同期に載せない', async () => {
     const { r, db } = await setup();
     await r.settings.update({ activity: 'moderate' });

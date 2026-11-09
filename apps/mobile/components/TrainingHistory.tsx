@@ -8,14 +8,15 @@ import { MonthCalendar } from './MonthCalendar';
 import { T } from './Text';
 import { SlidingMark } from './motion';
 import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, useLayouts } from './ui';
+import type { VolumeRange } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addMonths, formatJpDate, formatMonthDay, formatShortDate, MONTH_NAMES_EN, todayKey, yearMonth } from '@/lib/date';
 import { formatSetLong } from '@/lib/format';
 import {
-  bestSet, changeOver, exerciseDailySeries, filterSince, Period, PERIOD_LABELS, periodStart, personalBests,
-  totalVolume, trainingDates, weeklySummary, weeklyVolumeByBodyPart,
+  bestSet, changeOver, dailySummary, dailyVolumeByBodyPart, exerciseDailySeries, filterSince, Period, PERIOD_LABELS, periodStart,
+  personalBests, totalVolume, trainingDates, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
@@ -38,10 +39,11 @@ export function TrainingHistory() {
   const repos = useRepos();
 
   const { data, error, reload } = useFocusData(async (r) => {
-    const [parts, exercises, rows, settings] = await Promise.all([
+    const [parts, exercises, rows, settings, volumeRange] = await Promise.all([
       r.catalog.listBodyParts(), r.catalog.listExercises({ includeHidden: true }), r.workouts.allSetRows(), r.settings.get(),
+      r.settings.volumeRange().catch((): VolumeRange => 'week'),
     ]);
-    return { parts, exercises, rows, settings };
+    return { parts, exercises, rows, settings, volumeRange };
   });
   const unit = data?.settings.weightUnit ?? 'kg';
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -248,37 +250,87 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
   );
 }
 
+/** 日ごとの総負荷量に出す週の数（週ごとと同じ日曜始まりの 28 日） */
+const DAILY_WEEKS = 4;
+const WEEKLY_WEEKS = 8;
+
 function AllGraph({ data, today, unit, onPick }: {
-  data: { parts: { id: string; name: string }[]; exercises: { id: string; name: string; bodyPartName: string }[]; rows: Parameters<typeof weeklyVolumeByBodyPart>[0] };
+  data: {
+    parts: { id: string; name: string }[]; exercises: { id: string; name: string; bodyPartName: string }[];
+    rows: Parameters<typeof weeklyVolumeByBodyPart>[0]; volumeRange: VolumeRange;
+  };
   today: string; unit: 'kg' | 'lb'; onPick: (exerciseId: string) => void;
 }) {
-  const weeks = weeklyVolumeByBodyPart(data.rows, today, 8);
+  const repos = useRepos();
+  const [range, setRange] = useState<VolumeRange>(data.volumeRange);
+  const chooseRange = (k: VolumeRange) => {
+    setRange(k);
+    repos.settings.setVolumeRange(k).catch(() => {});
+  };
+  const weeks = weeklyVolumeByBodyPart(data.rows, today, WEEKLY_WEEKS);
+  const days = dailyVolumeByBodyPart(data.rows, today, DAILY_WEEKS);
+  const shown = range === 'week' ? weeks : days;
   const partIndex = new Map(data.parts.map((p, i) => [p.id, i]));
-  const usedParts = data.parts.filter((p) => weeks.some((w) => (w.byPart[p.id] ?? 0) > 0));
+  const usedParts = data.parts.filter((p) => shown.some((w) => (w.byPart[p.id] ?? 0) > 0));
   const t = (kg: number) => kgToUnit(kg, unit) / 1000;
+  const tUnit = unit === 'kg' ? 't' : 'k lb';
+  const tSpoken = unit === 'kg' ? 'トン' : '千ポンド';
   const { thisWeek, lastWeek, avg } = weeklySummary(weeks);
+  const daily = dailySummary(days);
+  const peakWeek = weeks.reduce<(typeof weeks)[number] | null>((a, w) => (w.total > 0 && (!a || w.total > a.total) ? w : a), null);
+  const segments = (byPart: Record<string, number>) =>
+    data.parts.map((p) => ({ value: byPart[p.id] ?? 0, color: partColor(partIndex.get(p.id) ?? 0) }));
+  const peakIndex = daily.peak ? days.indexOf(daily.peak) : -1;
   const pbs = [...personalBests(data.rows).values()].sort((a, b) => b.e1rm - a.e1rm);
   const exName = new Map(data.exercises.map((e) => [e.id, e]));
 
   return (
     <>
       <Card style={{ marginTop: 14 }}>
+        <View style={{ marginBottom: 8 }}>
+          <Segmented options={[{ key: 'week', label: '週' }, { key: 'day', label: '日' }]} value={range} onChange={chooseRange} />
+        </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <T bold size={16}>週ごとの総負荷量</T>
+          <T bold size={16}>{range === 'week' ? '週ごとの総負荷量' : '日ごとの総負荷量'}</T>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-            <CountUpText num bold size={28} value={t(thisWeek)} format={(v) => v.toFixed(1)} />
-            <T size={12} color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}／今週</T>
+            <CountUpText num bold size={28} value={t(range === 'week' ? thisWeek : daily.total)} format={(v) => v.toFixed(1)} animKey={range} />
+            <T size={12} color={colors.sub}>{tUnit}／{range === 'week' ? '今週' : `${DAILY_WEEKS}週間`}</T>
           </View>
         </View>
-        <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
-          週の平均 {t(avg).toFixed(1)}{unit === 'kg' ? 't' : 'k lb'} ・ 先週より {thisWeek >= lastWeek ? '+' : '−'}{Math.abs(t(thisWeek - lastWeek)).toFixed(1)}{unit === 'kg' ? 't' : 'k lb'}
-        </T>
-        <StackedBarChart
-          bars={weeks.map((w, i) => ({
-            label: i === weeks.length - 1 ? '今週' : i % 2 === 0 ? formatShortDate(w.weekStart) : '',
-            segments: data.parts.map((p) => ({ value: w.byPart[p.id] ?? 0, color: partColor(partIndex.get(p.id) ?? 0) })),
-          }))}
-        />
+        {range === 'week' ? (
+          <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
+            週の平均 {t(avg).toFixed(1)}{tUnit} ・ 先週より {thisWeek >= lastWeek ? '+' : '−'}{Math.abs(t(thisWeek - lastWeek)).toFixed(1)}{tUnit}
+          </T>
+        ) : (
+          <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
+            {daily.peak
+              ? `いちばん多い日 ${formatShortDate(daily.peak.date)} ${t(daily.peak.total).toFixed(1)}${tUnit} ・ ${daily.activeDays}日`
+              : `この${DAILY_WEEKS}週間の記録はありません`}
+          </T>
+        )}
+        {range === 'week' ? (
+          <StackedBarChart
+            animKey={range}
+            testID="volume-chart-week"
+            accessibilityLabel={`週ごとの総負荷量のグラフ。${WEEKLY_WEEKS}週間の合計 ${t(weeks.reduce((a, w) => a + w.total, 0)).toFixed(1)}${tSpoken}。${
+              peakWeek ? `いちばん多い週は${formatMonthDay(peakWeek.weekStart)}からの週で ${t(peakWeek.total).toFixed(1)}${tSpoken}` : '記録はありません'}`}
+            bars={weeks.map((w, i) => ({
+              label: i === weeks.length - 1 ? '今週' : i % 2 === 0 ? formatShortDate(w.weekStart) : '',
+              segments: segments(w.byPart),
+            }))}
+          />
+        ) : (
+          // 棒が 28 本と細いので、日付は週の始まり（日曜）だけ、棒の左から書く。値はいちばん多い日だけ棒の上に出す
+          <StackedBarChart
+            animKey={range}
+            testID="volume-chart-day"
+            labelAnchor="start"
+            peak={daily.peak ? { index: peakIndex, label: `${t(daily.peak.total).toFixed(1)}${tUnit}` } : undefined}
+            accessibilityLabel={`日ごとの総負荷量のグラフ。${formatMonthDay(days[0].date)}から今日までの合計 ${t(daily.total).toFixed(1)}${tSpoken}、${daily.activeDays}日。${
+              daily.peak ? `いちばん多い日は${formatMonthDay(daily.peak.date)}で ${t(daily.peak.total).toFixed(1)}${tSpoken}` : '記録はありません'}`}
+            bars={days.map((d, i) => ({ label: i % 7 === 0 ? formatShortDate(d.date) : '', segments: segments(d.byPart) }))}
+          />
+        )}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
           {usedParts.map((p) => (
             <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

@@ -192,6 +192,37 @@ export function weeklyVolumeByBodyPart(rows: TrainingSetRow[], today: DateKey, w
   return out;
 }
 
+export type DailyByPart = { date: DateKey; byPart: Record<string, number>; total: number };
+
+/**
+ * 部位ごとの、日ごとの総負荷量（古い順）。週ごと（weeklyVolumeByBodyPart）と同じ weeks 週（日曜始まり）の
+ * 7 × weeks 日で、今週の土曜まで並べる。今日より後の日と、トレーニングしなかった日は 0。
+ * 同じ weeks なら、日ごとの合計は週ごとの合計と同じになる
+ */
+export function dailyVolumeByBodyPart(rows: TrainingSetRow[], today: DateKey, weeks = 4): DailyByPart[] {
+  const first = addDays(weekStart(today), -7 * (weeks - 1));
+  const out: DailyByPart[] = [];
+  for (let i = 0; i < 7 * weeks; i++) out.push({ date: addDays(first, i), byPart: {}, total: 0 });
+  for (const r of rows) {
+    if (r.date > today) continue;
+    const idx = daysBetween(first, r.date);
+    if (idx < 0 || idx >= out.length) continue;
+    const v = setVolume(r);
+    if (v === 0) continue;
+    const d = out[idx];
+    d.byPart[r.bodyPartId] = (d.byPart[r.bodyPartId] ?? 0) + v;
+    d.total += v;
+  }
+  return out;
+}
+
+/** 日ごとの総負荷量の見出しの数字：期間の合計、いちばん多かった日（同じなら早い日。なければ null）、トレーニングした日数 */
+export function dailySummary(days: DailyByPart[]) {
+  let peak: DailyByPart | null = null;
+  for (const d of days) if (d.total > 0 && (!peak || d.total > peak.total)) peak = d;
+  return { total: days.reduce((a, d) => a + d.total, 0), peak, activeDays: days.filter((d) => d.total > 0).length };
+}
+
 /** 週ごとの総負荷量の見出しの数字：今週、先週、期間の週の平均 */
 export function weeklySummary(weeks: WeeklyByPart[]) {
   const thisWeek = weeks[weeks.length - 1].total;

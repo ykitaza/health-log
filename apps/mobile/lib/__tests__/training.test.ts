@@ -1,7 +1,7 @@
 import {
   bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart, periodTotals,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
-  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, weeklyVolumes,
+  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, weeklyVolumes, dailyVolumeByBodyPart, dailySummary,
 } from '../training';
 
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
@@ -113,6 +113,75 @@ test('部位ごとの週の総負荷量', () => {
   expect(w.map((x) => x.weekStart)).toEqual(['2026-10-25', '2026-11-01', '2026-11-08']);
   expect(w[2]).toEqual({ weekStart: '2026-11-08', byPart: { chest: 1000 }, total: 1000 });
   expect(w[1].byPart).toEqual({ back: 500, legs: 500 });
+});
+
+describe('部位ごとの日の総負荷量（4週。週ごとと同じ日曜始まり）', () => {
+  // 今日は 2026-11-08（日曜）。4週は 10/18（日）〜 11/14（土）の 28 日
+  const today = '2026-11-08';
+  const rows: TrainingSetRow[] = [
+    row('2026-10-17', 100, 10), // 範囲の前の日（土曜）は入らない
+    row('2026-10-18', 50, 10, 'row', 'back'), // 範囲の最初の日
+    row('2026-10-31', 60, 10), // 土曜と次の日曜で分かれる
+    row('2026-11-01', 70, 10),
+    row('2026-11-01', 100, 5, 'squat', 'legs'),
+    row('2026-11-08', 80, 5), // 今日
+    row('2026-11-08', 80, 5),
+    { ...row('2026-11-08', null, 10, 'pushup'), bodyweightLoadKg: 42 }, // 自重：体重 70 × 0.6 × 10 回
+    row('2026-11-08', null, 10, 'pullup', 'back'), // 体重の記録がない自重は 0
+    row('2026-11-09', 100, 10), // 今日より後は入らない
+  ];
+  const days = dailyVolumeByBodyPart(rows, today);
+
+  test('28日の範囲で、今日を含み、今週の土曜まで並ぶ', () => {
+    expect(days).toHaveLength(28);
+    expect(days[0].date).toBe('2026-10-18');
+    expect(days[27].date).toBe('2026-11-14');
+    expect(days.findIndex((d) => d.date === today)).toBe(21);
+    expect(days[22]).toEqual({ date: '2026-11-09', byPart: {}, total: 0 });
+  });
+
+  test('日ごとに分けて、部位ごとに積む。自重は体重 × 割合 × 回数', () => {
+    expect(days[0]).toEqual({ date: '2026-10-18', byPart: { back: 500 }, total: 500 });
+    expect(days[13]).toEqual({ date: '2026-10-31', byPart: { chest: 600 }, total: 600 });
+    expect(days[14]).toEqual({ date: '2026-11-01', byPart: { chest: 700, legs: 500 }, total: 1200 });
+    expect(days[21]).toEqual({ date: today, byPart: { chest: 400 + 400 + 420 }, total: 1220 });
+  });
+
+  test('休みの日は 0（部位の値もない）', () => {
+    const rest = days.filter((d) => ![0, 13, 14, 21].includes(days.indexOf(d)));
+    expect(rest).toHaveLength(24);
+    expect(rest.every((d) => d.total === 0 && Object.keys(d.byPart).length === 0)).toBe(true);
+  });
+
+  test('土曜が今日なら、最後の日が今日', () => {
+    const sat = dailyVolumeByBodyPart(rows, '2026-11-14');
+    expect(sat[0].date).toBe('2026-10-18');
+    expect(sat[27]).toMatchObject({ date: '2026-11-14', total: 0 });
+    // 11/9 は今日（11/14）より前なので入る
+    expect(sat[22].total).toBe(1000);
+  });
+
+  test('4週分の日ごとの合計は、週ごとの合計と同じ（部位ごとも）', () => {
+    for (const t of [today, '2026-11-11', '2026-11-14']) {
+      const d = dailyVolumeByBodyPart(rows, t, 4);
+      const w = weeklyVolumeByBodyPart(rows, t, 4);
+      for (let i = 0; i < 4; i++) {
+        const week = d.slice(i * 7, i * 7 + 7);
+        expect(week[0].date).toBe(w[i].weekStart);
+        expect(week.reduce((a, x) => a + x.total, 0)).toBeCloseTo(w[i].total, 6);
+        for (const part of ['chest', 'back', 'legs']) {
+          expect(week.reduce((a, x) => a + (x.byPart[part] ?? 0), 0)).toBeCloseTo(w[i].byPart[part] ?? 0, 6);
+        }
+      }
+    }
+  });
+
+  test('見出しの数字：合計、いちばん多かった日、した日数', () => {
+    expect(dailySummary(days)).toEqual({ total: 500 + 600 + 1200 + 1220, peak: days[21], activeDays: 4 });
+    // 同じ量なら早い日
+    expect(dailySummary(dailyVolumeByBodyPart([row('2026-11-02', 10, 10), row('2026-11-03', 10, 10)], today)).peak?.date).toBe('2026-11-02');
+    expect(dailySummary(dailyVolumeByBodyPart([], today))).toEqual({ total: 0, peak: null, activeDays: 0 });
+  });
 });
 
 test('RM計算機の表', () => {
