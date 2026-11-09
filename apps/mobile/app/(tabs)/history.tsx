@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { LineChart, StackedBarChart } from '@/components/charts';
+import { CountUpText, LineChart, StackedBarChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { MealWeekly } from '@/components/MealWeekly';
 import { MonthCalendar } from '@/components/MonthCalendar';
@@ -227,14 +227,16 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <T bold size={16}>{c.title}</T>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                  <T num bold size={28}>{c.fmt(last)}</T>
+                  <CountUpText num bold size={28} value={last} format={c.fmt} animKey={`${exerciseId}-${period}`} />
                   <T size={12} color={colors.sub}>{unit}</T>
                 </View>
               </View>
-              <T size={12} bold color={diff >= 0 ? colors.accent : colors.danger} style={{ marginBottom: 8 }}>
-                {PERIOD_LABELS[period]}{period === 'all' ? 'の期間' : ''}で {diff >= 0 ? '+' : '−'}{c.fmt(Math.abs(diff))}{unit}
-              </T>
-              <LineChart points={datePoints(series, c.value, start, today)} xLabels={labels} formatY={(v) => fmtInt(v)} />
+              <CountUpText
+                size={12} bold color={diff >= 0 ? colors.accent : colors.danger} style={{ marginBottom: 8 }}
+                value={Math.abs(diff)} animKey={`${exerciseId}-${period}`}
+                format={(v) => `${PERIOD_LABELS[period]}${period === 'all' ? 'の期間' : ''}で ${diff >= 0 ? '+' : '−'}${c.fmt(v)}${unit}`}
+              />
+              <LineChart points={datePoints(series, c.value, start, today)} xLabels={labels} formatY={(v) => fmtInt(v)} animKey={`${exerciseId}-${period}`} />
             </Card>
           );
         })
@@ -261,7 +263,7 @@ function AllGraph({ data, today, unit, onPick }: {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <T bold size={16}>週ごとの総負荷量</T>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-            <T num bold size={28}>{t(thisWeek).toFixed(1)}</T>
+            <CountUpText num bold size={28} value={t(thisWeek)} format={(v) => v.toFixed(1)} />
             <T size={12} color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}／今週</T>
           </View>
         </View>

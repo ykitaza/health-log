@@ -18,7 +18,14 @@ export const duration = {
   listItem: 180,
   /** 入力の間違いで欄が揺れる（全体） */
   shake: 280,
+  /** グラフの線が左から右へ描かれる。大きな数字の数え上げも同じ長さ */
+  draw: 600,
+  /** グラフの棒が1本、下から伸びる */
+  barGrow: 400,
 } as const;
+
+/** グラフの棒を順に伸ばすときの、ずらしの全体（最後の棒が伸び始めるまで） */
+export const BAR_STAGGER_TOTAL_MS = 300;
 
 /** 出てくる動きのイージング（なめらかな ease-out）。Easing.bezier(...EASE_OUT) で使う */
 export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
@@ -47,4 +54,14 @@ export function motionDuration(ms: number, reduced: boolean): number {
 export function staggerDelay(index: number, reduced: boolean): number {
   if (reduced || index <= 0) return 0;
   return Math.min(index * STAGGER_MS, STAGGER_TOTAL_MS - duration.listItem);
+}
+
+/**
+ * n 本の棒の i 本目が伸び始めるまでの待ち。1本につき 40ms ずらすが、最後の棒でも BAR_STAGGER_TOTAL_MS までに収める
+ * （本数が多いときは、ずらしを小さくする）
+ */
+export function barDelay(index: number, count: number, reduced: boolean): number {
+  if (reduced || count <= 1 || index <= 0) return 0;
+  const step = Math.min(STAGGER_MS, BAR_STAGGER_TOTAL_MS / (count - 1));
+  return Math.min(index, count - 1) * step;
 }
