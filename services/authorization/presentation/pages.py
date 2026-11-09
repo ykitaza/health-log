@@ -1,67 +1,117 @@
-"""ブラウザに出す画面（同意画面、プライバシーポリシー、エラー画面）。外部の CSS や JS は読み込まない。"""
+"""ブラウザに出す画面（同意画面、プライバシーポリシー、エラー画面）。外部の CSS や JS は読み込まない。
 
+見た目はアプリ（apps/mobile/theme）と Cognito のマネージドログインのブランディング（cdk/lib/infra-stack.ts）に合わせる。
+CSS と JS はページに埋め込み、CSP（CONTENT_SECURITY_POLICY）でその中身のハッシュだけを許す。
+"""
+
+import base64
+import hashlib
 import html
 
-# 同意画面に表示する scope の説明
+# 同意画面に表示する scope の説明（できるようになること）
 SCOPE_DESCRIPTIONS = {
-    "meals:read": "食事記録と目標の読み取り",
-    "meals:write": "食事記録と目標の追加・修正・削除",
-    "training:read": "筋トレ（種目・重量・回数）と体組成の記録の読み取り",
-    "training:write": "筋トレと体組成の記録の追加・修正・削除",
+    "meals:read": "食事の記録と目標を読む",
+    "meals:write": "食事の記録と目標を書く（追加・修正・削除）",
+    "training:read": "筋トレ（種目・重量・回数）と体組成の記録を読む",
+    "training:write": "筋トレと体組成の記録を書く（追加・修正・削除）",
 }
 
-# 余白・色・文字の大きさは、ここの変数だけを使う（余白は 8px 刻み）
+# 色・余白・角はアプリ（apps/mobile/theme/index.ts）と同じ値。ダークモードだけ（アプリとログイン画面と同じ）。
+# 余白は 8px 刻み、画面の左右は 16px、押せるものは 48px 以上。文字は地に対して 4.5:1 以上
 STYLE = """
 :root {
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-  --space-6: 24px; --space-8: 32px; --space-12: 48px;
-  --text-sm: 14px; --text-base: 16px; --text-lg: 20px; --text-xl: 28px;
-  --radius: 8px;
-  --bg: #f6f6f4; --surface: #ffffff; --border: #dcdcd7;
-  --text: #1c1c1a; --muted: #5c5c57; --accent: #1f6f5c; --accent-text: #ffffff;
-  --font: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  color-scheme: dark;
+  --space-xs: 4px; --space-s: 8px; --space-m: 12px; --space-l: 16px; --space-xl: 24px; --space-xxl: 32px;
+  --bg: #0E1013; --card: #181B20; --input: #22262D; --line: #2C313A; --outline: #6E7580;
+  --text: #F3F5F7; --sub: #9AA1AD; --accent: #5BE49B; --on-accent: #08130D;
+  --radius-s: 8px; --radius-card: 16px;
+  --font: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161615; --surface: #20201e; --border: #3a3a37;
-    --text: #ededea; --muted: #a8a8a2; --accent: #5cb89f; --accent-text: #0e1a17;
-  }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
-  font: var(--text-base)/1.6 var(--font);
+  font: 16px/24px var(--font); -webkit-text-size-adjust: 100%;
 }
-main { max-width: 40em; margin-inline: auto; padding: var(--space-8) var(--space-4) var(--space-12); }
-.service { margin: 0 0 var(--space-6); font-size: var(--text-sm); color: var(--muted); }
-h1 { margin: 0 0 var(--space-6); font-size: var(--text-xl); line-height: 1.25; }
-h2 { margin: var(--space-8) 0 var(--space-2); font-size: var(--text-lg); line-height: 1.25; }
-p, ul { margin: 0 0 var(--space-4); }
-ul { padding-left: var(--space-6); }
-li + li { margin-top: var(--space-1); }
-a { color: var(--accent); }
-.panel {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: var(--space-6); margin-bottom: var(--space-6);
+main { max-width: 560px; margin-inline: auto; padding: var(--space-l) var(--space-l) var(--space-xxl); }
+.brand { display: flex; align-items: center; gap: var(--space-m); min-height: 64px; margin-bottom: var(--space-s); }
+.brand svg { width: 40px; height: 40px; border-radius: var(--radius-s); flex: none; }
+.logo { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; }
+.logo .o { color: var(--accent); }
+.brand-sub { margin: 0; font-size: 12px; line-height: 16px; color: var(--sub); }
+h1 { margin: var(--space-s) 0 var(--space-l); font-size: 22px; line-height: 28px; font-weight: 700; }
+h2 { margin: var(--space-l) 0 var(--space-s); font-size: 14px; line-height: 20px; font-weight: 700; color: var(--accent); }
+p, ul { margin: 0 0 var(--space-l); }
+ul { padding-left: var(--space-xl); }
+li + li { margin-top: var(--space-xs); }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.card {
+  background: var(--card); border-radius: var(--radius-card);
+  padding: var(--space-l); margin-bottom: var(--space-l);
 }
-.panel > :last-child { margin-bottom: 0; }
-.client-name { margin: 0; font-size: var(--text-lg); font-weight: 700; }
-.client-host { margin: 0 0 var(--space-4); font: var(--text-sm)/1.6 var(--mono); color: var(--muted); }
-.note { font-size: var(--text-sm); color: var(--muted); }
-.actions { display: flex; flex-direction: column; gap: var(--space-3); }
+.card > :last-child { margin-bottom: 0; }
+.client-name { margin: 0; font-size: 16px; line-height: 24px; font-weight: 700; overflow-wrap: anywhere; }
+.client-host { margin: 0 0 var(--space-m); font: 14px/20px var(--mono); color: var(--sub); overflow-wrap: anywhere; }
+.body-m { font-size: 14px; line-height: 20px; }
+.card .body-m { margin-bottom: 0; }
+.note { font-size: 14px; line-height: 20px; color: var(--sub); }
+.switch { display: inline-flex; align-items: center; min-height: 48px; font-size: 14px; font-weight: 700; }
+.scopes { list-style: none; padding: 0; margin: 0; }
+.scopes li { display: flex; gap: var(--space-m); align-items: flex-start; padding: var(--space-m) 0; margin: 0; }
+.scopes li + li { border-top: 1px solid var(--line); }
+.scopes li:first-child { padding-top: 0; }
+.scopes li:last-child { padding-bottom: 0; }
+.scopes svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.actions { display: flex; flex-direction: column; gap: var(--space-m); margin-top: var(--space-xl); }
 button {
-  min-height: 48px; padding: 0 var(--space-6); border-radius: var(--radius);
-  font: 700 var(--text-base)/1 var(--font); cursor: pointer;
+  min-height: 56px; padding: 0 var(--space-xl); border-radius: 999px; width: 100%;
+  font: 700 16px/24px var(--font); cursor: pointer;
 }
-.allow { background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent); }
-.deny { background: transparent; color: var(--text); border: 1px solid var(--border); }
-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.6; cursor: default; }
+.allow { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
+.deny { background: transparent; color: var(--accent); border: 1px solid var(--outline); }
 @media (min-width: 640px) {
-  main { padding-top: var(--space-12); }
-  .actions { flex-direction: row-reverse; justify-content: flex-start; }
+  main { padding-top: var(--space-xxl); }
+  .actions { flex-direction: row-reverse; }
+  .actions button { width: auto; flex: 1; }
 }
 """
+
+# 同意画面：送ったあとにボタンを押せなくする（2回押し対策）。押したボタンの値を送るため、無効にするのは送信の後
+SCRIPT = """
+for (const form of document.querySelectorAll("form[data-once]")) {
+  form.addEventListener("submit", () => {
+    for (const b of form.querySelectorAll("button")) setTimeout(() => { b.disabled = true; });
+  });
+}
+"""
+
+
+def _sha256(text: str) -> str:
+    return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode()).digest()).decode() + "'"
+
+
+# 埋め込んだ CSS と JS だけを許し、ほかは読み込ませない。別のサイトへの埋め込みも断る（frame-ancestors）。
+# form-action は付けない（/consent は許可のあと redirect_uri へ 303 で戻すので、ブラウザによっては行き先まで絞られて止まる）
+CONTENT_SECURITY_POLICY = "; ".join([
+    "default-src 'none'",
+    f"style-src {_sha256(STYLE)}",
+    f"script-src {_sha256(SCRIPT)}",
+    "img-src 'self' data:",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+])
+
+# アプリのアイコン（apps/mobile/assets/icon-src/icon.svg の写し）。飾りなので読み上げない
+ICON = """<svg viewBox="0 0 1024 1024" aria-hidden="true" focusable="false"><rect width="1024" height="1024" fill="#0E1013"/>\
+<g transform="translate(512 512) translate(-570 -512)"><path d="M330 250 V774 M330 520 Q330 420 450 420 Q570 420 570 520 V774" \
+fill="none" stroke="#5BE49B" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>\
+<path d="M640 610 H672 L712 512 L762 708 L800 610 H836" fill="none" stroke="#5BE49B" stroke-width="40" \
+stroke-linecap="round" stroke-linejoin="round"/></g></svg>"""
+
+CHECK = """<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5" \
+fill="none" stroke="#5BE49B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
 
 
 def _page(title: str, body: str) -> str:
@@ -70,36 +120,41 @@ def _page(title: str, body: str) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title>
+<meta name="color-scheme" content="dark">
+<title>{html.escape(title)} - hlog</title>
 <style>{STYLE}</style>
 </head>
 <body>
 <main>
-<p class="service">食事管理 アカウント連携</p>
+<header class="brand">
+{ICON}
+<div><p class="logo" aria-label="hlog">hl<span class="o">o</span>g</p><p class="brand-sub">アカウント連携</p></div>
+</header>
 {body}
 </main>
+<script>{SCRIPT}</script>
 </body>
 </html>"""
 
 
 def render_consent_page(client_name: str, client_host: str, email: str, scopes: list[str]) -> str:
     # client_name はクライアントが自由に書ける値なので、必ずエスケープする。偽の名前に備えてドメインも並べて出す
-    items = "".join(f"<li>{html.escape(SCOPE_DESCRIPTIONS.get(s, s))}</li>" for s in scopes)
+    items = "".join(f"<li>{CHECK}<span>{html.escape(SCOPE_DESCRIPTIONS.get(s, s))}</span></li>" for s in scopes)
     meals = any(s.startswith("meals:") for s in scopes)
     photo_note = "食事の写真はこのサービスに送られず、保存もしません。" if meals else ""
     return _page("連携の確認", f"""<h1>連携の確認</h1>
-<section class="panel">
+<section class="card">
 <p class="client-name">{html.escape(client_name)}</p>
 <p class="client-host">{html.escape(client_host)}</p>
-<p>このアプリが、{html.escape(email)} さんの次の操作を求めています。
-<a href="/switch-account">別のアカウントで入り直す</a></p>
-<ul>{items}</ul>
+<p class="body-m">このアプリが、{html.escape(email)} さんの記録について、次のことをできるようにしたいと求めています。</p>
+<a class="switch" href="/switch-account">別のアカウントで入り直す</a>
 </section>
-<p class="note">心当たりのないアプリなら、許可しないでください。{photo_note}詳しくは<a href="/privacy" target="_blank">プライバシーポリシー</a>をご覧ください。</p>
-<form method="post" action="/consent" class="actions"
-  onsubmit="for (const b of this.querySelectorAll('button')) setTimeout(() => b.disabled = true)">
+<h2>できるようになること</h2>
+<section class="card"><ul class="scopes">{items}</ul></section>
+<p class="note">心当たりのないアプリなら、許可しないでください。{photo_note}詳しくは<a href="/privacy" target="_blank" rel="noopener">プライバシーポリシー</a>をご覧ください。</p>
+<form method="post" action="/consent" class="actions" data-once>
 <button name="decision" value="allow" class="allow">許可する</button>
-<button name="decision" value="deny" class="deny">許可しない</button>
+<button name="decision" value="deny" class="deny">やめる</button>
 </form>""")
 
 
@@ -143,10 +198,10 @@ def render_privacy_page() -> str:    return _page("プライバシーポリシ�
 
 def render_logged_out_page() -> str:
     return _page("ログアウトしました", """<h1>ログアウトしました</h1>
-<section class="panel"><p>このブラウザのログインを終了しました。
+<section class="card"><p>このブラウザのログインを終了しました。
 連携アプリ（Claude・ChatGPT）でもう一度使うと、ログイン画面が表示されます。このページは閉じて構いません。</p></section>""")
 
 
 def render_error_page(description: str) -> str:
     return _page("エラー", f"""<h1>連携を続けられません</h1>
-<section class="panel"><p>{html.escape(description)}</p></section>""")
+<section class="card"><p>{html.escape(description)}</p></section>""")
