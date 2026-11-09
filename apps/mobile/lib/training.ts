@@ -1,14 +1,18 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
 import { parseNumber } from './units';
 
-/** 1セット分の値（重さは kg。回数だけの種目は weightKg が null） */
-export type SetValues = { weightKg: number | null; reps: number | null };
+/**
+ * 1セット分の値（重さは kg。回数だけの種目は weightKg が null）。
+ * bodyweightLoadKg は回数だけのセットの負荷（体重 × 種目の割合。lib/bodyweight.ts）。体重がなければ null
+ */
+export type SetValues = { weightKg: number | null; reps: number | null; bodyweightLoadKg?: number | null };
 
-/** 集計に使う1セット分の行 */
+/** 集計に使う1セット分の行。bodyweightRatio は回数だけの種目の割合（重量×回数の種目は null） */
 export type TrainingSetRow = SetValues & {
   date: DateKey;
   exerciseId: string;
   bodyPartId: string;
+  bodyweightRatio?: number | null;
 };
 
 /**
@@ -21,10 +25,11 @@ export function estimated1RM(weightKg: number | null, reps: number | null): numb
   return weightKg * (1 + reps / 30);
 }
 
-/** 負荷量（重量 × 回数）。回数だけの種目は 0 */
+/** 負荷量（重量 × 回数）。回数だけの種目は、自重の負荷（体重 × 割合）× 回数。自重の負荷がなければ（体重の記録がない）0 */
 export function setVolume(s: SetValues): number {
-  if (s.weightKg == null || s.reps == null || s.weightKg <= 0 || s.reps <= 0) return 0;
-  return s.weightKg * s.reps;
+  const load = s.weightKg != null ? s.weightKg : s.bodyweightLoadKg;
+  if (load == null || s.reps == null || load <= 0 || s.reps <= 0) return 0;
+  return load * s.reps;
 }
 
 export function totalVolume(sets: SetValues[]): number {

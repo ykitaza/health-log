@@ -15,6 +15,7 @@ import { useFocusData } from '@/hooks/data';
 import { todayKey } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
+import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
 import { bestSet, totalVolume } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
@@ -79,6 +80,9 @@ export function WorkoutDayContent({ date }: { date: string }) {
             <Stat label="セット" value={String(setCount)} center />
             <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
           </Card>
+          {entriesMissingBodyweight(entries) && (
+            <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xs }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
+          )}
           <DailyHighlights date={date} areas={TAB_AREAS.training} />
           <View style={{ gap: space.m, marginTop: space.l }}>
             {entries.map((e, i) => {

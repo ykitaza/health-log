@@ -86,12 +86,14 @@ test('カレンダー：月の移動、記録のある日・ない日の選択�
   await expect(see(page, 'ベンチプレスをした日：今月 0回')).toBeVisible();
   await expect(see(page, 'この月の記録はありません')).toBeVisible();
 
-  // 回数だけの種目は、総負荷量と推定1RM を出さない
+  // 回数だけの種目は、自重の総負荷量（体重 × 割合 × 回数。体重の記録がないので 0）だけで、推定1RM は出さない
   await button(page, '次の月').click();
   await button(page, '懸垂').click();
   await expect(see(page, '11月8日（日） 懸垂')).toBeVisible();
   await expect(see(page, '10 回', { exact: true })).toBeVisible();
-  await expect(see(page, '総負荷量', { exact: true })).toHaveCount(0);
+  await expect(see(page, '総負荷量', { exact: true })).toBeVisible();
+  await expect(see(page, '0 kg', { exact: true })).toBeVisible();
+  await expect(see(page, '推定1RM', { exact: true })).toHaveCount(0);
 
   // 日を押すと、その日のトレーニングが開いて直せる
   await button(page, 'すべて').click();
@@ -148,10 +150,9 @@ test('グラフ：期間の切り替え、記録が1件以下、回数だけの�
   await expect(see(page, 'グラフにするには記録が足りません')).toBeVisible();
   await expect(see(page, 'この期間の記録は 1 日です。2日以上になるとグラフが出ます')).toBeVisible();
 
-  // 回数だけの種目は、グラフから外れる説明
+  // 回数だけの種目も、自重の総負荷量（体重 × 割合 × 回数）のグラフになる（推定1RM は出さない）。今は1日だけ
   await button(page, '懸垂').click();
-  await expect(see(page, 'グラフは重量のある種目だけです')).toBeVisible();
-  await expect(see(page, '回数だけの種目は、カレンダーで記録を見られます')).toBeVisible();
+  await expect(see(page, 'この期間の記録は 1 日です。2日以上になるとグラフが出ます')).toBeVisible();
 
   // 部位を選ぶと、記録のある種目が選ばれる。記録のない種目は 0 日
   await button(page, '脚').click();

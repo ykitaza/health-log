@@ -140,12 +140,11 @@ export function TrainingHistory() {
                         {st.memo !== '' && <T size={12} color={colors.sub}>{st.memo}</T>}
                       </View>
                     ))}
-                    {e.recordType === 'weight_reps' && (
-                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-                        <MiniStat label="総負荷量" value={`${fmtInt(kgToUnit(totalVolume(e.sets), unit))} ${unit}`} />
-                        <MiniStat label="推定1RM" value={best ? `${fmt1(kgToUnit(best.e1rm, unit))} ${unit}` : '—'} />
-                      </View>
-                    )}
+                    {/* 回数だけの種目は、自重の負荷量（体重 × 割合 × 回数）だけ。推定1RM は出さない */}
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+                      <MiniStat label="総負荷量" value={`${fmtInt(kgToUnit(totalVolume(e.sets), unit))} ${unit}`} />
+                      {e.recordType === 'weight_reps' && <MiniStat label="推定1RM" value={best ? `${fmt1(kgToUnit(best.e1rm, unit))} ${unit}` : '—'} />}
+                    </View>
                   </Card>
                 );
               })}
@@ -215,14 +214,14 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
           </Pressable>
         ))}
       </View>
-      {recordType === 'reps_only' ? (
-        <EmptyState icon="chart" title="グラフは重量のある種目だけです" body="回数だけの種目は、カレンダーで記録を見られます" />
-      ) : series.length < 2 ? (
+      {series.length < 2 ? (
         <EmptyState icon="chart" title="グラフにするには記録が足りません" body={`この期間の記録は ${series.length} 日です。2日以上になるとグラフが出ます`} />
       ) : (
+        // 回数だけの種目は、自重の総負荷量（体重 × 割合 × 回数）だけ。推定1RM は出さない
         [
           { title: '総負荷量', value: (p: (typeof series)[number]) => conv(p.volume), fmt: (v: number) => fmtInt(v) },
-          { title: '最大RM（推定）', value: (p: (typeof series)[number]) => conv(p.max1RM), fmt: (v: number) => fmt1(v) },
+          ...(recordType === 'weight_reps'
+            ? [{ title: '最大RM（推定）', value: (p: (typeof series)[number]) => conv(p.max1RM), fmt: (v: number) => fmt1(v) }] : []),
         ].map((c) => {
           const last = c.value(series[series.length - 1]);
           const diff = changeOver(series, c.value) ?? 0;

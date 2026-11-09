@@ -3,6 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '../body';
+import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bodyweight';
 import {
   bestSet, estimated1RM, exerciseDailySeries, periodTotals, personalBests, rmTable, setVolume, topSet,
   totalVolume, TrainingSetRow, trainingDates, weeklyVolumeByBodyPart, weeklyVolumes,
@@ -73,6 +74,44 @@ describe('aggregates.json', () => {
     expect(bestSet(rows)).toEqual({ ...rows[e.best_set.index], e1rm: e.best_set.e1rm });
     expect(topSet(rows)).toEqual(rows[e.top_set.index]);
     expect(rmTable(e.rm_table.one_rm)).toEqual(e.rm_table.result);
+  });
+});
+
+describe('bodyweight.json：自重の種目の負荷量（体重 × 割合 × 回数）', () => {
+  const data = load('bodyweight.json');
+  const weights = data.weights.map((w: { date: string; weight_kg: number }) => ({ date: w.date, weightKg: w.weight_kg }));
+  const rows = withBodyweight(
+    (data.rows as (Row & { bodyweight_ratio: number | null })[]).map((r) => ({ ...toRow(r), bodyweightRatio: r.bodyweight_ratio })),
+    weights,
+  );
+  const e = data.expected;
+
+  test('名前から決める割合', () => {
+    for (const c of data.default_ratio) expect([c.name, defaultRatio(c.name)]).toEqual([c.name, c.expected]);
+  });
+
+  test('その日の体重（なければ30日以内のいちばん近い前の日）', () => {
+    for (const c of data.weight_on) expect([c.date, weightOn(weights, c.date)]).toEqual([c.date, c.expected]);
+  });
+
+  test('セットごとの自重の負荷と負荷量、合計', () => {
+    expect(rows.map((r) => r.bodyweightLoadKg ?? null)).toEqual(e.bodyweight_load_kg);
+    expect(rows.map((r) => setVolume(r))).toEqual(e.volumes);
+    expect(totalVolume(rows)).toEqual(e.total_volume);
+    expect(periodTotals(rows, data.today)).toEqual(e.period_totals);
+    expect(weeklyVolumes(rows, data.today, e.weekly_volumes.weeks)).toEqual(e.weekly_volumes.result);
+    const byPart = e.weekly_volume_by_body_part.result.map(
+      (w: { week_start: string; by_part: Record<string, number>; total: number }) => ({ weekStart: w.week_start, byPart: w.by_part, total: w.total }));
+    expect(weeklyVolumeByBodyPart(rows, data.today, e.weekly_volume_by_body_part.weeks)).toEqual(byPart);
+    for (const [exerciseId, points] of Object.entries(e.exercise_daily_series)) {
+      const expected = (points as { date: string; volume: number; max_1rm: number }[]).map((p) => ({ date: p.date, volume: p.volume, max1RM: p.max_1rm }));
+      expect(exerciseDailySeries(rows, exerciseId)).toEqual(expected);
+    }
+  });
+
+  test('自重の種目は推定1RM・自己ベストを出さない。体重がなくて入らなかったセットを数える', () => {
+    expect(Object.keys(Object.fromEntries(personalBests(rows))).sort()).toEqual(Object.keys(e.personal_bests).sort());
+    expect(missingBodyweight(rows)).toBe(e.missing_bodyweight);
   });
 });
 

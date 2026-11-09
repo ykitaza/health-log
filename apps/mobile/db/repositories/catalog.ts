@@ -1,3 +1,4 @@
+import { defaultRatio } from '@/lib/bodyweight';
 import { nameLengthError } from '@/lib/limits';
 import type { RecordType } from '@/lib/sets';
 import { serializeWrites } from '../serial';
@@ -12,6 +13,8 @@ export type Exercise = {
   recordType: RecordType;
   sortOrder: number;
   hidden: boolean;
+  /** 回数だけの種目の、体重に対する割合（0〜1）。null は名前から決める（lib/bodyweight.ts の ratioOf）。重量×回数の種目は null */
+  bodyweightRatio: number | null;
 };
 
 /** 非表示の部位・種目と同じ名前を足そうとしたとき。id は、その非表示のもの（表示に戻すときに使う） */
@@ -24,18 +27,23 @@ export class HiddenDuplicateError extends Error {
 
 type ExerciseRow = {
   id: string; body_part_id: string; body_part_name: string; name: string;
-  record_type: RecordType; sort_order: number; hidden: number;
+  record_type: RecordType; sort_order: number; hidden: number; bodyweight_ratio: number | null;
 };
 
 const toExercise = (r: ExerciseRow): Exercise => ({
   id: r.id, bodyPartId: r.body_part_id, bodyPartName: r.body_part_name, name: r.name,
-  recordType: r.record_type, sortOrder: r.sort_order, hidden: r.hidden === 1,
+  recordType: r.record_type, sortOrder: r.sort_order, hidden: r.hidden === 1, bodyweightRatio: r.bodyweight_ratio,
 });
 
 const EXERCISE_SELECT = `
-  SELECT e.id, e.body_part_id, p.name AS body_part_name, e.name, e.record_type, e.sort_order, e.hidden
+  SELECT e.id, e.body_part_id, p.name AS body_part_name, e.name, e.record_type, e.sort_order, e.hidden, e.bodyweight_ratio
   FROM exercises e JOIN body_parts p ON p.id = e.body_part_id
   WHERE e.deleted_at IS NULL AND p.deleted_at IS NULL`;
+
+function checkRatio(ratio: number): number {
+  if (!(ratio >= 0 && ratio <= 1)) throw new Error('体重に対する割合は 0〜100% で入れてください');
+  return ratio;
+}
 
 /** 部位と種目。使わなくなったものは消さずに非表示にする（これまでの記録は残る） */
 export function catalogRepository(db: Db, deps: Deps) {
@@ -63,11 +71,13 @@ export function catalogRepository(db: Db, deps: Deps) {
       return r ? toExercise(r) : null;
     },
 
-    async createExercise(input: { name: string; bodyPartId: string; recordType: RecordType }): Promise<string> {
+    /** bodyweightRatio は回数だけの種目の割合（0〜1）。省くと名前から決める。重量×回数の種目には入れない */
+    async createExercise(input: { name: string; bodyPartId: string; recordType: RecordType; bodyweightRatio?: number | null }): Promise<string> {
       const name = input.name.trim();
       if (name === '') throw new Error('種目の名前を入れてください');
       const tooLong = nameLengthError('種目', name);
       if (tooLong) throw new Error(tooLong);
+      const ratio = input.recordType === 'reps_only' ? checkRatio(input.bodyweightRatio ?? defaultRatio(name)) : null;
       const dup = await db.getFirstAsync<{ id: string; hidden: number }>(
         'SELECT id, hidden FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ?', [input.bodyPartId, name],
       );
@@ -79,9 +89,9 @@ export function catalogRepository(db: Db, deps: Deps) {
       const id = deps.newId();
       const now = deps.now().toISOString();
       await db.runAsync(
-        `INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-        [id, input.bodyPartId, name, input.recordType, (max?.m ?? -1) + 1, now, now],
+        `INSERT INTO exercises (id, body_part_id, name, record_type, sort_order, hidden, bodyweight_ratio, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        [id, input.bodyPartId, name, input.recordType, (max?.m ?? -1) + 1, ratio, now, now],
       );
       return id;
     },
@@ -107,19 +117,23 @@ export function catalogRepository(db: Db, deps: Deps) {
     },
 
     /**
-     * 種目の名前と部位を変える。記録は種目の ID でつながっているので、過去の記録も新しい名前で出る。
-     * 同じ部位に同じ名前（非表示のものも含む）があれば断る。部位を変えたら、その部位の最後に並べる
+     * 種目の名前と部位（回数だけの種目は体重に対する割合も）を変える。記録は種目の ID でつながっているので、
+     * 過去の記録も新しい名前で出る（割合を変えると、過去の負荷量も新しい割合で出る）。
+     * 同じ部位に同じ名前（非表示のものも含む）があれば断る。部位を変えたら、その部位の最後に並べる。
+     * bodyweightRatio を省くと割合は変えない
      */
-    async updateExercise(id: string, input: { name: string; bodyPartId: string }): Promise<void> {
+    async updateExercise(id: string, input: { name: string; bodyPartId: string; bodyweightRatio?: number }): Promise<void> {
       const name = input.name.trim();
       if (name === '') throw new Error('種目の名前を入れてください');
       const tooLong = nameLengthError('種目', name);
       if (tooLong) throw new Error(tooLong);
-      const cur = await db.getFirstAsync<{ body_part_id: string; name: string; sort_order: number }>(
-        'SELECT body_part_id, name, sort_order FROM exercises WHERE id = ? AND deleted_at IS NULL', [id],
+      const cur = await db.getFirstAsync<{ body_part_id: string; name: string; sort_order: number; record_type: RecordType; bodyweight_ratio: number | null }>(
+        'SELECT body_part_id, name, sort_order, record_type, bodyweight_ratio FROM exercises WHERE id = ? AND deleted_at IS NULL', [id],
       );
       if (!cur) throw new Error('種目が見つかりません');
-      if (cur.name === name && cur.body_part_id === input.bodyPartId) return;
+      if (input.bodyweightRatio != null && cur.record_type !== 'reps_only') throw new Error('体重に対する割合は、回数だけの種目にだけ入れられます');
+      const ratio = input.bodyweightRatio != null ? checkRatio(input.bodyweightRatio) : cur.bodyweight_ratio;
+      if (cur.name === name && cur.body_part_id === input.bodyPartId && cur.bodyweight_ratio === ratio) return;
       const dup = await db.getFirstAsync<{ hidden: number }>(
         'SELECT hidden FROM exercises WHERE deleted_at IS NULL AND body_part_id = ? AND name = ? AND id <> ?', [input.bodyPartId, name, id],
       );
@@ -132,8 +146,8 @@ export function catalogRepository(db: Db, deps: Deps) {
         );
         sortOrder = (max?.m ?? -1) + 1;
       }
-      await db.runAsync('UPDATE exercises SET name = ?, body_part_id = ?, sort_order = ?, updated_at = ? WHERE id = ?',
-        [name, input.bodyPartId, sortOrder, deps.now().toISOString(), id]);
+      await db.runAsync('UPDATE exercises SET name = ?, body_part_id = ?, sort_order = ?, bodyweight_ratio = ?, updated_at = ? WHERE id = ?',
+        [name, input.bodyPartId, sortOrder, ratio, deps.now().toISOString(), id]);
     },
 
     /** 部位の名前を変える。同じ名前の部位（非表示のものも含む）があれば断る */
