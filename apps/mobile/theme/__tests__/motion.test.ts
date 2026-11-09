@@ -1,5 +1,5 @@
 import {
-  BAR_STAGGER_TOTAL_MS, barDelay, duration, EASE_IN, HOLD_MS, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay,
+  BAR_STAGGER_TOTAL_MS, barDelay, duration, EASE_IN, HOLD_MS, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_MS, STAGGER_TOTAL_MS, staggerDelay, tabIndicatorDuration,
 } from '../motion';
 
 describe('動きの長さ（CLAUDE.local の決まり）', () => {
@@ -14,8 +14,14 @@ describe('動きの長さ（CLAUDE.local の決まり）', () => {
     expect(duration.text).toBe(150);
   });
 
+  test('下のタブ：印は 200ms で広がって現れ、150ms で消える。画面の切り替えは行き帰り同じ 250ms', () => {
+    expect(tabIndicatorDuration(true, false)).toBe(200);
+    expect(tabIndicatorDuration(false, false)).toBe(150);
+    expect(tabIndicatorDuration(true, false)).toBeGreaterThan(tabIndicatorDuration(false, false));
+  });
+
   test('出てくる動きは 250ms 以下', () => {
-    for (const ms of [duration.press, duration.enter, duration.listItem, duration.text]) expect(ms).toBeLessThanOrEqual(250);
+    for (const ms of [duration.press, duration.enter, duration.listItem, duration.text, duration.indicator]) expect(ms).toBeLessThanOrEqual(250);
   });
 
   test('出てくる動きは ease-out、閉じる動きは ease-in の曲線', () => {
@@ -41,6 +47,11 @@ describe('動きを減らす設定', () => {
 
   test('オフならそのまま', () => {
     expect(motionDuration(duration.enter, false)).toBe(250);
+  });
+
+  test('オンなら下のタブの印もすぐ切り替える（長さ 0）', () => {
+    expect(tabIndicatorDuration(true, true)).toBe(0);
+    expect(tabIndicatorDuration(false, true)).toBe(0);
   });
 
   test('オンならずらしも 0', () => {

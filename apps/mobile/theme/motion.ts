@@ -10,10 +10,12 @@ export const duration = {
   enter: 250,
   /** 閉じる・消える */
   exit: 150,
-  /** 行き帰りがあるもの（切り替えの印、画面の横すべり） */
+  /** 行き帰りがあるもの（切り替えの印、画面の横すべり、下のタブの画面の切り替え） */
   toggle: 250,
-  /** 文字の差し替え（数字の桁）、タブの切り替え */
+  /** 文字の差し替え（数字の桁） */
   text: 150,
+  /** 下のタブの選んだ印が、まん中から広がって現れる（消えるのは exit） */
+  indicator: 200,
   /** リストの1行が現れる */
   listItem: 180,
   /** 入力の間違いで欄が揺れる（全体） */
@@ -54,6 +56,11 @@ export const HOLD_MS = 80;
 /** 動きを減らす設定なら 0 */
 export function motionDuration(ms: number, reduced: boolean): number {
   return reduced ? 0 : ms;
+}
+
+/** 下のタブの印の長さ。選ぶと広がって現れ（indicator）、選ばなくなると消える（exit）。動きを減らす設定なら 0 */
+export function tabIndicatorDuration(selected: boolean, reduced: boolean): number {
+  return motionDuration(selected ? duration.indicator : duration.exit, reduced);
 }
 
 /** i 番目を出すまでの待ち。最後の行が出終わるまでを STAGGER_TOTAL_MS に収める（それより後ろの行は一緒に出す） */
