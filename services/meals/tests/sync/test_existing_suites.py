@@ -55,7 +55,7 @@ def app():
     return {
         "meals": MealService(eaters, meals, ids),
         "templates": TemplateService(eaters, meals, templates, ids),
-        "goals": GoalService(eaters, goals, day_types),
+        "goals": GoalService(eaters, goals, day_types, memory.InMemoryBodyData()),
         "summaries": SummaryService(eaters, meals, goals, day_types),
     }
 
@@ -66,18 +66,20 @@ def call(monkeypatch):
     token = AccessToken(token="t", client_id="c", scopes=["meals:read", "meals:write"], subject="alice")
     monkeypatch.setattr(mcp_server, "get_access_token", lambda: token)
     meals, templates, goals, day_types = _repos(memory_engine())
-    eaters = SubjectAsEaterId()
+    eaters, body = SubjectAsEaterId(), memory.InMemoryBodyData()
     services = Services(
         MealService(eaters, meals),
         TemplateService(eaters, meals, templates),
-        GoalService(eaters, goals, day_types),
+        GoalService(eaters, goals, day_types, body),
         SummaryService(eaters, meals, goals, day_types),
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
     session = test_mcp_server.FakeSession()
     mcp = MCPServer(name="test")
     register_meal_tools(mcp, services, today=lambda: test_mcp_server.TODAY)
-    return _caller(mcp, session)
+    call = _caller(mcp, session)
+    call.body = body
+    return call
 
 
 def _caller(mcp, session):

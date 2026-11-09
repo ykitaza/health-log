@@ -13,6 +13,9 @@ from meals.application.meals import MealService
 from meals.application.summaries import SummaryService
 from meals.application.templates import TemplateService
 from meals.application.weights import WeightService
+from meals.domain.auto_goal import Activity, BodyDay
+from meals.domain.ports import GoalSettings
+from meals.domain.values import EaterId
 from meals.infrastructure import memory_repositories as memory
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from meals.presentation import mcp_server
@@ -55,12 +58,12 @@ class FakeSession:
 def call(monkeypatch):
     token = AccessToken(token="t", client_id="c", scopes=["meals:read", "meals:write"], subject="alice")
     monkeypatch.setattr(mcp_server, "get_access_token", lambda: token)
-    eaters, meals = SubjectAsEaterId(), memory.InMemoryMealRepository()
+    eaters, meals, body = SubjectAsEaterId(), memory.InMemoryMealRepository(), memory.InMemoryBodyData()
     goals, day_types = memory.InMemoryGoalRepository(), memory.InMemoryDayTypeRepository()
     services = Services(
         MealService(eaters, meals),
         TemplateService(eaters, meals, memory.InMemoryMealTemplateRepository()),
-        GoalService(eaters, goals, day_types),
+        GoalService(eaters, goals, day_types, body),
         SummaryService(eaters, meals, goals, day_types),
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
@@ -72,7 +75,7 @@ def call(monkeypatch):
         result = asyncio.run(mcp.call_tool(tool, arguments))
         return json.loads(result.content[0].text)
 
-    _call.mcp, _call.session = mcp, session
+    _call.mcp, _call.session, _call.body = mcp, session, body
     return _call
 
 
@@ -138,34 +141,74 @@ def test_週のふり返り(call):
     assert (review["from"], review["to"], review["recorded_days"]) == ("2026-10-06", "2026-10-12", 1)
 
 
-PROFILE = {"sex": "male", "age": 30, "height_cm": 172, "weight_kg": 67, "daily_activity": "low",
-           "training_minutes": 60, "policy": "bulk", "pace_kg_per_week": 0.25, "protein_per_kg": 2.0}
+def body_data(call, days, height=175, goal_weight=72, activity=Activity.MODERATE):
+    call.body.days[EaterId("alice")] = [BodyDay(date.fromisoformat(d), w, f) for d, w, f in days]
+    call.body.settings[EaterId("alice")] = GoalSettings(height, goal_weight, activity)
 
 
-def test_目標の案は保存せず_そのまま_set_goals_に渡せる(call):
-    suggestion = call("suggest_goals", **PROFILE)
-    assert suggestion["goal"]["rest_day"]["kcal"] == 2200
+def test_目標の案は保存せず_本人が決めたら_そのまま_set_goals_に渡せる(call):
+    body_data(call, [("2026-10-11", 80.0, 20.0), ("2026-10-12", 80.0, None)])
+    suggestion = call("suggest_goals")
+    assert suggestion["status"] == "ok"
+    assert suggestion["rest_day"] == {"kcal": 2300, "protein_g": 160, "fat_g": 64, "carbs_g": 271}
+    assert suggestion["training_day"]["kcal"] == 2580
+    assert suggestion["basis"] == {
+        "weight": {"kg": 80.0, "from": "2026-10-11", "to": "2026-10-12", "days": 2},
+        "body_fat": {"pct": 20.0, "from": "2026-10-11", "to": "2026-10-11", "days": 1},
+        "bmr_formula": "Katch-McArdle の式（370 + 21.6 × 除脂肪体重）", "bmr_kcal": 1752,
+        "tdee_kcal": {"rest_day": 2716, "training_day": 2996},
+        "activity": {"level": "moderate", "label": "よく動く", "factor": 1.55}, "training_day_extra_kcal": 280,
+        "policy": "cut", "target_weight_kg": 72, "weekly_change_kg": -0.4, "daily_delta_kcal": -411,
+        "protein": {"per_kg": 2.0, "g": 160}, "fat_ratio": 0.25, "floored": False,
+    }
+    assert any("医療" in n for n in suggestion["notes"])
     assert "note" in call("today_status")  # まだ保存していない
     call("set_goals", **suggestion["set_goals_arguments"])
-    assert call("today_status")["target"]["kcal"] == 2200
+    assert call("today_status")["target"]["kcal"] == 2300
 
 
-def test_体のデータが範囲外なら理由を返す(call):
-    with pytest.raises(ToolError, match="年齢"):
-        call("suggest_goals", **{**PROFILE, "age": 5})
+def test_体脂肪率がなければ性別と生まれた年を聞くよう返し_渡せば計算する(call):
+    body_data(call, [("2026-10-12", 70.0, None)], goal_weight=70)
+    asked = call("suggest_goals")
+    assert asked["status"] == "needs_input" and "性別と生まれた年を教えてください" in asked["message"]
+    assert [m["item"] for m in asked["missing"]] == ["sex", "birth_year"]
+    assert "set_goals_arguments" not in asked
+    # 10×70 + 6.25×175 − 5×30 + 5 = 1648.75。× 1.55 ≒ 2555.6 → 2560
+    result = call("suggest_goals", sex="male", birth_year=1996)
+    assert result["status"] == "ok" and result["rest_day"]["kcal"] == 2560
+    assert result["basis"]["bmr_formula"].startswith("Mifflin-St Jeor")
+    assert any("保存していません" in n for n in result["notes"])
+    assert "1996" not in json.dumps(result) and "male" not in json.dumps(result["set_goals_arguments"])  # 返しも保存もしない
 
 
-def test_目標を決めるときに聞く項目を返し_必須は方針だけ(call):
-    result = call("goal_questions")
-    required = [q["name"] for q in result["questions"] if q.get("required")]
-    assert required == ["policy"] and result["current_goal"] is None
+def test_設定が足りなければ_足りないものを返す(call):
+    body_data(call, [("2026-10-12", 70.0, None)], height=None, goal_weight=None, activity=None)
+    result = call("suggest_goals", sex="female", birth_year=1990)
+    assert [m["item"] for m in result["missing"]] == ["height", "activity"]
+    assert "アプリの設定で身長と活動の量を入れて" in result["message"]
+    body_data(call, [])
+    assert [m["item"] for m in call("suggest_goals")["missing"]] == ["weight"]
+
+
+def test_目標体重がなければ維持で計算し_そう伝える(call):
+    body_data(call, [("2026-10-12", 70.0, 15.0)], goal_weight=None)
+    result = call("suggest_goals")
+    assert result["basis"]["policy"] == "maintain" and result["set_goals_arguments"]["target_weight_kg"] is None
+    assert any("維持で計算しました" in n for n in result["notes"])
+    call("set_goals", policy="bulk", target_weight_kg=75, eating_style="eating_out")
+    again = call("suggest_goals")  # 設定になければ今の目標の目標体重を使い、食事の傾向も今の目標のまま
+    assert again["basis"]["policy"] == "bulk"
+    assert (again["set_goals_arguments"]["target_weight_kg"], again["set_goals_arguments"]["eating_style"]) == (75, "eating_out")
+
+
+def test_生まれた年が範囲外なら理由を返す(call):
+    body_data(call, [("2026-10-12", 70.0, None)])
+    with pytest.raises(ToolError, match="生まれた年は 1926〜2011"):
+        call("suggest_goals", sex="male", birth_year=2020)
 
 
 def test_方針だけでも目標を設定できる(call):
-    suggestion = call("suggest_goals", policy="maintain")
-    assert suggestion["goal"]["rest_day"] == {"kcal": None, "protein_g": None, "fat_g": None, "carbs_g": None}
-    assert suggestion["used"] == {"sex": "unspecified"}
-    call("set_goals", **suggestion["set_goals_arguments"])
+    call("set_goals", policy="maintain")
     status = call("today_status")
     assert "note" not in status and status["remaining"]["kcal"] is None
 

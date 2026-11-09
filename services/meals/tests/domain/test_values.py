@@ -25,13 +25,14 @@ def test_量は0より大きい():
 @pytest.mark.parametrize(
     ("hour", "slot"),
     [
-        (5, MealSlot.BREAKFAST),
+        (3, MealSlot.SNACK),
+        (4, MealSlot.BREAKFAST),
         (9, MealSlot.BREAKFAST),
         (10, MealSlot.LUNCH),
-        (15, MealSlot.SNACK),
-        (17, MealSlot.DINNER),
-        (22, MealSlot.SNACK),
-        (2, MealSlot.SNACK),
+        (14, MealSlot.LUNCH),
+        (15, MealSlot.DINNER),
+        (20, MealSlot.DINNER),
+        (21, MealSlot.SNACK),
     ],
 )
 def test_時刻から区分を決める(hour, slot):

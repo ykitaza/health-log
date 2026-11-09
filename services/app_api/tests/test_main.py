@@ -76,11 +76,43 @@ def test_レポートはアプリから消せるが_作ったり書き換えた�
     assert push("delete")["status"] == "accepted"
 
 
-def test_目標の案のルートもある():
+def test_目標の案は_同期した体組成と設定から_アプリと同じ式で計算する():
     registry = main.create_registry()
-    api = main.create_api(SyncEngine(InMemorySyncStore(registry.index_key), registry), APP_CLIENT)
-    res = api.handle(event("POST", "/v1/meals/goal-suggestions", body={"policy": "maintain"}))
-    assert res["statusCode"] == 200
+    api = main.create_api(SyncEngine(InMemorySyncStore(registry.index_key), registry), APP_CLIENT,
+                          today=lambda: date(2026, 11, 9))
+
+    def change(entity_type, entity_id, fields):
+        return {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": entity_id, "op": "create",
+                "fields": fields, "changed_at": "2026-11-08T09:00:00Z"}
+
+    record = {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00+09:00", "weight_kg": 80.0}
+    push = {"device_id": "pixel", "changes": [
+        change("body_record", str(uuid.uuid4()), {**record, "body_fat_pct": 20.0, "source": "health_connect"}),
+        change("body_record", str(uuid.uuid4()), {**record, "source": "manual"}),  # 手入力の体重 ＋ 取り込みの体脂肪率
+        change("setting", "height_cm", {"value": "175"}), change("setting", "goal_weight_kg", {"value": "72"}),
+        change("setting", "activity_level", {"value": "moderate"})]}
+    results = json.loads(api.handle(event("POST", "/v1/sync/changes", body=push))["body"])["results"]
+    assert {r["status"] for r in results} == {"accepted"}
+    res = api.handle(event("POST", "/v1/meals/goal-suggestions", body={}))
+    result = json.loads(res["body"])
+    assert res["statusCode"] == 200 and result["status"] == "ok"
+    assert result["goal"]["targets"]["rest_day"] == {"kcal": 2300, "fat_g": 64, "carbs_g": 271}
+    assert result["basis"]["activity"]["factor"] == 1.55 and result["basis"]["target_weight_kg"] == 72
+
+
+def test_設定の値が数でないか知らない活動の量なら_ないものとして足りないと返す():
+    registry = main.create_registry()
+    api = main.create_api(SyncEngine(InMemorySyncStore(registry.index_key), registry), APP_CLIENT,
+                          today=lambda: date(2026, 11, 9))
+    changes = [{"change_id": str(uuid.uuid4()), "entity_type": t, "entity_id": i, "op": "create", "fields": f,
+                "changed_at": "2026-11-08T09:00:00Z"} for t, i, f in [
+        ("body_record", str(uuid.uuid4()), {"date": "2026-11-09", "measured_at": "2026-11-09T07:00:00+09:00",
+                                            "weight_kg": 70.0, "source": "manual"}),
+        ("setting", "height_cm", {"value": "abc"}), ("setting", "activity_level", {"value": "athlete"})]]
+    api.handle(event("POST", "/v1/sync/changes", body={"device_id": "pixel", "changes": changes}))
+    result = json.loads(api.handle(event("POST", "/v1/meals/goal-suggestions",
+                                         body={"sex": "male", "birth_year": 1990}))["body"])
+    assert [m["item"] for m in result["missing"]] == ["height", "activity"]
 
 
 def test_Lambda_のハンドラーは環境変数のテーブルを使う(monkeypatch):

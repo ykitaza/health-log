@@ -5,7 +5,8 @@
 レポートは services/reports/reports/presentation/mcp_tools.py）。ここでは次のことだけをする。
 - サーバー（MCPServer）と認証（アクセストークンの検証、scope）を作る。MCP のプロトコルは公式の SDK に任せる
 - 食事と筋トレのリポジトリを、同じ同期の仕組み（変更の記録と今の状態）の上に作る
-- コンテキストをまたぐもの（食事の目標の「筋トレの日」、食事の目標体重までの進み具合に使う体重、アプリの最後の同期の時刻）を、
+- コンテキストをまたぐもの（食事の目標の「筋トレの日」、食事の目標体重までの進み具合に使う体重、目標の自動計算に使う体組成と設定、
+  アプリの最後の同期の時刻）を、
   各コンテキストのポートにつなぐ
 食事と筋トレは互いを import しない。すべてを知っているのはこのファイルだけ（アプリ用の API の services/app_api/main.py と同じ）。
 """
@@ -19,6 +20,7 @@ from mcp.server.auth.routes import create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 
+from composition.body_data import SyncedBodyData
 from composition.registry import create_registry
 from connector.access_token_verifier import AuthzApiTokenVerifier
 from connector.authz_session import AuthzApiSession
@@ -156,7 +158,7 @@ def create_server(
     meal_tools.register_meal_tools(mcp, meal_tools.Services(
         meals=MealService(eaters, meals),
         templates=TemplateService(eaters, meals, templates),
-        goals=GoalService(eaters, goals, day_types),
+        goals=GoalService(eaters, goals, day_types, SyncedBodyData(engine, training_queries)),
         summaries=SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries)),
         weights=WeightService(eaters, BodyRecordWeights(training_commands, training_queries), goals),
     ), today=today, sync_status=sync_status)

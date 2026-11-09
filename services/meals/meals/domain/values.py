@@ -91,12 +91,13 @@ class MealSlot(Enum):
 
     @classmethod
     def from_time(cls, at: time) -> "MealSlot":
-        """時刻から区分を決める。境目は仮のもの。"""
-        if 5 <= at.hour < 10:
+        """時刻から区分を決める。アプリ（apps/mobile/lib/meals.ts の slotAt）と同じ境目で、境目の時刻は後ろの区分に入る
+        （4〜10時 朝食、10〜15時 昼食、15〜21時 夕食、それ以外は間食。testdata/meals/slots.json で確かめる）。"""
+        if 4 <= at.hour < 10:
             return cls.BREAKFAST
         if 10 <= at.hour < 15:
             return cls.LUNCH
-        if 17 <= at.hour < 22:
+        if 15 <= at.hour < 21:
             return cls.DINNER
         return cls.SNACK
 

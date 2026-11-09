@@ -4,9 +4,11 @@
 どれも外のシステム（DB など）を呼ぶ（待ち時間がある）ので、async にしておく。
 """
 
+from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
+from meals.domain.auto_goal import Activity, BodyDay
 from meals.domain.body_weight import WeightRecord
 from meals.domain.meal import Meal
 from meals.domain.meal_template import MealTemplate
@@ -81,3 +83,25 @@ class TrainingDayProvider(Protocol):
     async def training_days(self, eater_id: EaterId, start: date, end: date) -> set[date]:
         """start から end まで（両端を含む）のうち、筋トレの記録がある日。"""
         ...
+
+
+@dataclass(frozen=True)
+class GoalSettings:
+    """目標の自動計算に使う、アプリの設定（同期される）。入っていない項目は None。"""
+
+    height_cm: float | None
+    goal_weight_kg: float | None
+    activity: Activity | None
+
+
+class BodyDataProvider(Protocol):
+    """目標の自動計算に使う体のデータ（筋トレのコンテキストの体組成と、アプリの設定。つなぐのは組み立ての場所）。
+
+    性別と生まれた年は、アプリでは端末の中だけにあり、サーバーにはない（ここでは読まない）。
+    """
+
+    async def body_days(self, eater_id: EaterId) -> list[BodyDay]:
+        """日ごとの体重と体脂肪率（その日の手入力のいちばん新しい値。手入力がなければ Health Connect の取り込み）。"""
+        ...
+
+    async def goal_settings(self, eater_id: EaterId) -> GoalSettings: ...
