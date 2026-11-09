@@ -8,11 +8,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteDatabase, SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { useReducedMotion } from 'react-native-reanimated';
 import { migrate } from '@/db';
 import { AuthProvider } from '@/hooks/auth';
 import { HealthConnectProvider } from '@/hooks/healthConnect';
 import { SyncProvider } from '@/hooks/sync';
 import { colors } from '@/theme';
+import { duration } from '@/theme/motion';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -41,6 +43,10 @@ export default function RootLayout() {
     if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
+  // 画面は右からすべって入り、戻るときは右へ抜ける。Android は ios_from_right（200ms・行き帰り同じ。長さは端末の決まり）、
+  // iOS は animationDuration で 250ms。動きを減らす設定なら切り替えるだけ
+  const reduced = useReducedMotion();
+
   if (!loaded) return null;
 
   return (
@@ -50,7 +56,14 @@ export default function RootLayout() {
           <HealthConnectProvider>
             <ThemeProvider value={theme}>
               <StatusBar style="light" />
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.bg },
+                  animation: reduced ? 'none' : 'ios_from_right',
+                  animationDuration: duration.toggle,
+                }}
+              >
                 <Stack.Screen name="(tabs)" />
               </Stack>
             </ThemeProvider>

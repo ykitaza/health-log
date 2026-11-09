@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { PressableScale } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, DayNote, EmptyState, Header, IconButton, SetNo } from '@/components/ui';
@@ -60,8 +61,9 @@ export default function WorkoutDayScreen() {
               const best = bestSet(e.sets);
               return (
                 <Card key={e.id} style={{ paddingVertical: 12 }}>
-                  <Pressable
+                  <PressableScale
                     accessibilityRole="button"
+                    scaleTo={0.98}
                     accessibilityLabel={`${e.exerciseName}を直す`}
                     onPress={() => router.push({ pathname: '/workout/entry', params: { date, entryId: e.id } })}
                   >
@@ -85,7 +87,7 @@ export default function WorkoutDayScreen() {
                         </View>
                       ))}
                     </View>
-                  </Pressable>
+                  </PressableScale>
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                     <IconButton name="up" label="上へ" size={34} bg={colors.input} onPress={() => move(e.id, -1)} color={i === 0 ? colors.line : colors.text} />
                     <IconButton name="down" label="下へ" size={34} bg={colors.input} onPress={() => move(e.id, 1)} color={i === entries.length - 1 ? colors.line : colors.text} />

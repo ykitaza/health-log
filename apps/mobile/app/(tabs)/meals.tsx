@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { NutritionSummary } from '@/components/meals';
+import { PressableScale, Sheet } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, IconButton } from '@/components/ui';
@@ -85,7 +86,7 @@ export default function MealsScreen() {
         );
       })}
 
-      <Pressable accessibilityRole="button" accessibilityLabel="目標" onPress={() => router.push('/meals/goal')}>
+      <PressableScale accessibilityRole="button" accessibilityLabel="目標" onPress={() => router.push('/meals/goal')}>
         <Card style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <T bold size={15}>目標</T>
@@ -93,7 +94,7 @@ export default function MealsScreen() {
           </View>
           <Icon name="chevron" color={colors.sub} size={18} />
         </Card>
-      </Pressable>
+      </PressableScale>
       {status !== 'signedIn' && (
         <T size={12} color={colors.sub} align="center" style={{ marginTop: 14 }}>
           ログインして同期すると、MCP（Claude・ChatGPT）で記録した食事も出ます
@@ -104,7 +105,7 @@ export default function MealsScreen() {
         slot={adding}
         date={date}
         templates={data?.templates ?? []}
-        yesterday={(data?.yesterday ?? []).filter((m) => m.slot === adding)}
+        yesterday={data?.yesterday ?? []}
         onClose={() => setAdding(null)}
         onRecord={async (run) => { setAdding(null); await run(); reload(); }}
       />
@@ -115,8 +116,8 @@ export default function MealsScreen() {
 function MealRow({ meal }: { meal: Meal }) {
   const t = mealTotal(meal);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${mealTitle(meal)}を開く`} onPress={() => router.push({ pathname: '/meals/[id]', params: { id: meal.id } })}
-      style={({ pressed }) => [s.mealRow, { opacity: pressed ? 0.7 : 1 }]}>
+    <PressableScale accessibilityRole="button" accessibilityLabel={`${mealTitle(meal)}を開く`} onPress={() => router.push({ pathname: '/meals/[id]', params: { id: meal.id } })}
+      style={s.mealRow}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <T bold size={16} numberOfLines={1}>{mealTitle(meal)}</T>
         <T size={12} color={colors.sub}>P {fmt1(t.protein_g)}・F {fmt1(t.fat_g)}・C {fmt1(t.carbs_g)}{meal.source === 'photo' ? '　写真から推定' : ''}</T>
@@ -126,7 +127,7 @@ function MealRow({ meal }: { meal: Meal }) {
         <T size={11} color={colors.sub}>kcal</T>
       </View>
       <Icon name="chevron" color={colors.sub} size={18} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -137,78 +138,87 @@ function AddSheet({ slot, date, templates, yesterday, onClose, onRecord }: {
 }) {
   const repos = useRepos();
   const insets = useSafeAreaInsets();
-  if (!slot) return null;
+  // 閉じる動きの間も中身を出しておくため、最後に開いた区分を覚えておく
+  const [last, setLast] = useState(slot);
+  if (slot && slot !== last) setLast(slot);
+  const shown = slot ?? last;
+  return (
+    <Sheet visible={slot != null} onClose={onClose}>
+      {shown && <AddSheetBody slot={shown} date={date} templates={templates} yesterday={yesterday.filter((m) => m.slot === shown)} insetBottom={insets.bottom} onClose={onClose} onRecord={onRecord} repos={repos} />}
+    </Sheet>
+  );
+}
+
+function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, onRecord, repos }: {
+  slot: Slot; date: string; templates: { id: string; name: string; items: { kcal: number }[] }[]; yesterday: Meal[]; insetBottom: number;
+  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; repos: ReturnType<typeof useRepos>;
+}) {
   const to = { date, slot };
   const open = (mode: 'items' | 'numbers') => { onClose(); router.push({ pathname: '/meals/new', params: { date, slot, mode } }); };
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="閉じる" />
-      <View style={s.sheet}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16 + insets.bottom, gap: 12 }}>
-          <View>
-            <T bold size={22}>{SLOT_LABELS[slot]}を記録</T>
-            <T size={13} color={colors.sub}>{formatJpDate(date)}</T>
-          </View>
-          {templates.length > 0 && (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Icon name="star" size={16} color={colors.accent} />
-                <T bold size={14} color={colors.sub}>いつもの</T>
-              </View>
-              <View style={s.group}>
-                {templates.map((t, i) => (
-                  <View key={t.id} style={[s.sheetRow, i > 0 && s.line]}>
-                    <View style={{ flex: 1 }}>
-                      <T bold size={15}>{t.name}</T>
-                      <T size={12} color={colors.sub}>{t.items.length}品・{fmtInt(t.items.reduce((n, x) => n + x.kcal, 0))}kcal</T>
-                    </View>
-                    <IconButton name="plus" label={`いつもの「${t.name}」を記録`} size={36} bg={colors.accentDark} color={colors.accent}
-                      onPress={() => onRecord(() => repos.meals.recordTemplate(t.id, to))} />
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-          <View style={s.group}>
-            {yesterday.length === 0 ? (
-              <View style={s.sheetRow}>
-                <MethodIcon name="copy" />
-                <View style={{ flex: 1 }}>
-                  <T bold size={15} color={colors.sub}>昨日と同じ</T>
-                  <T size={12} color={colors.sub}>昨日の{SLOT_LABELS[slot]}の記録はありません</T>
-                </View>
-              </View>
-            ) : yesterday.map((m, i) => (
-              <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={`昨日と同じ：${mealTitle(m)}`} style={[s.sheetRow, i > 0 && s.line]}
-                onPress={() => onRecord(() => repos.meals.copy(m.id, to))}>
-                <MethodIcon name="copy" />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <T bold size={15}>昨日と同じ</T>
-                  <T size={12} color={colors.sub} numberOfLines={1}>{formatJpDate(addDays(date, -1))}の{SLOT_LABELS[slot]}（{mealTitle(m)}・{fmtInt(mealTotal(m).kcal)}kcal）</T>
-                </View>
-                <Icon name="chevron" color={colors.sub} size={18} />
-              </Pressable>
-            ))}
-            <Pressable accessibilityRole="button" accessibilityLabel="品目を入力" style={[s.sheetRow, s.line]} onPress={() => open('items')}>
-              <MethodIcon name="pencil" />
-              <View style={{ flex: 1 }}>
-                <T bold size={15}>品目を入力</T>
-                <T size={12} color={colors.sub}>品名・量・kcal・PFC を入れます</T>
-              </View>
-              <Icon name="chevron" color={colors.sub} size={18} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="kcal と PFC だけ" style={[s.sheetRow, s.line]} onPress={() => open('numbers')}>
-              <MethodIcon name="calc" />
-              <View style={{ flex: 1 }}>
-                <T bold size={15}>kcal と PFC だけ</T>
-                <T size={12} color={colors.sub}>外食などで、数字だけ分かるとき</T>
-              </View>
-              <Icon name="chevron" color={colors.sub} size={18} />
-            </Pressable>
-          </View>
-        </ScrollView>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16 + insetBottom, gap: 12 }}>
+      <View>
+        <T bold size={22}>{SLOT_LABELS[slot]}を記録</T>
+        <T size={13} color={colors.sub}>{formatJpDate(date)}</T>
       </View>
-    </Modal>
+      {templates.length > 0 && (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon name="star" size={16} color={colors.accent} />
+            <T bold size={14} color={colors.sub}>いつもの</T>
+          </View>
+          <View style={s.group}>
+            {templates.map((t, i) => (
+              <View key={t.id} style={[s.sheetRow, i > 0 && s.line]}>
+                <View style={{ flex: 1 }}>
+                  <T bold size={15}>{t.name}</T>
+                  <T size={12} color={colors.sub}>{t.items.length}品・{fmtInt(t.items.reduce((n, x) => n + x.kcal, 0))}kcal</T>
+                </View>
+                <IconButton name="plus" label={`いつもの「${t.name}」を記録`} size={36} bg={colors.accentDark} color={colors.accent}
+                  onPress={() => onRecord(() => repos.meals.recordTemplate(t.id, to))} />
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+      <View style={s.group}>
+        {yesterday.length === 0 ? (
+          <View style={s.sheetRow}>
+            <MethodIcon name="copy" />
+            <View style={{ flex: 1 }}>
+              <T bold size={15} color={colors.sub}>昨日と同じ</T>
+              <T size={12} color={colors.sub}>昨日の{SLOT_LABELS[slot]}の記録はありません</T>
+            </View>
+          </View>
+        ) : yesterday.map((m, i) => (
+          <PressableScale key={m.id} accessibilityRole="button" accessibilityLabel={`昨日と同じ：${mealTitle(m)}`} style={[s.sheetRow, i > 0 && s.line]}
+            onPress={() => onRecord(() => repos.meals.copy(m.id, to))}>
+            <MethodIcon name="copy" />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T bold size={15}>昨日と同じ</T>
+              <T size={12} color={colors.sub} numberOfLines={1}>{formatJpDate(addDays(date, -1))}の{SLOT_LABELS[slot]}（{mealTitle(m)}・{fmtInt(mealTotal(m).kcal)}kcal）</T>
+            </View>
+            <Icon name="chevron" color={colors.sub} size={18} />
+          </PressableScale>
+        ))}
+        <PressableScale accessibilityRole="button" accessibilityLabel="品目を入力" style={[s.sheetRow, s.line]} onPress={() => open('items')}>
+          <MethodIcon name="pencil" />
+          <View style={{ flex: 1 }}>
+            <T bold size={15}>品目を入力</T>
+            <T size={12} color={colors.sub}>品名・量・kcal・PFC を入れます</T>
+          </View>
+          <Icon name="chevron" color={colors.sub} size={18} />
+        </PressableScale>
+        <PressableScale accessibilityRole="button" accessibilityLabel="kcal と PFC だけ" style={[s.sheetRow, s.line]} onPress={() => open('numbers')}>
+          <MethodIcon name="calc" />
+          <View style={{ flex: 1 }}>
+            <T bold size={15}>kcal と PFC だけ</T>
+            <T size={12} color={colors.sub}>外食などで、数字だけ分かるとき</T>
+          </View>
+          <Icon name="chevron" color={colors.sub} size={18} />
+        </PressableScale>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -225,8 +235,6 @@ const s = StyleSheet.create({
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 },
   empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.card, padding: 16, alignItems: 'center' },
   mealRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { maxHeight: '80%', backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   group: { backgroundColor: colors.input, borderRadius: radius.card },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },

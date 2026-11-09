@@ -16,6 +16,8 @@ export default defineConfig({
   workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
+    // 動きを減らす設定をオンにする。アニメーションを止めて、すぐに結果を出す（待ちで不安定にしない）
+    reducedMotion: 'reduce',
     baseURL: `http://127.0.0.1:${PORT}`,
     ...devices['Desktop Chrome'],
     viewport: { width: 412, height: 915 },
