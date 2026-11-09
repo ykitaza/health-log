@@ -7,7 +7,7 @@ import { Input } from '@/components/Input';
 import { CheckPop, ColorFade, PopIn, Shake, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, DayNote, Header, IconButton } from '@/components/ui';
+import { Badge, Button, Card, DayNote, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
@@ -22,7 +22,7 @@ import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
-import { colors, fonts, placeholderColor } from '@/theme';
+import { colors, fonts, placeholderColor, radius } from '@/theme';
 
 let keySeq = 0;
 const newKey = () => `k${++keySeq}`;
@@ -153,12 +153,13 @@ export default function EntryScreen() {
       footer={
         <>
           {undo && (
+            // M3 の snackbar（明るい地、操作は緑の文字）
             <View style={s.banner}>
-              <T size={14}>セット{undo.index + 1}を削除しました</T>
-              <Pressable accessibilityRole="button" onPress={restore} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}><T bold color={colors.accent}>元に戻す</T></Pressable>
+              <T variant="bodyM" color={colors.card} style={{ flex: 1 }}>セット{undo.index + 1}を削除しました</T>
+              <Pressable accessibilityRole="button" onPress={restore} style={s.bannerAction}><T variant="labelL" color={colors.inverseAccent}>元に戻す</T></Pressable>
             </View>
           )}
-          {formError && <T size={13} color={colors.danger} align="center">{formError}</T>}
+          {formError && <T variant="bodyM" color={colors.danger} align="center">{formError}</T>}
           <Button label={saving ? '保存しています…' : saveLabel} icon="check" onPress={save} disabled={isFuture} busy={saving} />
         </>
       }
@@ -175,21 +176,18 @@ export default function EntryScreen() {
         {previous ? (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(14) }}>
-              <T size={13} color={colors.sub}>前回 {formatJpDate(previous.date)}</T>
-              <Pressable accessibilityRole="button" onPress={copyPrevious} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}>
-                <Icon name="copy" size={16} color={colors.accent} />
-                <T bold size={14} color={colors.accent}>前回をコピー</T>
-              </Pressable>
+              <T variant="bodyM" color={colors.sub}>前回 {formatJpDate(previous.date)}</T>
+              <Button label="前回をコピー" icon="copy" variant="text" small onPress={copyPrevious} style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }} />
             </View>
-            <T num bold size={17}>{previous.sets.map((s) => formatSetShort(s.weightKg, s.reps, unit)).join(' ・ ')}</T>
+            <T variant="titleM" size={18}>{previous.sets.map((s) => formatSetShort(s.weightKg, s.reps, unit)).join(' ・ ')}</T>
           </>
         ) : (
-          <T size={13} color={colors.sub}>前回の記録はありません</T>
+          <T variant="bodyM" color={colors.sub}>前回の記録はありません</T>
         )}
         {best && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Icon name="star" size={15} color={colors.star} />
-            <T size={12} color={colors.sub}>
+            <Icon name="star" size={18} color={colors.star} />
+            <T variant="bodyM" color={colors.sub} style={{ flexShrink: 1 }}>
               自己ベスト 推定1RM {Math.round(kgToUnit(best.e1rm, unit))}{unit}（{formatSetShort(best.weightKg, best.reps, unit)}）
             </T>
           </View>
@@ -198,10 +196,10 @@ export default function EntryScreen() {
 
       <Card style={{ marginTop: 14, gap: 4 }}>
         <View style={s.headRow}>
-          <T size={10} color={colors.sub} style={{ width: 36 }} align="center" numberOfLines={1}>セット</T>
-          {weighted && <T size={11} color={colors.sub} style={{ flex: 1 }} align="center">重量（{unit}）</T>}
-          <T size={11} color={colors.sub} style={{ flex: 1 }} align="center">回数</T>
-          <T size={11} color={colors.sub} style={{ width: 44 }} align="center">完了</T>
+          <T variant="labelM" color={colors.sub} style={{ width: 36 }} align="center" numberOfLines={1}>セット</T>
+          {weighted && <T variant="labelM" color={colors.sub} style={{ flex: 1 }} align="center">重量（{unit}）</T>}
+          <T variant="labelM" color={colors.sub} style={{ flex: 1 }} align="center">回数</T>
+          <T variant="labelM" color={colors.sub} style={{ width: 48 }} align="center">完了</T>
         </View>
         {drafts.map((d, i) => {
           const err = errors.get(d.key);
@@ -210,7 +208,7 @@ export default function EntryScreen() {
           return (
             <Animated.View key={d.key} entering={list.entering(i)} exiting={list.exiting} layout={list.layout} style={{ gap: 6, marginTop: 8 }}>
               <ColorFade on={d.done} from={colors.card} to={colors.accentDark} style={s.setRow}>
-                <T num bold size={17} style={{ width: 36 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
+                <T variant="numM" bold style={{ width: 36 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
                 {weighted && (
                   <NumberInput
                     label={`セット${i + 1}の重量`}
@@ -238,34 +236,32 @@ export default function EntryScreen() {
                     if (!d.done) onFeedback('complete');
                     update(d.key, { done: !d.done });
                   }}
-                  hitSlop={2}
-                  style={[s.done, d.done ? { backgroundColor: colors.accent } : { backgroundColor: colors.input }]}
+                  style={s.doneTouch}
                 >
-                  <CheckPop done={d.done}>
-                    <Icon name="check" size={20} color={d.done ? colors.onAccent : colors.sub} />
-                  </CheckPop>
+                  {/* 済＝塗り、まだ＝枠（色だけでなく形でも分かる） */}
+                  <View style={[s.done, d.done ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.outline }]}>
+                    <CheckPop done={d.done}>
+                      <Icon name="check" size={24} color={d.done ? colors.onAccent : colors.sub} />
+                    </CheckPop>
+                  </View>
                 </Pressable>
               </ColorFade>
               <PopIn show={newBest} onShow={() => onFeedback('personalBest')} style={{ marginLeft: 44, alignSelf: 'flex-start' }}>
-                <View style={s.pb}>
-                  <Icon name="star" size={13} color={colors.star} />
-                  <T size={12} bold color={colors.star}>自己ベスト更新</T>
-                </View>
+                <Badge label="自己ベスト更新" tone="star" icon="star" />
               </PopIn>
               {(err?.weight || err?.reps || err?.memo) && (
-                <T size={12} color={colors.danger} style={{ marginLeft: 44 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
+                <T variant="bodyS" color={colors.danger} style={{ marginLeft: 44 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 44, ...touchRoom(8) }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 44 }}>
                 <View style={s.memo}>
-                  <Icon name="pencil" size={14} color={colors.sub} />
+                  <Icon name="pencil" size={20} color={colors.sub} />
                   <Input
                     value={d.memo}
                     onChangeText={(t) => update(d.key, { memo: t })}
                     maxLength={MEMO_MAX_LENGTH}
                     placeholder="メモを追加"
-                    placeholderTextColor={colors.sub}
                     accessibilityLabel={`セット${i + 1}のメモ`}
-                    style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 6, minHeight: 32 }}
+                    style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 14, minHeight: 48 }}
                   />
                 </View>
                 <IconButton name="close" label={`セット${i + 1}を削除`} bg="transparent" color={colors.sub} onPress={() => remove(i)} />
@@ -273,12 +269,12 @@ export default function EntryScreen() {
             </Animated.View>
           );
         })}
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-          <Button label="セットを追加" icon="plus" variant="secondary" small style={{ flex: 1 }} onPress={() => setDrafts((ds) => [...ds, blank()])} />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+          <Button label="セットを追加" icon="plus" variant="tonal" small style={{ flex: 1 }} onPress={() => setDrafts((ds) => [...ds, blank()])} />
           <Button
             label="上のセットをコピー"
             icon="copy"
-            variant="secondary"
+            variant="tonal"
             small
             style={{ flex: 1 }}
             disabled={copySource == null}
@@ -311,8 +307,8 @@ function NumberInput({ value, placeholder, onChange, error, shake = 0, decimal, 
         selectTextOnFocus
         style={[
           s.input,
-          focused && { borderColor: colors.accent },
-          error && { borderColor: colors.danger },
+          focused && { borderColor: colors.accent, borderWidth: 2 },
+          error && { borderColor: colors.danger, borderWidth: 2 },
         ]}
       />
     </Shake>
@@ -321,13 +317,19 @@ function NumberInput({ value, placeholder, onChange, error, shake = 0, decimal, 
 
 const s = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 4, marginHorizontal: -4 },
-  pb: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.m, padding: 4, marginHorizontal: -4 },
+  // 重量・回数の欄（M3 の outlined text field を詰めたもの。高さ 48、枠 3.7:1、選んでいる欄は緑の 2px、間違いは赤の 2px）
   input: {
-    width: '100%', height: 48, borderRadius: 10, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.input,
-    color: colors.text, fontFamily: fonts.bold, fontSize: 18, textAlign: 'center',
+    width: '100%', height: 48, borderRadius: radius.input, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.outline,
+    color: colors.text, fontFamily: fonts.num, fontSize: 18, textAlign: 'center',
   },
-  done: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  memo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.input, borderRadius: 8, paddingHorizontal: 10 },
-  banner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.input, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  doneTouch: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  done: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  // メモの欄（M3 の filled text field。高さ 48、下に線）
+  memo: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.input, paddingHorizontal: 12,
+    borderTopLeftRadius: radius.xs, borderTopRightRadius: radius.xs, borderBottomWidth: 1, borderBottomColor: colors.outline,
+  },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, backgroundColor: colors.text, borderRadius: radius.xs, paddingLeft: 16, paddingRight: 4 },
+  bannerAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
 });
