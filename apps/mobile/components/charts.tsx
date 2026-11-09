@@ -110,7 +110,7 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
           <Line key={`g${t}`} x1={left} x2={width - right} y1={py(t)} y2={py(t)} stroke={colors.line} strokeWidth={1} />
         ))}
         {showYAxis && ticks.map((t) => (
-          <SvgText key={`t${t}`} x={left - 6} y={py(t) + 4} fill={colors.sub} fontSize={10} fontFamily={fonts.num} textAnchor="end">{formatY(t)}</SvgText>
+          <SvgText key={`t${t}`} x={left - 6} y={py(t) + 4} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="end">{formatY(t)}</SvgText>
         ))}
         {points.length > 1 && (reduced ? (
           <Polyline points={xy.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={colors.accent} strokeWidth={2.5} strokeLinejoin="round" />
@@ -124,7 +124,7 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
           ? <Circle cx={px(last.x)} cy={py(last.y)} r={5} fill={colors.accent} />
           : <Dot x={px(last.x)} y={py(last.y)} r={5} at={1} progress={progress} />)}
         {xLabels.map((l, i) => (
-          <SvgText key={`x${i}`} x={px(l.x)} y={height - 6} fill={colors.sub} fontSize={10} fontFamily={fonts.num}
+          <SvgText key={`x${i}`} x={px(l.x)} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num}
             textAnchor={l.x < 0.05 ? 'start' : l.x > 0.95 ? 'end' : 'middle'}>{l.label}</SvgText>
         ))}
       </Svg>
@@ -168,7 +168,7 @@ export function StackedBarChart({ bars, height = 180, animKey }: {
                   ? <Rect key={j} {...rect} />
                   : <GrowingRect key={j} {...rect} base={base} from={from} to={to} progress={progress} />;
               })}
-              <SvgText x={x + barW / 2} y={height - 6} fill={colors.sub} fontSize={10} fontFamily={fonts.num} textAnchor="middle">{b.label}</SvgText>
+              <SvgText x={x + barW / 2} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="middle">{b.label}</SvgText>
             </G>
           );
         })}

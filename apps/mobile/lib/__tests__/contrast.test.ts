@@ -22,9 +22,20 @@ describe('theme の色の組み合わせ（画面で文字に使っているも�
     ['accent', 'accentDark'], ['text', 'accentDark'], // 選んだチップ、記録のある日、バッジ
     ['danger', 'dangerDark'], // 消すボタン、未来の日の知らせ
     ['onAccent', 'accent'], // 主なボタン、選んだ日
+    ['onAccentDark', 'accentDark'], // 選んだチップ・切り替え、バッジ
+    ['onDangerDark', 'dangerDark'], // エラーのバッジ、未来の日の知らせ
+    ['danger', 'input'], // ダイアログの「外す」「消す」
+    ['inverseAccent', 'text'], // スナックバーの「元に戻す」
   ];
   test.each(text)('%s の文字 on %s は 4.5:1 以上', (fg, bg) => {
     expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // 文字でないもの：入力欄・チップの枠、使えないアイコン、前の週の棒
+  test.each([
+    ['outline', 'card'], ['outline', 'bg'], ['disabled', 'card'], ['accentMuted', 'input'],
+  ] as [keyof typeof colors, keyof typeof colors][])('%s on %s は 3:1 以上', (fg, bg) => {
+    expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(3);
   });
 
   test('部位の色（グラフ）はカードの上で 3:1 以上', () => {

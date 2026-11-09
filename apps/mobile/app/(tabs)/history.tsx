@@ -9,7 +9,7 @@ import { MonthCalendar } from '@/components/MonthCalendar';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { SlidingMark } from '@/components/motion';
-import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, useLayouts } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, TabHeader, useLayouts } from '@/components/ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
@@ -90,7 +90,7 @@ export default function HistoryScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">履歴／分析</T></View>
+      <TabHeader title="履歴／分析" />
       <Segmented options={[{ key: 'training', label: '筋トレ' }, { key: 'meals', label: '食事' }]} value={mode} onChange={setMode} />
 
       {mode === 'meals' ? (
@@ -123,9 +123,9 @@ export default function HistoryScreen() {
             <>
               <Card style={{ marginTop: 14 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { bottom: 10 }) }}>
-                  <IconButton name="prev" label="前の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, -1))} />
+                  <IconButton name="prev" label="前の月" bg="transparent" onPress={() => setMonth(addMonths(month, -1))} />
                   <T num bold size={24}>{MONTH_NAMES_EN[m - 1]} {year}</T>
-                  <IconButton name="next" label="次の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
+                  <IconButton name="next" label="次の月" bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
                 </View>
                 <MonthCalendar year={year} month={m} today={today} marked={marked} selected={selectedDay} onPressDay={(d) => marked.has(d) && setSelectedDay(d)} cell={38} testID="history-calendar" />
                 <T size={12} color={colors.sub} style={{ marginTop: 10 }}>

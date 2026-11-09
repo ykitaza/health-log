@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { MIN_TOUCH } from '@/lib/touch';
+import { colors } from '@/theme';
 import { Button, Chip, CHIP_HEIGHT, ConfirmDialog, IconButton } from '../ui';
 
 // 動きの部品（Reanimated）は、ここでは要らない。props だけを見る
@@ -20,9 +21,10 @@ describe('押せる部品の最小の大きさ', () => {
     expect(IconButton({ name: 'next', label: '次の日', onPress: () => {}, disabled: true }).props.disabled).toBe(true);
   });
 
-  test('Chip は縦 48 以上', () => {
+  test('Chip は見た目 32、押せる範囲は縦 48 以上', () => {
     const el = Chip({ label: '胸', onPress: () => {} });
-    expect(CHIP_HEIGHT + slop(el.props.hitSlop, 'top') + slop(el.props.hitSlop, 'bottom')).toBeGreaterThanOrEqual(MIN_TOUCH);
+    expect(CHIP_HEIGHT).toBe(32);
+    expect(StyleSheet.flatten(el.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
   });
 
   test('小さいボタン（small）は縦 48 以上', () => {
@@ -37,7 +39,8 @@ describe('処理中のボタン（二重押しを止める）', () => {
     const el = Button({ label: '保存しています…', onPress: () => {}, busy: true });
     expect(el.props.disabled).toBe(true);
     expect(el.props['aria-busy']).toBe(true);
-    expect(StyleSheet.flatten(el.props.style).opacity).toBeLessThan(1);
+    // 使えない見た目：灰色の地（M3 の disabled container）
+    expect(StyleSheet.flatten(el.props.style).backgroundColor).toBe(colors.disabledContainer);
   });
 
   test('busy でないボタンは押せる', () => {

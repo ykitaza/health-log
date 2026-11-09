@@ -4,13 +4,14 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from '@/components/Icon';
 import { tabBarStyle } from '@/components/tabBar';
-import { colors, fonts } from '@/theme';
+import { T } from '@/components/Text';
+import { colors } from '@/theme';
 import { duration, EASE_OUT } from '@/theme/motion';
 
 function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
     <View style={{ width: 64, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.accentDark : 'transparent' }}>
-      <Icon name={name} color={focused ? colors.accent : colors.sub} size={22} />
+      <Icon name={name} color={focused ? colors.onAccentDark : colors.sub} size={24} />
     </View>
   );
 }
@@ -32,10 +33,11 @@ export default function TabLayout() {
         headerShown: false,
         animation: reduced ? 'none' : 'fade',
         transitionSpec: { animation: 'timing', config: { duration: duration.text, easing: Easing.bezier(...EASE_OUT) } },
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.sub,
         tabBarStyle: tabBarStyle(insets.bottom),
-        tabBarLabelStyle: { fontFamily: fonts.bold, fontSize: 11, marginTop: 4 },
+        // 選んだタブのラベルは太字（色だけで伝えない）
+        tabBarLabel: ({ focused, children }) => <T variant="labelM" bold={focused} color={focused ? colors.text : colors.sub} style={{ marginTop: 4 }}>{children}</T>,
       }}
     >
       {TABS.map((t) => (

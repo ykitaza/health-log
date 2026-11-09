@@ -8,7 +8,7 @@ import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber, Shake } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Badge, Card, IconButton } from '@/components/ui';
+import { Badge, Card, IconButton, TabHeader } from '@/components/ui';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
@@ -144,10 +144,7 @@ export default function BodyScreen() {
 
   return (
     <Screen tab>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
-        <T bold size={26} accessibilityRole="header">体組成</T>
-        <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} />
-      </View>
+      <TabHeader title="体組成" />
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
@@ -177,8 +174,8 @@ export default function BodyScreen() {
               />
             </Shake>
             <T size={12} color={colors.sub} style={{ width: 22 }}>{f.weight ? unit : f.unit}</T>
-            <IconButton name="close" label={`${f.label}を消す`} size={34} bg={colors.input} color={colors.sub} onPress={() => clear(f.key)} />
-            <IconButton name="chart" label={`${f.label}の推移`} size={34} bg={colors.accentDark} color={colors.accent} onPress={() => openTrend(f.metric)} />
+            <IconButton name="close" label={`${f.label}を消す`} bg={colors.input} color={colors.sub} onPress={() => clear(f.key)} />
+            <IconButton name="chart" label={`${f.label}の推移`} bg={colors.accentDark} color={colors.accent} onPress={() => openTrend(f.metric)} />
           </View>
         ))}
         <View style={[s.fieldRow, s.line]}>

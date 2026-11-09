@@ -121,7 +121,7 @@ function KcalChart({ days }: { days: DaySummary[] }) {
       <Svg width={width} height={height}>
         {ticks.map((t) => <Line key={`g${t}`} x1={left} x2={width - right} y1={py(t)} y2={py(t)} stroke={colors.line} strokeWidth={1} />)}
         {ticks.map((t) => (
-          <SvgText key={`t${t}`} x={left - 6} y={py(t) + 4} fill={colors.sub} fontSize={10} fontFamily={fonts.num} textAnchor="end">{fmtInt(t)}</SvgText>
+          <SvgText key={`t${t}`} x={left - 6} y={py(t) + 4} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="end">{fmtInt(t)}</SvgText>
         ))}
         {targetPoints.length > 1 && <Polyline points={targetPoints.join(' ')} fill="none" stroke={colors.sub} strokeWidth={1.5} strokeDasharray="4 4" />}
         {recorded.length > 1 && (
@@ -132,7 +132,7 @@ function KcalChart({ days }: { days: DaySummary[] }) {
           <SvgText key={`w${i}`} x={px(i)} y={height - 20} fill={colors.text} fontSize={11} fontFamily={fonts.regular} textAnchor="middle">{WEEKDAY[weekday(d.date)]}</SvgText>
         ))}
         {days.map((d, i) => (
-          <SvgText key={`v${i}`} x={px(i)} y={height - 6} fill={colors.sub} fontSize={10} fontFamily={fonts.num} textAnchor="middle">
+          <SvgText key={`v${i}`} x={px(i)} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="middle">
             {d.meals.length ? fmtInt(d.total.kcal) : '—'}
           </SvgText>
         ))}

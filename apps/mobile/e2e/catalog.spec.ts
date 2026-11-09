@@ -226,8 +226,8 @@ test('非表示の部位・種目と同じ名前を足そうとすると、表�
   await button(page, '追加する').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('非表示の部位があります。表示に戻しますか？');
-  // キャンセルなら非表示のまま
-  await button(dialog, 'キャンセル').click();
+  // やめるなら非表示のまま
+  await button(dialog, 'やめる').click();
   await expect(dialog).toBeHidden();
   await expect(see(page, '腹筋（非表示）')).toBeVisible();
   // 表示に戻すと、新しく足さずにその部位が表示に戻る

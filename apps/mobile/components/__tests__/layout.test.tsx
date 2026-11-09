@@ -42,10 +42,10 @@ describe('入力欄（Android で文字が上下に切れない）', () => {
 
 describe('下のタブのバー（ジェスチャーナビゲーションのバーに重ならない）', () => {
   test('セーフエリアの下の幅を、高さと下の余白に足す', () => {
-    expect(tabBarStyle(24)).toMatchObject({ height: TAB_BAR_HEIGHT + 24, paddingTop: 8, paddingBottom: 24 });
+    expect(tabBarStyle(24)).toMatchObject({ height: TAB_BAR_HEIGHT + 24, paddingTop: 12, paddingBottom: 24 });
   });
 
   test('セーフエリアがない端末（web など）では、これまでと同じ高さ', () => {
-    expect(tabBarStyle(0)).toMatchObject({ height: 72, paddingBottom: 0 });
+    expect(tabBarStyle(0)).toMatchObject({ height: 80, paddingBottom: 0 });
   });
 });

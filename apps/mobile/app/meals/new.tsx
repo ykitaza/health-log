@@ -77,7 +77,7 @@ export default function NewMealScreen() {
                 accessibilityLabel={`品目${n + 1}の品名`} style={s.text} maxLength={200} />
             </Field>
             {items.length > 1 && (
-              <IconButton name="trash" label={`品目${n + 1}を外す`} size={44} bg={colors.input} color={colors.sub} onPress={() => setItems((xs) => xs.filter((_, i) => i !== n))} />
+              <IconButton name="trash" label={`品目${n + 1}を外す`} bg={colors.input} color={colors.sub} onPress={() => setItems((xs) => xs.filter((_, i) => i !== n))} />
             )}
           </View>
           {!numbers && (

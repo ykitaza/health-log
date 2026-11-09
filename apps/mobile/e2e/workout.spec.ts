@@ -216,7 +216,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('ベンチプレスを外しますか？');
   await expect(dialog).toContainText('入力したセットとメモも消えます。');
-  await button(dialog, 'キャンセル').click();
+  await button(dialog, 'やめる').click();
   await expect(dialog).toBeHidden();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);
   await button(page, 'ベンチプレスを外す').click();

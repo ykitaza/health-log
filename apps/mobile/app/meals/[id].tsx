@@ -165,13 +165,13 @@ export default function MealDetailScreen() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
               <View style={s.stepper}>
-                <IconButton name="down" label={`${r.item.name}の量を減らす`} size={36} bg="transparent" onPress={() => bump(r, -1)} />
+                <IconButton name="down" label={`${r.item.name}の量を減らす`} bg="transparent" onPress={() => bump(r, -1)} />
                 <Input value={r.amountText} onChangeText={(t) => setAmount(r.key, t)} keyboardType="decimal-pad" accessibilityLabel={`${r.item.name}の量`}
                   style={s.amount} />
                 <T size={12} color={colors.sub}>{r.item.unit}</T>
-                <IconButton name="up" label={`${r.item.name}の量を増やす`} size={36} bg="transparent" onPress={() => bump(r, 1)} />
+                <IconButton name="up" label={`${r.item.name}の量を増やす`} bg="transparent" onPress={() => bump(r, 1)} />
               </View>
-              <IconButton name="trash" label={`${r.item.name}を外す`} size={40} bg={colors.input} color={colors.sub} onPress={() => removeRow(r.key)} />
+              <IconButton name="trash" label={`${r.item.name}を外す`} bg={colors.input} color={colors.sub} onPress={() => removeRow(r.key)} />
             </View>
           </View>
         ))}
