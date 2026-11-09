@@ -1,54 +1,58 @@
 <mxfile host="drawio">
   <diagram id="architecture" name="構成図">
-    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="1500" math="0" shadow="0">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1540" pageHeight="1500" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <!-- 端末の中：Health Connect とアプリ -->
+        <mxCell id="pixel" value="Pixel（端末の中）" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#545B64;dashed=1;fontColor=#545B64;fontSize=11;verticalAlign=top;align=left;spacingLeft=8;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="10" y="650" width="460" height="140" as="geometry" />
+        </mxCell>
 
         <!-- 外側：使う人とクライアント -->
         <mxCell id="user" value="利用者（ブラウザ）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#232F3D;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.user;" vertex="1" parent="1">
-          <mxGeometry x="60" y="250" width="60" height="60" as="geometry" />
+          <mxGeometry x="300" y="250" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="client" value="Claude / ChatGPT&lt;br&gt;（MCP クライアント）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="20" y="480" width="140" height="60" as="geometry" />
+          <mxGeometry x="260" y="480" width="140" height="60" as="geometry" />
         </mxCell>
 
         <!-- AWS -->
         <mxCell id="cloud" value="AWS" style="points=[];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=0;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;" vertex="1" parent="1">
-          <mxGeometry x="300" y="20" width="980" height="1460" as="geometry" />
+          <mxGeometry x="540" y="20" width="980" height="1460" as="geometry" />
         </mxCell>
         <mxCell id="region" value="東京リージョン（ap-northeast-1）" style="points=[];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=0;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#00A4A6;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="320" y="60" width="940" height="1220" as="geometry" />
+          <mxGeometry x="560" y="60" width="940" height="1220" as="geometry" />
         </mxCell>
 
         <!-- 認可API の列 -->
         <mxCell id="cognito" value="Cognito&lt;br&gt;ユーザープール（ログイン画面）&lt;br&gt;パスキー・新規登録は不可" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;fillColor=#DD344C;" vertex="1" parent="1">
-          <mxGeometry x="890" y="110" width="60" height="60" as="geometry" />
+          <mxGeometry x="1130" y="110" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="authzApi" value="API Gateway（HTTP API）&lt;br&gt;認可API の入口&lt;br&gt;流量の制限：1秒1回・瞬間5回" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=top;verticalAlign=bottom;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="410" y="250" width="60" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="authzFn" value="Lambda&lt;br&gt;認可API（Flask・Authlib）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" vertex="1" parent="1">
           <mxGeometry x="650" y="250" width="60" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="stateTable" value="DynamoDB（StateTable）&lt;br&gt;ログイン途中の状態・認可コード・&lt;br&gt;リフレッシュトークン（TTL で消える）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;fillColor=#C925D1;" vertex="1" parent="1">
+        <mxCell id="authzFn" value="Lambda&lt;br&gt;認可API（Flask・Authlib）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" vertex="1" parent="1">
           <mxGeometry x="890" y="250" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stateTable" value="DynamoDB（StateTable）&lt;br&gt;ログイン途中の状態・認可コード・&lt;br&gt;リフレッシュトークン（TTL で消える）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;fillColor=#C925D1;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="250" width="60" height="60" as="geometry" />
         </mxCell>
 
         <!-- 共通 -->
         <mxCell id="ssm" value="SSM パラメータストア&lt;br&gt;URL・署名鍵・セッションの秘密" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.systems_manager;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="370" width="60" height="60" as="geometry" />
+          <mxGeometry x="1330" y="370" width="60" height="60" as="geometry" />
         </mxCell>
 
         <!-- 食事記録の列 -->
         <mxCell id="mealsApi" value="API Gateway（HTTP API）&lt;br&gt;MCP の入口（/mcp）&lt;br&gt;流量の制限：1秒1回・瞬間5回" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="410" y="480" width="60" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="mealsFn" value="Lambda（MealsFunction）&lt;br&gt;MCP サーバー（services/mcp）&lt;br&gt;食事と筋トレのツール32個" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" vertex="1" parent="1">
           <mxGeometry x="650" y="480" width="60" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="mealsTable" value="DynamoDB（MealsTable）&lt;br&gt;同期の項目（SYNC#）：食事・いつもの・&lt;br&gt;目標・筋トレ・体組成と変更の記録&lt;br&gt;体重（WEIGHT#）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;fillColor=#C925D1;" vertex="1" parent="1">
+        <mxCell id="mealsFn" value="Lambda（MealsFunction）&lt;br&gt;MCP サーバー（services/mcp）&lt;br&gt;食事と筋トレのツール32個" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" vertex="1" parent="1">
           <mxGeometry x="890" y="480" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="mealsTable" value="DynamoDB（MealsTable）&lt;br&gt;同期の項目（SYNC#）：食事・いつもの・&lt;br&gt;目標・筋トレ・体組成と変更の記録&lt;br&gt;体重（WEIGHT#）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;fillColor=#C925D1;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="480" width="60" height="60" as="geometry" />
         </mxCell>
 
         <!-- 線 -->
@@ -58,9 +62,9 @@
         <mxCell id="e2" value="OAuth&lt;br&gt;（認可・トークン）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="client" target="authzApi">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="90" y="400" />
-              <mxPoint x="240" y="400" />
-              <mxPoint x="240" y="295" />
+              <mxPoint x="330" y="400" />
+              <mxPoint x="480" y="400" />
+              <mxPoint x="480" y="295" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -82,31 +86,31 @@
         <mxCell id="e8" value="本人確認を任せる（OIDC）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="authzFn" target="cognito">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="680" y="140" />
+              <mxPoint x="920" y="140" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;dashed=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" edge="1" parent="1" source="authzFn" target="ssm">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="770" y="295" />
-              <mxPoint x="770" y="400" />
+              <mxPoint x="1010" y="295" />
+              <mxPoint x="1010" y="400" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;dashed=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" edge="1" parent="1" source="mealsFn" target="ssm">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="770" y="495" />
-              <mxPoint x="770" y="400" />
+              <mxPoint x="1010" y="495" />
+              <mxPoint x="1010" y="400" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e11" value="トークン検証用の公開鍵（JWKS）を取得" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;dashed=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="mealsFn" target="authzApi">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
+              <mxPoint x="920" y="420" />
               <mxPoint x="680" y="420" />
-              <mxPoint x="440" y="420" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -114,10 +118,10 @@
 
         <!-- スマホアプリ用の API の列（同期） -->
         <mxCell id="appApi" value="API Gateway（HTTP API）&lt;br&gt;アプリ用の API（/v1/…）&lt;br&gt;JWT のオーソライザー（Cognito）&lt;br&gt;流量の制限：1秒10回・&lt;br&gt;瞬間20回" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="410" y="700" width="60" height="60" as="geometry" />
+          <mxGeometry x="650" y="700" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="appApiFn" value="Lambda（AppApiFunction）&lt;br&gt;アプリ用の API・同期の入口&lt;br&gt;（services/app_api）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" vertex="1" parent="1">
-          <mxGeometry x="650" y="700" width="60" height="60" as="geometry" />
+          <mxGeometry x="890" y="700" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="a1" value="同期" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="mobile" target="appApi">
           <mxGeometry x="-0.6" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
@@ -126,49 +130,49 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="a3" value="読み取りと追記だけ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="appApiFn" target="mealsTable">
-          <mxGeometry x="-0.3" relative="1" as="geometry"><mxPoint as="offset" /><Array as="points"><mxPoint x="1060" y="730" /><mxPoint x="1060" y="510" /></Array></mxGeometry>
+          <mxGeometry x="-0.3" relative="1" as="geometry"><mxPoint as="offset" /><Array as="points"><mxPoint x="1300" y="730" /><mxPoint x="1300" y="510" /></Array></mxGeometry>
         </mxCell>
 
         <!-- スマホのアプリ -->
         <mxCell id="mobile" value="スマホのアプリ（hlog）&lt;br&gt;筋トレ・食事・体組成・睡眠の記録&lt;br&gt;端末の SQLite に保存して&lt;br&gt;ログインのあと同期する" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="20" y="690" width="200" height="80" as="geometry" />
+          <mxGeometry x="260" y="690" width="200" height="80" as="geometry" />
         </mxCell>
 
         <!-- 監視（CognitoStudyMonitoring、CognitoStudyMonitoringGlobal） -->
         <mxCell id="monGroup" value="監視（CognitoStudyMonitoring）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#E7157B;dashed=1;verticalAlign=top;align=left;spacingLeft=8;fontSize=12;fontColor=#232F3E;" vertex="1" parent="1">
-          <mxGeometry x="560" y="870" width="680" height="390" as="geometry" />
+          <mxGeometry x="800" y="870" width="680" height="390" as="geometry" />
         </mxCell>
         <mxCell id="accessLogs" value="CloudWatch Logs&lt;br&gt;3つの API のアクセスログ&lt;br&gt;（30日残す）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="410" y="960" width="60" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="alarms" value="CloudWatch のアラーム（7個）&lt;br&gt;リクエスト・4xx・5xx・429・&lt;br&gt;/token の失敗・Lambda のエラー・&lt;br&gt;怪しいログイン" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=top;verticalAlign=bottom;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" vertex="1" parent="1">
           <mxGeometry x="650" y="960" width="60" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="sns" value="SNS（cognito-study-alerts）&lt;br&gt;メールで知らせる" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;fillColor=#E7157B;" vertex="1" parent="1">
+        <mxCell id="alarms" value="CloudWatch のアラーム（7個）&lt;br&gt;リクエスト・4xx・5xx・429・&lt;br&gt;/token の失敗・Lambda のエラー・&lt;br&gt;怪しいログイン" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=top;verticalAlign=bottom;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" vertex="1" parent="1">
           <mxGeometry x="890" y="960" width="60" height="60" as="geometry" />
         </mxCell>
+        <mxCell id="sns" value="SNS（cognito-study-alerts）&lt;br&gt;メールで知らせる" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;fillColor=#E7157B;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="960" width="60" height="60" as="geometry" />
+        </mxCell>
         <mxCell id="ebRules" value="EventBridge のルール&lt;br&gt;IAM・Cognito の変更、&lt;br&gt;CloudTrail の停止" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=top;verticalAlign=bottom;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.eventbridge;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="960" width="60" height="60" as="geometry" />
+          <mxGeometry x="1330" y="960" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="trailLogs" value="CloudWatch Logs&lt;br&gt;証跡のログ（30日）" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="650" y="1130" width="60" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="trail" value="CloudTrail の証跡&lt;br&gt;すべてのリージョンの管理イベント" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudtrail;fillColor=#E7157B;" vertex="1" parent="1">
           <mxGeometry x="890" y="1130" width="60" height="60" as="geometry" />
         </mxCell>
+        <mxCell id="trail" value="CloudTrail の証跡&lt;br&gt;すべてのリージョンの管理イベント" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudtrail;fillColor=#E7157B;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="1130" width="60" height="60" as="geometry" />
+        </mxCell>
         <mxCell id="trailBucket" value="S3&lt;br&gt;証跡の置き場所（1年）&lt;br&gt;スタックを消しても残る" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fillColor=#7AA116;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="1130" width="60" height="60" as="geometry" />
+          <mxGeometry x="1330" y="1130" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="regionUsEast1" value="バージニア北部リージョン（us-east-1）：CognitoStudyMonitoringGlobal" style="points=[];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=0;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#00A4A6;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="320" y="1300" width="940" height="140" as="geometry" />
+          <mxGeometry x="560" y="1300" width="940" height="140" as="geometry" />
         </mxCell>
         <mxCell id="ebGlobal" value="EventBridge のルール&lt;br&gt;IAM の操作を東京へ転送" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.eventbridge;fillColor=#E7157B;" vertex="1" parent="1">
-          <mxGeometry x="890" y="1330" width="60" height="60" as="geometry" />
+          <mxGeometry x="1130" y="1330" width="60" height="60" as="geometry" />
         </mxCell>
 
         <!-- 監視の線 -->
         <mxCell id="m1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="mealsApi" target="accessLogs">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="340" y="531" /><mxPoint x="340" y="990" /></Array></mxGeometry>
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="580" y="531" /><mxPoint x="580" y="990" /></Array></mxGeometry>
         </mxCell>
         <mxCell id="m2" value="メトリクスフィルター" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="accessLogs" target="alarms">
           <mxGeometry relative="1" as="geometry" />
@@ -189,35 +193,53 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="m8" value="操作のイベント" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="trail" target="ebRules">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="920" y="1080" /><mxPoint x="1120" y="1080" /></Array></mxGeometry>
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1160" y="1080" /><mxPoint x="1360" y="1080" /></Array></mxGeometry>
         </mxCell>
         <mxCell id="m9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ebGlobal" target="ebRules">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1220" y="1360" /><mxPoint x="1220" y="990" /></Array></mxGeometry>
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1460" y="1360" /><mxPoint x="1460" y="990" /></Array></mxGeometry>
         </mxCell>
 
-        <mxCell id="note" value="実線：リクエスト・ログ・通知の流れ　点線：設定や鍵の取得　緑の線：開発者の変更が届くまで" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#545B64;" vertex="1" parent="1">
-          <mxGeometry x="340" y="1450" width="640" height="20" as="geometry" />
+        <mxCell id="note" value="実線：リクエスト・ログ・通知の流れ　点線：設定や鍵の取得　点線の枠：端末の中　緑の線：開発者の変更が届くまで" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#545B64;" vertex="1" parent="1">
+          <mxGeometry x="580" y="1450" width="640" height="20" as="geometry" />
         </mxCell>
         <!-- 開発者からのデプロイ -->
         <mxCell id="dev" value="開発者" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#232F3D;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.user;" vertex="1" parent="1">
-          <mxGeometry x="90" y="1600" width="60" height="60" as="geometry" />
+          <mxGeometry x="330" y="1600" width="60" height="60" as="geometry" />
         </mxCell>
         <mxCell id="github" value="GitHub（health-log）&lt;br&gt;Actions：テスト → デプロイ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="20" y="1390" width="200" height="60" as="geometry" />
+          <mxGeometry x="260" y="1390" width="200" height="60" as="geometry" />
         </mxCell>
         <mxCell id="expo" value="Expo（EAS）&lt;br&gt;Update：JS の配信&lt;br&gt;Build：APK を作る" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="20" y="1080" width="200" height="70" as="geometry" />
+          <mxGeometry x="260" y="1080" width="200" height="70" as="geometry" />
         </mxCell>
         <mxCell id="d1" value="push・PR のマージ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#2E7D32;strokeWidth=2;fontColor=#2E7D32;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="dev" target="github">
           <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
         </mxCell>
         <mxCell id="d2" value="cdk deploy で AWS へ（OIDC・承認のあと）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#2E7D32;strokeWidth=2;fontColor=#2E7D32;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;entryX=0.3;entryY=1;" edge="1" parent="1" source="github" target="cloud">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="1420" /><mxPoint x="260" y="1540" /><mxPoint x="594" y="1540" /></Array><mxPoint as="offset" /></mxGeometry>
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="500" y="1420" /><mxPoint x="500" y="1540" /><mxPoint x="834" y="1540" /></Array><mxPoint as="offset" /></mxGeometry>
         </mxCell>
         <mxCell id="d3" value="アプリの変更を送る" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#2E7D32;strokeWidth=2;fontColor=#2E7D32;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="github" target="expo">
           <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
         </mxCell>
         <mxCell id="d4" value="アップデート・APK" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#2E7D32;strokeWidth=2;fontColor=#2E7D32;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="expo" target="mobile">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="hc" value="Health Connect&lt;br&gt;（Android の&lt;br&gt;健康データの置き場所）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="690" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="watch" value="スマートウォッチ・指輪など&lt;br&gt;（睡眠・心拍）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="520" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="scale" value="体重計&lt;br&gt;（体重・体脂肪率）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontColor=#232F3E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="880" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="h1" value="メーカーのアプリが書き込む" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="watch" target="hc">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="h2" value="メーカーのアプリが書き込む" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="scale" target="hc">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="h3" value="読むだけ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#545B64;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="hc" target="mobile">
           <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
         </mxCell>
       </root>
