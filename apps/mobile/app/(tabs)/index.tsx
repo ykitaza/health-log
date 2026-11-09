@@ -7,7 +7,7 @@ import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, IconButton, SetNo } from '@/components/ui';
+import { Button, Card, SetNo, TabHeader } from '@/components/ui';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
@@ -50,11 +50,7 @@ export default function HomeScreen() {
 
   return (
     <Screen tab>
-      <View style={s.topBar}>
-        <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} bg="transparent" />
-        <T bold size={18} accessibilityLabel="hlog" accessibilityRole="header">hl<T bold size={18} color={colors.accent}>o</T>g</T>
-        <View style={{ width: 44 }} />
-      </View>
+      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} />
 
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         <View style={{ flex: 1.55 }}>
@@ -86,7 +82,7 @@ export default function HomeScreen() {
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <T size={9} color={i === 0 ? colors.text : colors.sub} style={{ width: 30 }}>{WEEK_LABELS[i]}</T>
                   <View style={{ flex: 1, height: 6 }}>
-                    <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : '#2F7A52' }} />
+                    <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : colors.accentMuted }} />
                   </View>
                 </View>
               ))}
@@ -181,7 +177,6 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
 }
 
 const s = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
   archive: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed', marginTop: 10, paddingTop: 10 },
   volume: { backgroundColor: colors.input, borderRadius: 12, padding: 10 },
 });

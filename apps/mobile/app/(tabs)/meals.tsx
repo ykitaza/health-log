@@ -9,7 +9,7 @@ import { NutritionSummary } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, IconButton } from '@/components/ui';
+import { Card, IconButton, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
@@ -52,7 +52,7 @@ export default function MealsScreen() {
 
   return (
     <Screen tab>
-      <View style={{ paddingVertical: 12 }}><T bold size={26} accessibilityRole="header">食事</T></View>
+      <TabHeader title="食事" />
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
@@ -88,7 +88,7 @@ export default function MealsScreen() {
                 <T bold size={16}>{SLOT_LABELS[slot]}</T>
                 <T size={13} color={colors.sub}>{fmtInt(kcal)}kcal</T>
               </View>
-              <IconButton name="plus" label={`${SLOT_LABELS[slot]}を記録`} size={36} bg={colors.card} color={colors.accent} onPress={() => setAdding(slot)} />
+              <IconButton name="plus" label={`${SLOT_LABELS[slot]}を記録`} bg={colors.card} color={colors.accent} onPress={() => setAdding(slot)} />
             </View>
             {meals.length === 0 ? (
               <View style={s.empty}><T size={13} color={colors.sub}>{SLOT_LABELS[slot]}はまだ記録していません</T></View>
@@ -193,7 +193,7 @@ function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, 
                   <T bold size={15}>{t.name}</T>
                   <T size={12} color={colors.sub}>{t.items.length}品・{fmtInt(t.items.reduce((n, x) => n + x.kcal, 0))}kcal</T>
                 </View>
-                <IconButton name="plus" label={`いつもの「${t.name}」を記録`} size={36} bg={colors.accentDark} color={colors.accent}
+                <IconButton name="plus" label={`いつもの「${t.name}」を記録`} bg={colors.accentDark} color={colors.accent}
                   onPress={() => onRecord(() => repos.meals.recordTemplate(t.id, to))} />
               </View>
             ))}

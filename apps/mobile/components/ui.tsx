@@ -1,84 +1,138 @@
+import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
-import { colors, radius } from '@/theme';
-import { touchSlop } from '@/lib/touch';
+import { colors, radius, size as sz, space } from '@/theme';
 import { Icon, IconName } from './Icon';
 import { ItemLayout, PressableScale, SlidingMark } from './motion';
 import { T } from './Text';
+
+/** 使えないものの文字・アイコンの透明度（M3 の 38%） */
+const DISABLED_OPACITY = 0.38;
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[s.card, style]}>{children}</View>;
 }
 
+type ButtonVariant = 'primary' | 'tonal' | 'secondary' | 'outline' | 'text' | 'danger';
+
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline';
+  /**
+   * primary：塗り（主な操作）／tonal：薄い緑の塗り／secondary：灰色の塗り（やめる・キャンセルなど）／
+   * outline：枠だけ／text：文字だけ／danger：消す・外す（error の色の文字）
+   */
+  variant?: ButtonVariant;
   icon?: IconName;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** 高さ 48（M）。ないときは 56（L） */
   small?: boolean;
+  testID?: string;
   /** 処理中（保存など）。押せなくし、読み上げで「処理中」と伝える。文言は呼ぶ側で「保存しています…」などに変える */
   busy?: boolean;
 };
 
-export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, busy }: ButtonProps) {
+const BUTTON_BG: Record<ButtonVariant, string> = {
+  primary: colors.accent, tonal: colors.accentDark, secondary: colors.input, outline: 'transparent', text: 'transparent', danger: 'transparent',
+};
+const BUTTON_FG: Record<ButtonVariant, string> = {
+  primary: colors.onAccent, tonal: colors.onAccentDark, secondary: colors.text, outline: colors.accent, text: colors.accent, danger: colors.danger,
+};
+
+/** M3 の button。角は丸めきる。使えないときは灰色の地と 38% の文字（色だけにしない：押しても反応しない・読み上げで使用不可） */
+export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, testID, busy }: ButtonProps) {
   const disabled = off || busy;
-  const bg = { primary: colors.accent, secondary: colors.input, danger: colors.dangerDark, outline: 'transparent' }[variant];
-  const fg = { primary: colors.onAccent, secondary: colors.text, danger: colors.danger, outline: colors.text }[variant];
+  const filled = variant === 'primary' || variant === 'tonal' || variant === 'secondary';
+  const bg = disabled && filled ? colors.disabledContainer : BUTTON_BG[variant];
+  const fg = disabled ? colors.text : BUTTON_FG[variant];
   return (
     <PressableScale
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
       aria-busy={!!busy}
-      hitSlop={small ? { top: touchSlop(44), bottom: touchSlop(44) } : undefined}
+      testID={testID}
       style={[
         s.button,
-        { backgroundColor: bg, opacity: disabled ? 0.45 : 1, minHeight: small ? 44 : 56 },
-        variant === 'outline' && { borderWidth: 1, borderColor: colors.line },
+        { backgroundColor: bg, minHeight: small ? sz.buttonM : sz.buttonL, paddingLeft: icon ? 16 : 24 },
+        variant === 'outline' && { borderWidth: 1, borderColor: colors.outline },
         style,
       ]}
     >
-      {icon && <Icon name={icon} color={fg} size={small ? 18 : 20} />}
-      <T bold size={small ? 13 : 15} color={fg} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>{label}</T>
+      <View style={[s.buttonInner, disabled && { opacity: DISABLED_OPACITY }]}>
+        {icon && <Icon name={icon} color={fg} size={small ? 20 : 24} />}
+        <T variant={small ? 'labelL' : 'titleM'} color={fg} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>{label}</T>
+      </View>
     </PressableScale>
   );
 }
 
-/** アイコンだけのボタン。押せる範囲は hitSlop で 48 以上にする。disabled は押せなくし、読み上げで「使用不可」（色は呼ぶ側が決める） */
-export function IconButton({ name, onPress, label, color = colors.text, bg = colors.card, size = 44, disabled }: {
-  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number; disabled?: boolean;
+type IconButtonVariant = 'standard' | 'tonal' | 'selected' | 'outlined';
+
+/**
+ * M3 の icon button。見た目は 40 の丸、押せる範囲は 48。disabled は押せなくし、読み上げで「使用不可」、アイコンは使えない色。
+ * bg を渡すと variant の地より優先する
+ */
+export function IconButton({ name, onPress, label, color, bg, variant = 'standard', size = sz.iconButton, disabled, testID }: {
+  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; variant?: IconButtonVariant; size?: number;
+  disabled?: boolean; testID?: string;
 }) {
+  const base = { standard: 'transparent', tonal: colors.input, selected: colors.accentDark, outlined: 'transparent' }[variant];
+  const fg = disabled ? colors.disabled : color ?? (variant === 'selected' ? colors.onAccentDark : colors.text);
+  const outer = Math.max(size, sz.touch);
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
-      hitSlop={touchSlop(size, 6)}
+      testID={testID}
       scaleTo={0.92}
-      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}
+      style={{ width: outer, height: outer, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Icon name={name} color={color} size={Math.round(size * 0.48)} />
+      <View
+        style={[
+          { width: size, height: size, borderRadius: size / 2, backgroundColor: disabled && (bg ?? base) !== 'transparent' ? colors.disabledContainer : bg ?? base, alignItems: 'center', justifyContent: 'center' },
+          variant === 'outlined' && { borderWidth: 1, borderColor: colors.outline },
+        ]}
+      >
+        <Icon name={name} color={fg} size={Math.round(size * 0.6)} />
+      </View>
     </PressableScale>
   );
 }
 
-/** 戻るボタンと見出し */
+/** M3 の small top app bar（高さ 64）。戻るボタンと題。overline は題の上、subtitle は題の下の補足 */
 export function Header({ title, subtitle, onBack, right, overline }: {
   title: string; subtitle?: string; overline?: string; onBack?: () => void; right?: ReactNode;
 }) {
   return (
-    <View style={s.header}>
+    <View style={[s.header, !onBack && { paddingLeft: 12 }]}>
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} />}
       <View style={{ flex: 1 }}>
-        {overline && <T size={12} color={colors.sub}>{overline}</T>}
-        <T bold size={overline ? 20 : 22} numberOfLines={1} accessibilityRole="header">{title}</T>
-        {subtitle && <T size={12} color={colors.sub}>{subtitle}</T>}
+        {overline && <T variant="bodyS" color={colors.sub}>{overline}</T>}
+        <T variant="titleL" numberOfLines={1} accessibilityRole="header">{title}</T>
+        {subtitle && <T variant="bodyS" color={colors.sub}>{subtitle}</T>}
       </View>
       {right}
+    </View>
+  );
+}
+
+/** 設定への入口（どのタブの右上にも置く） */
+export function SettingsButton() {
+  return <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} testID="open-settings" />;
+}
+
+/** タブの画面の上の段（高さ 64）。題（24）と、右に操作（actions）と設定の歯車 */
+export function TabHeader({ title, actions, titleNode }: { title: string; actions?: ReactNode; /** 題を文字以外で出すとき（ホームの hlog） */ titleNode?: ReactNode }) {
+  return (
+    <View style={s.tabHeader}>
+      <View style={{ flex: 1 }}>{titleNode ?? <T variant="headlineS" accessibilityRole="header">{title}</T>}</View>
+      {actions}
+      <SettingsButton />
     </View>
   );
 }
@@ -92,47 +146,60 @@ export function DayNote({ date, today }: { date: string; today: string }) {
   const future = date > today;
   return (
     <View style={[s.dayNote, future ? { backgroundColor: colors.dangerDark } : { backgroundColor: colors.accentDark }]}>
-      <Icon name="calendar" size={16} color={future ? colors.danger : colors.accent} />
-      <T size={13} bold color={future ? colors.danger : colors.accent} style={{ flexShrink: 1 }}>
+      <Icon name="calendar" size={20} color={future ? colors.onDangerDark : colors.onAccentDark} />
+      <T variant="labelL" color={future ? colors.onDangerDark : colors.onAccentDark} style={{ flexShrink: 1 }}>
         {future ? '未来の日には記録できません' : `過去の日（${formatJpDate(date)}）に記録しています`}
       </T>
     </View>
   );
 }
 
-export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
+/** チップの見た目の高さ。押せる範囲は上下を広げて 48 */
+export const CHIP_HEIGHT = 32;
+
+/** M3 の filter chip。選んだものはチェックの印も出す（色だけにしない） */
+export function Chip({ label, active, onPress, disabled }: { label: string; active?: boolean; onPress: () => void; disabled?: boolean }) {
   return (
     <PressableScale
       accessibilityRole="button"
       aria-selected={!!active}
       onPress={onPress}
-      hitSlop={{ top: touchSlop(CHIP_HEIGHT), bottom: touchSlop(CHIP_HEIGHT) }}
-      style={[s.chip, active ? { backgroundColor: colors.accentDark, borderColor: colors.accent } : { backgroundColor: colors.input, borderColor: colors.input }]}
+      disabled={disabled}
+      style={{ minHeight: sz.touch, justifyContent: 'center' }}
     >
-      <T size={13} bold={active} color={active ? colors.accent : colors.sub}>{label}</T>
+      <View
+        style={[
+          s.chip,
+          active ? { backgroundColor: colors.accentDark, borderColor: colors.accentDark, paddingLeft: 8 } : { borderColor: colors.outline },
+          disabled && { opacity: DISABLED_OPACITY },
+        ]}
+      >
+        {active && <Icon name="check" size={18} color={colors.onAccentDark} />}
+        <T variant="labelL" bold={!!active} color={active ? colors.onAccentDark : colors.sub}>{label}</T>
+      </View>
     </PressableScale>
   );
 }
 
 export function ChipRow({ children }: { children: ReactNode }) {
-  // チップの上下の hitSlop が届くように、見た目を変えずに上下を広げる（Android では hitSlop が親の外に出ない）
-  const room = touchSlop(CHIP_HEIGHT);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: -room }} contentContainerStyle={{ gap: 8, paddingRight: 16, paddingVertical: room }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.s, paddingRight: space.l }}>
       {children}
     </ScrollView>
   );
 }
 
-/** 2〜5個の切り替え */
+/** 2〜5個の切り替え（M3 の segmented button）。見た目の高さ 40、押せる範囲 48。選んだものはチェックの印も出す */
 export function Segmented<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
   // 選んだ印は、選んだものへ横にすべる。大きさが分かるまでは、選んだものの背景に出す
   const [layouts, setLayouts] = useLayouts();
   const mark = layouts[value];
   return (
     <View style={s.segment}>
-      <SlidingMark layout={mark} style={{ top: 4, bottom: 4, borderRadius: 9, backgroundColor: colors.input }} />
-      {options.map((o) => {
+      <View pointerEvents="none" style={s.segmentFrame}>
+        <SlidingMark layout={mark} style={{ top: 0, bottom: 0, backgroundColor: colors.accentDark }} />
+      </View>
+      {options.map((o, i) => {
         const active = o.key === value;
         return (
           <Pressable
@@ -141,9 +208,12 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
             aria-selected={active}
             onPress={() => onChange(o.key)}
             onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
-            style={[s.segmentItem, active && !mark && { backgroundColor: colors.input }]}
+            style={s.segmentItem}
           >
-            <T size={13} bold={active} color={active ? colors.text : colors.sub}>{o.label}</T>
+            <View style={[s.segmentFace, i > 0 && s.segmentDivider, active && !mark && { backgroundColor: colors.accentDark }]}>
+              {active && <Icon name="check" size={18} color={colors.onAccentDark} />}
+              <T variant="labelL" bold={active} color={active ? colors.onAccentDark : colors.text} numberOfLines={1} style={{ flexShrink: 1 }}>{o.label}</T>
+            </View>
           </Pressable>
         );
       })}
@@ -159,20 +229,25 @@ export function useLayouts(): [Record<string, ItemLayout | undefined>, (key: str
   return [layouts, update];
 }
 
-export function EmptyState({ icon = 'dumbbell', title, body }: { icon?: IconName; title: string; body?: string }) {
+/** M3 の空の状態：アイコン（88 の丸）、題 22、説明 14、操作は 1 つまで */
+export function EmptyState({ icon = 'dumbbell', title, body, action }: { icon?: IconName; title: string; body?: string; action?: ReactNode }) {
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 40, gap: 10 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} color={colors.sub} size={30} />
+    <View style={{ alignItems: 'center', paddingVertical: space.xxl, paddingHorizontal: space.l, gap: space.s }}>
+      <View style={s.emptyIcon}>
+        <Icon name={icon} color={colors.sub} size={40} />
       </View>
-      <T bold size={16}>{title}</T>
-      {body && <T size={13} color={colors.sub} align="center">{body}</T>}
+      <T variant="titleL" align="center" style={{ marginTop: space.s }}>{title}</T>
+      {body && <T variant="bodyM" color={colors.sub} align="center">{body}</T>}
+      {action && <View style={{ marginTop: space.s, alignSelf: 'stretch' }}>{action}</View>}
     </View>
   );
 }
 
-/** 確認のダイアログ */
-export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'キャンセル', onConfirm, onCancel, danger = true, busy }: {
+/**
+ * 確認のダイアログ（M3 の basic dialog）。題は短く1行（「種目を外しますか？」）、対象の名前は本文に、ボタンは動作の名前。
+ * 後ろの画面は 60% の黒で暗くする
+ */
+export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'やめる', onConfirm, onCancel, danger = true, busy }: {
   visible: boolean; title: string; body?: string; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
   /** 確かめたあとの処理（消すなど）の途中。どちらのボタンも押せなくする */
   busy?: boolean;
@@ -180,12 +255,12 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={s.backdrop}>
-        <View style={s.dialog}>
-          <T bold size={17}>{title}</T>
-          {body && <T size={13} color={colors.sub} style={{ lineHeight: 20 }}>{body}</T>}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-            <Button label={cancelLabel} variant="secondary" onPress={onCancel} disabled={busy} style={{ flex: 1 }} small />
-            <Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onPress={onConfirm} busy={busy} style={{ flex: 1 }} small />
+        <View style={s.dialog} accessibilityViewIsModal>
+          <T variant="headlineS" accessibilityRole="header">{title}</T>
+          {body && <T variant="bodyM" color={colors.sub}>{body}</T>}
+          <View style={s.dialogActions}>
+            <Button label={cancelLabel} variant="text" onPress={onCancel} disabled={busy} small style={s.dialogButton} />
+            <Button label={confirmLabel} variant={danger ? 'danger' : 'text'} onPress={onConfirm} busy={busy} small style={s.dialogButton} />
           </View>
         </View>
       </View>
@@ -193,66 +268,101 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
   );
 }
 
-/** 一覧の行（右に矢印） */
-export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true }: {
+/** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印 */
+export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, testID, label }: {
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
+  /** 左のアイコン */ icon?: IconName; testID?: string; /** 読み上げの名前（ないときは中の文字） */ label?: string;
 }) {
   return (
     <PressableScale
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={label}
+      testID={testID}
       scaleTo={0.98}
-      style={[s.row, !first && s.rowLine]}
+      style={[s.row, { minHeight: subtitle ? 72 : 56 }, !first && s.rowLine]}
     >
-      <View style={{ flex: 1, opacity: dim ? 0.45 : 1 }}>
-        <T bold size={16}>{title}</T>
-        {subtitle ? <T size={12} color={colors.sub}>{subtitle}</T> : null}
+      {icon && <Icon name={icon} color={colors.sub} size={24} />}
+      <View style={{ flex: 1, opacity: dim ? DISABLED_OPACITY : 1 }}>
+        <T variant="titleM">{title}</T>
+        {subtitle ? <T variant="bodyM" color={colors.sub}>{subtitle}</T> : null}
       </View>
       {right}
-      {onPress && chevron && <Icon name="chevron" color={colors.sub} size={18} />}
+      {onPress && chevron && <Icon name="chevron" color={colors.sub} size={24} />}
     </PressableScale>
   );
 }
 
+/** 区分けの見出し（緑の 14、M3 の titleSmall） */
 export function SectionTitle({ title, right }: { title: string; right?: string }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-      <T bold size={13} color={colors.sub} accessibilityRole="header">{title}</T>
-      {right && <T size={12} color={colors.sub}>{right}</T>}
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.xl, marginBottom: space.s }}>
+      <T variant="titleS" color={colors.accent} accessibilityRole="header">{title}</T>
+      {right && <T variant="bodyS" color={colors.sub}>{right}</T>}
     </View>
   );
 }
 
-export function Badge({ label, color = colors.accent, bg = colors.accentDark }: { label: string; color?: string; bg?: string }) {
+type BadgeTone = 'primary' | 'neutral' | 'error' | 'star' | 'solid';
+const BADGE: Record<BadgeTone, { bg: string; fg: string }> = {
+  primary: { bg: colors.accentDark, fg: colors.onAccentDark },
+  neutral: { bg: colors.input, fg: colors.sub },
+  error: { bg: colors.dangerDark, fg: colors.onDangerDark },
+  star: { bg: colors.input, fg: colors.star },
+  solid: { bg: colors.accent, fg: colors.onAccent },
+};
+
+/** 小さな札（角 8、文字 12）。icon を添えると色だけで伝えない */
+export function Badge({ label, tone = 'primary', icon, color, bg }: { label: string; tone?: BadgeTone; icon?: IconName; color?: string; bg?: string }) {
+  const fg = color ?? BADGE[tone].fg;
   return (
-    <View style={{ backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-      <T size={12} bold color={color}>{label}</T>
+    <View style={[s.badge, { backgroundColor: bg ?? BADGE[tone].bg }]}>
+      {icon && <Icon name={icon} size={14} color={fg} />}
+      <T variant="labelM" color={fg}>{label}</T>
     </View>
   );
 }
 
-export const CHIP_HEIGHT = 34;
+/** M3 の extended FAB（高さ 56、角 16）。画面の右下に置く（置き場所は呼ぶ側） */
+export function Fab({ label, icon = 'plus', onPress, testID, style }: { label: string; icon?: IconName; onPress: () => void; testID?: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <PressableScale accessibilityRole="button" onPress={onPress} testID={testID} style={[s.fab, style]}>
+      <Icon name={icon} size={24} color={colors.onAccent} />
+      <T variant="titleM" color={colors.onAccent} numberOfLines={1}>{label}</T>
+    </PressableScale>
+  );
+}
 
 const s = StyleSheet.create({
-  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
-  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  dayNote: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4 },
-  chip: { paddingHorizontal: 14, height: CHIP_HEIGHT, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  segment: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 4 },
-  segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { width: '100%', maxWidth: 360, backgroundColor: colors.card, borderRadius: 18, padding: 20, gap: 8, borderWidth: 1, borderColor: colors.line },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
+  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l },
+  button: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, paddingRight: 24 },
+  buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginHorizontal: -12 },
+  tabHeader: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginRight: -12 },
+  dayNote: { flexDirection: 'row', alignItems: 'center', gap: space.s, borderRadius: radius.m, paddingHorizontal: space.l, paddingVertical: space.m, marginTop: space.xs },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, height: CHIP_HEIGHT, borderRadius: radius.s, borderWidth: 1 },
+  segment: { flexDirection: 'row', height: sz.touch },
+  segmentFrame: { position: 'absolute', left: 0, right: 0, top: 4, bottom: 4, borderRadius: radius.full, borderWidth: 1, borderColor: colors.outline, overflow: 'hidden' },
+  segmentItem: { flex: 1, height: sz.touch, justifyContent: 'center' },
+  segmentFace: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.m },
+  segmentDivider: { borderLeftWidth: 1, borderLeftColor: colors.outline },
+  emptyIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: space.xl },
+  dialog: { width: '100%', minWidth: 280, maxWidth: 560, backgroundColor: colors.input, borderRadius: radius.dialog, paddingTop: space.xl, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.l },
+  dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.s, paddingTop: space.s },
+  dialogButton: { paddingLeft: 12, paddingRight: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.s },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: space.xs, alignSelf: 'flex-start' },
+  fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: radius.l, paddingLeft: space.l, paddingRight: 20, backgroundColor: colors.accent, elevation: 3 },
 });
 
-/** セットの番号の丸 */
+/** セットの番号の丸（24） */
 export function SetNo({ n, active }: { n: number; active?: boolean }) {
   return (
-    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: active ? colors.accentDark : colors.input, alignItems: 'center', justifyContent: 'center' }}>
-      <T num bold size={12} color={active ? colors.accent : colors.sub}>{n}</T>
+    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: active ? colors.accentDark : colors.input, alignItems: 'center', justifyContent: 'center' }}>
+      <T variant="labelM" color={active ? colors.onAccentDark : colors.sub}>{n}</T>
     </View>
   );
 }

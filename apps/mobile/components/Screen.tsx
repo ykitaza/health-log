@@ -17,7 +17,7 @@ export function Screen({ children, footer, scroll = true, tab }: { children: Rea
       ) : (
         <View style={{ flex: 1, paddingHorizontal: space.screen }}>{children}</View>
       )}
-      {footer && <View style={{ paddingHorizontal: space.screen, paddingVertical: 10, gap: 10 }}>{footer}</View>}
+      {footer && <View style={{ paddingHorizontal: space.screen, paddingTop: space.s, paddingBottom: space.l, gap: space.s }}>{footer}</View>}
     </SafeAreaView>
   );
 }

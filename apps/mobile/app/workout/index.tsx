@@ -99,9 +99,9 @@ export default function WorkoutDayScreen() {
                       </View>
                     </PressableScale>
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, ...touchRoom(7, { top: 8 }) }}>
-                      <IconButton name="up" label="上へ" size={34} bg={colors.input} onPress={() => move(e.id, -1)} disabled={i === 0} color={i === 0 ? colors.line : colors.text} />
-                      <IconButton name="down" label="下へ" size={34} bg={colors.input} onPress={() => move(e.id, 1)} disabled={i === entries.length - 1} color={i === entries.length - 1 ? colors.line : colors.text} />
-                      <IconButton name="trash" label={`${e.exerciseName}を外す`} size={34} bg={colors.input} color={colors.danger} onPress={() => setRemoving(e)} />
+                      <IconButton name="up" label="上へ" bg={colors.input} onPress={() => move(e.id, -1)} disabled={i === 0} color={i === 0 ? colors.line : colors.text} />
+                      <IconButton name="down" label="下へ" bg={colors.input} onPress={() => move(e.id, 1)} disabled={i === entries.length - 1} color={i === entries.length - 1 ? colors.line : colors.text} />
+                      <IconButton name="trash" label={`${e.exerciseName}を外す`} bg={colors.input} color={colors.danger} onPress={() => setRemoving(e)} />
                     </View>
                   </Card>
                 </Animated.View>

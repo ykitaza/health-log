@@ -1,4 +1,5 @@
 import { TextInput, TextInputProps, TextStyle } from 'react-native';
+import { placeholderColor } from '@/theme';
 
 /**
  * 入力欄の既定のスタイル。Android では、固定の高さと Noto Sans JP / Barlow Condensed の組み合わせで、
@@ -6,7 +7,7 @@ import { TextInput, TextInputProps, TextStyle } from 'react-native';
  */
 export const INPUT_BASE: TextStyle = { includeFontPadding: false, textAlignVertical: 'center', paddingVertical: 0 };
 
-/** アプリの入力欄。TextInput はこれを通して使う（画面ごとの style は INPUT_BASE の上に重ねる） */
+/** アプリの入力欄。TextInput はこれを通して使う（画面ごとの style は INPUT_BASE の上に重ねる）。ヒントの色は theme の placeholderColor */
 export function Input({ style, ...rest }: TextInputProps) {
-  return <TextInput {...rest} style={[INPUT_BASE, style]} />;
+  return <TextInput placeholderTextColor={placeholderColor} {...rest} style={[INPUT_BASE, style]} />;
 }

@@ -56,11 +56,11 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await button(page, '保存').click();
   await expect(totalKcal(page)).toHaveText('264');
 
-  // 消す：キャンセルでは消えない
+  // 消す：やめるでは消えない
   await button(page, '白米、鶏むね肉を開く').click();
   await button(page, 'この食事を消す').click();
   await expect(see(page, 'この食事を消しますか？')).toBeVisible();
-  await button(page, 'キャンセル').click();
+  await button(page, 'やめる').click();
   await button(page, 'この食事を消す').click();
   await button(page, '消す').click();
   await expect(see(page, '昼食はまだ記録していません')).toBeVisible();

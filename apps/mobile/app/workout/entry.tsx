@@ -22,7 +22,7 @@ import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, placeholderColor } from '@/theme';
 
 let keySeq = 0;
 const newKey = () => `k${++keySeq}`;
@@ -268,7 +268,7 @@ export default function EntryScreen() {
                     style={{ flex: 1, minWidth: 0, color: colors.text, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 6, minHeight: 32 }}
                   />
                 </View>
-                <IconButton name="close" label={`セット${i + 1}を削除`} size={32} bg="transparent" color={colors.sub} onPress={() => remove(i)} />
+                <IconButton name="close" label={`セット${i + 1}を削除`} bg="transparent" color={colors.sub} onPress={() => remove(i)} />
               </View>
             </Animated.View>
           );
@@ -303,7 +303,7 @@ function NumberInput({ value, placeholder, onChange, error, shake = 0, decimal, 
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={error ? colors.sub : '#5A616C'}
+        placeholderTextColor={placeholderColor}
         keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
         accessibilityLabel={label}
         onFocus={() => setFocused(true)}

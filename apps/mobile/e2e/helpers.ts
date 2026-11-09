@@ -30,7 +30,8 @@ export const tab = (page: Page, name: 'ホーム' | '食事' | '履歴／分析'
 export async function goTab(page: Page, name: 'ホーム' | '食事' | '履歴／分析' | '体組成') {
   await tab(page, name).click();
   await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('button', { name: '設定', exact: true })).toHaveCount(name === 'ホーム' || name === '体組成' ? 1 : 0);
+  // 設定の歯車はどのタブにもある（隠れたタブのものは数えない）
+  await expect(button(page, '設定')).toHaveCount(1);
 }
 
 /** 見えているボタン（画面の切り替わりの途中は、前の画面のボタンも残っている） */

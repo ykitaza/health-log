@@ -20,9 +20,10 @@ describe('押せる部品の最小の大きさ', () => {
     expect(IconButton({ name: 'next', label: '次の日', onPress: () => {}, disabled: true }).props.disabled).toBe(true);
   });
 
-  test('Chip は縦 48 以上', () => {
+  test('Chip は見た目 32、押せる範囲は縦 48 以上', () => {
     const el = Chip({ label: '胸', onPress: () => {} });
-    expect(CHIP_HEIGHT + slop(el.props.hitSlop, 'top') + slop(el.props.hitSlop, 'bottom')).toBeGreaterThanOrEqual(MIN_TOUCH);
+    expect(CHIP_HEIGHT).toBe(32);
+    expect(StyleSheet.flatten(el.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
   });
 
   test('小さいボタン（small）は縦 48 以上', () => {
