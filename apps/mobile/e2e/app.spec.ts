@@ -76,3 +76,40 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   await page.goto('/workout?date=2026-11-08');
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
 });
+
+/** 見えているタブの画面のスクロールの位置（React Native Web の ScrollView は、縦にスクロールする div） */
+async function scrollTop(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const els = [...document.querySelectorAll<HTMLElement>('div')].filter((el) => {
+      const r = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(style.overflowY)
+        && !el.closest('[aria-hidden="true"]');
+    });
+    return els.map((el) => el.scrollTop).reduce((a, b) => Math.max(a, b), 0);
+  });
+}
+
+test('今のタブをもう一度押すと、いちばん上へ戻る（中で切り替える画面も）。同期はしない', async ({ page }) => {
+  // 記録がなくてもスクロールできるよう、画面を低くする
+  await page.setViewportSize({ width: 412, height: 520 });
+  await openApp(page);
+  // ホーム
+  await page.mouse.move(206, 300);
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+  await tab(page, 'ホーム').click();
+  await expect.poll(() => scrollTop(page)).toBe(0);
+  // すでにいちばん上でもう一度押しても、同期しない（ログインしていないので、同期しようとすれば案内が出る）
+  await tab(page, 'ホーム').click();
+  await expect(page.getByTestId('pull-notice')).toHaveCount(0);
+
+  // 食事の「週のまとめ」（タブの中の切り替え）
+  await goTab(page, '食事');
+  await goPane(page, '週のまとめ');
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+  await tab(page, '食事').click();
+  await expect.poll(() => scrollTop(page)).toBe(0);
+  await expect(page.getByRole('tab', { name: '週のまとめ', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+});
