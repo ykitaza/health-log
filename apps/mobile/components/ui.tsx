@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
 import { colors, radius, size as sz, space } from '@/theme';
 import { Icon, IconName } from './Icon';
@@ -43,6 +43,14 @@ const BUTTON_FG: Record<ButtonVariant, string> = {
   primary: colors.onAccent, tonal: colors.onAccentDark, secondary: colors.text, outline: colors.accent, text: colors.accent, danger: colors.danger,
 };
 
+/**
+ * Android でボタンの文字の最後が切れる（「AI で記録」が「AI で記」になる）のを防ぐ。
+ * Android の RN は adjustsFontSizeToFit のとき「…」を出さず、測った幅より描く幅がわずかでも広いと、最後の字を2行目に送って隠す。
+ * lineHeight があると段落の装飾（LineHeightSpan）が付き、1行専用の BoringLayout が使えず、行を折る StaticLayout で測って描く。
+ * 行の高さは付けず（ボタンの高さは minHeight で決まり、文字はまん中に置く）、折り方も simple にして、測る幅と描く幅をそろえる
+ */
+const ANDROID_LABEL = { lineHeight: undefined };
+
 /** M3 の button。角は丸めきる。使えないときは灰色の地と 38% の文字（色だけにしない：押しても反応しない・読み上げで使用不可） */
 export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, testID, busy, accessibilityLabel }: ButtonProps) {
   const disabled = off || busy;
@@ -66,7 +74,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled: of
     >
       <View style={[s.buttonInner, disabled && { opacity: DISABLED_OPACITY }]}>
         {icon && <Icon name={icon} color={fg} size={small ? 20 : 24} />}
-        <T variant={small ? 'labelL' : 'titleM'} color={fg} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>{label}</T>
+        <T variant={small ? 'labelL' : 'titleM'} color={fg} numberOfLines={1} adjustsFontSizeToFit textBreakStrategy="simple" style={[{ flexShrink: 1 }, Platform.OS === 'android' && ANDROID_LABEL]}>{label}</T>
       </View>
     </PressableScale>
   );
