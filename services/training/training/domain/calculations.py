@@ -41,17 +41,23 @@ def estimated_1rm(weight_kg: float | None, reps: int | None) -> float:
     return weight_kg * (1 + reps / 30)
 
 
-def set_volume(weight_kg: float | None, reps: int | None) -> float:
-    """負荷量（重量 × 回数）。回数だけの種目は 0。"""
-    if weight_kg is None or reps is None or weight_kg <= 0 or reps <= 0:
+def set_volume(weight_kg: float | None, reps: int | None, bodyweight_load_kg: float | None = None) -> float:
+    """負荷量（重量 × 回数）。回数だけの種目は、自重の負荷（体重 × 割合。training.domain.bodyweight）× 回数。
+    自重の負荷がなければ（体重の記録がない）0。"""
+    load = weight_kg if weight_kg is not None else bodyweight_load_kg
+    if load is None or reps is None or load <= 0 or reps <= 0:
         return 0
-    return weight_kg * reps
+    return load * reps
+
+
+def row_volume(r: SetRow) -> float:
+    return set_volume(r.weight_kg, r.reps, r.bodyweight_load_kg)
 
 
 def total_volume(sets: list[SetRow]) -> float:
     total: float = 0
     for s in sets:
-        total += set_volume(s.weight_kg, s.reps)
+        total += row_volume(s)
     return total
 
 
@@ -86,7 +92,7 @@ def volume_between(rows: list[SetRow], start: str, end: str) -> float:
     total: float = 0
     for r in rows:
         if start <= r.date <= end:
-            total += set_volume(r.weight_kg, r.reps)
+            total += row_volume(r)
     return total
 
 
@@ -101,7 +107,7 @@ def period_totals(rows: list[SetRow], today: str) -> PeriodTotals:
     total: float = 0
     for r in rows:
         if r.date <= today:
-            total += set_volume(r.weight_kg, r.reps)
+            total += row_volume(r)
     return PeriodTotals(volume_between(rows, add_days(today, -6), today),
                         volume_between(rows, add_days(today, -27), today), total)
 
@@ -115,7 +121,7 @@ def weekly_volumes(rows: list[SetRow], today: str, weeks: int = 6) -> list[float
             continue
         idx = days_between(week_start(r.date), this_week) // 7
         if 0 <= idx < weeks:
-            out[idx] += set_volume(r.weight_kg, r.reps)
+            out[idx] += row_volume(r)
     return out
 
 
@@ -138,7 +144,7 @@ def weekly_volume_by_body_part(rows: list[SetRow], today: str, weeks: int = 8) -
         idx = weeks - 1 - days_between(week_start(r.date), this_week) // 7
         if not 0 <= idx < weeks:
             continue
-        v = set_volume(r.weight_kg, r.reps)
+        v = row_volume(r)
         if v == 0:
             continue
         by_part[idx][r.body_part_id] = by_part[idx].get(r.body_part_id, 0) + v
@@ -160,7 +166,7 @@ def exercise_daily_series(rows: list[SetRow], exercise_id: str) -> list[DailyPoi
         if r.exercise_id != exercise_id:
             continue
         p = points.setdefault(r.date, [0, 0])
-        p[0] += set_volume(r.weight_kg, r.reps)
+        p[0] += row_volume(r)
         p[1] = max(p[1], estimated_1rm(r.weight_kg, r.reps))
     return [DailyPoint(d, v, m) for d, (v, m) in sorted(points.items())]
 

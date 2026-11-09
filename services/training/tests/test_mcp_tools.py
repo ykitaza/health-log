@@ -173,6 +173,52 @@ def test_一覧と週のふり返り(call):
     assert later["days_since_last_training"] == 3
 
 
+def test_自重の種目は_体重_割合_回数で総負荷量に入る_体重がなければ入れずに知らせる(call):
+    pullups = {"exercise": "懸垂", "sets": [{"reps": 10}, {"reps": 8}]}
+    first = call("record_workout", exercises=[pullups, bench((80, 8))], day="2026-11-03")
+    assert (first["total_volume"], first["bodyweight_kg"]) == (640, None)  # 体重の記録がない
+    assert "2セット" in first["note"] and first["entries"][0]["sets"][0]["volume"] == 0
+    call("record_body", day="2026-10-20", weight_kg=70)  # 30日以内のいちばん近い前の日の体重を使う
+    day = call("get_workout", day="2026-11-03")
+    assert (day["bodyweight_kg"], day["total_volume"], "note" in day) == (70, 70 * 18 + 640, False)
+    assert day["entries"][0]["sets"][0]["volume"] == 700 and day["entries"][0]["max_estimated_1rm"] is None
+    call("record_body", day="2026-11-08", weight_kg=72)
+    call("record_workout", exercises=[{"exercise": "クランチ", "sets": [{"reps": 20}]}])  # 初期の割合 0.3
+    review = call("weekly_training_review")
+    assert review["total_volume"] == round(72 * 0.3 * 20, 1) and review["last_week"]["total_volume"] == 70 * 18 + 640
+    listed = call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"]
+    assert [w["total_volume"] for w in listed] == [70 * 18 + 640, 432]
+    history = call("exercise_history", exercise="懸垂")
+    assert (history["bodyweight_ratio"], history["days"][0]["volume"], history["personal_best"]) == (1, 1260, None)
+
+
+def test_種目の割合を足すときに決め_変えると過去の記録も新しい割合で出る(call, engine):
+    added = call("add_exercise", name="膝つき腕立て", body_part="胸", record_type="reps_only")
+    assert added["bodyweight_ratio"] == 0.5  # 省くと名前から決める
+    plank = call("add_exercise", name="プランク", body_part="腹筋", record_type="reps_only")
+    assert plank["bodyweight_ratio"] == 0
+    own = call("add_exercise", name="ハンドスタンドプッシュアップ", body_part="肩", record_type="reps_only",
+               bodyweight_ratio=0.9)
+    assert own["bodyweight_ratio"] == 0.9
+    with pytest.raises(ToolError, match="回数だけ"):
+        call("add_exercise", name="ケトルベルスイング", body_part="脚", bodyweight_ratio=0.5)
+    with pytest.raises(ToolError):
+        call("add_exercise", name="片手懸垂", body_part="背中", record_type="reps_only", bodyweight_ratio=1.5)
+    call("record_body", weight_kg=60)
+    call("record_workout", exercises=[{"exercise": "膝つき腕立て", "sets": [{"reps": 10}]},
+                                      {"exercise": "プランク", "sets": [{"reps": 60}]}])
+    assert call("get_workout")["total_volume"] == 300
+    assert call("update_exercise", exercise="膝つき腕立て", bodyweight_ratio=0.4)["bodyweight_ratio"] == 0.4
+    assert call("get_workout")["total_volume"] == 240
+    entries, _, _ = engine.pull("alice", 0, 100, {"exercise"})
+    assert [e.change.fields.get("bodyweight_ratio") for e in entries] == [0.5, 0, 0.9, 0.4]  # アプリにも降りる
+    # 初期の種目は割合を持たず、名前から決める。変えたときだけ送る
+    call("update_exercise", exercise="懸垂", name="チンニング")
+    entries, _, _ = engine.pull("alice", 0, 100, {"exercise"})
+    assert entries[-1].change.fields == {"name": "チンニング"}
+    assert call("get_workout")["total_volume"] == 240
+
+
 def test_期間がおかしければ断る(call):
     with pytest.raises(ToolError, match="end は start"):
         call("list_workouts", start="2026-11-08", end="2026-11-01")

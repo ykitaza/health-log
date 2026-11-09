@@ -30,9 +30,13 @@ MAX_RANGE_DAYS = 366
 INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回数を記録し、総負荷量・推定1RM・自己ベスト・週のふり返り・体組成の推移を返す。
 記録は、利用者が言った種目・重量・回数をそのまま record_workout に渡す（確認なしでよい）。数字を推測で埋めない。
 種目は名前の完全一致でだけ選ぶ。「ベンチ」のように略した名前で見つからないときは、返ってきた候補から利用者の意図がはっきりしていればその名前で呼び直し、迷うなら利用者に聞く。
-総負荷量（重量×回数の合計）・推定1RM（Epley 式）・自己ベストはサーバーが計算する。AI が計算し直さない。
+総負荷量（重量×回数の合計。回数だけの自重の種目は、体重×種目の割合×回数）・推定1RM（Epley 式。自重の種目は出さない）・自己ベストはサーバーが計算する。AI が計算し直さない。
 推移（総負荷量、推定1RM、体重）は、描けるならグラフで見せる。部位の偏りは割合で見せる。記録の少なさや休んだ日を責めない。
 睡眠と心拍は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary。読むだけ）。病気の診断はしない。"""
+
+RATIO_DESCRIPTION = ("回数だけ（reps_only）の種目の、体重に対する割合（0〜1）。自重の負荷量 ＝ 体重×割合×回数。"
+                     "目安：懸垂・チンニング 1、ディップス 0.95、自重スクワット 0.7、腕立て伏せ 0.65、膝つき腕立て 0.5、"
+                     "腹筋（クランチなど）0.3、プランクなど時間で行う種目は 0（総負荷量に入れない）。利用者が言わなければ省く")
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -109,7 +113,8 @@ def register_training_tools(
     async def workout_view(sub: str, day: str) -> dict:
         workout = await queries.workout(sub, day)
         catalog = await queries.catalog(sub)
-        return views.workout(workout, catalog, await queries.personal_bests_before(sub, day))
+        return views.workout(workout, catalog, await queries.personal_bests_before(sub, day),
+                             await queries.body_weights(sub))
 
     # --- 記録する ---
 
@@ -135,6 +140,9 @@ def register_training_tools(
     async def get_workout(day: date | None = None) -> dict:
         """その日（省略すると今日）の筋トレを、種目・セットごとに返す。総負荷量、推定1RM、自己ベストを超えたかも付ける。
 
+        回数だけの自重の種目の負荷量は、その日の体重（なければ30日以内のいちばん近い前の日）×種目の割合（bodyweight_ratio）×回数。
+        使った体重は bodyweight_kg。体重の記録がなければ自重の種目は総負荷量に入らず、note で知らせる（利用者に伝える）。
+
         記録を直す・消すときは、ここで entry_id（種目）と set_id（セット）を調べる。
         """
         sub = subject(READ_SCOPE)
@@ -142,12 +150,16 @@ def register_training_tools(
 
     @mcp.tool(annotations=READ)
     async def list_workouts(start: date, end: date) -> dict:
-        """期間（両端を含む。366日まで）に筋トレをした日と、日ごとの種目・セット数・総負荷量を返す。"""
+        """期間（両端を含む。366日まで）に筋トレをした日と、日ごとの種目・セット数・総負荷量を返す。
+
+        総負荷量には、回数だけの自重の種目も入る（その日の体重×種目の割合×回数）。体重の記録がない日は入らず、note で知らせる。
+        """
         sub = subject(READ_SCOPE)
         check_range(start, end)
         workouts = await queries.workouts(sub, start.isoformat(), end.isoformat())
         catalog = await queries.catalog(sub)
-        return await synced(sub, {"workouts": [views.workout_summary(w, catalog) for w in workouts]})
+        weights = await queries.body_weights(sub)
+        return await synced(sub, {"workouts": [views.workout_summary(w, catalog, weights) for w in workouts]})
 
     @mcp.tool(annotations=READ)
     async def exercise_history(exercise: str, start: date | None = None, end: date | None = None) -> dict:
@@ -172,6 +184,8 @@ def register_training_tools(
 
         回数（sessions）、総負荷量、部位ごとの総負荷量と割合（偏り）、この週にまだ鍛えていない部位、先週との比べ、
         前回の筋トレからの日数、直近8週の総負荷量の推移を返す。偏りや休みを責めず、次の一歩を1つだけ提案する。
+        総負荷量には、回数だけの自重の種目も入る（その日の体重×種目の割合×回数。アプリのホームの合計と同じ）。
+        体重の記録がなくて入らなかったセットがあれば note で知らせる。
         """
         sub = subject(READ_SCOPE)
         review = await queries.weekly_review(sub, day_of(day))
@@ -227,15 +241,18 @@ def register_training_tools(
 
     @mcp.tool(annotations=WRITE)
     async def add_exercise(
-        name: str, body_part: str, record_type: Literal["weight_reps", "reps_only"] = "weight_reps") -> dict:
+        name: str, body_part: str, record_type: Literal["weight_reps", "reps_only"] = "weight_reps",
+        bodyweight_ratio: Annotated[float | None, Field(ge=0, le=1, description=RATIO_DESCRIPTION)] = None,
+    ) -> dict:
         """種目を足す（アプリにも出る）。list_exercises にない種目を記録したいときに、利用者に名前と部位を確かめてから呼ぶ。
 
         body_part は部位の名前（胸・背中・肩・脚など、list_exercises の部位）。record_type は、重量×回数の種目なら
         weight_reps、自重で回数だけの種目なら reps_only。同じ部位に同じ名前の種目は作れない。
+        reps_only の種目は、総負荷量に体重×bodyweight_ratio×回数で入る。省くと名前から決める（返り値の bodyweight_ratio）。
         """
         sub = subject(WRITE_SCOPE)
         with training_errors():
-            exercise = await commands.add_exercise(sub, name, body_part, RecordType(record_type))
+            exercise = await commands.add_exercise(sub, name, body_part, RecordType(record_type), bodyweight_ratio)
         return await synced(sub, views.exercise(exercise, await queries.catalog(sub)))
 
     @mcp.tool(annotations=WRITE)
@@ -244,8 +261,10 @@ def register_training_tools(
         name: str | None = None,
         body_part: str | None = None,
         hidden: bool | None = None,
+        bodyweight_ratio: Annotated[float | None, Field(ge=0, le=1, description=RATIO_DESCRIPTION)] = None,
     ) -> dict:
-        """種目の名前・部位を変える、隠す（hidden=true）・表示に戻す（hidden=false）。変えない項目は省く（アプリにも反映される）。
+        """種目の名前・部位・体重に対する割合（回数だけの種目）を変える、隠す（hidden=true）・表示に戻す（hidden=false）。
+        変えない項目は省く（アプリにも反映される）。割合を変えると、過去の記録の総負荷量も新しい割合で出る。
 
         exercise は今の名前か exercise_id（隠した種目は list_exercises の include_hidden で調べる）。body_part は部位の名前。
         記録は種目の ID でつながっているので、過去の記録もそのまま新しい名前で出る。同じ部位に同じ名前の種目は作れない。
@@ -254,7 +273,7 @@ def register_training_tools(
         """
         sub = subject(WRITE_SCOPE)
         with training_errors():
-            updated = await commands.update_exercise(sub, exercise, name, body_part, hidden)
+            updated = await commands.update_exercise(sub, exercise, name, body_part, hidden, bodyweight_ratio)
         return await synced(sub, views.exercise(updated, await queries.catalog(sub)))
 
     # --- 体組成 ---

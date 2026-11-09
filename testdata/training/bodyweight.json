@@ -1,0 +1,337 @@
+{
+  "description": "自重の種目（回数だけ）の負荷量：その日の体重（なければ30日以内のいちばん近い前の日）× 種目の割合 × 回数。体重がなければ入れない。名前から決める割合の初期値も。アプリ（lib/bodyweight.ts）とサーバー（training.domain.bodyweight）で確かめる",
+  "default_ratio": [
+    {
+      "name": "懸垂",
+      "expected": 1
+    },
+    {
+      "name": "チンニング",
+      "expected": 1
+    },
+    {
+      "name": "ディップス",
+      "expected": 0.95
+    },
+    {
+      "name": "自重スクワット",
+      "expected": 0.7
+    },
+    {
+      "name": "腕立て伏せ",
+      "expected": 0.65
+    },
+    {
+      "name": "膝つき腕立て伏せ",
+      "expected": 0.5
+    },
+    {
+      "name": "クランチ",
+      "expected": 0.3
+    },
+    {
+      "name": "レッグレイズ",
+      "expected": 0.3
+    },
+    {
+      "name": "アブローラー",
+      "expected": 0.3
+    },
+    {
+      "name": "プランク",
+      "expected": 0
+    },
+    {
+      "name": "サイドプランク",
+      "expected": 0
+    },
+    {
+      "name": "ﾌﾟｯｼｭｱｯﾌﾟ",
+      "expected": 0.65
+    },
+    {
+      "name": "ブルガリアンスクワット",
+      "expected": 0.7
+    },
+    {
+      "name": "バーピー",
+      "expected": 0.65
+    }
+  ],
+  "weights": [
+    {
+      "date": "2026-10-01",
+      "weight_kg": 71.2
+    },
+    {
+      "date": "2026-10-25",
+      "weight_kg": 70.4
+    },
+    {
+      "date": "2026-11-08",
+      "weight_kg": 69.8
+    }
+  ],
+  "weight_on": [
+    {
+      "date": "2026-09-30",
+      "expected": null
+    },
+    {
+      "date": "2026-10-01",
+      "expected": 71.2
+    },
+    {
+      "date": "2026-10-24",
+      "expected": 71.2
+    },
+    {
+      "date": "2026-10-31",
+      "expected": 70.4
+    },
+    {
+      "date": "2026-11-08",
+      "expected": 69.8
+    },
+    {
+      "date": "2026-11-11",
+      "expected": 69.8
+    },
+    {
+      "date": "2026-12-08",
+      "expected": 69.8
+    },
+    {
+      "date": "2026-12-09",
+      "expected": null
+    }
+  ],
+  "today": "2026-11-11",
+  "rows": [
+    {
+      "date": "2026-09-28",
+      "exercise_id": "pushup",
+      "body_part_id": "chest",
+      "weight_kg": null,
+      "reps": 20,
+      "bodyweight_ratio": 0.65
+    },
+    {
+      "date": "2026-10-12",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 10,
+      "bodyweight_ratio": null
+    },
+    {
+      "date": "2026-10-12",
+      "exercise_id": "pushup",
+      "body_part_id": "chest",
+      "weight_kg": null,
+      "reps": 20,
+      "bodyweight_ratio": 0.65
+    },
+    {
+      "date": "2026-10-12",
+      "exercise_id": "pushup",
+      "body_part_id": "chest",
+      "weight_kg": null,
+      "reps": 15,
+      "bodyweight_ratio": 0.65
+    },
+    {
+      "date": "2026-10-25",
+      "exercise_id": "pullup",
+      "body_part_id": "back",
+      "weight_kg": null,
+      "reps": 8,
+      "bodyweight_ratio": 1
+    },
+    {
+      "date": "2026-10-25",
+      "exercise_id": "plank",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 60,
+      "bodyweight_ratio": 0
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "dips",
+      "body_part_id": "triceps",
+      "weight_kg": null,
+      "reps": 12,
+      "bodyweight_ratio": 0.95
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 102.5,
+      "reps": 5,
+      "bodyweight_ratio": null
+    },
+    {
+      "date": "2026-11-08",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 30,
+      "bodyweight_ratio": 0.3
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "kneepush",
+      "body_part_id": "chest",
+      "weight_kg": null,
+      "reps": 0,
+      "bodyweight_ratio": 0.5
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "pullup",
+      "body_part_id": "back",
+      "weight_kg": null,
+      "reps": 10,
+      "bodyweight_ratio": 1
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "pullup",
+      "body_part_id": "back",
+      "weight_kg": null,
+      "reps": 10,
+      "bodyweight_ratio": 1
+    }
+  ],
+  "expected": {
+    "bodyweight_load_kg": [
+      null,
+      null,
+      46.28,
+      46.28,
+      70.4,
+      0.0,
+      66.88,
+      null,
+      20.939999999999998,
+      34.9,
+      69.8,
+      69.8
+    ],
+    "volumes": [
+      0,
+      700,
+      925.6,
+      694.2,
+      563.2,
+      0,
+      802.56,
+      512.5,
+      628.1999999999999,
+      0,
+      698.0,
+      698.0
+    ],
+    "total_volume": 6222.259999999999,
+    "period_totals": {
+      "last7": 1326.1999999999998,
+      "last28": 3204.46,
+      "total": 5524.259999999999
+    },
+    "weekly_volumes": {
+      "weeks": 6,
+      "result": [
+        1326.1999999999998,
+        1315.06,
+        563.2,
+        0,
+        2319.8,
+        0
+      ]
+    },
+    "weekly_volume_by_body_part": {
+      "weeks": 4,
+      "result": [
+        {
+          "week_start": "2026-10-18",
+          "by_part": {},
+          "total": 0
+        },
+        {
+          "week_start": "2026-10-25",
+          "by_part": {
+            "back": 563.2
+          },
+          "total": 563.2
+        },
+        {
+          "week_start": "2026-11-01",
+          "by_part": {
+            "triceps": 802.56,
+            "legs": 512.5
+          },
+          "total": 1315.06
+        },
+        {
+          "week_start": "2026-11-08",
+          "by_part": {
+            "abs": 628.1999999999999,
+            "back": 698.0
+          },
+          "total": 1326.1999999999998
+        }
+      ]
+    },
+    "exercise_daily_series": {
+      "pullup": [
+        {
+          "date": "2026-10-25",
+          "volume": 563.2,
+          "max_1rm": 0
+        },
+        {
+          "date": "2026-11-10",
+          "volume": 698.0,
+          "max_1rm": 0
+        },
+        {
+          "date": "2026-11-12",
+          "volume": 698.0,
+          "max_1rm": 0
+        }
+      ],
+      "pushup": [
+        {
+          "date": "2026-09-28",
+          "volume": 0,
+          "max_1rm": 0
+        },
+        {
+          "date": "2026-10-12",
+          "volume": 1619.8000000000002,
+          "max_1rm": 0
+        }
+      ]
+    },
+    "personal_bests": {
+      "bench": {
+        "exercise_id": "bench",
+        "e1rm": 93.33333333333333,
+        "weight_kg": 70,
+        "reps": 10,
+        "date": "2026-10-12"
+      },
+      "squat": {
+        "exercise_id": "squat",
+        "e1rm": 119.58333333333334,
+        "weight_kg": 102.5,
+        "reps": 5,
+        "date": "2026-11-01"
+      }
+    },
+    "missing_bodyweight": 1,
+    "missing_bodyweight_after_lookback": 1
+  }
+}

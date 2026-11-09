@@ -18,6 +18,7 @@ import anyio
 
 from sync.engine import SyncEngine
 from sync.model import Change, EntityState
+from training.domain import bodyweight
 from training.domain.catalog import SEED_BODY_PARTS, SEED_EXERCISES, Catalog
 from training.domain.model import (
     BodyPart,
@@ -50,7 +51,13 @@ def _seed_values(item: BodyPart | Exercise) -> dict:
     values.pop("id")
     if isinstance(item, Exercise):
         values["record_type"] = item.record_type.value
+        values.pop("bodyweight_ratio")  # 初期の種目は割合を持たない（名前から決める）。同期の値があればそれを使う
     return values
+
+
+def _exercise(entity_id: str, v: dict) -> Exercise:
+    return Exercise(entity_id, v["body_part_id"], v["name"], RecordType(v["record_type"]), v["sort_order"], v["hidden"],
+                    v.get("bodyweight_ratio"))
 
 
 class SyncTrainingRepository:
@@ -71,8 +78,7 @@ class SyncTrainingRepository:
 
     async def exercises(self, trainee: TraineeId) -> list[Exercise]:
         states = await self._run(self._alive, trainee.value, "exercise")
-        found = [Exercise(s.entity_id, s.values["body_part_id"], s.values["name"], RecordType(s.values["record_type"]),
-                          s.values["sort_order"], s.values["hidden"]) for s in states]
+        found = [_exercise(s.entity_id, s.values) for s in states]
         return sorted(found, key=lambda e: (e.sort_order, e.id))
 
     def _with_seeds(self, user: str, entity_type: str, seeds) -> list[tuple[str, dict]]:
@@ -88,8 +94,7 @@ class SyncTrainingRepository:
     def _catalog(self, user: str) -> Catalog:
         parts = [BodyPart(i, v["name"], v["sort_order"], v["hidden"])
                  for i, v in self._with_seeds(user, "body_part", SEED_BODY_PARTS)]
-        exercises = [Exercise(i, v["body_part_id"], v["name"], RecordType(v["record_type"]), v["sort_order"], v["hidden"])
-                     for i, v in self._with_seeds(user, "exercise", SEED_EXERCISES)]
+        exercises = [_exercise(i, v) for i, v in self._with_seeds(user, "exercise", SEED_EXERCISES)]
         return Catalog(tuple(sorted(parts, key=lambda p: (p.sort_order, p.name, p.id))),
                        tuple(sorted(exercises, key=lambda e: (e.sort_order, e.name, e.id))))
 
@@ -133,7 +138,9 @@ class SyncTrainingRepository:
             exercise = exercises.get(entry.exercise_id)
             if exercise is None or "body_part_id" not in exercise:
                 continue  # 種目がまだ届いていない（アプリの JOIN でも出ない）
-            rows += [SetRow(entry.date, entry.exercise_id, exercise["body_part_id"], s.weight_kg, s.reps)
+            ratio = bodyweight.ratio_of(_exercise(entry.exercise_id, exercise)) \
+                if REQUIRED["exercise"] <= exercise.keys() else None
+            rows += [SetRow(entry.date, entry.exercise_id, exercise["body_part_id"], s.weight_kg, s.reps, ratio)
                      for s in entry.sets]
         return rows
 
@@ -205,6 +212,8 @@ class SyncTrainingRepository:
         desired = {"body_part_id": exercise.body_part_id, "name": exercise.name,
                    "record_type": exercise.record_type.value, "sort_order": exercise.sort_order,
                    "hidden": exercise.hidden}
+        if exercise.bodyweight_ratio is not None:  # 持っていない割合を null で書くと、アプリがまだ送っていない値に勝ってしまう
+            desired["bodyweight_ratio"] = exercise.bodyweight_ratio
         seed = next((s for s in SEED_EXERCISES if s.id == exercise.id), None)
         if seed is None:
             self._write(user, self._upsert("exercise", exercise.id, state, desired))
