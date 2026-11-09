@@ -3,7 +3,7 @@ name = "mcp-server"
 version = "0.1.0"
 description = "MCP サーバーの組み立て（食事と筋トレのツールを1つのコネクタにまとめる）"
 requires-python = ">=3.12"
-# sync・meals・training はパッケージなので path の依存で入れる（meals と training は MCP のツールを使うので extra の mcp も）。
+# sync・meals・training・reports はパッケージなので path の依存で入れる（meals・training・reports は MCP のツールを使うので extra の mcp も）。
 # Lambda には、cdk/build-lambda.sh がソースをコピーする。
 # 組み立ての場所どうしで共有するもの（services/composition）はパッケージにせず、pythonpath に足す
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
     "mcp>=2.3.0",
     "meals[mcp]",
     "pyjwt[crypto]>=2.15.1",
+    "reports[mcp]",
     "sync",
     "training[mcp]",
     "uvicorn>=0.54.0",
@@ -18,6 +19,7 @@ dependencies = [
 
 [tool.uv.sources]
 meals = { path = "../meals", editable = true }
+reports = { path = "../reports", editable = true }
 sync = { path = "../sync", editable = true }
 training = { path = "../training", editable = true }
 

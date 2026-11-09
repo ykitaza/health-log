@@ -66,7 +66,7 @@ class MealService:
         if len(new.items) > MAX_ITEMS:
             raise MealError(f"品目は1回の食事に{MAX_ITEMS}件までです")
         items = tuple(item.to_item(self.ids) for item in new.items)
-        return Meal(self.ids(), eater, new.eaten_on, items, new.description, new.source)
+        return Meal(self.ids(), eater, new.eaten_on, items, new.description, new.source, new.basis)
 
     async def _get(self, eater: EaterId, meal_id: str) -> Meal:
         meal = await self.meals.get(eater, meal_id)

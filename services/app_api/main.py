@@ -1,6 +1,6 @@
 """スマホアプリ用の API の組み立て（DI）。Lambda のハンドラーは handler（cdk/lib/infra-stack.ts の AppApiFunction）。
 
-同期の入口（sync）は、どのコンテキストのドメインも知らない。ここで、食事と筋トレの種類を登録し、
+同期の入口（sync）は、どのコンテキストのドメインも知らない。ここで、食事・筋トレ・レポートの種類を登録し（composition の create_registry）、
 食事のルート（目標の案）を足す。すべてのコンテキストを知っているのはこのファイルだけ。
 Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取る（オーソライザーが確かめたクレームを読むため）。
 """

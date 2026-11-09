@@ -6,6 +6,8 @@ from meals.domain.values import Confidence, EatenOn, EaterId, Nutrition, Quantit
 # 1回の食事の品目の上限。いつもの（infrastructure/sync_entities.py の MealTemplateFields）と同じ。
 # 同期の項目は1つの食事を1つの DynamoDB の項目（400KB まで）に入れるので、大きくなりすぎないようにする
 MAX_ITEMS = 50
+# 推定の根拠（Meal.basis）の長さの上限。同期の項目（infrastructure/sync_entities.py の MealFields）と同じ
+MAX_BASIS = 1000
 
 
 @dataclass(frozen=True)
@@ -41,8 +43,12 @@ class Meal:
     items: tuple[FoodItem, ...]
     description: str  # 写真や言葉から Claude が読み取った説明。画像は保存しない
     source: Source
+    # kcal と PFC を推定したときの根拠（例「ご飯は茶碗1杯 150g として」）。MCP で推定したときだけ。なければ空
+    basis: str = ""
 
     def __post_init__(self):
+        if len(self.basis) > MAX_BASIS:
+            raise MealError(f"推定の根拠は{MAX_BASIS}文字までにしてください")
         if not self.items:
             raise MealError("品目が1つもありません")
         ids = [item.id for item in self.items]

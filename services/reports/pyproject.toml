@@ -1,0 +1,35 @@
+[project]
+name = "reports"
+version = "0.1.0"
+description = "レポートの境界づけられたコンテキスト（Claude・ChatGPT が記録を読んで書いたまとめを残し、アプリで読む）"
+requires-python = ">=3.12"
+dependencies = [
+    "anyio>=4.9",
+    "pydantic>=2.11",
+    "sync",
+]
+
+# MCP のツール（reports.presentation.mcp_tools）を使うときだけ要る。アプリ用の API（services/app_api）は入れない
+[project.optional-dependencies]
+mcp = ["mcp>=2.3.0"]
+
+# 組み立ての場所（services/mcp・services/app_api）から path の依存で使うので、パッケージとして作れるようにする
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "reports"
+module-root = ""
+
+[tool.uv.sources]
+sync = { path = "../sync", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "mcp>=2.3.0",
+    "pytest>=9.1.1",
+]

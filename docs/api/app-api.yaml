@@ -274,6 +274,12 @@ components:
           - numbers
           - copy
           - template
+        basis:
+          type:
+          - string
+          - 'null'
+          maxLength: 1000
+          description: kcal と PFC を推定したときの根拠（例「ごはんは茶碗1杯 150g として」）。MCP が推定したときだけ書く。アプリで記録した食事は null
       description: 食事。create では date, slot, description, source が要る。update では変えた項目だけを送る
     MealItemFields:
       type: object
@@ -735,6 +741,113 @@ components:
           maximum: 1000000
           description: その日のサンプルの数。サンプルそのものは送らない
       description: '心拍の1日のまとめ（Health Connect の HeartRate・RestingHeartRate をその日について集計したもの。アプリの取り込みだけが作る。origin: import）。サンプルがない日は avg_bpm・min_bpm・max_bpm が null。create では date, samples が要る。update では変えた項目だけを送る'
+    ReportTone:
+      type: string
+      enum:
+      - good
+      - steady
+      - caution
+      description: good（良い調子）・steady（いつもどおり）・caution（気をつけたい）
+    ReportFields:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        body:
+          type: string
+          maxLength: 20000
+          description: くわしい本文（Markdown）。モデルが書いた文なので、アプリは文字として表示するだけ（HTML・リンクは開かない）
+        kind:
+          type: string
+          enum:
+          - weekly
+          - monthly
+          - other
+        period_start:
+          type:
+          - string
+          - 'null'
+          format: date
+        period_end:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: period_start と同じか後の日（366日以内）
+        overall_tone:
+          $ref: '#/components/schemas/ReportTone'
+          description: 全体の調子。前の形のレポートにはない（アプリは steady として見せる）
+        headline:
+          type: string
+          maxLength: 60
+          description: ひと言の要約
+        highlights:
+          type: array
+          maxItems: 6
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - area
+            - tone
+            - text
+            properties:
+              area:
+                type: string
+                enum:
+                - training
+                - meals
+                - body
+                - sleep
+              tone:
+                $ref: '#/components/schemas/ReportTone'
+              text:
+                type: string
+                minLength: 1
+                maxLength: 120
+              metric:
+                type:
+                - object
+                - 'null'
+                additionalProperties: false
+                required:
+                - label
+                - value
+                properties:
+                  label:
+                    type: string
+                    minLength: 1
+                    maxLength: 20
+                  value:
+                    type: number
+                    minimum: -1000000
+                    maximum: 1000000
+                  unit:
+                    type: string
+                    maxLength: 10
+                  delta:
+                    type:
+                    - number
+                    - 'null'
+                    minimum: -1000000
+                    maximum: 1000000
+                    description: 前の期間からの変化（value と同じ単位）
+                  delta_good:
+                    type:
+                    - boolean
+                    - 'null'
+                    description: 変化の向きが利用者の目標にとって良いか
+        next_steps:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+      description: レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）。書くのは MCP だけで、アプリから受け付けるのは delete だけ（create・update・restore は op_not_allowed）。項目を JSON にした大きさは 150,000 バイトまで
     EntityType:
       type: string
       enum:
@@ -751,7 +864,8 @@ components:
       - setting
       - sleep_session
       - heart_rate_day
-      description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外は training.* の scope で扱う
+      - report
+      description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外（report も）は training.* の scope で扱う
     MealChange:
       type: object
       additionalProperties: false
@@ -1442,6 +1556,57 @@ components:
         fields:
           $ref: '#/components/schemas/HeartRateDayFields'
           description: create・update のとき。delete・restore では送らない
+    ReportChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: report
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - delete
+          description: アプリからは delete だけ（MCP だけが書く種類）
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ReportFields'
+          description: アプリからは送らない（delete だけなので）。受け取りの state.fields はこの形
     Change:
       oneOf:
       - $ref: '#/components/schemas/MealChange'
@@ -1457,6 +1622,7 @@ components:
       - $ref: '#/components/schemas/SettingChange'
       - $ref: '#/components/schemas/SleepSessionChange'
       - $ref: '#/components/schemas/HeartRateDayChange'
+      - $ref: '#/components/schemas/ReportChange'
       discriminator:
         propertyName: entity_type
         mapping:
@@ -1473,6 +1639,7 @@ components:
           setting: '#/components/schemas/SettingChange'
           sleep_session: '#/components/schemas/SleepSessionChange'
           heart_rate_day: '#/components/schemas/HeartRateDayChange'
+          report: '#/components/schemas/ReportChange'
     PushRequest:
       type: object
       additionalProperties: false
@@ -1532,8 +1699,9 @@ components:
           - parent_id_not_allowed
           - fields_not_allowed
           - insufficient_scope
+          - op_not_allowed
           description: invalid_fields：知らない項目・型（"10" と 10、1 と true は別）・範囲の違い、null にできない項目に null、entity_id・op・changed_at・origin の誤り。missing_fields：create に要る項目がない。missing_parent_id：meal_item に parent_id がない。parent_id_not_allowed：meal_item
-            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない
+            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない。op_not_allowed：アプリから受け付けない op（report の delete 以外）
         message:
           type: string
         errors:

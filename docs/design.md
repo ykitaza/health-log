@@ -46,16 +46,17 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 | 認可 | どのクライアントに、誰の、何を許したか | `services/authorization/` | なし（Cognito とは OIDC だけでつなぐ） |
 | 食事記録 | この人は何を食べ、目標とどれだけ違うか | `services/meals/`（MCP のツールは `meals/presentation/mcp_server.py`） | 同期 |
 | 筋トレ | この人は何をどれだけ挙げ、体はどう変わったか | `services/training/`（MCP のツールは `training/presentation/mcp_tools.py`） | 同期 |
+| レポート | AI が記録を読んで書いたまとめを、どう残してアプリで読むか | `services/reports/`（MCP のツールは `reports/presentation/mcp_tools.py`） | 同期 |
 | 同期 | 変更をどう記録し、端末とサーバーで同じ状態にするか | `services/sync/`。どのコンテキストにも属さない共通の部品（変更の記録、当てはめ、冪等、カーソル、DynamoDB への保存、同期の API の入口） | なし |
-| アプリ用の API の組み立て | アプリ用の Lambda（`AppApiFunction`）に、何を載せるか | `services/app_api/main.py` | 食事記録、筋トレ、同期 |
-| MCP サーバーの組み立て | MCP の Lambda（`MealsFunction`）に、何を載せるか。MCP の入口の部品（トークンの検証、`logout`） | `services/mcp/` | 食事記録、筋トレ、同期 |
+| アプリ用の API の組み立て | アプリ用の Lambda（`AppApiFunction`）に、何を載せるか | `services/app_api/main.py` | 食事記録、筋トレ、レポート、同期 |
+| MCP サーバーの組み立て | MCP の Lambda（`MealsFunction`）に、何を載せるか。MCP の入口の部品（トークンの検証、`logout`） | `services/mcp/` | 食事記録、筋トレ、レポート、同期 |
 
 依存の向きは、組み立て → コンテキスト → 同期 です。逆向きの import はありません。
 
 - 同期は、食事や筋トレのドメインを import しません。対象の種類ごとの決まり（項目、確かめ方、親の種類、並びのキー）は、各コンテキストが `infrastructure/sync_entities.py` で同期の `Registry` に登録します
-- 食事と筋トレは、互いを import しません。またぐもの（筋トレの日、アプリの最後の同期の時刻）は、使う側のポートを組み立てがつなぎます（下の「MCP サーバーの組み立て」）
+- 食事・筋トレ・レポートは、互いを import しません。レポートは記録の数字を読まず、AI が記録のツールで読んで書いたものを保存するだけです。またぐもの（筋トレの日、アプリの最後の同期の時刻）は、使う側のポートを組み立てがつなぎます（下の「MCP サーバーの組み立て」）
 - 食事の MCP が変更の記録を通して書く処理は、食事の `meals/infrastructure/sync_repositories.py` に、筋トレの分は `training/infrastructure/sync_repository.py` にあります（同期の部品を使う）
-- 食事・筋トレ・同期を組み合わせるのは、2つの組み立て（`services/app_api/main.py`、`services/mcp/main.py`）だけです
+- 食事・筋トレ・レポート・同期を組み合わせるのは、2つの組み立て（`services/app_api/main.py`、`services/mcp/main.py`）だけです
 - 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/mobile/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
 
 - 本人確認 → 認可：`services/authorization/infrastructure/cognito_login.py`（腐敗防止層、Authlib）が IDトークンを `Subject` に変えます
@@ -66,12 +67,13 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 
 ## MCP サーバーの組み立て
 
-Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま）で、食事と筋トレのツールを両方持ちます。
+Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま）で、食事・筋トレ・レポートのツールを持ちます。
 
 | 場所 | 中身 | 知っているもの |
 |---|---|---|
 | `services/meals/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
 | `services/training/training/presentation/mcp_tools.py` | 筋トレのツール14個（睡眠と心拍のまとめを含む）を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
+| `services/reports/reports/presentation/mcp_tools.py` | レポートのツール4個を登録する関数（`register_report_tools`）。筋トレの scope をツールごとに確かめる（筋トレと食事の両方をまとめるので、接続の食事の scope と合わせて両方が要る） | レポート |
 | `services/mcp/connector/` | MCP の入口の部品：アクセストークンの検証（`AuthzApiTokenVerifier`）、連携の取り消しと `logout` のツール、アイコン、診断用のログ、設定 | MCP の SDK、認可API との約束（JWT） |
 | `services/mcp/main.py` | サーバー（`MCPServer`）と認証を作り、3つの登録の関数を呼ぶ。コンテキストをまたぐもののポートをつなぐ | すべて |
 
