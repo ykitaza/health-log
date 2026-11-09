@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from training.domain import body, calculations, health
+from training.domain import body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
-from training.domain.model import HeartRateDay, TraineeId, Workout
+from training.domain.model import HeartRateDay, SetRow, TraineeId, Workout
 from training.domain.ports import TrainingRepository
 
 
@@ -17,6 +17,7 @@ class WeeklyTrainingReview:
     weekly_volumes: list[float]  # [0] が今週
     by_body_part: list[calculations.WeeklyByPart]  # 古い順
     training_days: list[str]
+    missing_bodyweight_sets: int = 0  # 体重の記録がないため、この週の総負荷量に入らなかった自重のセット
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,15 @@ class TrainingQueries:
     async def workouts(self, subject: str, start: str, end: str) -> list[Workout]:
         return await self.repository.workouts(TraineeId(subject), start, end)
 
+    async def body_weights(self, subject: str) -> list[tuple[str, float]]:
+        """日ごとの体重（体組成の記録。Health Connect の取り込みを含む）。自重の種目の負荷量に使う。"""
+        return [(d.date, d.weight_kg) for d in await self.daily_body(subject) if d.weight_kg is not None]
+
+    async def set_rows(self, subject: str) -> list[SetRow]:
+        """集計に使うセット。回数だけのセットには、自重の負荷（体重 × 割合）を入れる。"""
+        rows = await self.repository.set_rows(TraineeId(subject))
+        return bodyweight.with_bodyweight(rows, await self.body_weights(subject))
+
     async def training_dates(self, subject: str, start: str, end: str) -> list[str]:
         """start から end まで（両端を含む）の、セットの記録がある日。"""
         rows = await self.repository.set_rows(TraineeId(subject))
@@ -68,17 +78,19 @@ class TrainingQueries:
         return calculations.personal_bests(await self.repository.set_rows(TraineeId(subject)), before_date=day)
 
     async def weekly_review(self, subject: str, today: str, weeks: int = 8) -> WeeklyTrainingReview:
-        rows = await self.repository.set_rows(TraineeId(subject))
+        rows = await self.set_rows(subject)
+        start = calculations.week_start(today)
         return WeeklyTrainingReview(
             today,
             calculations.period_totals(rows, today),
             calculations.weekly_volumes(rows, today, weeks),
             calculations.weekly_volume_by_body_part(rows, today, weeks),
             [d for d in calculations.training_dates(rows) if d <= today],
+            bodyweight.missing_bodyweight([r for r in rows if start <= r.date <= today]),
         )
 
     async def exercise_history(self, subject: str, exercise_id: str) -> ExerciseHistory:
-        rows = await self.repository.set_rows(TraineeId(subject))
+        rows = await self.set_rows(subject)
         return ExerciseHistory(exercise_id, calculations.exercise_daily_series(rows, exercise_id),
                                calculations.personal_bests(rows).get(exercise_id))
 

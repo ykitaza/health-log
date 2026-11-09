@@ -545,6 +545,13 @@ components:
           maximum: 100000
         hidden:
           type: boolean
+        bodyweight_ratio:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 1
+          description: 回数だけ（reps_only）の種目の、体重に対する割合。自重の負荷量 ＝ その日の体重 × 割合 × 回数。null・なしは名前から決める（services/training/training/domain/bodyweight.py）
       description: 種目。create では body_part_id, name, record_type, sort_order, hidden が要る。update では変えた項目だけを送る
     WorkoutEntryFields:
       type: object

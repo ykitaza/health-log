@@ -50,3 +50,14 @@ def check_body(values: dict[str, float | None], memo: str | None) -> None:
             raise TrainingError(f"{label}は {low}〜{high} で入れてください")
     if memo is not None and len(memo) > MEMO_MAX:
         raise TrainingError(f"メモは{MEMO_MAX}文字までにしてください")
+
+
+def check_ratio(record_type: RecordType, ratio: float | None) -> float | None:
+    """体重に対する割合（0〜1）。回数だけの種目にだけ持たせる。"""
+    if ratio is None:
+        return None
+    if record_type != RecordType.REPS_ONLY:
+        raise TrainingError("体重に対する割合（bodyweight_ratio）は、回数だけ（reps_only）の種目にだけ入れられます")
+    if not 0 <= ratio <= 1:
+        raise TrainingError("体重に対する割合（bodyweight_ratio）は 0〜1 で入れてください（例：腕立て伏せ 0.65）")
+    return ratio

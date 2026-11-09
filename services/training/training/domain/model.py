@@ -41,6 +41,8 @@ class Exercise:
     record_type: RecordType
     sort_order: int
     hidden: bool
+    # 回数だけの種目の、体重に対する割合（0〜1）。None は名前から決める（training.domain.bodyweight）
+    bodyweight_ratio: float | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,8 @@ class SetRow:
     body_part_id: str
     weight_kg: float | None
     reps: int | None
+    bodyweight_ratio: float | None = None  # 回数だけの種目の割合（重量×回数の種目は None）
+    bodyweight_load_kg: float | None = None  # 回数だけのセットの負荷（体重 × 割合）。体重がなければ None
 
 
 @dataclass(frozen=True)

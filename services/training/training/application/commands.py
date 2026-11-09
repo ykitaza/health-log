@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timezone
 from typing import Callable
 
-from training.domain import rules
+from training.domain import bodyweight, rules
 from training.domain.catalog import Catalog, normalize
 from training.domain.errors import NotFound, TrainingError
 from training.domain.model import BodyRecord, Exercise, RecordType, TraineeId, Workout, WorkoutEntry, WorkoutSet
@@ -182,29 +182,36 @@ class TrainingCommands:
         await self.repository.save_entries(trainee, [], [], targets)
         return [e.id for e in targets]
 
-    async def add_exercise(self, subject: str, name: str, body_part: str, record_type: RecordType) -> Exercise:
-        """種目を足す（アプリと同じく、同じ部位に同じ名前は作らない。並びはその部位の最後）。"""
+    async def add_exercise(self, subject: str, name: str, body_part: str, record_type: RecordType,
+                           bodyweight_ratio: float | None = None) -> Exercise:
+        """種目を足す（アプリと同じく、同じ部位に同じ名前は作らない。並びはその部位の最後）。
+        回数だけの種目の割合は、省くと名前から決める（アプリの種目の追加と同じ初期値）。重量×回数の種目は持たない。"""
         trainee = TraineeId(subject)
         catalog = await self.repository.catalog(trainee)
         part = catalog.find_body_part(body_part)
         name = rules.check_name("種目", name)
         same_part = [e for e in catalog.exercises if e.body_part_id == part.id]
         _check_duplicate(part.name, name, same_part)
+        ratio = rules.check_ratio(record_type, bodyweight_ratio)
+        if record_type == RecordType.REPS_ONLY and ratio is None:
+            ratio = bodyweight.default_ratio(name)
         exercise = Exercise(self.new_id(), part.id, name, record_type,
-                            max((e.sort_order for e in same_part), default=-1) + 1, False)
+                            max((e.sort_order for e in same_part), default=-1) + 1, False, ratio)
         await self.repository.save_exercise(trainee, exercise)
         return exercise
 
     async def update_exercise(self, subject: str, exercise: str, name: str | None = None,
-                              body_part: str | None = None, hidden: bool | None = None) -> Exercise:
+                              body_part: str | None = None, hidden: bool | None = None,
+                              bodyweight_ratio: float | None = None) -> Exercise:
         """種目の名前・部位・非表示を変える（None は変えない）。記録は種目の ID でつながっているので、
         過去の記録もそのまま新しい名前と部位で出る。同じ部位に同じ名前は作らない（add_exercise と同じ）。
         部位を変えたときの並びは、新しい部位の最後。消すことはしない（過去の記録を残すため、代わりに隠す）。"""
-        if name is None and body_part is None and hidden is None:
-            raise TrainingError("変える内容（name・body_part・hidden）を1つ以上入れてください")
+        if name is None and body_part is None and hidden is None and bodyweight_ratio is None:
+            raise TrainingError("変える内容（name・body_part・hidden・bodyweight_ratio）を1つ以上入れてください")
         trainee = TraineeId(subject)
         catalog = await self.repository.catalog(trainee)
         current = catalog.find_exercise(exercise)
+        ratio = rules.check_ratio(current.record_type, bodyweight_ratio)
         part = catalog.find_body_part(body_part) if body_part is not None else catalog.body_part(current.body_part_id)
         if part is None:
             raise NotFound(f"{current.name}の部位が見つかりません。body_part で部位を指定してください")
@@ -214,7 +221,8 @@ class TrainingCommands:
         sort_order = current.sort_order if part.id == current.body_part_id else \
             max((e.sort_order for e in same_part), default=-1) + 1
         updated = replace(current, name=new_name, body_part_id=part.id, sort_order=sort_order,
-                          hidden=current.hidden if hidden is None else hidden)
+                          hidden=current.hidden if hidden is None else hidden,
+                          bodyweight_ratio=current.bodyweight_ratio if ratio is None else ratio)
         await self.repository.save_exercise(trainee, updated)
         return updated
 

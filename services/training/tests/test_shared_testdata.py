@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from training.domain import body
+from training.domain import body, bodyweight
 from training.domain import calculations as c
 from training.domain.model import BodyRecord, SetRow
 
@@ -46,6 +46,28 @@ def test_集計():
     assert (rows.index(best[0]), best[1]) == (e["best_set"]["index"], e["best_set"]["e1rm"])
     assert rows.index(c.top_set(rows)) == e["top_set"]["index"]
     assert c.rm_table(e["rm_table"]["one_rm"]) == e["rm_table"]["result"]
+
+
+def test_自重の負荷量():
+    data = load("bodyweight.json")
+    for case in data["default_ratio"]:
+        assert bodyweight.default_ratio(case["name"]) == case["expected"], case["name"]
+    weights = [(w["date"], w["weight_kg"]) for w in data["weights"]]
+    for case in data["weight_on"]:
+        assert bodyweight.weight_on(weights, case["date"]) == case["expected"], case["date"]
+    rows = bodyweight.with_bodyweight([SetRow(**r) for r in data["rows"]], weights)
+    today, e = data["today"], data["expected"]
+    assert [r.bodyweight_load_kg for r in rows] == e["bodyweight_load_kg"]
+    assert [c.row_volume(r) for r in rows] == e["volumes"]
+    assert c.total_volume(rows) == e["total_volume"]
+    assert asdict(c.period_totals(rows, today)) == e["period_totals"]
+    assert c.weekly_volumes(rows, today, e["weekly_volumes"]["weeks"]) == e["weekly_volumes"]["result"]
+    by_part = c.weekly_volume_by_body_part(rows, today, e["weekly_volume_by_body_part"]["weeks"])
+    assert [asdict(w) for w in by_part] == e["weekly_volume_by_body_part"]["result"]
+    for exercise_id, points in e["exercise_daily_series"].items():
+        assert [asdict(p) for p in c.exercise_daily_series(rows, exercise_id)] == points
+    assert {k: asdict(v) for k, v in c.personal_bests(rows).items()} == e["personal_bests"]  # 自重の種目は推定1RM を出さない
+    assert bodyweight.missing_bodyweight(rows) == e["missing_bodyweight"]
 
 
 def test_体組成():

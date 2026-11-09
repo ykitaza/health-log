@@ -32,6 +32,8 @@ class ExerciseFields(FieldsModel):
     record_type: Literal["weight_reps", "reps_only"] = None
     sort_order: SortOrder = None
     hidden: bool = None
+    # 回数だけの種目の、体重に対する割合（0〜1。自重の負荷量 ＝ 体重 × 割合 × 回数）。null・なしは名前から決める
+    bodyweight_ratio: Annotated[float, Field(ge=0, le=1)] | None = None
 
 
 class WorkoutEntryFields(FieldsModel):

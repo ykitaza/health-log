@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from training.application.queries import BodyProgress, ExerciseHistory, HeartRateSummary, SleepSummary, WeeklyTrainingReview
-from training.domain import body, calculations
+from training.domain import body, bodyweight, calculations
 from training.domain.catalog import Catalog
 from training.domain.model import Exercise, SetRow, Workout
 
@@ -16,8 +16,25 @@ def r1(value: float | None) -> float | None:
 
 def exercise(e: Exercise, catalog: Catalog) -> dict:
     part = catalog.body_part(e.body_part_id)
+    ratio = bodyweight.ratio_of(e)
     return {"exercise_id": e.id, "name": e.name, "body_part": part.name if part else None,
-            "record_type": e.record_type.value, "hidden": e.hidden}
+            "record_type": e.record_type.value, "hidden": e.hidden,
+            **({"bodyweight_ratio": ratio} if ratio is not None else {})}
+
+
+MISSING_BODYWEIGHT = "体重の記録がないため、自重の種目の{n}セットは総負荷量に入っていません（体重を記録すると入ります）"
+
+
+def _rows(w: Workout, catalog: Catalog, weights: list[tuple[str, float]]) -> dict[str, list[SetRow]]:
+    """種目（entry_id）ごとのセットの行。回数だけのセットには、自重の負荷（体重 × 割合）を入れる。"""
+    out = {}
+    for e in w.entries:
+        found = catalog.exercise(e.exercise_id)
+        ratio = bodyweight.ratio_of(found) if found else None
+        rows = [SetRow(w.date, e.exercise_id, found.body_part_id if found else "", s.weight_kg, s.reps, ratio)
+                for s in e.sets]
+        out[e.id] = bodyweight.with_bodyweight(rows, weights)
+    return out
 
 
 def catalog_view(catalog: Catalog, include_hidden: bool) -> dict:
@@ -26,6 +43,7 @@ def catalog_view(catalog: Catalog, include_hidden: bool) -> dict:
         if p.hidden and not include_hidden:
             continue
         exercises = [{"exercise_id": e.id, "name": e.name, "record_type": e.record_type.value,
+                      **({"bodyweight_ratio": bodyweight.ratio_of(e)} if e.record_type.value == "reps_only" else {}),
                       **({"hidden": True} if e.hidden else {})}
                      for e in catalog.exercises if e.body_part_id == p.id and (include_hidden or not e.hidden)]
         parts.append({"body_part_id": p.id, "body_part": p.name, **({"hidden": True} if p.hidden else {}),
@@ -33,13 +51,16 @@ def catalog_view(catalog: Catalog, include_hidden: bool) -> dict:
     return {"body_parts": parts}
 
 
-def workout(w: Workout, catalog: Catalog, bests_before: dict[str, calculations.PersonalBest]) -> dict:
-    """その日の記録。種目ごとに総負荷量・いちばん重いセット・推定1RM の最大と、自己ベストを超えたかを付ける。"""
+def workout(w: Workout, catalog: Catalog, bests_before: dict[str, calculations.PersonalBest],
+            weights: list[tuple[str, float]]) -> dict:
+    """その日の記録。種目ごとに総負荷量・いちばん重いセット・推定1RM の最大と、自己ベストを超えたかを付ける。
+    自重の種目（回数だけ）の負荷量は、体重 × 種目の割合 × 回数（weights は日ごとの体重）。"""
     entries, total = [], 0.0
+    rows_by_entry = _rows(w, catalog, weights)
     for e in w.entries:
         found = catalog.exercise(e.exercise_id)
         part = catalog.body_part(found.body_part_id) if found else None
-        rows = [SetRow(w.date, e.exercise_id, found.body_part_id if found else "", s.weight_kg, s.reps) for s in e.sets]
+        rows = rows_by_entry[e.id]
         volume = calculations.total_volume(rows)
         best = calculations.best_set(rows)
         previous = bests_before.get(e.exercise_id)
@@ -50,25 +71,35 @@ def workout(w: Workout, catalog: Catalog, bests_before: dict[str, calculations.P
             "exercise": found.name if found else "（消した種目）",
             "body_part": part.name if part else None,
             "sets": [{"set_id": s.id, "set_no": i + 1, "weight_kg": s.weight_kg, "reps": s.reps, "memo": s.memo,
-                      "volume": r1(calculations.set_volume(s.weight_kg, s.reps)),
+                      "volume": r1(calculations.row_volume(r)),
                       "estimated_1rm": r1(calculations.estimated_1rm(s.weight_kg, s.reps)) or None}
-                     for i, s in enumerate(e.sets)],
+                     for i, (s, r) in enumerate(zip(e.sets, rows))],
             "volume": r1(volume),
             "max_estimated_1rm": r1(best[1]) if best else None,
             # これまで（この日より前）の推定1RM の最大を超えたか。初めての種目は null
             "new_personal_best": (best[1] > previous.e1rm) if best and previous else None,
         })
-    return {"date": w.date, "entries": entries, "total_volume": r1(total)}
+    all_rows = [r for rows in rows_by_entry.values() for r in rows]
+    return {"date": w.date, "entries": entries, "total_volume": r1(total), **_bodyweight_note(w.date, all_rows, weights)}
 
 
-def workout_summary(w: Workout, catalog: Catalog) -> dict:
-    rows = [SetRow(w.date, e.exercise_id, "", s.weight_kg, s.reps) for e in w.entries for s in e.sets]
+def _bodyweight_note(day: str, rows: list[SetRow], weights: list[tuple[str, float]]) -> dict:
+    """自重のセットがあれば、使った体重（kg）と、体重がなくて入らなかったときの説明。"""
+    if not any(r.bodyweight_ratio is not None for r in rows):
+        return {}
+    missing = bodyweight.missing_bodyweight(rows)
+    return {"bodyweight_kg": bodyweight.weight_on(weights, day),
+            **({"note": MISSING_BODYWEIGHT.format(n=missing)} if missing else {})}
+
+
+def workout_summary(w: Workout, catalog: Catalog, weights: list[tuple[str, float]]) -> dict:
+    rows = [r for rows in _rows(w, catalog, weights).values() for r in rows]
     names = []
     for e in w.entries:
         found = catalog.exercise(e.exercise_id)
         names.append(found.name if found else "（消した種目）")
     return {"date": w.date, "exercises": names, "sets": len(rows),
-            "total_volume": r1(calculations.total_volume(rows))}
+            "total_volume": r1(calculations.total_volume(rows)), **_bodyweight_note(w.date, rows, weights)}
 
 
 def history(h: ExerciseHistory, e: Exercise, catalog: Catalog, start: str, end: str) -> dict:
@@ -123,6 +154,8 @@ def weekly(review: WeeklyTrainingReview, catalog: Catalog) -> dict:
         "weeks": [{"week_start": w.week_start, "total_volume": r1(w.total)} for w in review.by_body_part],
         "last_7_days_volume": r1(review.totals.last7),
         "last_28_days_volume": r1(review.totals.last28),
+        **({"note": MISSING_BODYWEIGHT.format(n=review.missing_bodyweight_sets)}
+           if review.missing_bodyweight_sets else {}),
     }
 
 

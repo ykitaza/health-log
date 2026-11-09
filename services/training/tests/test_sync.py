@@ -86,6 +86,10 @@ def test_体組成は手入力が取り込みに勝つ(engine):
     ("body_record", {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual", "waist_cm": 20}),
     ("exercise", {"body_part_id": "chest", "name": "", "record_type": "weight_reps", "sort_order": 0, "hidden": False}),
     ("exercise", {"body_part_id": "chest", "name": "x", "record_type": "time", "sort_order": 0, "hidden": False}),
+    ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0, "hidden": False,
+                  "bodyweight_ratio": 1.01}),  # 体重に対する割合は 0〜1
+    ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0, "hidden": False,
+                  "bodyweight_ratio": -0.1}),
 ])
 def test_アプリの範囲の外は断る(entity_type, fields):
     raw = {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": "x", "op": "create",
@@ -100,6 +104,8 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
         ("body_record", {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual",
                          "weight_kg": 30, "waist_cm": 200}),
         ("body_part", {"name": "胸" * 40, "sort_order": 0, "hidden": False}),
+        ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0,
+                      "hidden": False, "bodyweight_ratio": 1}),
     ]
     for entity_type, fields in raws:
         raw = {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": "x", "op": "create",
