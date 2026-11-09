@@ -46,13 +46,9 @@ flowchart LR
   aws -.-> mon
 ```
 
-入口はどれも API Gateway の HTTP API です。細かい構成図は次のとおりです。
+入口はどれも API Gateway の HTTP API です。細かい構成図は次のとおりです。左下の緑の線が、開発者の変更が AWS とスマホに届くまでの流れです（[サーバーの CD](docs/cd.md)、[アプリの配信](apps/mobile/docs/eas.md)）。
 
 ![構成図](docs/architecture.drawio.svg)
-
-デプロイの流れ（アプリの JS の配信・APK・サーバー）は次のとおりです（[サーバーの CD](docs/cd.md)、[アプリの配信](apps/mobile/docs/eas.md)）。
-
-![デプロイの流れ](docs/deploy-flow.drawio.svg)
 
 | フォルダ | 役割 |
 |---|---|
