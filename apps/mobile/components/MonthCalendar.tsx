@@ -1,6 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, { LayoutAnimationConfig, useReducedMotion, ZoomIn } from 'react-native-reanimated';
 import { DateKey, formatJpDate, monthMatrix, WEEKDAY_EN } from '@/lib/date';
 import { colors } from '@/theme';
+import { duration } from '@/theme/motion';
+import { easeOut } from './motion';
 import { T } from './Text';
 
 type Props = {
@@ -27,50 +30,56 @@ export function dayLabel(key: DateKey, { today, marked }: { today?: boolean; mar
 export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
+  // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
+  const reduced = useReducedMotion();
+  const grow = reduced ? undefined : ZoomIn.duration(duration.enter).easing(easeOut);
   return (
-    <View style={{ gap: 6 }} testID={testID}>
-      <View style={s.row}>
-        {WEEKDAY_EN.map((w) => (
-          <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
+    <LayoutAnimationConfig skipEntering>
+      <View style={{ gap: 6 }} testID={testID}>
+        <View style={s.row}>
+          {WEEKDAY_EN.map((w) => (
+            <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
+          ))}
+        </View>
+        {rows.map((row, i) => (
+          <View key={i} style={s.row}>
+            {row.map((d) => {
+              const isFilled = d.key === filled && d.inMonth;
+              const isMarked = marked.has(d.key) && d.inMonth;
+              const isToday = d.key === today && d.inMonth;
+              const isAfterMax = maxDate != null && d.key > maxDate;
+              const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
+              return (
+                <Pressable
+                  key={d.key}
+                  disabled={!onPressDay || !d.inMonth || isAfterMax}
+                  aria-selected={onPressDay ? isFilled : undefined}
+                  onPress={() => onPressDay?.(d.key)}
+                  accessibilityRole={onPressDay && d.inMonth ? 'button' : undefined}
+                  accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked })}
+                  // 月の外の日（薄く出すだけ）は読ませない
+                  importantForAccessibility={d.inMonth ? 'auto' : 'no-hide-descendants'}
+                  aria-hidden={!d.inMonth || undefined}
+                  testID={d.inMonth ? `day-${d.key}` : undefined}
+                  style={[
+                    s.cellBox,
+                    // 幅が足りなければ縮める（360 の幅など）。足りれば cell の大きさ
+                    { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: cell / 2 },
+                    d.inMonth && { borderWidth: 1, borderColor: colors.line },
+                    isMarked && { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark },
+                    isToday && !isFilled && !isMarked && { borderColor: colors.text },
+                    isFilled && { borderColor: colors.accent },
+                  ]}
+                >
+                  {isFilled && <Animated.View entering={grow} style={[StyleSheet.absoluteFill, { borderRadius: cell / 2, backgroundColor: colors.accent }]} />}
+                  <T num bold size={15} color={fg}>{d.day}</T>
+                </Pressable>
+              );
+            })}
+          </View>
         ))}
       </View>
-      {rows.map((row, i) => (
-        <View key={i} style={s.row}>
-          {row.map((d) => {
-            const isFilled = d.key === filled && d.inMonth;
-            const isMarked = marked.has(d.key) && d.inMonth;
-            const isToday = d.key === today && d.inMonth;
-            const isAfterMax = maxDate != null && d.key > maxDate;
-            const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
-            return (
-              <Pressable
-                key={d.key}
-                disabled={!onPressDay || !d.inMonth || isAfterMax}
-                aria-selected={onPressDay ? isFilled : undefined}
-                onPress={() => onPressDay?.(d.key)}
-                accessibilityRole={onPressDay && d.inMonth ? 'button' : undefined}
-                accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked })}
-                // 月の外の日（薄く出すだけ）は読ませない
-                importantForAccessibility={d.inMonth ? 'auto' : 'no-hide-descendants'}
-                aria-hidden={!d.inMonth || undefined}
-                testID={d.inMonth ? `day-${d.key}` : undefined}
-                style={[
-                  s.cellBox,
-                  // 幅が足りなければ縮める（360 の幅など）。足りれば cell の大きさ
-                  { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: cell / 2 },
-                  d.inMonth && { borderWidth: 1, borderColor: colors.line },
-                  isMarked && { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark },
-                  isToday && !isFilled && !isMarked && { borderColor: colors.text },
-                  isFilled && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-              >
-                <T num bold size={15} color={fg}>{d.day}</T>
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
-    </View>
+    </LayoutAnimationConfig>
   );
 }
 

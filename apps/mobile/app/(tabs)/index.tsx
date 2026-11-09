@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { MonthCalendar } from '@/components/MonthCalendar';
-import { PressableScale } from '@/components/motion';
+import { PressableScale, RollNumber } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
@@ -74,7 +74,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={{ flex: 1, gap: 8 }}>
-          <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit}>
+          <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit} ready={data != null}>
             <View style={{ gap: 3, marginTop: 8 }}>
               {weekly.map((v, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -86,8 +86,8 @@ export default function HomeScreen() {
               ))}
             </View>
           </VolumeCard>
-          <VolumeCard testID="volume-28d" title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} />
-          <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} />
+          <VolumeCard testID="volume-28d" title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} ready={data != null} />
+          <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} ready={data != null} />
         </View>
       </View>
 
@@ -154,17 +154,20 @@ export default function HomeScreen() {
   );
 }
 
-function VolumeCard({ testID, title, kg, vehicle, unit, children }: { testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; children?: React.ReactNode }) {
+function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
+  testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; ready: boolean; children?: React.ReactNode;
+}) {
   return (
     <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
       <T size={10} color={colors.sub}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-        <T num bold size={26}>{tonnes(kg, unit)}</T>
+        {/* 読み込みが終わる前の 0 から変わるときは動かさない（ready） */}
+        <RollNumber num bold size={26} value={tonnes(kg, unit)} ready={ready} />
         <T size={10} color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
-        <T num bold size={15} color={colors.accent}>× {vehicleRatio(kg, vehicle).toFixed(1)}</T>
+        <RollNumber num bold size={15} color={colors.accent} prefix="× " value={vehicleRatio(kg, vehicle).toFixed(1)} ready={ready} />
       </View>
       {children}
     </View>

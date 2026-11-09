@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
+import { CheckPop, ColorFade, PopIn, Shake, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, DayNote, Header, IconButton } from '@/components/ui';
@@ -14,7 +16,8 @@ import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetShort } from '@/lib/format';
 import { MEMO_MAX_LENGTH } from '@/lib/limits';
-import { copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave, SetDraft, SetError } from '@/lib/sets';
+import { onFeedback } from '@/lib/feedback';
+import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave, SetDraft, SetError } from '@/lib/sets';
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
@@ -48,6 +51,8 @@ export default function EntryScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  // 保存を押して入力の間違いが見つかった回数（間違いのある欄を、そのたびに揺らす）
+  const [shakes, setShakes] = useState(0);
   // 保存の途中か。saving（ボタンを押せなくする）は描き直すまで効かないので、続けて届いた2回目はこれで止める
   const savingRef = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,6 +87,7 @@ export default function EntryScreen() {
 
   // 保存していない変更があれば、戻る前に確かめる（Figma の「入力をやめますか？」）
   const { dialog, allowLeave } = useConfirmDiscard(hasChanges(initial, drafts), 'まだ追加していないセットは保存されません。');
+  const list = useListMotion(loaded != null);
 
   if (!loaded) return <Screen><Header title="" onBack={() => router.back()} /></Screen>;
 
@@ -126,11 +132,13 @@ export default function EntryScreen() {
     if (savingRef.current || isFuture) return;
     const { errors: errs, formError: message, sets } = prepareSave(drafts, exercise.recordType, unit);
     setErrors(errs);
+    if (errs.size > 0) setShakes((n) => n + 1);
     if (message) { setFormError(message); return; }
     savingRef.current = true;
     setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
+      onFeedback('save');
       allowLeave();
       if (router.canGoBack()) router.back();
       else router.replace({ pathname: '/workout', params: { date } });
@@ -201,9 +209,10 @@ export default function EntryScreen() {
         {drafts.map((d, i) => {
           const err = errors.get(d.key);
           const ph = previous?.sets[i];
+          const newBest = beatsBest(d, best, exercise.recordType, unit);
           return (
-            <View key={d.key} style={{ gap: 6, marginTop: 8 }}>
-              <View style={s.setRow}>
+            <Animated.View key={d.key} entering={list.entering(i)} exiting={list.exiting} layout={list.layout} style={{ gap: 6, marginTop: 8 }}>
+              <ColorFade on={d.done} from={colors.card} to={colors.accentDark} style={s.setRow}>
                 <T num bold size={17} style={{ width: 36 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
                 {weighted && (
                   <NumberInput
@@ -212,6 +221,7 @@ export default function EntryScreen() {
                     placeholder={ph?.weightKg != null ? trimNumber(kgToUnit(ph.weightKg, unit)) : '重量'}
                     onChange={(t) => update(d.key, { weight: t })}
                     error={!!err?.weight}
+                    shake={err?.weight ? shakes : 0}
                     decimal
                   />
                 )}
@@ -221,18 +231,30 @@ export default function EntryScreen() {
                   placeholder={ph ? String(ph.reps) : '回数'}
                   onChange={(t) => update(d.key, { reps: t })}
                   error={!!err?.reps}
+                  shake={err?.reps ? shakes : 0}
                 />
                 <Pressable
                   accessibilityRole="checkbox"
                   aria-checked={d.done}
                   accessibilityLabel={`セット${i + 1}の完了`}
-                  onPress={() => update(d.key, { done: !d.done })}
+                  onPress={() => {
+                    if (!d.done) onFeedback('complete');
+                    update(d.key, { done: !d.done });
+                  }}
                   hitSlop={2}
                   style={[s.done, d.done ? { backgroundColor: colors.accent } : { backgroundColor: colors.input }]}
                 >
-                  <Icon name="check" size={20} color={d.done ? colors.onAccent : colors.sub} />
+                  <CheckPop done={d.done}>
+                    <Icon name="check" size={20} color={d.done ? colors.onAccent : colors.sub} />
+                  </CheckPop>
                 </Pressable>
-              </View>
+              </ColorFade>
+              <PopIn show={newBest} onShow={() => onFeedback('personalBest')} style={{ marginLeft: 44, alignSelf: 'flex-start' }}>
+                <View style={s.pb}>
+                  <Icon name="star" size={13} color={colors.star} />
+                  <T size={12} bold color={colors.star}>自己ベスト更新</T>
+                </View>
+              </PopIn>
               {(err?.weight || err?.reps || err?.memo) && (
                 <T size={12} color={colors.danger} style={{ marginLeft: 44 }}>{[err.weight, err.reps, err.memo].filter(Boolean).join('・')}</T>
               )}
@@ -251,7 +273,7 @@ export default function EntryScreen() {
                 </View>
                 <IconButton name="close" label={`セット${i + 1}を削除`} size={32} bg="transparent" color={colors.sub} onPress={() => remove(i)} />
               </View>
-            </View>
+            </Animated.View>
           );
         })}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
@@ -274,35 +296,38 @@ export default function EntryScreen() {
   );
 }
 
-function NumberInput({ value, placeholder, onChange, error, decimal, label }: {
-  value: string; placeholder: string; onChange: (t: string) => void; error?: boolean; decimal?: boolean; label: string;
+function NumberInput({ value, placeholder, onChange, error, shake = 0, decimal, label }: {
+  value: string; placeholder: string; onChange: (t: string) => void; error?: boolean; shake?: number; decimal?: boolean; label: string;
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <Input
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      placeholderTextColor={error ? colors.sub : '#5A616C'}
-      keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
-      accessibilityLabel={label}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      selectTextOnFocus
-      style={[
-        s.input,
-        focused && { borderColor: colors.accent },
-        error && { borderColor: colors.danger },
-      ]}
-    />
+    <Shake trigger={shake} style={{ flex: 1, minWidth: 0 }}>
+      <Input
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={error ? colors.sub : '#5A616C'}
+        keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
+        accessibilityLabel={label}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        selectTextOnFocus
+        style={[
+          s.input,
+          focused && { borderColor: colors.accent },
+          error && { borderColor: colors.danger },
+        ]}
+      />
+    </Shake>
   );
 }
 
 const s = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 4, marginHorizontal: -4 },
+  pb: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   input: {
-    flex: 1, minWidth: 0, width: 0, height: 48, borderRadius: 10, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.input,
+    width: '100%', height: 48, borderRadius: 10, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.input,
     color: colors.text, fontFamily: fonts.bold, fontSize: 18, textAlign: 'center',
   },
   done: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

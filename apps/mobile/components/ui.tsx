@@ -1,10 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
 import { colors, radius } from '@/theme';
 import { touchSlop } from '@/lib/touch';
 import { Icon, IconName } from './Icon';
-import { PressableScale } from './motion';
+import { ItemLayout, PressableScale, SlidingMark } from './motion';
 import { T } from './Text';
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -122,8 +122,12 @@ export function ChipRow({ children }: { children: ReactNode }) {
 
 /** 2〜5個の切り替え */
 export function Segmented<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+  // 選んだ印は、選んだものへ横にすべる。大きさが分かるまでは、選んだものの背景に出す
+  const [layouts, setLayouts] = useLayouts();
+  const mark = layouts[value];
   return (
     <View style={s.segment}>
+      <SlidingMark layout={mark} style={{ top: 4, bottom: 4, borderRadius: 9, backgroundColor: colors.input }} />
       {options.map((o) => {
         const active = o.key === value;
         return (
@@ -132,7 +136,8 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
             accessibilityRole="button"
             aria-selected={active}
             onPress={() => onChange(o.key)}
-            style={[s.segmentItem, active && { backgroundColor: colors.input }]}
+            onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
+            style={[s.segmentItem, active && !mark && { backgroundColor: colors.input }]}
           >
             <T size={13} bold={active} color={active ? colors.text : colors.sub}>{o.label}</T>
           </Pressable>
@@ -140,6 +145,14 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
       })}
     </View>
   );
+}
+
+/** 並んだものの位置と幅（key ごと）。選んだ印をすべらせるのに使う */
+export function useLayouts(): [Record<string, ItemLayout | undefined>, (key: string, l: ItemLayout) => void] {
+  const [layouts, set] = useState<Record<string, ItemLayout | undefined>>({});
+  const update = (key: string, { x, width }: ItemLayout) =>
+    set((cur) => (cur[key]?.x === x && cur[key]?.width === width ? cur : { ...cur, [key]: { x, width } }));
+  return [layouts, update];
 }
 
 export function EmptyState({ icon = 'dumbbell', title, body }: { icon?: IconName; title: string; body?: string }) {

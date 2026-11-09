@@ -7,7 +7,8 @@ import { MealWeekly } from '@/components/MealWeekly';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo } from '@/components/ui';
+import { SlidingMark } from '@/components/motion';
+import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, useLayouts } from '@/components/ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
@@ -192,12 +193,23 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
   const start = from ?? series[0]?.date ?? today;
   const labels = dateLabels(start, today, 4);
   const conv = (kg: number) => kgToUnit(kg, unit);
+  const [layouts, setLayouts] = useLayouts();
+  const mark = layouts[period];
 
   return (
     <>
-      <View style={{ flexDirection: 'row', gap: 6, ...touchRoom(9, { top: 12 }) }}>
+      <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+        <SlidingMark layout={mark} style={{ top: 0, bottom: 0, borderRadius: 8, backgroundColor: colors.input }} />
         {PERIODS.map((p) => (
-          <Pressable key={p} accessibilityRole="button" aria-selected={period === p} hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }} onPress={() => setPeriod(p)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p ? colors.input : 'transparent' }}>
+          <Pressable
+            key={p}
+            accessibilityRole="button"
+            aria-selected={period === p}
+            hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }}
+            onPress={() => setPeriod(p)}
+            onLayout={(e) => setLayouts(p, e.nativeEvent.layout)}
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p && !mark ? colors.input : 'transparent' }}
+          >
             <T size={13} bold={period === p} color={period === p ? colors.text : colors.sub}>{PERIOD_LABELS[p]}</T>
           </Pressable>
         ))}

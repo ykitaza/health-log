@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Icon } from '@/components/Icon';
-import { PressableScale } from '@/components/motion';
+import { PressableScale, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, DayNote, EmptyState, Header, IconButton, SetNo } from '@/components/ui';
@@ -11,8 +12,8 @@ import { useFocusData } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { bestSet, totalVolume } from '@/lib/training';
-import { fmt1, kgToUnit } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
+import { fmt1, kgToUnit } from '@/lib/units';
 import { colors } from '@/theme';
 
 /** 今日（またはその日）のトレーニング。種目は実施した順に並ぶ */
@@ -26,6 +27,7 @@ export default function WorkoutDayScreen() {
     return { entries, settings };
   }, date);
   const [removing, setRemoving] = useState<Entry | null>(null);
+  const list = useListMotion(data != null);
   const unit = data?.settings.weightUnit ?? 'kg';
   const entries = data?.entries ?? [];
   const setCount = entries.reduce((a, e) => a + e.sets.length, 0);
@@ -61,40 +63,42 @@ export default function WorkoutDayScreen() {
             {entries.map((e, i) => {
               const best = bestSet(e.sets);
               return (
-                <Card key={e.id} style={{ paddingVertical: 12 }}>
-                  <PressableScale
-                    accessibilityRole="button"
-                    scaleTo={0.98}
-                    accessibilityLabel={`${e.exerciseName}を直す`}
-                    onPress={() => router.push({ pathname: '/workout/entry', params: { date, entryId: e.id } })}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <SetNo n={i + 1} active />
-                      <T bold size={16} style={{ flex: 1 }} numberOfLines={1}>{e.exerciseName}</T>
-                      {best && <T size={12} bold color={colors.accent}>推定1RM {fmt1(kgToUnit(best.e1rm, unit))}{unit}</T>}
-                      <Icon name="chevron" size={16} color={colors.sub} />
+                <Animated.View key={e.id} entering={list.entering(i)} exiting={list.exiting} layout={list.layout}>
+                  <Card style={{ paddingVertical: 12 }}>
+                    <PressableScale
+                      accessibilityRole="button"
+                      scaleTo={0.98}
+                      accessibilityLabel={`${e.exerciseName}を直す`}
+                      onPress={() => router.push({ pathname: '/workout/entry', params: { date, entryId: e.id } })}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <SetNo n={i + 1} active />
+                        <T bold size={16} style={{ flex: 1 }} numberOfLines={1}>{e.exerciseName}</T>
+                        {best && <T size={12} bold color={colors.accent}>推定1RM {fmt1(kgToUnit(best.e1rm, unit))}{unit}</T>}
+                        <Icon name="chevron" size={16} color={colors.sub} />
+                      </View>
+                      <View style={{ marginLeft: 30, marginTop: 6, gap: 4 }}>
+                        {e.sets.map((st, j) => (
+                          <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <SetNo n={j + 1} />
+                            <T num bold size={16}>{formatSetLong(st.weightKg, st.reps, unit)}</T>
+                            {st.memo !== '' && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 }}>
+                                <Icon name="pencil" size={12} color={colors.sub} />
+                                <T size={12} color={colors.sub} numberOfLines={1}>{st.memo}</T>
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    </PressableScale>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, ...touchRoom(7, { top: 8 }) }}>
+                      <IconButton name="up" label="上へ" size={34} bg={colors.input} onPress={() => move(e.id, -1)} disabled={i === 0} color={i === 0 ? colors.line : colors.text} />
+                      <IconButton name="down" label="下へ" size={34} bg={colors.input} onPress={() => move(e.id, 1)} disabled={i === entries.length - 1} color={i === entries.length - 1 ? colors.line : colors.text} />
+                      <IconButton name="trash" label={`${e.exerciseName}を外す`} size={34} bg={colors.input} color={colors.danger} onPress={() => setRemoving(e)} />
                     </View>
-                    <View style={{ marginLeft: 30, marginTop: 6, gap: 4 }}>
-                      {e.sets.map((st, j) => (
-                        <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          <SetNo n={j + 1} />
-                          <T num bold size={16}>{formatSetLong(st.weightKg, st.reps, unit)}</T>
-                          {st.memo !== '' && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 }}>
-                              <Icon name="pencil" size={12} color={colors.sub} />
-                              <T size={12} color={colors.sub} numberOfLines={1}>{st.memo}</T>
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  </PressableScale>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, ...touchRoom(7, { top: 8 }) }}>
-                    <IconButton name="up" label="上へ" size={34} bg={colors.input} onPress={() => move(e.id, -1)} disabled={i === 0} color={i === 0 ? colors.line : colors.text} />
-                    <IconButton name="down" label="下へ" size={34} bg={colors.input} onPress={() => move(e.id, 1)} disabled={i === entries.length - 1} color={i === entries.length - 1 ? colors.line : colors.text} />
-                    <IconButton name="trash" label={`${e.exerciseName}を外す`} size={34} bg={colors.input} color={colors.danger} onPress={() => setRemoving(e)} />
-                  </View>
-                </Card>
+                  </Card>
+                </Animated.View>
               );
             })}
           </View>
