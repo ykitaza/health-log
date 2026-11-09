@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { LayoutAnimationConfig, useReducedMotion, ZoomIn } from 'react-native-reanimated';
-import { DateKey, formatJpDate, monthMatrix, WEEKDAY_EN } from '@/lib/date';
+import { DateKey, dayLabel, monthMatrix, WEEKDAY_EN } from '@/lib/date';
 import { colors } from '@/theme';
 import { duration } from '@/theme/motion';
 import { easeOut } from './motion';
@@ -20,11 +20,6 @@ type Props = {
   cell?: number;
   testID?: string;
 };
-
-/** 日のマスの読み上げの名前（「11月5日（水） 今日 記録あり」） */
-export function dayLabel(key: DateKey, { today, marked }: { today?: boolean; marked?: boolean }): string {
-  return [formatJpDate(key), today ? '今日' : '', marked ? '記録あり' : ''].filter(Boolean).join(' ');
-}
 
 /** 英語の月のカレンダー（日曜始まり） */
 export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, testID }: Props) {

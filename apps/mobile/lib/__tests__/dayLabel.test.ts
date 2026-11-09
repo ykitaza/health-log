@@ -1,4 +1,4 @@
-import { dayLabel } from '../MonthCalendar';
+import { dayLabel } from '../date';
 
 // カレンダーの日の読み上げ（TalkBack）。「2026-11-05」と数字を読ませない
 describe('カレンダーの日の読み上げの名前', () => {
