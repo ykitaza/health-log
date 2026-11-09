@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { NutritionSummary } from '@/components/meals';
-import { PressableScale, Sheet } from '@/components/motion';
+import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, IconButton } from '@/components/ui';
@@ -30,6 +31,7 @@ export default function MealsScreen() {
     return { date, day: days[0], goal, templates, yesterday };
   }, date);
   const day = data?.date === date ? data.day : null;
+  const list = useListMotion(day != null);
 
   // 日の種類のバッジを押すと、その日を筋トレの日／休みの日に決める（MCP の set_day_type と同じ）
   const toggleDayType = async () => {
@@ -65,7 +67,7 @@ export default function MealsScreen() {
         </Card>
       )}
 
-      {SLOTS.map((slot) => {
+      {SLOTS.map((slot, slotIndex) => {
         const meals = day?.meals.filter((m) => m.slot === slot) ?? [];
         const kcal = meals.reduce((n, m) => n + mealTotal(m).kcal, 0);
         return (
@@ -80,7 +82,13 @@ export default function MealsScreen() {
             {meals.length === 0 ? (
               <View style={s.empty}><T size={13} color={colors.sub}>{SLOT_LABELS[slot]}はまだ記録していません</T></View>
             ) : (
-              <View style={{ gap: 8 }}>{meals.map((m) => <MealRow key={m.id} meal={m} />)}</View>
+              <View style={{ gap: 8 }}>
+                {meals.map((m, i) => (
+                  <Animated.View key={m.id} entering={list.entering(slotIndex + i)} exiting={list.exiting} layout={list.layout}>
+                    <MealRow meal={m} />
+                  </Animated.View>
+                ))}
+              </View>
             )}
           </View>
         );

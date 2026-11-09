@@ -4,6 +4,7 @@ import * as Updates from 'expo-updates';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Share, View } from 'react-native';
 import { Input } from '@/components/Input';
+import { Shake } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
@@ -21,6 +22,10 @@ export default function SettingsScreen() {
   const [height, setHeight] = useState('');
   const [goal, setGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  // 間違いのある欄と、間違えた回数（そのたびに欄を揺らす）
+  const [bad, setBad] = useState<{ field: 'height' | 'goal'; count: number } | null>(null);
+  const fail = (field: 'height' | 'goal', error: string) => { setMessage(error); setBad((b) => ({ field, count: (b?.count ?? 0) + 1 })); };
+  const ok = () => { setMessage(null); setBad(null); };
   const [exportError, setExportError] = useState<string | null>(null);
   // 打ったが、まだ保存していない欄。Android では、入力中に単位を押しても欄を離れない（onBlur が起きない）ため、
   // 単位を変える前に、これを今の単位で保存する
@@ -41,18 +46,18 @@ export default function SettingsScreen() {
   const saveHeight = () => {
     editing.current.delete('height');
     const parsed = parseInRange(height, LIMITS.height);
-    if ('error' in parsed) { setMessage(parsed.error); return; }
-    setMessage(null);
+    if ('error' in parsed) { fail('height', parsed.error); return; }
+    ok();
     save({ heightCm: parsed.value });
   };
   const saveGoal = () => {
     editing.current.delete('goal');
     // 出した値のままなら保存しない（lb で出した目標体重を kg に戻すと、丸めで値が変わるため）
     const saved = settings?.goalWeightKg;
-    if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { setMessage(null); return; }
+    if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { ok(); return; }
     const parsed = parseInRange(goal, LIMITS.goalWeight, unit);
-    if ('error' in parsed) { setMessage(parsed.error); return; }
-    setMessage(null);
+    if ('error' in parsed) { fail('goal', parsed.error); return; }
+    ok();
     save({ goalWeightKg: parsed.value });
   };
 
@@ -109,8 +114,8 @@ export default function SettingsScreen() {
 
       <SectionTitle title="体の情報" />
       <Card style={{ gap: 12 }}>
-        <Field label="身長" unit="cm" value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
-        <Field label="目標体重" unit={unit} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
+        <Field label="身長" unit="cm" shake={bad?.field === 'height' ? bad.count : 0} value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
+        <Field label="目標体重" unit={unit} shake={bad?.field === 'goal' ? bad.count : 0} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
         {message && <T size={12} color={colors.danger}>{message}</T>}
         <T size={12} color={colors.sub}>身長は体組成の自動計算（BMI など）に、目標体重は体組成の「目標体重まで」に使います。空にすると消えます。</T>
       </Card>
@@ -142,21 +147,28 @@ export default function SettingsScreen() {
   );
 }
 
-function Field({ label, unit, value, onChange, onDone }: { label: string; unit: string; value: string; onChange: (t: string) => void; onDone: () => void }) {
+function Field({ label, unit, value, shake, onChange, onDone }: {
+  label: string; unit: string; value: string; shake: number; onChange: (t: string) => void; onDone: () => void;
+}) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       <T bold size={16} style={{ flex: 1 }}>{label}</T>
-      <Input
-        value={value}
-        onChangeText={onChange}
-        onBlur={onDone}
-        onSubmitEditing={onDone}
-        keyboardType="decimal-pad"
-        placeholder="未設定"
-        placeholderTextColor={colors.sub}
-        accessibilityLabel={label}
-        style={{ width: 110, height: 44, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.bold, fontSize: 16, textAlign: 'right', paddingHorizontal: 12 }}
-      />
+      <Shake trigger={shake}>
+        <Input
+          value={value}
+          onChangeText={onChange}
+          onBlur={onDone}
+          onSubmitEditing={onDone}
+          keyboardType="decimal-pad"
+          placeholder="未設定"
+          placeholderTextColor={colors.sub}
+          accessibilityLabel={label}
+          style={{
+            width: 110, height: 44, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.bold, fontSize: 16, textAlign: 'right', paddingHorizontal: 12,
+            borderWidth: 1.5, borderColor: shake > 0 ? colors.danger : colors.input,
+          }}
+        />
+      </Shake>
       <T size={13} color={colors.sub} style={{ width: 24 }}>{unit}</T>
     </View>
   );

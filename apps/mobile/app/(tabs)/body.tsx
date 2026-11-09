@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
-import { PressableScale } from '@/components/motion';
+import { PressableScale, RollNumber, Shake } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
@@ -44,6 +44,8 @@ export default function BodyScreen() {
   const day = data?.daily.find((d) => d.date === date) ?? null;
   const [texts, setTexts] = useState<Texts>({ weightKg: '', bodyFatPct: '', musclePct: '', waistCm: '', memo: '' });
   const [error, setError] = useState<string | null>(null);
+  // 間違いのある欄と、間違えた回数（そのたびに欄を揺らす）
+  const [bad, setBad] = useState<{ field: Field; count: number } | null>(null);
   // 打ったが、まだ保存していない欄。Android では、入力中に「前の日」「次の日」を押しても欄を離れない（onBlur が起きない）ため、
   // 日を変える前に、これを元の日に保存する
   const editing = useRef(new Set<keyof Texts>());
@@ -66,6 +68,7 @@ export default function BodyScreen() {
       editing.current.clear();
       setTexts(savedTexts);
       setError(null);
+      setBad(null);
       return;
     }
     // 読み直したとき（保存のあとなど）は、手で変えていない欄（前に出した値のまま）だけを、保存済みの値にそろえる。
@@ -83,10 +86,11 @@ export default function BodyScreen() {
     const t = texts[f];
     // 出した値のままなら保存しない（lb で出した体重を kg に戻すと、丸めで値が変わるため）
     const saved = day?.[f];
-    if (t.trim() === (saved == null ? '' : trimNumber(f === 'weightKg' ? kgToUnit(saved, unit) : saved))) { setError(null); return; }
+    if (t.trim() === (saved == null ? '' : trimNumber(f === 'weightKg' ? kgToUnit(saved, unit) : saved))) { setError(null); setBad(null); return; }
     const parsed = parseInRange(t, FIELD_LIMITS[f], unit);
-    if ('error' in parsed) { setError(parsed.error); return; }
+    if ('error' in parsed) { setError(parsed.error); setBad((b) => ({ field: f, count: (b?.count ?? 0) + 1 })); return; }
     setError(null);
+    setBad(null);
     const value = parsed.value;
     if (value === (day?.[f] ?? null)) return;
     await repos.body.saveManual(date, { [f]: value });
@@ -153,17 +157,19 @@ export default function BodyScreen() {
                 <T size={10} color={colors.accent} testID={`imported-${f.key}`}>取り込み</T>
               )}
             </View>
-            <Input
-              value={texts[f.key]}
-              onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
-              onBlur={() => commit(f.key)}
-              onSubmitEditing={() => commit(f.key)}
-              keyboardType="decimal-pad"
-              placeholder="—"
-              placeholderTextColor={colors.sub}
-              accessibilityLabel={f.label}
-              style={s.value}
-            />
+            <Shake trigger={bad?.field === f.key ? bad.count : 0}>
+              <Input
+                value={texts[f.key]}
+                onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
+                onBlur={() => commit(f.key)}
+                onSubmitEditing={() => commit(f.key)}
+                keyboardType="decimal-pad"
+                placeholder="—"
+                placeholderTextColor={colors.sub}
+                accessibilityLabel={f.label}
+                style={[s.value, bad?.field === f.key && s.valueError]}
+              />
+            </Shake>
             <T size={12} color={colors.sub} style={{ width: 22 }}>{f.weight ? unit : f.unit}</T>
             <IconButton name="close" label={`${f.label}を消す`} size={34} bg={colors.input} color={colors.sub} onPress={() => clear(f.key)} />
             <IconButton name="chart" label={`${f.label}の推移`} size={34} bg={colors.accentDark} color={colors.accent} onPress={() => openTrend(f.metric)} />
@@ -216,7 +222,7 @@ export default function BodyScreen() {
             <View style={{ flex: 1 }}>
               <T size={12} color={colors.sub}>{c.label}</T>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-                <T num bold size={22}>{c.value == null ? '—' : fmt1(c.weight ? kgToUnit(c.value, unit) : c.value)}</T>
+                <RollNumber num bold size={22} value={c.value == null ? '—' : fmt1(c.weight ? kgToUnit(c.value, unit) : c.value)} ready={data != null} />
                 <T size={11} color={colors.sub}>{c.unit}</T>
               </View>
             </View>
@@ -278,6 +284,7 @@ export default function BodyScreen() {
 const s = StyleSheet.create({
   fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, minHeight: 60 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  value: { width: 90, height: 44, color: colors.text, fontFamily: fonts.numBold, fontSize: 26, textAlign: 'right' },
+  value: { width: 90, height: 44, color: colors.text, fontFamily: fonts.numBold, fontSize: 26, textAlign: 'right', borderWidth: 1.5, borderColor: 'transparent', borderRadius: 10, paddingHorizontal: 6 },
+  valueError: { borderColor: colors.danger },
   computed: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14 },
 });
