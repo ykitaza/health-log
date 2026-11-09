@@ -4,7 +4,9 @@
 // どの表も、のちにサーバーと同期できるように、次の列を持つ。
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
-import { ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql } from './syncSpec';
+import {
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, SQL_UUID, TRAINING_ENTITIES, triggerSql,
+} from './syncSpec';
 import type { Bind, Db } from './types';
 
 export type Migration = { version: number; up: (db: Db, nowIso: string) => Promise<void> };
@@ -180,7 +182,7 @@ CREATE TABLE day_types (
 ALTER TABLE sync_outbox ADD COLUMN parent_id TEXT;
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
-      for (const spec of MEAL_ENTITIES) await db.execAsync(triggerSql(spec, false));
+      for (const spec of MEAL_ENTITIES_V3) await db.execAsync(triggerSql(spec, false));
     },
   },
   {
@@ -190,7 +192,7 @@ DELETE FROM sync_meta WHERE key = 'cursor';
     version: 4,
     up: async (db) => {
       await db.execAsync(`ALTER TABLE sync_outbox ADD COLUMN origin TEXT NOT NULL DEFAULT 'app' CHECK (origin IN ('app', 'import'));`);
-      for (const spec of [...TRAINING_ENTITIES, ...MEAL_ENTITIES]) {
+      for (const spec of [...TRAINING_ENTITIES, ...MEAL_ENTITIES_V3]) {
         await db.execAsync(`DROP TRIGGER sync_${spec.table}_insert; DROP TRIGGER sync_${spec.table}_update;`);
         await db.execAsync(triggerSql(spec));
       }
@@ -241,6 +243,38 @@ CREATE INDEX heart_rate_days_date ON heart_rate_days (date);
       for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'heart_rate_days')) await db.execAsync(triggerSql(spec));
     },
   },
+  {
+    // レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ。docs/sync-design.md の「レポート」）と、食事の推定の根拠。
+    // reports は受け取って当てはめるだけで、アプリは deleted_at を入れる（消す）ことしかしない。トリガーは同じ作り方なので、
+    // 消すと delete だけが積まれる。値の確かめはサーバーと lib/reports.ts（読むとき）で行い、表には CHECK を付けない
+    // （知らない値でも当てはめを止めないため）。highlights・next_steps は JSON の文字列。
+    // meals.basis は kcal と PFC を推定した根拠（MCP が書く）。列を足し、食事のトリガーを作り直す（create で basis も積む）。
+    // 版6までの端末は、知らない種類（report）を飛ばして受け取りの位置だけ進めていたので、位置を消して、次の同期で
+    // スナップショットを1回取り直す（版3と同じ。当てはめた seq より古い状態では上書きしない）
+    version: 7,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE reports (
+  id TEXT PRIMARY KEY NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  period_start TEXT,
+  period_end TEXT,
+  overall_tone TEXT,
+  headline TEXT,
+  highlights TEXT,
+  next_steps TEXT,${SYNC_COLUMNS}
+);
+CREATE INDEX reports_created_at ON reports (created_at);
+ALTER TABLE meals ADD COLUMN basis TEXT;
+DROP TRIGGER sync_meals_insert;
+DROP TRIGGER sync_meals_update;
+DELETE FROM sync_meta WHERE key = 'cursor';
+`);
+      for (const spec of [...MEAL_ENTITIES.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES]) await db.execAsync(triggerSql(spec));
+    },
+  },
 ];
 
 /** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
@@ -267,6 +301,7 @@ export async function insertSeeds(db: Db, now: string) {
  * - 消した行は積まない（同期の前に消したものは、サーバーが知らないので）。初期のものを消していたら delete を積む
  * - 食事の品目は、親の食事の ID（parent_id）を付けて積む。消した食事の品目は積まない
  * - Health Connect から取り込んだ行（EntitySpec の imported）は、origin を 'import' で積む（手入力より弱くする）
+ * - サーバーだけが書く種類（EntitySpec の readOnly。レポート）は積まない（サーバーが delete 以外を断るため）
  * specs は積む種類。版2のマイグレーションは筋トレの種類だけ（食事の表は版3で作るので、まだない）。
  * withOrigin は outbox に origin があるか（版4で足した。版2のマイグレーションは false）
  */
@@ -286,6 +321,7 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, wit
     );
   };
   for (const spec of specs) {
+    if (spec.readOnly) continue;
     const cols = Object.keys(spec.columns);
     const parent = spec.parent;
     const rows = await db.getAllAsync<Record<string, Bind>>(

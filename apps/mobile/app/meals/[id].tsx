@@ -142,6 +142,17 @@ export default function MealDetailScreen() {
         </View>
         <T size={13} color={colors.sub}>P {fmt1(total.protein_g)}g・F {fmt1(total.fat_g)}g・C {fmt1(total.carbs_g)}g</T>
       </Card>
+      {meal.basis && (
+        <Card style={{ marginTop: 10, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Icon name="info" size={20} color={colors.sub} />
+            <T bold size={14} accessibilityRole="header">推定の根拠</T>
+          </View>
+          {/* AI が書いた文なので、文字として出すだけ */}
+          <T size={14} selectable style={{ lineHeight: 21 }}>{meal.basis}</T>
+          <T size={12} color={colors.sub}>Claude・ChatGPT が kcal と PFC を推定したときのメモです。</T>
+        </Card>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
         <Icon name="pencil" size={14} color={colors.sub} />
         <T size={12} color={colors.sub}>量を変えると、kcal と PFC も同じ割合で変わります。</T>

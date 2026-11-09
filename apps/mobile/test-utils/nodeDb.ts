@@ -4,6 +4,7 @@ import { bodyRepository } from '@/db/repositories/body';
 import { catalogRepository } from '@/db/repositories/catalog';
 import { healthRepository } from '@/db/repositories/health';
 import { mealRepository } from '@/db/repositories/meals';
+import { reportRepository } from '@/db/repositories/reports';
 import { settingsRepository } from '@/db/repositories/settings';
 import { workoutRepository } from '@/db/repositories/workouts';
 import type { Bind, Db, Deps } from '@/db/types';
@@ -48,5 +49,6 @@ export function repos(db: Db, deps: Deps) {
     body: bodyRepository(db, deps),
     meals: mealRepository(db, deps),
     health: healthRepository(db),
+    reports: reportRepository(db, deps),
   };
 }

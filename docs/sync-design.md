@@ -149,7 +149,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## アプリの同期（apps/mobile）
 
-アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）も同期します（下の「Health Connect の取り込み」）。
+アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。
 種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）
@@ -227,6 +227,13 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 - 版2までの端末は、食事の状態を当てはめずに受け取りの位置だけ進めていました。版3のマイグレーションで受け取りの位置を消し、次の同期でスナップショットを1回取り直します（サーバーが正本で、消えたものも含めて全部返る。筋トレなどは、当てはめた `seq` より古い状態では上書きしない）
 - アプリ → MCP：アプリが送る食事の本文（`testdata/meals/app_push.json`。`apps/mobile/db/__tests__/meals.test.ts` が作る）を、pytest（`services/meals/tests/sync/test_app_push.py`）が本物の `SyncHttpApi` に送り、MCP の `list_meals`・`today_status`・`record_template` から見えることと、2回送っても二重にならないことを確かめます
 - 確かめ方：`testdata/meals/summaries.json` の変更を、サーバー（`services/meals/tests/test_shared_testdata.py`）が当てはめた状態（同じ項目は新しい方、削除が勝つ）と、そこからの1日のまとめ・週のふり返りを、アプリ（`apps/mobile/lib/__tests__/meals-shared.test.ts`、`db/__tests__/meals.test.ts`。端末に当てはめて読む）でも同じになることを確かめます
+
+### レポート
+
+- 端末の表は `reports`（版7）。列は同期の項目と同じで、`highlights`・`next_steps` は SQLite では JSON の文字列です。受け取って当てはめるだけで、アプリからは `deleted_at` を入れる（消す）ことしかしません。トリガーは同じ作り方なので、消すと `delete` だけが outbox に積まれます
+- アカウントを変えて「この端末の記録を新しいアカウントに送る」ときも、レポートは積みません（`EntitySpec.readOnly`。サーバーで断られるため）。前のアカウントのレポートは端末に残り、新しいアカウントのものと一緒に見えます。混ぜたくないときは「端末の記録を消して受け取り直す」を選びます
+- 版6までの端末は、知らない種類（`report`）を飛ばして受け取りの位置だけ進めていたので、版7のマイグレーションで受け取りの位置を消し、次の同期でスナップショットを1回取り直します（版3と同じ）
+- 食事の推定の根拠は `meals.basis`（版7で列を足し、食事のトリガーを作り直した）。アプリで記録した食事は null を送ります
 
 ### 確かめ方
 

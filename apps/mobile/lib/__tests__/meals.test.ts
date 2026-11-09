@@ -77,7 +77,7 @@ test('PFC の割合（kcal）', () => {
 });
 
 test('食事の名前は説明、なければ品目の名前', () => {
-  const base = { id: 'm', date: '2026-11-08', slot: 'lunch' as const, time: null, source: 'text' as const, createdAt: '' };
+  const base = { id: 'm', date: '2026-11-08', slot: 'lunch' as const, time: null, source: 'text' as const, createdAt: '', basis: null };
   const items = [{ id: 'a', name: '白米', amount: 1, unit: 'g' as const, confidence: 'high' as const, kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
     { id: 'b', name: '味噌汁', amount: 1, unit: '杯' as const, confidence: 'high' as const, kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 }];
   expect(mealTitle({ ...base, description: '', items })).toBe('白米、味噌汁');

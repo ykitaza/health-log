@@ -16,7 +16,8 @@
             "slot": "lunch",
             "time": null,
             "description": "",
-            "source": "text"
+            "source": "text",
+            "basis": null
           }
         },
         {
@@ -107,7 +108,8 @@
             "slot": "lunch",
             "time": null,
             "description": "",
-            "source": "copy"
+            "source": "copy",
+            "basis": null
           }
         },
         {
@@ -228,7 +230,8 @@
             "slot": "snack",
             "time": null,
             "description": "",
-            "source": "numbers"
+            "source": "numbers",
+            "basis": null
           }
         },
         {

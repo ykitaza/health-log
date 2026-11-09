@@ -4,7 +4,8 @@ import { colors } from '@/theme';
 export type IconName =
   | 'home' | 'meal' | 'chart' | 'scale' | 'gear' | 'back' | 'chevron' | 'plus' | 'check' | 'pencil'
   | 'star' | 'copy' | 'search' | 'up' | 'down' | 'close' | 'trash' | 'car' | 'bus' | 'plane'
-  | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next' | 'calendar';
+  | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next' | 'calendar'
+  | 'trendUp' | 'trendFlat' | 'caution' | 'arrowUp' | 'arrowDown' | 'arrowFlat' | 'moon' | 'info';
 
 /** 線で描く簡単なアイコン（24 の格子） */
 export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: { name: IconName; size?: number; color?: string; strokeWidth?: number }) {
@@ -34,6 +35,14 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: 
       case 'calc': return (<><Rect {...p} x="5" y="3" width="14" height="18" rx="2" /><Path {...p} d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /></>);
       case 'dumbbell': return <Path {...p} d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" />;
       case 'calendar': return (<><Rect {...p} x="3" y="5" width="18" height="16" rx="2" /><Path {...p} d="M3 10h18M8 3v4M16 3v4" /></>);
+      case 'trendUp': return <Path {...p} d="M4 16l5-5 4 4 7-7M14 8h6v6" />;
+      case 'trendFlat': return <Path {...p} d="M4 12h15M15 8l4 4-4 4" />;
+      case 'caution': return <Path {...p} d="M12 4l9 16H3zM12 10v4M12 17h.01" />;
+      case 'arrowUp': return <Path {...p} d="M12 19V5M6 11l6-6 6 6" />;
+      case 'arrowDown': return <Path {...p} d="M12 5v14M6 13l6 6 6-6" />;
+      case 'arrowFlat': return <Path {...p} d="M5 12h14M13 6l6 6-6 6" />;
+      case 'moon': return <Path {...p} d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />;
+      case 'info': return (<><Circle {...p} cx="12" cy="12" r="9" /><Path {...p} d="M12 11v5M12 8h.01" /></>);
       case 'eyeOff': return <Path {...p} d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.2M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6a8.6 8.6 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" />;
     }
   })();

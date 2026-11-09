@@ -10,7 +10,7 @@ import type { Bind } from './types';
 export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
-  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day';
+  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'report';
 
 export type EntitySpec = {
   type: SyncType;
@@ -31,6 +31,11 @@ export type EntitySpec = {
    * column の値が equals の行が取り込み。'always' はどの行も取り込み
    */
   imported?: { column: string; equals: string } | 'always';
+  /**
+   * サーバー（MCP）だけが書く種類（レポート）。アプリからは消すのだけで、サーバーも delete 以外を断る。
+   * ログインの前の記録・アカウントを変えたときに outbox に積み直さない（backfillOutbox）
+   */
+  readOnly?: true;
 };
 
 /** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類） */
@@ -74,8 +79,8 @@ export const TRAINING_ENTITIES: EntitySpec[] = [
   },
 ];
 
-/** 食事（版3のマイグレーションで、表とトリガーを作った種類） */
-export const MEAL_ENTITIES: EntitySpec[] = [
+/** 食事（版3のマイグレーションで、表とトリガーを作った種類）。版3・版4のマイグレーションは、この形でトリガーを作る */
+export const MEAL_ENTITIES_V3: EntitySpec[] = [
   {
     type: 'meal', table: 'meals',
     columns: { date: 'text', slot: 'text', time: 'text', description: 'text', source: 'text' },
@@ -132,7 +137,24 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
   },
 ];
 
-export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES];
+/** 食事の今の形。版7で、食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した */
+export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
+  s.type === 'meal' ? { ...s, columns: { ...s.columns, basis: 'text' } } : s);
+
+/** レポート（版7）。MCP の save_report だけが作る。highlights と next_steps は SQLite では JSON の文字列 */
+export const REPORT_ENTITIES: EntitySpec[] = [
+  {
+    type: 'report', table: 'reports',
+    columns: {
+      title: 'text', body: 'text', kind: 'text', period_start: 'text', period_end: 'text',
+      overall_tone: 'text', headline: 'text', highlights: 'json', next_steps: 'json',
+    },
+    required: ['title', 'body', 'kind'],
+    readOnly: true,
+  },
+];
+
+export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES];
 
 export const SPEC_BY_TYPE = new Map(ENTITIES.map((s) => [s.type, s]));
 

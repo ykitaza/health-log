@@ -3,6 +3,7 @@ import { bodyRepository } from './repositories/body';
 import { catalogRepository } from './repositories/catalog';
 import { healthRepository } from './repositories/health';
 import { mealRepository } from './repositories/meals';
+import { reportRepository } from './repositories/reports';
 import { settingsRepository } from './repositories/settings';
 import { workoutRepository } from './repositories/workouts';
 import type { Db, Deps } from './types';
@@ -17,6 +18,7 @@ export function createRepositories(db: Db, deps: Deps = defaultDeps) {
     body: bodyRepository(db, deps),
     meals: mealRepository(db, deps),
     health: healthRepository(db),
+    reports: reportRepository(db, deps),
   };
 }
 

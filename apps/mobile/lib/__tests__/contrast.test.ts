@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { colors, PART_COLORS } from '@/theme';
+import { colors, onToneSub, PART_COLORS, toneColors } from '@/theme';
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -40,5 +40,18 @@ describe('theme の色の組み合わせ（画面で文字に使っているも�
 
   test('部位の色（グラフ）はカードの上で 3:1 以上', () => {
     for (const c of PART_COLORS) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('レポートの調子の色', () => {
+  const tones = Object.entries(toneColors);
+  test.each(tones)('%s：ラベル・本文・補足の文字は、調子の面の上で 4.5:1 以上', (_, t) => {
+    for (const fg of [t.accent, colors.text, onToneSub]) expect(contrastRatio(fg, t.container)).toBeGreaterThanOrEqual(4.5);
+  });
+  test.each(tones)('%s：調子の色（帯・ラベル・変化の文字）は、カードと画面の上で 4.5:1 以上', (_, t) => {
+    for (const bg of [colors.card, colors.bg, colors.input]) expect(contrastRatio(t.accent, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test.each(tones)('%s：調子のアイコンの丸（accent）の上の暗い印は 3:1 以上', (_, t) => {
+    expect(contrastRatio(colors.onAccent, t.accent)).toBeGreaterThanOrEqual(3);
   });
 });
