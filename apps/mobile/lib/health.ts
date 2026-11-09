@@ -21,3 +21,30 @@ export function formatHeartRate(h: { restingBpm: number | null; avgBpm: number |
   if (h.avgBpm != null) parts.push(`平均 ${r(h.avgBpm)}${h.minBpm != null && h.maxBpm != null ? `（${r(h.minBpm)}〜${r(h.maxBpm)}）` : ''}`);
   return `${parts.join(' ・ ')} 拍/分`;
 }
+
+// 睡眠・心拍の推移の画面
+
+/** 分を「6:56」に（時間:分） */
+export function formatHM(min: number): string {
+  const m = Math.round(min);
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** 数の平均（空なら null） */
+export function average(values: number[]): number | null {
+  return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/**
+ * 時刻（ISO 8601）の平均を、端末の時刻で「その日の何分目か」（0〜1439）にする。寝た時刻のように 0時をまたぐものは、
+ * 正午より前を次の日として足してから平均する（23:50 と 0:10 の平均を 0:00 にする）。空なら null
+ */
+export function averageClock(isos: string[], acrossMidnight: boolean): number | null {
+  const mins = isos.map((iso) => {
+    const d = new Date(iso);
+    const m = d.getHours() * 60 + d.getMinutes();
+    return acrossMidnight && m < 12 * 60 ? m + 24 * 60 : m;
+  });
+  const avg = average(mins);
+  return avg == null ? null : Math.round(avg) % (24 * 60);
+}

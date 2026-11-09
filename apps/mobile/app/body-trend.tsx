@@ -1,18 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { CountUpText, LineChart } from '@/components/charts';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, Chip, ChipRow, EmptyState, Header, Segmented } from '@/components/ui';
+import { Card, Chip, ChipRow, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { BODY_METRICS, BodyMetric, metricValue } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { filterSince, Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
-import { colors } from '@/theme';
+import { colors, space } from '@/theme';
 
 const METRICS = Object.keys(BODY_METRICS) as BodyMetric[];
 const WEIGHT_METRICS = new Set<BodyMetric>(['weight', 'fatMass', 'leanMass', 'muscleMass']);
@@ -48,49 +48,49 @@ export default function BodyTrendScreen() {
   return (
     <Screen>
       <Header title={BODY_METRICS[metric].trendTitle} onBack={() => router.back()} />
-      <View style={{ marginTop: 6 }}>
+      <View style={{ marginTop: space.xs }}>
         <ChipRow>
           {METRICS.map((m) => <Chip key={m} label={BODY_METRICS[m].label} active={m === metric} onPress={() => setMetric(m)} />)}
         </ChipRow>
       </View>
-      <View style={{ marginTop: 12 }}>
+      <View style={{ marginTop: space.s }}>
         <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
       </View>
-      {metric === 'bmi' && height == null && <T size={12} color={colors.sub} style={{ marginTop: 10 }}>BMI は、設定で身長を入れると出ます</T>}
+      {metric === 'bmi' && height == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、設定で身長を入れると出ます</T>}
       {!last ? (
-        <EmptyState icon="chart" title="この期間の記録がありません" body="体組成の画面で記録すると、ここに推移が出ます" />
+        <EmptyState icon="chart" title="この期間の記録がありません" body="からだのタブで記録すると、ここに推移が出ます" />
       ) : (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 18 }}>
-            <CountUpText num bold size={60} value={conv(last.value)} format={fmt1} animKey={`${metric}-${period}`} />
-            <T size={16} color={colors.sub}>{unitLabel}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.xs, marginTop: space.l }}>
+            <CountUpText variant="numDisplay" value={conv(last.value)} format={fmt1} animKey={`${metric}-${period}`} />
+            <T variant="bodyL" color={colors.sub}>{unitLabel}</T>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, flexWrap: 'wrap' }}>
             {change != null && (
               <CountUpText
-                bold size={13} color={colors.accent} value={Math.abs(conv(change))} animKey={`${metric}-${period}`}
+                variant="labelL" color={colors.accent} value={Math.abs(conv(change))} animKey={`${metric}-${period}`}
                 format={(v) => `${PERIOD_LABELS[period]}で ${change >= 0 ? '+' : '−'}${fmt1(v)}${unitLabel}`}
               />
             )}
-            <T size={12} color={colors.sub}>{formatJpDate(last.date)} 時点</T>
+            <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)} 時点</T>
           </View>
-          <Card style={{ marginTop: 14 }}>
+          <Card style={{ marginTop: space.l }}>
             {inRange.length >= 2 ? (
               <LineChart points={datePoints(inRange, (p) => conv(p.value), from, today)} xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`} />
             ) : (
-              <T size={13} color={colors.sub}>記録が2日以上になると、グラフが出ます</T>
+              <T variant="bodyM" color={colors.sub}>記録が2日以上になると、グラフが出ます</T>
             )}
           </Card>
-          <T bold size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 8 }}>記録</T>
+          <SectionTitle title="記録" />
           <Card style={{ padding: 0 }}>
             {[...inRange].reverse().map((p, i) => (
-              <View key={p.date} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
+              <View key={p.date} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: space.l, paddingVertical: space.s, borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.line }}>
                 <View style={{ flex: 1 }}>
-                  <T size={15}>{formatJpDate(p.date)}</T>
-                  {p.memo !== '' && <T size={12} color={colors.sub}>{p.memo}</T>}
+                  <T variant="bodyL">{formatJpDate(p.date)}</T>
+                  {p.memo !== '' && <T variant="bodyS" color={colors.sub}>{p.memo}</T>}
                 </View>
-                <T num bold size={22}>{fmt1(conv(p.value))}</T>
-                <T size={11} color={colors.sub} style={{ marginLeft: 4 }}>{unitLabel}</T>
+                <T variant="numM" bold>{fmt1(conv(p.value))}</T>
+                <T variant="bodyS" color={colors.sub} style={{ marginLeft: space.xs }}>{unitLabel}</T>
               </View>
             ))}
           </Card>
