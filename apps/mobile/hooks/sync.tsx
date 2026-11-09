@@ -1,11 +1,12 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AppState } from 'react-native';
+import { AccessibilityInfo, AppState } from 'react-native';
 import { AccountSwitch, syncStore } from '@/db/repositories/sync';
 import { onLocalWrite } from '@/db/serial';
-import { createSyncEngine, SyncErrorCode } from '@/lib/sync/engine';
+import { createAppSync } from '@/lib/sync/app';
+import type { SyncErrorCode } from '@/lib/sync/engine';
 import { notifyRemoteChange } from '@/lib/sync/events';
-import { createSyncScheduler } from '@/lib/sync/scheduler';
+import { startPull, SYNC_FAILED } from '@/lib/sync/status';
 import { useAuth } from './auth';
 
 /**
@@ -48,19 +49,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [store]);
 
-  const scheduler = useMemo(() => {
-    const engine = createSyncEngine({ store, api });
-    return createSyncScheduler({
-      run: () => engine.run(),
-      onStart: () => setSyncing(true),
-      onDone: (outcome) => {
-        setSyncing(false);
-        setError(outcome.ok ? null : outcome.error);
-        if (outcome.ok && outcome.applied > 0) notifyRemoteChange();
-        void refresh();
-      },
-    });
-  }, [store, api, refresh]);
+  const app = useMemo(() => createAppSync({
+    store,
+    api,
+    onStart: () => setSyncing(true),
+    onDone: (outcome) => {
+      setSyncing(false);
+      setError(outcome.ok ? null : outcome.error);
+      void refresh();
+    },
+  }), [store, api, refresh]);
+  const scheduler = app.scheduler;
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -78,9 +77,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       return;
     }
     scheduler.request('start');
-    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') scheduler.request('foreground'); });
+    const sub = AppState.addEventListener('change', app.appStateChanged);
     return () => { sub.remove(); scheduler.stop(); };
-  }, [status, scheduler]);
+  }, [status, scheduler, app]);
 
   const syncNow = useCallback(() => { if (status === 'signedIn') scheduler.request('manual'); }, [status, scheduler]);
 
@@ -106,4 +105,44 @@ export function useSync(): SyncStatus {
   const v = useContext(SyncContext);
   if (!v) throw new Error('SyncProvider の外では使えません');
   return v;
+}
+
+/** 知らせ（スナックバー）を出しておく長さ */
+const NOTICE_MS = 4_000;
+
+/**
+ * 下に引っぱって同期する（タブの画面の Screen が使う）。ログインしていれば同期し、終わるまで refreshing を true にする。
+ * 終わったら、変わったものがなくても開いている画面を読み直す。ログインしていないときと失敗したときは notice に短い知らせを入れる
+ */
+export function usePullToSync() {
+  const { status } = useAuth();
+  const { syncing, error, syncNow } = useSync();
+  const [pulling, setPulling] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const show = useCallback((message: string) => {
+    setNotice(message);
+    AccessibilityInfo.announceForAccessibility(message);
+  }, []);
+
+  // syncNow は同じ処理の中で syncing を true にする（scheduler の onStart）ので、pulling と一緒に描かれる。
+  // そのあと syncing が false に戻ったら、引っぱった分の同期が終わった
+  useEffect(() => {
+    if (!pulling || syncing) return;
+    setPulling(false);
+    notifyRemoteChange();
+    if (error) show(SYNC_FAILED);
+  }, [pulling, syncing, error, show]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const onRefresh = useCallback(() => {
+    if (startPull(status, syncNow, show)) setPulling(true);
+  }, [status, syncNow, show]);
+
+  return { refreshing: pulling, onRefresh, notice };
 }
