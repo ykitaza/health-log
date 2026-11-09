@@ -1,5 +1,5 @@
 import {
-  deltaLook, formatDelta, formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, primaryMetrics,
+  deltaLook, formatDelta, KIND_LABELS, NEXT_TITLES, formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, primaryMetrics,
   ReportRow, reportCardLabel,
 } from '../reports';
 
@@ -11,7 +11,13 @@ const metric = (over: Partial<Metric> = {}): Metric => ({ label: '体重', value
 
 describe('レポートを読む', () => {
   test('前の形（overall_tone がない）は steady、知らない種類は other', () => {
-    expect(parseReport(row({ overall_tone: null, kind: 'daily', headline: null }))).toMatchObject({ tone: 'steady', kind: 'other', headline: '' });
+    expect(parseReport(row({ overall_tone: null, kind: 'yearly', headline: null }))).toMatchObject({ tone: 'steady', kind: 'other', headline: '' });
+  });
+
+  test('日のまとめ（daily）を読み、名前と次の一歩の見出しを出す', () => {
+    const r = parseReport(row({ kind: 'daily', period_start: '2026-11-09', period_end: '2026-11-09' }));
+    expect(r.kind).toBe('daily');
+    expect([KIND_LABELS[r.kind], NEXT_TITLES[r.kind]]).toEqual(['日のまとめ', '明日の一歩']);
   });
 
   test('highlights は形の合うものだけ、6件まで。指標は値が数のときだけ。delta がなければ delta_good も使わない', () => {

@@ -63,7 +63,7 @@ class HighlightFields(FieldsModel):
 class ReportFields(FieldsModel):
     title: Annotated[str, Field(min_length=1, max_length=MAX_TITLE), AfterValidator(_not_blank)] = None
     body: Annotated[str, Field(max_length=MAX_BODY)] = None  # Markdown。アプリは文字として表示するだけ
-    kind: Literal["weekly", "monthly", "other"] = None
+    kind: Literal["daily", "weekly", "monthly", "other"] = None
     period_start: Day | None = None
     period_end: Day | None = None
     overall_tone: Tone | None = None
@@ -83,6 +83,9 @@ def _check(entity_id: str, fields: dict) -> Rejection | None:
         if not 0 <= days < MAX_PERIOD_DAYS:
             return Rejection("invalid_fields", f"期間は period_start から period_end まで（{MAX_PERIOD_DAYS}日以内）にしてください",
                              ({"field": "fields.period_end", "message": "period_start と同じか後の日"},))
+    if fields.get("kind") == "daily" and not (start and start == end):
+        return Rejection("invalid_fields", "日のまとめ（daily）は、period_start と period_end を同じ日にしてください",
+                         ({"field": "fields.period_end", "message": "period_start と同じ日"},))
     return None
 
 

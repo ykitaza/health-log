@@ -50,12 +50,21 @@ def test_ID_は_UUID():
     {**FIELDS, "highlights": [{"area": "training", "tone": "good", "text": "x", "metric": {"label": "a", "value": "1"}}]},
     {**FIELDS, "period_start": "2026-11-08", "period_end": "2026-11-01"},
     {**FIELDS, "body": "😀" * 15000},
+    {**FIELDS, "kind": "daily", "period_start": "2026-11-08", "period_end": "2026-11-09"},
+    {**FIELDS, "kind": "daily"},
 ])
 def test_項目を確かめる(fields):
     result = REGISTRY.check_fields("report", "create", fields)
     if not isinstance(result, Rejection):
         result = REGISTRY.specs["report"].check(REPORT_ID, result)
     assert isinstance(result, Rejection)
+
+
+def test_日のまとめは_その日だけの期間なら受け付ける():
+    fields = {**FIELDS, "kind": "daily", "period_start": "2026-11-09", "period_end": "2026-11-09"}
+    result = REGISTRY.check_fields("report", "create", fields)
+    assert not isinstance(result, Rejection)
+    assert REGISTRY.specs["report"].check(REPORT_ID, result) is None
 
 
 def test_前の形のレポート_本文だけ_も読める():
