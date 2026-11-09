@@ -18,9 +18,9 @@ function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
 
 const TABS: { name: string; title: string; icon: IconName }[] = [
   { name: 'index', title: 'ホーム', icon: 'home' },
+  { name: 'training', title: '筋トレ', icon: 'dumbbell' },
   { name: 'meals', title: '食事', icon: 'meal' },
-  { name: 'history', title: '履歴／分析', icon: 'chart' },
-  { name: 'body', title: '体組成', icon: 'scale' },
+  { name: 'body', title: 'からだ', icon: 'scale' },
 ];
 
 export default function TabLayout() {

@@ -3,13 +3,13 @@ import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, space } from '@/theme';
 
-/** 画面の枠。footer は下に固定する（「今日のトレーニングに追加」など） */
-export function Screen({ children, footer, scroll = true, tab }: { children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean }) {
+/** 画面の枠。footer は下に固定する（「今日のトレーニングに追加」など）。bottomSpace はスクロールの下の余白（FAB に隠れないように） */
+export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24 }: { children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean; bottomSpace?: number }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={tab ? ['top'] : ['top', 'bottom']}>
       {scroll ? (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: space.screen, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: space.screen, paddingBottom: bottomSpace }}
           keyboardShouldPersistTaps="handled"
         >
           {children}

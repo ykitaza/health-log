@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, recordToday, see } from './helpers';
+import { button, goTab, openApp, openSettings, openTrainingHistory, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -75,10 +75,10 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   // MCP の記録（2026-11-07）が、履歴と体組成に出る
   await button(page, '戻る').click();
   await button(page, '戻る').click();
-  await goTab(page, '履歴／分析');
+  await openTrainingHistory(page);
   await expect(see(page, '11月7日（土） ベンチプレス')).toBeVisible();
   await expect(see(page, '11月7日（土） 懸垂')).toBeVisible();
-  await goTab(page, '体組成');
+  await goTab(page, 'からだ');
   await button(page, '前の日').click();
   await expect(page.getByRole('textbox', { name: '体重', exact: true }).filter({ visible: true })).toHaveValue('71.3');
 

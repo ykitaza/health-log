@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
@@ -33,7 +33,7 @@ const FIELD_LIMITS: Record<Field, Limit> = {
   weightKg: LIMITS.bodyWeight, bodyFatPct: LIMITS.bodyFat, musclePct: LIMITS.muscle, waistCm: LIMITS.waist,
 };
 
-/** 体組成（日付ごとの入力、自動の計算、目標体重、体重の推移） */
+/** からだのタブ：体組成（日付ごとの入力、自動の計算、目標体重、体重の推移）と、取り込んだ睡眠・心拍 */
 export default function BodyScreen() {
   const [date, setDate] = useState(todayKey);
   const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
@@ -125,6 +125,11 @@ export default function BodyScreen() {
   const today = useToday((next, prev) => { if (date === prev) changeDate(next); });
   // 前の日を見ているときは、Android の戻るでまず今日に戻す（保存していない欄は元の日に保存する）
   useBackToToday(date === today, () => changeDate(today));
+  // ホームの体調のカードから、その日を指定して開いたとき
+  const { date: asked } = useLocalSearchParams<{ date?: string }>();
+  const changeRef = useRef(changeDate);
+  useEffect(() => { changeRef.current = changeDate; });
+  useEffect(() => { if (asked && asked <= todayKey()) changeRef.current(asked); }, [asked]);
 
   const height = data?.settings.heightCm ?? null;
   const w = day?.weightKg ?? null;
@@ -144,7 +149,7 @@ export default function BodyScreen() {
 
   return (
     <Screen tab>
-      <TabHeader title="体組成" />
+      <TabHeader title="からだ" />
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>

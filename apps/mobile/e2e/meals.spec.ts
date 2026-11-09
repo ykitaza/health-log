@@ -1,7 +1,7 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, controlDb, goTab, openApp, see } from './helpers';
+import { button, controlDb, goTab, openApp, openMealWeek, see } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
 const totalKcal = (page: Page) => page.getByTestId('total-kcal').filter({ visible: true });
@@ -87,8 +87,7 @@ test('過去の日に記録 → 次の日に「昨日と同じ」と「いつも
   await expect(totalKcal(page)).toHaveText('300');
 
   // 週のふり返り（記録した日だけの平均：(150 + 300) ÷ 2）
-  await goTab(page, '履歴／分析');
-  await button(page, '食事').click();
+  await openMealWeek(page);
   await expect(page.getByTestId('weekly-average-kcal').filter({ visible: true })).toContainText('225');
   await expect(see(page, '記録 2／7日')).toBeVisible();
 });

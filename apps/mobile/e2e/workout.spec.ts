@@ -1,9 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
-import { addEntry, button, chooseExercise, controlDb, fillSets, moveToDate, openApp, recordOn, saveButton, TODAY, see } from './helpers';
+import { addEntry, button, chooseExercise, controlDb, fillSets, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see } from './helpers';
 
 /** ホームから今日のトレーニングを開く */
 async function openToday(page: Page) {
-  await button(page, '本日のトレーニングを追加').click();
+  await button(page, '今日のトレーニングを追加').click();
   await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
 }
 
@@ -52,7 +52,7 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   // 戻るでホームへ。タブバーが戻る
   await button(page, '戻る').click();
   await expect(page.getByRole('tablist')).toBeVisible();
-  await expect(see(page, '今日の記録', { exact: true })).toBeVisible();
+  await expect(homeCard(page, 'training')).toBeVisible();
 });
 
 test('前回の表示と「前回をコピー」、自己ベスト', async ({ page }) => {
@@ -234,7 +234,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await expect(see(page, 'まだ種目がありません')).toBeVisible();
   // 途中で再読み込みしたので、画面のスタックはこの画面から始まっている。ホームを開き直す
   await page.goto('/');
-  await expect(see(page, 'まだ今日の記録はありません。「本日のトレーニングを追加」から始めましょう。')).toBeVisible();
+  await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
   await expect(page.getByTestId('volume-total')).toContainText('0.00t');
 });
 

@@ -1,15 +1,13 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { CountUpText, LineChart, StackedBarChart } from '@/components/charts';
-import { Icon } from '@/components/Icon';
-import { LoadError } from '@/components/LoadError';
-import { MealWeekly } from '@/components/MealWeekly';
-import { MonthCalendar } from '@/components/MonthCalendar';
-import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
-import { SlidingMark } from '@/components/motion';
-import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, TabHeader, useLayouts } from '@/components/ui';
+import { CountUpText, LineChart, StackedBarChart } from './charts';
+import { Icon } from './Icon';
+import { LoadError } from './LoadError';
+import { MonthCalendar } from './MonthCalendar';
+import { T } from './Text';
+import { SlidingMark } from './motion';
+import { Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, useLayouts } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
@@ -26,9 +24,9 @@ import { colors, partColor } from '@/theme';
 const ALL = 'all';
 const PERIODS: Period[] = ['1m', '3m', '6m', '1y', 'all'];
 
-export default function HistoryScreen() {
+/** 筋トレの履歴（部位と種目のチップ、カレンダー、グラフ）。筋トレのタブの「履歴」 */
+export function TrainingHistory() {
   const today = todayKey();
-  const [mode, setMode] = useState<'training' | 'meals'>('training');
   const [partId, setPartId] = useState<string>(ALL);
   const [exerciseId, setExerciseId] = useState<string>(ALL);
   const [view, setView] = useState<'calendar' | 'graph'>('calendar');
@@ -89,16 +87,11 @@ export default function HistoryScreen() {
   const shownEntries = dayEntries.filter((e) => exerciseId === ALL || e.exerciseId === exerciseId);
 
   return (
-    <Screen tab>
-      <TabHeader title="履歴／分析" />
-      <Segmented options={[{ key: 'training', label: '筋トレ' }, { key: 'meals', label: '食事' }]} value={mode} onChange={setMode} />
-
-      {mode === 'meals' ? (
-        <MealWeekly />
-      ) : error || dayFailed ? (
+    <>
+      {error || dayFailed ? (
         <LoadError onRetry={reload} />
       ) : data && rows.length === 0 ? (
-        <EmptyState title="まだ記録がありません" body={'ホームの「本日のトレーニングを追加」から\n記録すると、ここに履歴とグラフが出ます'} />
+        <EmptyState title="まだ記録がありません" body={'「今日」の「種目を追加」から記録すると、\nここに履歴とグラフが出ます'} />
       ) : (
         <>
           <View style={{ marginTop: 14 }}>
@@ -178,7 +171,7 @@ export default function HistoryScreen() {
           )}
         </>
       )}
-    </Screen>
+    </>
   );
 }
 

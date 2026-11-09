@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,8 @@ import { NutritionSummary } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, IconButton, TabHeader } from '@/components/ui';
+import { MealWeekly } from '@/components/MealWeekly';
+import { Card, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
@@ -21,12 +22,17 @@ import { fmt1, fmtInt } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
 import { colors, radius } from '@/theme';
 
-/** 食事（その日の区分ごとの食事、合計と目標の残り）。日付は過去にも戻れる。今日が初め */
+/** 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「週のまとめ」は週のふり返り */
 export default function MealsScreen() {
   const [date, setDate] = useState(todayKey);
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
   const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   const [adding, setAdding] = useState<Slot | null>(null);
+  // 上の切り替え：その日の「記録」と「週のまとめ」（前の履歴／分析のタブの食事）
+  const [pane, setPane] = useState<'day' | 'week'>('day');
+  // ホームの食事のカードから、その日を指定して開いたとき
+  const { date: asked } = useLocalSearchParams<{ date?: string }>();
+  useEffect(() => { if (asked && asked <= todayKey()) { setDate(asked); setPane('day'); } }, [asked]);
   const { status } = useAuth();
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(date === today, () => setDate(today));
@@ -53,6 +59,12 @@ export default function MealsScreen() {
   return (
     <Screen tab>
       <TabHeader title="食事" />
+      <PrimaryTabs<'day' | 'week'>
+        options={[{ key: 'day', label: '記録', icon: 'meal' }, { key: 'week', label: '週のまとめ', icon: 'chart' }]}
+        value={pane}
+        onChange={setPane}
+      />
+      {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
@@ -119,6 +131,7 @@ export default function MealsScreen() {
           ログインして同期すると、MCP（Claude・ChatGPT）で記録した食事も出ます
         </T>
       )}
+      </>)}
 
       <AddSheet
         slot={adding}
