@@ -91,7 +91,7 @@ def test_食事と筋トレとレポートとログアウトのツールが1つ�
             "sleep_summary", "heart_rate_summary"} <= names
     assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
     assert "logout" in names
-    assert len(names) == 17 + 14 + 4 + 1
+    assert len(names) == 16 + 14 + 4 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):

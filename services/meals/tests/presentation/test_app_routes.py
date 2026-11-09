@@ -10,7 +10,10 @@ import pytest
 from meals.application.commands import NewItem, NewMeal
 from meals.application.goals import GoalService
 from meals.application.meals import MealService
-from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.auto_goal import Activity, BodyDay
+from meals.domain.ports import GoalSettings
+from meals.domain.values import EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.infrastructure import memory_repositories as memory
 from meals.infrastructure import sync_repositories as synced
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from meals.infrastructure.sync_entities import template_id
@@ -32,9 +35,14 @@ def engine():
 
 
 @pytest.fixture
-def api(engine):
-    goals = GoalService(SubjectAsEaterId(), synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine))
-    app = SyncHttpApi(engine, REGISTRY, APP_CLIENT, routes=meal_routes(goals))
+def body():
+    return memory.InMemoryBodyData()
+
+
+@pytest.fixture
+def api(engine, body):
+    goals = GoalService(SubjectAsEaterId(), synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine), body)
+    app = SyncHttpApi(engine, REGISTRY, APP_CLIENT, routes=meal_routes(goals, lambda: TODAY))
 
     def call(method, path, body=None, query=None, sub="alice", scope=ALL_SCOPES):
         claims = {"sub": sub, "scope": scope, "client_id": APP_CLIENT, "token_use": "access"}
@@ -126,36 +134,46 @@ def test_アプリで変えた量が_MCP_に見える(api, engine):
 
 # --- 目標の案 ---
 
-def test_目標の案を計算する_保存はしない(api, engine):
-    body = {"policy": "bulk", "pace_kg_per_week": 0.25, "sex": "male", "age": 30, "height_cm": 172,
-            "weight_kg": 67, "daily_activity": "low", "training_minutes": 60}
-    status, result, _ = api("POST", "/v1/meals/goal-suggestions", body)
-    assert status == 200 and result["goal"]["targets"]["rest_day"]["kcal"] == 2200
-    assert result["used"]["age"] == 30
+TODAY = date(2026, 11, 9)
+
+
+def _with_body(body, fat=None, settings=GoalSettings(175, 72, Activity.MODERATE)):
+    eater = EaterId("alice")
+    body.days[eater] = [BodyDay(TODAY, 80.0, fat)]
+    body.settings[eater] = settings
+
+
+def test_目標の案を計算する_保存はしない(api, engine, body):
+    _with_body(body, fat=20.0)
+    status, result, _ = api("POST", "/v1/meals/goal-suggestions", {})
+    assert status == 200 and result["status"] == "ok"
+    assert result["goal"]["targets"] == {"training_day": {"kcal": 2580, "fat_g": 72, "carbs_g": 323},
+                                         "rest_day": {"kcal": 2300, "fat_g": 64, "carbs_g": 271}}
+    assert result["basis"]["bmr_kcal"] == 1752
     assert engine.head("alice") == 0
 
 
-def test_目標の案の形は_同期の目標の項目と同じ(api):
+def test_目標の案の形は_同期の目標の項目と同じ(api, body):
     # アプリは、案をそのまま nutrition_goal の fields として送れる（docs/api/app-api.yaml の NutritionGoalFields）
-    _, result, _ = api("POST", "/v1/meals/goal-suggestions", {"policy": "maintain", "eating_style": "eating_out"})
-    assert result["goal"] == {"policy": "maintain", "body_weight_kg": None, "protein_per_kg": None, "targets": None,
-                              "eating_style": "eating_out", "target_weight_kg": None}
-    body = {"policy": "cut", "pace_kg_per_week": 0.5, "sex": "female", "age": 40, "height_cm": 160,
-            "weight_kg": 60, "daily_activity": "moderate", "training_minutes": 30, "target_weight_kg": 55}
-    goal = api("POST", "/v1/meals/goal-suggestions", body)[1]["goal"]
+    _with_body(body)
+    goal = api("POST", "/v1/meals/goal-suggestions", {"sex": "female", "birth_year": 1986})[1]["goal"]
     assert set(goal) == {"policy", "body_weight_kg", "protein_per_kg", "targets", "eating_style", "target_weight_kg"}
-    assert set(goal["targets"]) == {"training_day", "rest_day"}
-    assert set(goal["targets"]["rest_day"]) == {"kcal", "fat_g", "carbs_g"}
     fields = {"change_id": "0b8f0c39-5f8e-4b0a-9a39-2a0c3f0e7a11", "entity_type": "nutrition_goal",
               "entity_id": "current", "op": "create", "fields": goal, "changed_at": "2026-10-12T00:00:00Z"}
     assert isinstance(REGISTRY.parse_change(fields, set(REGISTRY.specs), None), Change)
 
 
-@pytest.mark.parametrize("body,status", [
-    ({"policy": "gain"}, 400), ({"policy": "bulk", "age": "30"}, 400), ({"policy": "bulk", "extra": 1}, 400),
-    ({"policy": "maintain", "pace_kg_per_week": 0.5}, 422), ({"policy": "bulk", "pace_kg_per_week": 0.25, "age": 5}, 422),
-    ({"policy": "bulk"}, 422),  # 増量なのにペースがない
+def test_体脂肪率がなく性別と生まれた年がなければ_足りないと返す(api, body):
+    _with_body(body)
+    status, result, _ = api("POST", "/v1/meals/goal-suggestions", {})
+    assert status == 200 and result["status"] == "needs_input" and result["goal"] is None
+    assert [m["item"] for m in result["missing"]] == ["sex", "birth_year"]
+
+
+@pytest.mark.parametrize("body_,status", [
+    ({"sex": "other"}, 400), ({"birth_year": "1990"}, 400), ({"extra": 1}, 400), ({"policy": "bulk"}, 400),
+    ({"birth_year": 2020}, 422),
 ])
-def test_目標の案の不正な入力(api, body, status):
-    code, problem, content_type = api("POST", "/v1/meals/goal-suggestions", body)
+def test_目標の案の不正な入力(api, body_, status):
+    code, problem, content_type = api("POST", "/v1/meals/goal-suggestions", body_)
     assert code == status and content_type == "application/problem+json"

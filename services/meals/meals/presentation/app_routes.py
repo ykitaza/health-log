@@ -6,35 +6,28 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Literal
+from datetime import date
+from typing import Callable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from meals.application.goals import GoalService
+from meals.domain.auto_goal import Sex
 from meals.domain.errors import MealError
-from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
-from meals.domain.nutrition_goal import EatingStyle, Policy
-from meals.presentation.views import goal_fields, used_inputs
+from meals.presentation.views import auto_goal, auto_goal_fields
 from sync.presentation.http_api import Caller, HttpError, Route, field_errors, parse_body
 
 
 class GoalSuggestionRequest(BaseModel):
+    """性別と生まれた年は、体脂肪率がないとき（Mifflin-St Jeor）だけ使う。計算に使うだけで保存しない。"""
+
     model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 
-    policy: Literal["bulk", "maintain", "cut"]
-    pace_kg_per_week: Annotated[float, Field(ge=0, le=1)] = 0
-    protein_per_kg: Annotated[float, Field(ge=1, le=3)] = 2.0
-    sex: Literal["male", "female", "unspecified"] = "unspecified"
-    age: Annotated[int, Field(ge=1, le=120)] | None = None
-    height_cm: Annotated[float, Field(gt=0, le=300)] | None = None
-    weight_kg: Annotated[float, Field(gt=0, le=300)] | None = None
-    daily_activity: Literal["low", "moderate", "high"] | None = None
-    training_minutes: Annotated[int, Field(ge=0, le=600)] | None = None
-    eating_style: Literal["home_cooked", "eating_out", "convenience_store"] | None = None
-    target_weight_kg: Annotated[float, Field(ge=30, le=300)] | None = None
+    sex: Literal["male", "female"] | None = None
+    birth_year: int | None = None  # 範囲（15〜100歳）はドメインが確かめる
 
 
-def meal_routes(goals: GoalService) -> dict[tuple[str, str], Route]:
+def meal_routes(goals: GoalService, today: Callable[[], date]) -> dict[tuple[str, str], Route]:
     def suggest_goals(caller: Caller, event: dict) -> dict:
         if not caller.can("meals", "read"):  # オーソライザーでも確かめている
             raise HttpError(403, "forbidden", "torelog-api/meals.read が要ります")
@@ -42,15 +35,10 @@ def meal_routes(goals: GoalService) -> dict[tuple[str, str], Route]:
             req = GoalSuggestionRequest.model_validate(parse_body(event))
         except ValidationError as e:
             raise HttpError(400, "invalid-request", "本文の形が違います", field_errors(e)) from e
-        try:  # 範囲や組み合わせの決まりは、ドメインが確かめる（MCP と同じ文で返す）
-            profile = BodyProfile(Sex(req.sex), req.age, req.height_cm, req.weight_kg,
-                                  DailyActivity(req.daily_activity) if req.daily_activity else None,
-                                  req.training_minutes)
-            plan = GoalPlan(Policy(req.policy), req.pace_kg_per_week, req.protein_per_kg,
-                            EatingStyle(req.eating_style) if req.eating_style else None, req.target_weight_kg)
-            suggestion = asyncio.run(goals.suggest(caller.user, profile, plan))
+        try:  # 範囲の決まりは、ドメインが確かめる（MCP と同じ文で返す）
+            result = asyncio.run(goals.suggest(caller.user, today(), Sex(req.sex) if req.sex else None, req.birth_year))
         except MealError as e:
             raise HttpError(422, "domain-rule", str(e)) from e
-        return {"goal": goal_fields(suggestion.goal), "notes": list(suggestion.notes), "used": used_inputs(profile)}
+        return {**auto_goal(result), "goal": auto_goal_fields(result)}
 
     return {("POST", "/v1/meals/goal-suggestions"): suggest_goals}

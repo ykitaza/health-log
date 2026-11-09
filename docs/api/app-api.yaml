@@ -162,7 +162,7 @@ paths:
     post:
       operationId: suggestGoals
       summary: 食事の目標の案を計算する（保存しない）
-      description: MCP の suggest_goals と同じ計算。案を本人が確かめたら、nutrition_goal の update を同期で送って保存する。
+      description: MCP の suggest_goals と同じ計算（アプリの lib/autoGoal.ts と同じ式）。案を本人が確かめたら、nutrition_goal の update を同期で送って保存する。
       security:
       - cognito:
         - torelog-api/meals.read
@@ -186,7 +186,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
-          description: 値が決まりに合わない（例：維持なのにペースが 0 でない、増量なのにペースがない、年齢が15〜100の外）。detail ではなく title に理由が入る
+          description: 値が決まりに合わない（例：生まれた年が15〜100歳の外）。detail ではなく title に理由が入る
           content:
             application/problem+json:
               schema:
@@ -1866,98 +1866,71 @@ components:
     GoalSuggestionRequest:
       type: object
       additionalProperties: false
-      required:
-      - policy
+      description: >-
+        性別と生まれた年は、直近7日に体脂肪率の記録がなく Mifflin-St Jeor が要るときだけ使う（サーバーにはないため）。
+        計算に使うだけで保存しない。体重・体脂肪率・身長・目標体重・活動の量は、同期した体組成と設定から読む
       properties:
-        policy:
-          type: string
-          enum:
-          - bulk
-          - maintain
-          - cut
-        pace_kg_per_week:
-          type: number
-          minimum: 0
-          maximum: 1
-          default: 0
-          description: 維持なら 0。増量・減量なら 0 より大きく 1 まで
-        protein_per_kg:
-          type: number
-          minimum: 1
-          maximum: 3
-          default: 2.0
         sex:
-          type: string
+          type:
+          - string
+          - 'null'
           enum:
           - male
           - female
-          - unspecified
-          default: unspecified
-        age:
+          - null
+        birth_year:
           type:
           - integer
           - 'null'
-          minimum: 1
-          maximum: 120
-        height_cm:
-          type:
-          - number
-          - 'null'
-          exclusiveMinimum: 0
-          maximum: 300
-        weight_kg:
-          type:
-          - number
-          - 'null'
-          exclusiveMinimum: 0
-          maximum: 300
-        daily_activity:
-          type:
-          - string
-          - 'null'
-          enum:
-          - low
-          - moderate
-          - high
-          - null
-        training_minutes:
-          type:
-          - integer
-          - 'null'
-          minimum: 0
-          maximum: 600
-        eating_style:
-          type:
-          - string
-          - 'null'
-          enum:
-          - home_cooked
-          - eating_out
-          - convenience_store
-          - null
-        target_weight_kg:
-          type:
-          - number
-          - 'null'
-          minimum: 30
-          maximum: 300
+          description: 西暦。15〜100歳の範囲（外なら 422）
     GoalSuggestion:
       type: object
       required:
+      - status
       - goal
-      - notes
-      - used
       properties:
+        status:
+          type: string
+          enum:
+          - ok
+          - needs_input
         goal:
-          $ref: '#/components/schemas/NutritionGoalFields'
+          description: 保存する目標の形（status が needs_input なら null）
+          oneOf:
+          - $ref: '#/components/schemas/NutritionGoalFields'
+          - type: 'null'
+        message:
+          type: string
+          description: needs_input のとき、足りない入力の案内
+        missing:
+          type: array
+          description: needs_input のとき、足りない入力（weight・sex・birth_year・height・activity）
+          items:
+            type: object
+            required:
+            - item
+            - label
+            - how
+            properties:
+              item:
+                type: string
+              label:
+                type: string
+              how:
+                type: string
+        training_day:
+          type: object
+          description: ok のとき、筋トレの日の kcal・たんぱく質・脂質・炭水化物
+        rest_day:
+          type: object
+          description: ok のとき、休みの日の kcal・たんぱく質・脂質・炭水化物
+        basis:
+          type: object
+          description: ok のとき、計算のもと（体重と日付、体脂肪率、式、基礎代謝、1日の消費、係数、方針、週のペース、1日あたりの差、たんぱく質）
         notes:
           type: array
           items:
             type: string
-          description: 出せなかった目標と、その理由
-        used:
-          type: object
-          description: 計算に使った体のデータ（答えなかった項目は含まない）
     FieldError:
       type: object
       required:

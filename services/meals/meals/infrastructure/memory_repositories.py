@@ -2,10 +2,12 @@
 
 from datetime import date
 
+from meals.domain.auto_goal import BodyDay
 from meals.domain.body_weight import WeightRecord
 from meals.domain.meal import Meal
 from meals.domain.meal_template import MealTemplate
 from meals.domain.nutrition_goal import NutritionGoal
+from meals.domain.ports import GoalSettings
 from meals.domain.values import DayType, EaterId, MealSlot
 
 SLOT_ORDER = list(MealSlot)
@@ -80,3 +82,17 @@ class InMemoryDayTypeRepository:
 
     async def get(self, eater_id: EaterId, day: date) -> DayType | None:
         return self._day_types.get((eater_id, day))
+
+
+class InMemoryBodyData:
+    """目標の自動計算に使う体のデータ（テスト用）。"""
+
+    def __init__(self):
+        self.days: dict[EaterId, list[BodyDay]] = {}
+        self.settings: dict[EaterId, GoalSettings] = {}
+
+    async def body_days(self, eater_id: EaterId) -> list[BodyDay]:
+        return list(self.days.get(eater_id, []))
+
+    async def goal_settings(self, eater_id: EaterId) -> GoalSettings:
+        return self.settings.get(eater_id, GoalSettings(None, None, None))

@@ -13,6 +13,7 @@ from meals.domain.errors import MealError, NotFound
 from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
 from meals.domain.values import DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 from meals.infrastructure.memory_repositories import (
+    InMemoryBodyData,
     InMemoryDayTypeRepository,
     InMemoryGoalRepository,
     InMemoryMealRepository,
@@ -38,7 +39,7 @@ def app():
     return {
         "meals": MealService(eaters, meals, ids),
         "templates": TemplateService(eaters, meals, InMemoryMealTemplateRepository(), ids),
-        "goals": GoalService(eaters, goals, day_types),
+        "goals": GoalService(eaters, goals, day_types, InMemoryBodyData()),
         "summaries": SummaryService(eaters, meals, goals, day_types),
     }
 

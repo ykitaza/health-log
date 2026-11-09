@@ -126,3 +126,62 @@ def test_量を変えると栄養も同じ割合で変わる(case):
                     Nutrition(before["kcal"], before["protein_g"], before["fat_g"], before["carbs_g"]), Confidence.HIGH)
     after = item.with_amount(case["amount"])
     assert {"amount": after.quantity.amount, "unit": after.quantity.unit.value, **nutrition(after.nutrition)} == case["after"]
+
+
+# --- slots.json：時刻から決める食事の区分（アプリの slotAt と同じ） ---
+
+def test_時刻から決める区分はアプリと同じ():
+    from datetime import time
+
+    from meals.domain.values import MealSlot
+
+    cases = load("slots.json")["cases"]
+    assert [c["hour"] for c in cases] == list(range(24))
+    assert [MealSlot.from_time(time(c["hour"], 0)).value for c in cases] == [c["slot"] for c in cases]
+    assert [MealSlot.from_time(time(c["hour"], 59)).value for c in cases] == [c["slot"] for c in cases]
+
+
+# --- auto_goal.json：目標の自動計算（アプリの lib/autoGoal.ts と同じ数字） ---
+
+def _basis_view(b):
+    if b is None:
+        return None
+    fat = b.body_fat
+    return {"weight_kg": b.weight_kg, "weight_from": b.weight_from.isoformat(), "weight_to": b.weight_to.isoformat(),
+            "weight_days": b.weight_days, "body_fat": None if fat is None else {
+                "pct": fat.pct, "from": fat.start.isoformat(), "to": fat.end.isoformat(), "days": fat.days}}
+
+
+def _target_view(t):
+    return {"kcal": t.kcal, "fat_g": t.fat_g, "carbs_g": t.carbs_g}
+
+
+@pytest.mark.parametrize("case", load("auto_goal.json")["cases"], ids=lambda c: c["name"])
+def test_目標の自動計算はアプリと同じ(case):
+    """アプリの画面と同じ組み立て（設定の目標体重 → 今の目標の目標体重、年齢は今日の年 − 生まれた年）を、GoalService で通す。"""
+    from meals.application.goals import GoalService
+    from meals.domain.auto_goal import Activity, BodyDay, Sex
+    from meals.domain.ports import GoalSettings
+    from meals.infrastructure import memory_repositories as memory
+
+    eaters, goals, body = SubjectAsEaterId(), memory.InMemoryGoalRepository(), memory.InMemoryBodyData()
+    eater = EaterId(USER)
+    body.days[eater] = [BodyDay(date.fromisoformat(d["date"]), d["weight_kg"], d["body_fat_pct"]) for d in case["days"]]
+    s = case["settings"]
+    body.settings[eater] = GoalSettings(s["height_cm"], s["goal_weight_kg"], Activity(s["activity"]) if s["activity"] else None)
+    if case["current_goal_target_weight_kg"] is not None:
+        asyncio.run(goals.save(NutritionGoal(eater, Policy.MAINTAIN, target_weight_kg=case["current_goal_target_weight_kg"])))
+    p = case["profile"]
+    service = GoalService(eaters, goals, memory.InMemoryDayTypeRepository(), body)
+    r = asyncio.run(service.suggest(USER, date.fromisoformat(case["today"]),
+                                    Sex(p["sex"]) if p["sex"] else None, p["birth_year"]))
+    expected = case["expected"]
+    assert list(r.missing) == expected["missing"]
+    assert _basis_view(r.basis) == expected["basis"]
+    c = r.calc
+    got = None if c is None else {
+        "bmr": c.bmr, "bmr_method": c.bmr_method, "tdee_rest": c.tdee_rest, "tdee_training": c.tdee_training,
+        "policy": c.policy.value, "weekly_kg": c.weekly_kg, "daily_delta": c.daily_delta, "floored": c.floored,
+        "body_weight_kg": c.body_weight_kg, "protein_g": c.protein_g,
+        "training": _target_view(c.training), "rest": _target_view(c.rest)}
+    assert got == expected["calc"]

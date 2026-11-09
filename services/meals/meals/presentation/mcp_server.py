@@ -22,7 +22,7 @@ from meals.application.summaries import SummaryService
 from meals.application.templates import TemplateService
 from meals.application.weights import WeightService
 from meals.domain.errors import MealError
-from meals.domain.goal_suggestion import BodyProfile, DailyActivity, GoalPlan, Sex
+from meals.domain.auto_goal import Sex
 from meals.domain.meal import MAX_ITEMS
 from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from meals.domain.values import DayType, EaterId, MealSlot
@@ -50,7 +50,7 @@ INSTRUCTIONS = """食事を記録し、カロリーと PFC（たんぱく質・�
 ほかの質問（調味料・油など）はしない。了承を得てから record_meal を呼ぶ。直したい点があれば直してから記録する。
 「いつもの」「昨日と同じ」、数値だけの記録は、中身が分かっているので確認なしで記録してよい。
 記録したら、返ってきた today の残りを一言で伝える。目標を守れたかどうかで利用者を責めない。
-目標を決めるときは goal_questions を呼び、その項目を利用者に聞く。体重・身長・年齢などを推測で埋めてはいけない。
+目標を決める・変えるときは suggest_goals を呼ぶ（体組成の記録とアプリの設定から計算する）。性別・生まれた年などを推測で埋めてはいけない。
 結果の goal が null なら目標は未設定。goal があって target の数字が null なら、方針だけの目標がある（未設定と言わない）。
 結果に suggested_next があれば、返事の最後にその中から1つだけ次の操作として提案する。
 見せ方は任せる。利用者の好み：数字は表やグラフで見やすく。PFC は割合（%）とグラム数の両方（円グラフがよい）。
@@ -61,25 +61,6 @@ INSTRUCTIONS = """食事を記録し、カロリーと PFC（たんぱく質・�
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
-
-# 目標を決めるときに聞く項目。フォームはホスト（ChatGPT・Claude）の機能に任せ、こちらは項目だけを決める
-GOAL_QUESTIONS = [
-    {"name": "policy", "label": "方針", "required": True, "choices": {"bulk": "増量", "maintain": "維持", "cut": "減量"}},
-    {"name": "pace_kg_per_week", "label": "ペース（1週間あたり）", "when": "増量か減量のとき",
-     "choices": {"0.25": "0.25kg（ゆっくり）", "0.5": "0.5kg", "0.75": "0.75kg"}, "default": "0.25"},
-    {"name": "target_weight_kg", "label": "目標体重（kg）", "when": "増量か減量のとき", "type": "number"},
-    {"name": "sex", "label": "性別（基礎代謝の計算に使う）",
-     "choices": {"male": "男性", "female": "女性", "unspecified": "回答しない"}, "default": "unspecified"},
-    {"name": "age", "label": "年齢", "type": "number"},
-    {"name": "height_cm", "label": "身長（cm）", "type": "number"},
-    {"name": "weight_kg", "label": "今の体重（kg）", "type": "number"},
-    {"name": "daily_activity", "label": "筋トレ以外の普段の活動量",
-     "choices": {"low": "座り仕事が中心", "moderate": "立ち仕事・よく歩く", "high": "体を動かす仕事"}},
-    {"name": "training_minutes", "label": "筋トレ1回の時間（分）", "type": "number"},
-    {"name": "protein_per_kg", "label": "たんぱく質（体重1kgあたり）",
-     "choices": {"1.6": "1.6g", "1.8": "1.8g", "2.0": "2.0g", "2.2": "2.2g"}, "default": "2.0"},
-]
-
 
 # 次の操作の候補。Claude・ChatGPT が返事の最後に1つ提案する（見せ方や案内は AI に任せる）
 NEXT_WEEK = "今週の食事をふり返る"
@@ -278,59 +259,32 @@ def register_meal_tools(
     # --- 目標 ---
 
     @mcp.tool(annotations=READ)
-    async def goal_questions() -> dict:
-        """目標を決める・変えるときに、まずこれを呼ぶ。利用者に聞く項目（questions）と、今の目標を返す。
+    async def suggest_goals(
+        sex: Sex | None = None,
+        birth_year: int | None = None,  # 範囲（15〜100歳）はドメインが確かめる（値を文に入れない）
+    ) -> dict:
+        """目標を決める・変えるときに呼ぶ。体組成の記録とアプリの設定から、筋トレの日・休みの日の目標の案を計算する（保存はしない）。
 
-        questions を、使える入力フォームや選択肢（ホストの機能）で利用者に聞く。必須は方針だけで、ほかは任意。
-        答えたくない項目は省いてよく、推測で埋めない。答えがそろったら suggest_goals を呼び、案を見せてから set_goals を呼ぶ。
+        アプリ（hlog）の「自動で計算」と同じ式・同じ数字。一般的な目安で、医療のための計算ではない（利用者にもそう伝える）。
+        - 体重・体脂肪率：いちばん新しい体重の日を含む7日の平均（アプリから同期した記録と Health Connect の取り込み）
+        - 基礎代謝：体脂肪率があれば Katch-McArdle、なければ Mifflin-St Jeor（性別・生まれた年・身長が要る）
+        - 1日の消費：基礎代謝 × 活動の量の係数（設定）。筋トレの日は +280kcal
+        - 方針：設定の目標体重との差が ±1% 以内なら維持、減量は週に体重の 0.5%、増量は週に 0.25%（1kg ＝ 7,200kcal）。下限は基礎代謝
+        - たんぱく質は体重 × 2.0g、脂質は kcal の 25%、炭水化物は残り
+        sex と birth_year は、最初は渡さない。結果の status が needs_input で missing に sex・birth_year があるときだけ、
+        本人に聞いて渡す（推測で埋めない）。計算に使うだけで、保存しない。身長・活動の量・体重が足りないときは、
+        missing の how のとおりに案内する。status が ok なら、basis（計算のもと）と training_day・rest_day を見せ、
+        本人が決めたら（数字を直したいと言われたら直して）set_goals_arguments で set_goals を呼ぶ。
         """
         sub = subject()
-        goal = await s.goals.current(sub)
-        return await synced(sub, {
-            "questions": GOAL_QUESTIONS,
-            "current_goal": views.goal(goal) if goal else None,
-        })
-
-    @mcp.tool(annotations=READ)
-    async def suggest_goals(
-        policy: Policy,
-        pace_kg_per_week: float = 0,
-        protein_per_kg: float = 2.0,
-        sex: Sex = Sex.UNSPECIFIED,
-        age: int | None = None,
-        height_cm: float | None = None,
-        weight_kg: float | None = None,
-        daily_activity: DailyActivity | None = None,
-        training_minutes: int | None = None,
-        eating_style: EatingStyle | None = None,
-        target_weight_kg: float | None = None,
-    ) -> dict:
-        """方針と、答えてもらえた体のデータから、目標の案を計算する（保存はしない）。
-
-        必須なのは方針だけ。ほかは利用者が答えたものだけを渡し、答えたくない項目は省く（推測で埋めない）。
-        分かっている項目だけで出せる目標を出し、出せなかった理由を notes で返す。
-        daily_activity は筋トレ以外の活動量（low：座り仕事、moderate：立ち仕事・よく歩く、high：体を動かす仕事）。
-        pace_kg_per_week は1週間に増やす（減らす）体重。維持なら 0。案を利用者に見せ、了承を得てから set_goals を呼ぶ。
-        """
         with domain_errors():
-            profile = BodyProfile(sex, age, height_cm, weight_kg, daily_activity, training_minutes)
-            plan = GoalPlan(policy, pace_kg_per_week, protein_per_kg, eating_style, target_weight_kg)
-            suggestion = await s.goals.suggest(subject(), profile, plan)
-        goal = suggestion.goal
-        return {
-            "goal": views.goal(goal),
-            "used": views.used_inputs(profile),  # 計算に使った値（初期値のまま使った項目に気づけるように見せる）
-            "notes": list(suggestion.notes),
-            "set_goals_arguments": {  # このまま set_goals に渡せる形
-                "policy": goal.policy.value,
-                "body_weight_kg": goal.body_weight_kg,
-                "protein_per_kg": goal.protein_per_kg,
-                "training_day": _target_arguments(goal.training_day),
-                "rest_day": _target_arguments(goal.rest_day),
-                "eating_style": goal.eating_style.value if goal.eating_style else None,
-                "target_weight_kg": goal.target_weight_kg,
-            },
-        }
+            result = await s.goals.suggest(sub, today(), sex, birth_year)
+        view = views.auto_goal(result)
+        fields = views.auto_goal_fields(result)
+        if fields is not None:
+            targets = fields.pop("targets")
+            view["set_goals_arguments"] = {**fields, **targets}  # このまま set_goals に渡せる形
+        return await synced(sub, view)  # 記録はアプリから同期した分なので、最後の同期の時刻も返す
 
     @mcp.tool(annotations=WRITE)
     async def set_goals(
@@ -345,6 +299,7 @@ def register_meal_tools(
         """目標を保存する（食べた人ごとに1つ。上書きする）。必須なのは方針だけ。
 
         値は suggest_goals の案（set_goals_arguments）か、利用者が言った数字だけを使う。推測で決めない。
+        suggest_goals の案は、本人に見せて決めてもらってから保存する（勝手に保存しない）。
         kcal などを利用者が直接決めたときは、training_day と rest_day に同じ値を入れてよい。
         """
         sub = subject()
@@ -381,7 +336,3 @@ def domain_errors():
         yield
     except MealError as e:
         raise ToolError(str(e)) from e
-
-
-def _target_arguments(target: DailyTarget | None) -> dict | None:
-    return None if target is None else {"kcal": target.kcal, "fat_g": target.fat_g, "carbs_g": target.carbs_g}

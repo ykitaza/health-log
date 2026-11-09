@@ -45,7 +45,7 @@ def call(monkeypatch, engine):
     meals, templates, goals, day_types = _repos(engine)
     eaters = SubjectAsEaterId()
     services = mcp_server.Services(
-        MealService(eaters, meals), TemplateService(eaters, meals, templates), GoalService(eaters, goals, day_types),
+        MealService(eaters, meals), TemplateService(eaters, meals, templates), GoalService(eaters, goals, day_types, memory.InMemoryBodyData()),
         SummaryService(eaters, meals, goals, day_types), WeightService(eaters, memory.InMemoryWeightRepository(), goals))
     mcp = MCPServer(name="test")
     mcp_server.register_meal_tools(mcp, services, today=lambda: date(2026, 10, 12))

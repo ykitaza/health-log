@@ -1,0 +1,101 @@
+{
+  "description": "時刻（0〜23時）から決める食事の区分。アプリ（lib/meals.ts の slotAt）とサーバー（MealSlot.from_time）で同じになることを確かめる。境目の時刻は後ろの区分に入る",
+  "cases": [
+    {
+      "hour": 0,
+      "slot": "snack"
+    },
+    {
+      "hour": 1,
+      "slot": "snack"
+    },
+    {
+      "hour": 2,
+      "slot": "snack"
+    },
+    {
+      "hour": 3,
+      "slot": "snack"
+    },
+    {
+      "hour": 4,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 5,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 6,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 7,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 8,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 9,
+      "slot": "breakfast"
+    },
+    {
+      "hour": 10,
+      "slot": "lunch"
+    },
+    {
+      "hour": 11,
+      "slot": "lunch"
+    },
+    {
+      "hour": 12,
+      "slot": "lunch"
+    },
+    {
+      "hour": 13,
+      "slot": "lunch"
+    },
+    {
+      "hour": 14,
+      "slot": "lunch"
+    },
+    {
+      "hour": 15,
+      "slot": "dinner"
+    },
+    {
+      "hour": 16,
+      "slot": "dinner"
+    },
+    {
+      "hour": 17,
+      "slot": "dinner"
+    },
+    {
+      "hour": 18,
+      "slot": "dinner"
+    },
+    {
+      "hour": 19,
+      "slot": "dinner"
+    },
+    {
+      "hour": 20,
+      "slot": "dinner"
+    },
+    {
+      "hour": 21,
+      "slot": "snack"
+    },
+    {
+      "hour": 22,
+      "slot": "snack"
+    },
+    {
+      "hour": 23,
+      "slot": "snack"
+    }
+  ]
+}
