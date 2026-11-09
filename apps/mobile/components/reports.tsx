@@ -6,11 +6,13 @@ import { ReactNode, useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { useFocusData } from '@/hooks/data';
+import { todayKey } from '@/lib/date';
 import {
-  Area, AREA_LABELS, Block, deltaLook, formatCreated, formatDelta, formatMetricValue, formatPeriod, Highlight, KIND_LABELS, Metric,
-  metricLabel, parseMarkdown, primaryMetrics, Report, reportCardLabel, Span, Tone, TONE_LABELS, TONE_SHORT,
+  Area, AREA_LABELS, Block, dailyHighlightLabel, dailySectionTitle, deltaLook, formatCreated, formatDelta, formatMetricValue, formatPeriod,
+  Highlight, highlightsFor, KIND_LABELS, Metric, metricLabel, parseMarkdown, primaryMetrics, Report, reportCardLabel, ReportKind, Span, Tone,
+  TONE_LABELS, TONE_SHORT,
 } from '@/lib/reports';
-import { colors, onToneSub, radius, toneColors } from '@/theme';
+import { colors, onToneSub, radius, space, toneColors } from '@/theme';
 import { duration, HOLD_MS, springs, staggerDelay } from '@/theme/motion';
 import { REPORT_CHAT_LABEL, useChatChooser } from './ChatSheet';
 import { CountUpText } from './charts';
@@ -77,7 +79,16 @@ function MetricChip({ metric }: { metric: Metric }) {
   );
 }
 
-/** 一覧とホームのカード：左に調子の色の帯、調子のアイコンとラベル、作った日、題、要約、主な指標を2つまで */
+/** レポートの種類のラベル（日のまとめ・週のまとめ・月のまとめ・その他）。Figma の KindBadge */
+export function KindBadge({ kind }: { kind: ReportKind }) {
+  return (
+    <View style={{ backgroundColor: colors.input, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 }} testID="report-kind">
+      <T variant="labelM" color={colors.sub}>{KIND_LABELS[kind]}</T>
+    </View>
+  );
+}
+
+/** 一覧とホームのカード：左に調子の色の帯、調子のアイコンとラベル、種類、作った日、題、要約、主な指標を2つまで */
 export function ReportCard({ report, onPress }: { report: Report; onPress: () => void }) {
   const tone = toneColors[report.tone];
   const metrics = primaryMetrics(report);
@@ -96,6 +107,7 @@ export function ReportCard({ report, onPress }: { report: Report; onPress: () =>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon name={TONE_ICON[report.tone]} size={18} color={tone.accent} />
           <T bold size={14} color={tone.accent} style={{ flex: 1 }}>{TONE_LABELS[report.tone]}</T>
+          <KindBadge kind={report.kind} />
           <T size={12} color={colors.sub}>{formatCreated(report.createdAt)}</T>
         </View>
         <T bold size={16}>{report.title}</T>
@@ -301,3 +313,75 @@ export function ReportSection({ title, children }: { title: string; children: Re
   );
 }
 
+
+/**
+ * 日のまとめの分野のカード（Figma の DailyHighlightCard）。分野のアイコンと名前、調子の印（アイコンと言葉）、一文、指標があれば値と変化。
+ * 全体が1つのボタンで、押すと日のまとめの中身を開く
+ */
+export function DailyHighlightCard({ highlight, index, onPress }: { highlight: Highlight; index: number; onPress: () => void }) {
+  const enter = useEntering();
+  const tone = toneColors[highlight.tone];
+  const m = highlight.metric;
+  return (
+    <Animated.View entering={enter(index)}>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={dailyHighlightLabel(highlight)}
+        accessibilityHint="日のまとめを開く"
+        scaleTo={0.98}
+        onPress={onPress}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, paddingVertical: 12, paddingLeft: 12, paddingRight: 8, minHeight: 48 }}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={AREA_ICON[highlight.area]} size={22} color={colors.text} />
+        </View>
+        <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <T variant="labelM" color={colors.sub}>{AREA_LABELS[highlight.area]}</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: tone.container, borderRadius: radius.pill, paddingLeft: 6, paddingRight: 8, paddingVertical: 2 }}>
+              <Icon name={TONE_ICON[highlight.tone]} size={14} color={tone.accent} />
+              <T variant="labelS" color={tone.accent}>{TONE_SHORT[highlight.tone]}</T>
+            </View>
+          </View>
+          <T variant="bodyM">{highlight.text}</T>
+          {m && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+              <T variant="labelS" bold={false} color={colors.sub}>{m.label}</T>
+              <T variant="numS">{formatMetricValue(m.value)}</T>
+              {m.unit !== '' && <T variant="labelS" bold={false} color={colors.sub}>{m.unit}</T>}
+              {m.delta != null && (
+                <>
+                  <Delta metric={m} size={12} />
+                  <T variant="labelS" bold={false} color={colors.sub}>前の日より</T>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+        <Icon name="chevron" size={20} color={colors.sub} />
+      </PressableScale>
+    </Animated.View>
+  );
+}
+
+/**
+ * 各タブの、その日の日のまとめのうち、その分野のもの（筋トレ・食事・からだのタブに1行で差し込む）。
+ * その日の日のまとめがない、またはその分野がないときは、何も出さない（場所も取らない）
+ */
+export function DailyHighlights({ date, areas }: { date: string; areas: readonly Area[] }) {
+  const { data } = useFocusData(async (r) => ({ date, report: await r.reports.dailyFor(date) }), date);
+  // 日を変えた直後は、前の日のまとめを出さない
+  const report = data?.date === date ? data.report : null;
+  const list = highlightsFor(report, areas);
+  if (!report || list.length === 0) return null;
+  const title = dailySectionTitle(date, todayKey());
+  return (
+    <View style={{ gap: space.s, marginTop: space.l }} testID="daily-highlights">
+      <T variant="titleS" color={colors.sub} accessibilityRole="header">{title}</T>
+      {list.map((h, i) => (
+        <DailyHighlightCard key={i} highlight={h} index={i}
+          onPress={() => router.push({ pathname: '/reports/[id]', params: { id: report.id } })} />
+      ))}
+    </View>
+  );
+}

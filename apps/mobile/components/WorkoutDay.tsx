@@ -6,6 +6,7 @@ import { AiRecordButton } from './ChatSheet';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
+import { DailyHighlights } from './reports';
 import { T } from './Text';
 import { Button, Card, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
@@ -13,6 +14,7 @@ import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { todayKey } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
+import { TAB_AREAS } from '@/lib/reports';
 import { bestSet, totalVolume } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
@@ -69,6 +71,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
           <EmptyState title="まだ種目がありません" body="下の「種目を追加」から始めましょう" />
         </View>
       )}
+      {data && entries.length === 0 && <DailyHighlights date={date} areas={TAB_AREAS.training} />}
       {entries.length > 0 && (
         <>
           <Card style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.m, marginTop: space.s }}>
@@ -76,6 +79,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
             <Stat label="セット" value={String(setCount)} center />
             <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
           </Card>
+          <DailyHighlights date={date} areas={TAB_AREAS.training} />
           <View style={{ gap: space.m, marginTop: space.l }}>
             {entries.map((e, i) => {
               const best = bestSet(e.sets);

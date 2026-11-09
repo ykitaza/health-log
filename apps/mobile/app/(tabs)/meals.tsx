@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
+import { DailyHighlights } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { MealWeekly } from '@/components/MealWeekly';
@@ -19,6 +20,7 @@ import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
+import { TAB_AREAS } from '@/lib/reports';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
 
@@ -95,6 +97,7 @@ export default function MealsScreen() {
           )}
         </Card>
       )}
+      <DailyHighlights date={date} areas={TAB_AREAS.meals} />
 
       {SLOTS.map((slot, slotIndex) => {
         const meals = day?.meals.filter((m) => m.slot === slot) ?? [];

@@ -77,6 +77,26 @@ describe('レポート', () => {
     expect(d.outbox().filter((r) => r.entity_type === 'report')).toEqual([]);
   });
 
+  test('その日の日のまとめ：期間がその日だけの daily のうち、いちばん新しいもの。消したもの・ほかの日・週のまとめは選ばない', async () => {
+    const d = await device();
+    const DAY1 = 'aaaaaaaa-0000-4000-8000-000000000011';
+    const DAY2 = 'aaaaaaaa-0000-4000-8000-000000000012';
+    const OTHER_DAY = 'aaaaaaaa-0000-4000-8000-000000000013';
+    const day = (date: string) => ({ title: `${date}のまとめ`, kind: 'daily', period_start: date, period_end: date });
+    saveReport(d, DAY1, '2026-11-08T12:00:00.000Z', day('2026-11-08'));
+    saveReport(d, DAY2, '2026-11-08T13:00:00.000Z', day('2026-11-08'));
+    saveReport(d, OTHER_DAY, '2026-11-08T14:00:00.000Z', day('2026-11-07'));
+    // 週のまとめは、期間がその日を含んでも選ばない。期間がその日だけでも daily でなければ選ばない
+    saveReport(d, WEEK, '2026-11-08T15:00:00.000Z', WEEKLY);
+    saveReport(d, MONTH, '2026-11-08T16:00:00.000Z', { title: 'x', kind: 'other', period_start: '2026-11-08', period_end: '2026-11-08' });
+    await d.engine.run();
+    expect((await d.r.reports.dailyFor('2026-11-08'))?.id).toBe(DAY2);
+    expect((await d.r.reports.dailyFor('2026-11-07'))?.id).toBe(OTHER_DAY);
+    expect(await d.r.reports.dailyFor('2026-11-06')).toBeNull();
+    await d.r.reports.remove(DAY2);
+    expect((await d.r.reports.dailyFor('2026-11-08'))?.id).toBe(DAY1);
+  });
+
   test('壊れた値（知らない調子、JSON でない highlights）でも落ちず、前の形と同じに読む', async () => {
     const d = await device();
     saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', { title: 'x', overall_tone: 'great', highlights: 'nope', next_steps: [1, ''] });

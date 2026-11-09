@@ -25,6 +25,15 @@ export function reportRepository(db: Db, deps: Deps) {
       return row && parseReport(row);
     },
 
+    /** その日の日のまとめ（期間がその日だけの daily）。いくつかあれば、いちばん新しいもの */
+    async dailyFor(date: string): Promise<Report | null> {
+      const row = await db.getFirstAsync<ReportRow>(
+        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = 'daily' AND period_start = ? AND period_end = ?
+         ORDER BY created_at DESC, id DESC LIMIT 1`, [date, date],
+      );
+      return row && parseReport(row);
+    },
+
     async get(id: string): Promise<Report | null> {
       const row = await db.getFirstAsync<ReportRow>(`SELECT ${COLUMNS} FROM reports WHERE id = ? AND deleted_at IS NULL`, [id]);
       return row && parseReport(row);

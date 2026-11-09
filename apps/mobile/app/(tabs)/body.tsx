@@ -6,6 +6,7 @@ import { Icon, IconName } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber, Shake } from '@/components/motion';
+import { DailyHighlights } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton, SectionTitle, TabHeader } from '@/components/ui';
@@ -17,6 +18,7 @@ import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { formatClock, formatHeartRate, formatHM, formatMinutes } from '@/lib/health';
+import { TAB_AREAS } from '@/lib/reports';
 import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
 import { colors, fonts, radius, space } from '@/theme';
@@ -224,6 +226,7 @@ export default function BodyScreen() {
           line
         />
       </Card>
+      <DailyHighlights date={date} areas={TAB_AREAS.body} />
 
       <SectionTitle title={`自動で計算${height != null ? `（身長 ${trimNumber(height)}cm）` : ''}`} />
       {height == null && <T variant="bodyS" color={colors.sub} style={{ marginBottom: space.s }}>BMI は、設定で身長を入れると出ます</T>}
