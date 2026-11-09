@@ -51,7 +51,7 @@ const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
 // ロゴは apps/mobile/assets/icon-src/icon.svg の写し。ファビコンの ICO は、それを rsvg-convert で 16・32・48px の PNG にして ICO に詰めたもの
 const BRAND = {
   bg: '0e1013ff', card: '181b20ff', input: '22262dff', line: '2c313aff',
-  text: 'f3f5f7ff', sub: '8c94a1ff', accent: '5be49bff', onAccent: '08130dff',
+  text: 'f3f5f7ff', sub: '9aa1adff', accent: '5be49bff', onAccent: '08130dff',
   danger: 'f2555aff', dangerBg: '3a1719ff',
 };
 const brandingAsset = (file: string, category: string, extension: string) => ({

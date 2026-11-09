@@ -49,7 +49,7 @@ const signed = (n: number, digits = 0) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}
 /**
  * 目標（kcal と PFC）の確認と設定。MCP の set_goals と同じく、数字をそのまま決める（必須は方針だけ）。
  * 「自動で計算」は、体重・体脂肪率の記録と設定から、筋トレの日と休みの日の目標を入れる（lib/autoGoal.ts。保存は「目標を保存」で）。
- * MCP の suggest_goals（サーバーの計算）とは別の計算で、本人が答えた値を使う MCP と違い、端末の記録を使う
+ * MCP の suggest_goals と同じ計算（testdata/meals/auto_goal.json で、アプリとサーバーが同じ数字になることを確かめている）
  */
 export default function GoalScreen() {
   const repos = useRepos();
