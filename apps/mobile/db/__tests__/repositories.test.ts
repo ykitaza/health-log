@@ -80,6 +80,20 @@ describe('設定', () => {
     await Promise.all([r.settings.update({ heightCm: 170 }), r.settings.update({ goalWeightKg: 65 }), r.settings.update({ weightUnit: 'lb' })]);
     expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65 });
   });
+
+  test('最後に選んだチャットのアプリは端末だけに覚え、同期に載せない', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.lastChatApp()).toBeNull();
+    await r.settings.setLastChatApp('claude');
+    expect(await r.settings.lastChatApp()).toBe('claude');
+    await r.settings.setLastChatApp('chatgpt');
+    expect(await r.settings.lastChatApp()).toBe('chatgpt');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    // 知らない値は覚えていないことにする
+    db.raw.prepare("UPDATE sync_meta SET value = 'other' WHERE key = 'chat.last_app'").run();
+    expect(await r.settings.lastChatApp()).toBeNull();
+  });
 });
 
 describe('種目と部位', () => {

@@ -1,3 +1,4 @@
+import { ChatApp, isChatApp } from '@/lib/chat';
 import type { WeightUnit } from '@/lib/units';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -10,6 +11,9 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = { weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null };
+
+/** 最後に選んだチャットのアプリ。端末だけに覚える（同期しない sync_meta に置く） */
+const LAST_CHAT_APP = 'chat.last_app';
 
 const KEYS: Record<keyof Settings, string> = {
   weightUnit: 'weight_unit',
@@ -42,6 +46,18 @@ export function settingsRepository(db: Db, deps: Deps) {
 
   return serializeWrites(db, {
     get,
+
+    async lastChatApp(): Promise<ChatApp | null> {
+      const v = (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [LAST_CHAT_APP]))?.value;
+      return isChatApp(v) ? v : null;
+    },
+
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
+    async setLastChatApp(app: ChatApp): Promise<void> {
+      await db.runAsync(
+        'INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [LAST_CHAT_APP, app],
+      );
+    },
 
     /** 今の値（初期値を含む）と同じ項目は書かない */
     async update(patch: Partial<Settings>): Promise<void> {

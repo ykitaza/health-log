@@ -96,6 +96,7 @@ export default function SettingsScreen() {
           onPress={() => router.push('/account')}
         />
         <ListRow title="Health Connect" subtitle="体重計・睡眠・心拍の取り込み（Android）" onPress={() => router.push('/health-connect')} />
+        <ListRow title="チャットとの連携" subtitle="Claude・ChatGPT のつなぎ方と、開くボタン" onPress={() => router.push('/chat')} />
       </Card>
 
       {/* 筋トレ：記録の初期値と種目。食事：目標（前は「種目」の区分けに食事の目標が入っていた） */}
@@ -142,11 +143,6 @@ export default function SettingsScreen() {
           ? '記録はこの端末に保存し、サーバーと同期します。同期の様子はアカウントの画面で見られます。'
           : '記録はこの端末の中だけに保存されます。アプリを消すと記録も消えます。ログインすると、サーバーと同期します。'}
       </T>
-
-      <SectionTitle title="次の段階で使えるようになるもの" accent />
-      <Card style={{ padding: 0 }}>
-        <ListRow first title="チャットとの連携" dim right={<Badge label="準備中" tone="neutral" />} />
-      </Card>
 
       <AppVersion />
     </Screen>

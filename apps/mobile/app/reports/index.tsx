@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { REPORT_CHAT_LABEL, useChatChooser } from '@/components/ChatSheet';
 import { LoadError } from '@/components/LoadError';
 import { useListMotion } from '@/components/motion';
 import { ReportCard } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, EmptyState, Header } from '@/components/ui';
+import { Button, Card, EmptyState, Header } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { colors } from '@/theme';
 
@@ -16,6 +17,7 @@ const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレ�
 export default function ReportsScreen() {
   const { data, error, reload } = useFocusData((r) => r.reports.list());
   const list = useListMotion(data != null);
+  const chat = useChatChooser();
   const header = <Header title="レポート" onBack={() => router.back()} />;
   if (error) return <Screen>{header}<LoadError onRetry={reload} /></Screen>;
   if (data == null) return <Screen>{header}</Screen>;
@@ -23,11 +25,13 @@ export default function ReportsScreen() {
     return (
       <Screen>
         {header}
-        <EmptyState icon="chart" title="レポートはまだありません" body="チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。" />
+        <EmptyState icon="chart" title="レポートはまだありません" body="チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。"
+          action={<Button label="チャットで作る" icon="chat" variant="tonal" accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report} />} />
         <Card style={{ gap: 8 }}>
           <T bold size={14} accessibilityRole="header">頼み方の例</T>
           {EXAMPLES.map((e) => <T key={e} size={14}>・{e}</T>)}
         </Card>
+        {chat.sheet}
       </Screen>
     );
   }

@@ -31,9 +31,9 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await expect(homeCard(page, 'training')).toBeVisible();
   await openSettings(page);
   await expect(page.getByRole('tablist')).toBeHidden();
-  // 設定の「準備中」
+  // 設定の「チャットとの連携」（前は準備中だった）
   await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
-  await expect(see(page, '準備中', { exact: true })).toHaveCount(1);
+  await expect(see(page, '準備中', { exact: true })).toHaveCount(0);
   await button(page, '戻る').click();
   await expect(homeCard(page, 'training')).toBeVisible();
   await expect(page.getByRole('tablist')).toBeVisible();
