@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
+import { PressableScale } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
@@ -140,7 +141,7 @@ export default function BodyScreen() {
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
         <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, padding: 0 }}>
@@ -212,7 +213,7 @@ export default function BodyScreen() {
       {height == null && <T size={12} color={colors.sub} style={{ marginBottom: 8 }}>BMI は、設定で身長を入れると出ます</T>}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {computed.map((c) => (
-          <Pressable key={c.label} accessibilityRole="button" accessibilityLabel={`${c.label}の推移`} onPress={() => openTrend(c.metric)} style={s.computed}>
+          <PressableScale key={c.label} accessibilityRole="button" accessibilityLabel={`${c.label}の推移`} onPress={() => openTrend(c.metric)} style={s.computed}>
             <View style={{ flex: 1 }}>
               <T size={12} color={colors.sub}>{c.label}</T>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
@@ -221,7 +222,7 @@ export default function BodyScreen() {
               </View>
             </View>
             <Icon name="chart" size={18} color={colors.sub} />
-          </Pressable>
+          </PressableScale>
         ))}
       </View>
 
@@ -251,7 +252,7 @@ export default function BodyScreen() {
         </Card>
       )}
 
-      <Pressable accessibilityRole="button" accessibilityLabel="体重の推移を見る" onPress={() => openTrend('weight')}>
+      <PressableScale accessibilityRole="button" accessibilityLabel="体重の推移を見る" scaleTo={0.98} onPress={() => openTrend('weight')}>
         <Card style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
             <T bold size={16}>体重の推移</T>
@@ -270,7 +271,7 @@ export default function BodyScreen() {
             <T size={13} color={colors.sub}>この1か月の体重の記録が2日以上になると、グラフが出ます</T>
           )}
         </Card>
-      </Pressable>
+      </PressableScale>
     </Screen>
   );
 }

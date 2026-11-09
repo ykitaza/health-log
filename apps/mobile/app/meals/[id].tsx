@@ -127,7 +127,7 @@ export default function MealDetailScreen() {
       <Card style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の日に移す" bg="transparent" onPress={() => setDate(addDays(date, -1))} />
         <T bold size={15}>{formatJpDate(date)}{meal.time ? `　${meal.time}` : ''}</T>
-        <IconButton name="next" label="次の日に移す" bg="transparent" color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
+        <IconButton name="next" label="次の日に移す" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && setDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

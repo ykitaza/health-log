@@ -50,6 +50,10 @@ flowchart LR
 
 ![構成図](docs/architecture.drawio.svg)
 
+デプロイの流れ（アプリの JS の配信・APK・サーバー）は次のとおりです（[サーバーの CD](docs/cd.md)、[アプリの配信](apps/mobile/docs/eas.md)）。
+
+![デプロイの流れ](docs/deploy-flow.drawio.svg)
+
 | フォルダ | 役割 |
 |---|---|
 | `apps/mobile/` | Android アプリ「hlog」（Expo、expo-router、SQLite）（[README](apps/mobile/README.md)） |

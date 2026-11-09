@@ -30,7 +30,7 @@ export function MealWeekly() {
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
         <IconButton name="prev" label="前の週" bg="transparent" onPress={() => setLastDay(addDays(lastDay, -7))} />
         <T bold size={16}>{formatShortDate(addDays(lastDay, -6))}〜{formatShortDate(lastDay)}</T>
-        <IconButton name="next" label="次の週" bg="transparent" color={lastDay >= today ? colors.line : colors.text}
+        <IconButton name="next" label="次の週" bg="transparent" disabled={lastDay >= today} color={lastDay >= today ? colors.line : colors.text}
           onPress={() => lastDay < today && setLastDay(addDays(lastDay, 7) > today ? today : addDays(lastDay, 7))} />
       </Card>
 

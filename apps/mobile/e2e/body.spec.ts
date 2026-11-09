@@ -123,7 +123,8 @@ test('メモは 1000 文字で止まる', async ({ page }) => {
 test('日付の移動。先の日には進めず、入力中に日を変えても元の日に保存する', async ({ page }) => {
   await openApp(page);
   await openBody(page);
-  await button(page, '次の日').click();
+  // 今日より先には進めない（押せない）
+  await expect(button(page, '次の日')).toBeDisabled();
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
 
   await enter(page, '体重', '68.4');

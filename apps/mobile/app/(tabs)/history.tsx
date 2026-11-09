@@ -18,6 +18,7 @@ import {
   totalVolume, trainingDates, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors, partColor } from '@/theme';
 
 const ALL = 'all';
@@ -112,7 +113,7 @@ export default function HistoryScreen() {
           ) : view === 'calendar' ? (
             <>
               <Card style={{ marginTop: 14 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { bottom: 10 }) }}>
                   <IconButton name="prev" label="前の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, -1))} />
                   <T num bold size={24}>{MONTH_NAMES_EN[m - 1]} {year}</T>
                   <IconButton name="next" label="次の月" size={36} bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
@@ -194,7 +195,7 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
 
   return (
     <>
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 6, ...touchRoom(9, { top: 12 }) }}>
         {PERIODS.map((p) => (
           <Pressable key={p} accessibilityRole="button" aria-selected={period === p} hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }} onPress={() => setPeriod(p)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p ? colors.input : 'transparent' }}>
             <T size={13} bold={period === p} color={period === p ? colors.text : colors.sub}>{PERIOD_LABELS[p]}</T>

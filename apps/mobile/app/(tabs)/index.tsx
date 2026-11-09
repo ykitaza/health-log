@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { MonthCalendar } from '@/components/MonthCalendar';
+import { PressableScale } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
@@ -12,6 +13,7 @@ import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday
 import { formatSetLong, tonnes } from '@/lib/format';
 import { bestSet, daysInMonth, periodTotals, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
+import { touchRoom } from '@/lib/touch';
 import { colors } from '@/theme';
 
 const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週前'];
@@ -99,12 +101,12 @@ export default function HomeScreen() {
         <Button label="RM計算機" icon="calc" variant="outline" onPress={() => router.push('/rm')} />
       </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(15, { top: 22, bottom: 10 }) }}>
         <T bold size={17}>{dayLabel}の記録</T>
         {isToday ? (
           <T size={13} color={colors.sub}>{formatJpDate(today)}</T>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable accessibilityRole="button" onPress={() => setPicked(null)} hitSlop={{ top: 15, bottom: 15, left: 8, right: 8 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="calendar" size={15} color={colors.accent} />
             <T bold size={13} color={colors.accent}>今日に戻る</T>
           </Pressable>
@@ -123,7 +125,7 @@ export default function HomeScreen() {
         {dayEntries?.map((e) => {
           const best = bestSet(e.sets);
           return (
-            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`${e.exerciseName}の記録を開く`} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
+            <PressableScale key={e.id} accessibilityRole="button" accessibilityLabel={`${e.exerciseName}の記録を開く`} scaleTo={0.98} onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}>
               <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T bold size={16} style={{ flex: 1 }}>{e.exerciseName}</T>
@@ -144,7 +146,7 @@ export default function HomeScreen() {
                   </View>
                 ))}
               </Card>
-            </Pressable>
+            </PressableScale>
           );
         })}
       </View>

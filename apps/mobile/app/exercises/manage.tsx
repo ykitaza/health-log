@@ -9,6 +9,7 @@ import { Button, Card, ConfirmDialog, Header, ListRow } from '@/components/ui';
 import { HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
+import { touchRoom } from '@/lib/touch';
 import { colors, fonts } from '@/theme';
 
 const TYPE_LABEL = { weight_reps: '重量×回数', reps_only: '回数だけ' } as const;
@@ -109,7 +110,7 @@ export default function ManageScreen() {
                 </View>
               </Card>
             ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, ...touchRoom(14, { bottom: 8 }) }}>
                 <T bold size={14} color={p.hidden ? colors.sub : colors.text} style={{ flexShrink: 1 }}>{p.name}{p.hidden ? '（非表示）' : ''}</T>
                 <Pressable
                   accessibilityRole="button"

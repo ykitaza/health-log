@@ -183,9 +183,9 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   const card = (name: string) => page.getByRole('button', { name: `${name}を外す` }).locator('..');
   await card('デッドリフト').getByRole('button', { name: '上へ' }).dblclick();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);
-  // 端では動かない
-  await card('デッドリフト').getByRole('button', { name: '上へ' }).click();
-  await card('スクワット').getByRole('button', { name: '下へ' }).click();
+  // 端では押せない
+  await expect(card('デッドリフト').getByRole('button', { name: '上へ' })).toBeDisabled();
+  await expect(card('スクワット').getByRole('button', { name: '下へ' })).toBeDisabled();
   await card('ベンチプレス').getByRole('button', { name: '下へ' }).click();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'スクワット', 'ベンチプレス']);
   await card('ベンチプレス').getByRole('button', { name: '上へ' }).click();

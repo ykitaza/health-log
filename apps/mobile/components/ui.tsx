@@ -2,7 +2,9 @@ import { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
 import { colors, radius } from '@/theme';
+import { touchSlop } from '@/lib/touch';
 import { Icon, IconName } from './Icon';
+import { PressableScale } from './motion';
 import { T } from './Text';
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -23,36 +25,40 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, st
   const bg = { primary: colors.accent, secondary: colors.input, danger: colors.dangerDark, outline: 'transparent' }[variant];
   const fg = { primary: colors.onAccent, secondary: colors.text, danger: colors.danger, outline: colors.text }[variant];
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [
+      hitSlop={small ? { top: touchSlop(44), bottom: touchSlop(44) } : undefined}
+      style={[
         s.button,
-        { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.8 : 1, minHeight: small ? 44 : 56 },
+        { backgroundColor: bg, opacity: disabled ? 0.45 : 1, minHeight: small ? 44 : 56 },
         variant === 'outline' && { borderWidth: 1, borderColor: colors.line },
         style,
       ]}
     >
       {icon && <Icon name={icon} color={fg} size={small ? 18 : 20} />}
       <T bold size={small ? 13 : 15} color={fg} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>{label}</T>
-    </Pressable>
+    </PressableScale>
   );
 }
 
-export function IconButton({ name, onPress, label, color = colors.text, bg = colors.card, size = 44 }: {
-  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number;
+/** アイコンだけのボタン。押せる範囲は hitSlop で 48 以上にする。disabled は押せなくし、読み上げで「使用不可」（色は呼ぶ側が決める） */
+export function IconButton({ name, onPress, label, color = colors.text, bg = colors.card, size = 44, disabled }: {
+  name: IconName; onPress: () => void; label: string; color?: string; bg?: string; size?: number; disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => [{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 }]}
+      disabled={disabled}
+      hitSlop={touchSlop(size, 6)}
+      scaleTo={0.92}
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}
     >
       <Icon name={name} color={color} size={Math.round(size * 0.48)} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -92,20 +98,23 @@ export function DayNote({ date, today }: { date: string; today: string }) {
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       aria-selected={!!active}
       onPress={onPress}
+      hitSlop={{ top: touchSlop(CHIP_HEIGHT), bottom: touchSlop(CHIP_HEIGHT) }}
       style={[s.chip, active ? { backgroundColor: colors.accentDark, borderColor: colors.accent } : { backgroundColor: colors.input, borderColor: colors.input }]}
     >
       <T size={13} bold={active} color={active ? colors.accent : colors.sub}>{label}</T>
-    </Pressable>
+    </PressableScale>
   );
 }
 
 export function ChipRow({ children }: { children: ReactNode }) {
+  // チップの上下の hitSlop が届くように、見た目を変えずに上下を広げる（Android では hitSlop が親の外に出ない）
+  const room = touchSlop(CHIP_HEIGHT);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: -room }} contentContainerStyle={{ gap: 8, paddingRight: 16, paddingVertical: room }}>
       {children}
     </ScrollView>
   );
@@ -170,11 +179,12 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
 }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      style={({ pressed }) => [s.row, !first && s.rowLine, { opacity: pressed ? 0.7 : 1 }]}
+      scaleTo={0.98}
+      style={[s.row, !first && s.rowLine]}
     >
       <View style={{ flex: 1, opacity: dim ? 0.45 : 1 }}>
         <T bold size={16}>{title}</T>
@@ -182,7 +192,7 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
       </View>
       {right}
       {onPress && chevron && <Icon name="chevron" color={colors.sub} size={18} />}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -203,12 +213,14 @@ export function Badge({ label, color = colors.accent, bg = colors.accentDark }: 
   );
 }
 
+export const CHIP_HEIGHT = 34;
+
 const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16 },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   dayNote: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4 },
-  chip: { paddingHorizontal: 14, height: 34, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { paddingHorizontal: 14, height: CHIP_HEIGHT, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   segment: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 4 },
   segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
