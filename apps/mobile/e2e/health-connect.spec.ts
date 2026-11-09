@@ -27,3 +27,27 @@ test('Health Connect の画面：web では「Android だけ」と出て、連�
   await expect(see(page, 'Health Connect の使い方')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('からだの睡眠・心拍の行から推移を開く。記録がなければ「Health Connect をつなぐ」が出て、つなぐ画面へ行ける', async ({ page }) => {
+  // 推移の数字（平均・寝た時刻の平均）と期間の読み出しは jest（lib/__tests__/healthTrend.test.ts、db/__tests__/healthConnect.test.ts）
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await openApp(page);
+  await openBody(page);
+  await expect(page.getByTestId('sleep-day').filter({ visible: true })).toContainText('この日の記録はありません');
+  await page.getByRole('button', { name: '睡眠の推移を見る' }).click();
+  await expect(see(page, '睡眠の推移', { exact: true })).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
+  // 期間の切り替えは残す
+  await button(page, '3か月').click();
+  await expect(button(page, '3か月')).toHaveAttribute('aria-selected', 'true');
+  await button(page, 'Health Connect をつなぐ').click();
+  await expect(see(page, '連携していません')).toBeVisible();
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  await page.getByRole('button', { name: '安静時心拍の推移を見る' }).click();
+  await expect(see(page, '安静時心拍の推移', { exact: true })).toBeVisible();
+  await expect(button(page, 'Health Connect をつなぐ')).toBeVisible();
+  expect(errors).toEqual([]);
+});

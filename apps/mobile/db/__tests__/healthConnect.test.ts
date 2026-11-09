@@ -397,3 +397,27 @@ describe('版4のマイグレーション', () => {
     expect(rows).toEqual([{ op: 'create', origin: 'app' }, { op: 'update', origin: 'app' }]);
   });
 });
+
+describe('睡眠・心拍の期間の読み出し（推移の画面）', () => {
+  test('期間の日ごとの睡眠（同じ日の複数の睡眠は足し、いちばん長いものの時刻）と心拍。期間の外と消したものは入らない', async () => {
+    const d = await device();
+    hc.put(sleep('s1', '2026-11-04T14:00:00Z', '2026-11-04T21:00:00Z'));
+    hc.put(sleep('s2', '2026-11-06T14:40:00Z', '2026-11-06T21:55:00Z'));
+    hc.put(sleep('s3', '2026-11-07T04:00:00Z', '2026-11-07T04:30:00Z'));
+    hc.put(sleep('s4', '2026-10-01T14:00:00Z', '2026-10-01T21:00:00Z'));
+    hc.put(restingHeartRate('r1', '2026-11-05T03:00:00Z', 57));
+    hc.put(restingHeartRate('r2', '2026-11-06T03:00:00Z', 55));
+    await runImport(d);
+    const days = await d.r.health.sleepDays('2026-11-01', '2026-11-08');
+    expect(days.map((x) => [x.date, x.sessions])).toEqual([['2026-11-05', 1], ['2026-11-07', 2]]);
+    expect(days[1]).toMatchObject({ mainStartAt: '2026-11-06T14:40:00.000Z', mainEndAt: '2026-11-06T21:55:00.000Z' });
+    expect(days[1].asleepMin).toBe((await d.r.health.sleepDay('2026-11-07'))!.asleepMin);
+    hc.remove('s1');
+    await runImport(d);
+    expect((await d.r.health.sleepDays('2026-11-01', '2026-11-08')).map((x) => x.date)).toEqual(['2026-11-07']);
+
+    const hr = await d.r.health.heartRateDays('2026-11-06', '2026-11-08');
+    expect(hr.map((x) => [x.date, x.restingBpm])).toEqual([['2026-11-06', 55]]);
+    expect(await d.r.health.heartRateDays('2026-11-01', '2026-11-08')).toHaveLength(2);
+  });
+});

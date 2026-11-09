@@ -2,13 +2,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LineChart } from '@/components/charts';
-import { Icon } from '@/components/Icon';
+import { Icon, IconName } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber, Shake } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Badge, Card, IconButton, TabHeader } from '@/components/ui';
+import { Badge, Card, IconButton, SectionTitle, TabHeader } from '@/components/ui';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
@@ -16,10 +16,10 @@ import { BodyMetric, bmi, fatMass, leanMass, muscleMass, weightOverview } from '
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
-import { formatClock, formatHeartRate, formatMinutes } from '@/lib/health';
+import { formatClock, formatHeartRate, formatHM, formatMinutes } from '@/lib/health';
 import { Limit, LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber } from '@/lib/units';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, radius, space } from '@/theme';
 
 type Field = 'weightKg' | 'bodyFatPct' | 'musclePct' | 'waistCm';
 const FIELDS: { key: Field; label: string; unit: string; metric: BodyMetric; weight?: boolean }[] = [
@@ -151,21 +151,23 @@ export default function BodyScreen() {
     <Screen tab>
       <TabHeader title="からだ" />
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の日" bg="transparent" onPress={() => changeDate(addDays(date, -1))} />
-        <T bold size={16}>{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" bg="transparent" disabled={date >= today} color={date >= today ? colors.line : colors.text} onPress={() => date < today && changeDate(addDays(date, 1))} />
+        <IconButton name="prev" label="前の日" onPress={() => changeDate(addDays(date, -1))} />
+        <T variant="titleM">{formatJpDate(date)}</T>
+        <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && changeDate(addDays(date, 1))} />
       </Card>
 
       <Card style={{ marginTop: 12, padding: 0 }}>
         {FIELDS.map((f, i) => (
           <View key={f.key} style={[s.fieldRow, i > 0 && s.line]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <T size={15} color={colors.sub}>{f.label}</T>
+            <View style={{ flex: 1, gap: space.xs }}>
+              <T variant="bodyL">{f.label}</T>
               {day?.imported?.includes(f.key) && texts[f.key] === savedTexts[f.key] && (
-                <T size={10} color={colors.accent} testID={`imported-${f.key}`}>取り込み</T>
+                // Health Connect から取り込んだ値（色だけでなく札の形で出す）
+                <View testID={`imported-${f.key}`}><Badge label="取り込み" tone="neutral" /></View>
               )}
             </View>
-            <Shake trigger={bad?.field === f.key ? bad.count : 0}>
+            {/* 値の欄（枠 3.7:1。入れられる所だと分かるように） */}
+            <Shake trigger={bad?.field === f.key ? bad.count : 0} style={[s.valueBox, bad?.field === f.key && s.valueError]}>
               <Input
                 value={texts[f.key]}
                 onChangeText={(t) => { editing.current.add(f.key); setTexts((x) => ({ ...x, [f.key]: t })); }}
@@ -173,18 +175,17 @@ export default function BodyScreen() {
                 onSubmitEditing={() => commit(f.key)}
                 keyboardType="decimal-pad"
                 placeholder="—"
-                placeholderTextColor={colors.sub}
                 accessibilityLabel={f.label}
-                style={[s.value, bad?.field === f.key && s.valueError]}
+                style={s.value}
               />
+              <T variant="bodyM" color={colors.sub} style={{ width: 24 }}>{f.weight ? unit : f.unit}</T>
             </Shake>
-            <T size={12} color={colors.sub} style={{ width: 22 }}>{f.weight ? unit : f.unit}</T>
-            <IconButton name="close" label={`${f.label}を消す`} bg={colors.input} color={colors.sub} onPress={() => clear(f.key)} />
-            <IconButton name="chart" label={`${f.label}の推移`} bg={colors.accentDark} color={colors.accent} onPress={() => openTrend(f.metric)} />
+            <IconButton name="close" label={`${f.label}を消す`} onPress={() => clear(f.key)} />
+            <IconButton name="chart" label={`${f.label}の推移`} variant="selected" color={colors.accent} onPress={() => openTrend(f.metric)} />
           </View>
         ))}
         <View style={[s.fieldRow, s.line]}>
-          <Icon name="pencil" size={16} color={colors.sub} />
+          <Icon name="pencil" size={24} color={colors.sub} />
           <Input
             value={texts.memo}
             onChangeText={(t) => { editing.current.add('memo'); setTexts((x) => ({ ...x, memo: t })); }}
@@ -192,73 +193,74 @@ export default function BodyScreen() {
             maxLength={MEMO_MAX_LENGTH}
             placeholder="メモ（例：朝・起床後に計測）"
             accessibilityLabel="体組成のメモ"
-            placeholderTextColor={colors.sub}
-            style={{ flex: 1, minWidth: 0, height: 44, color: colors.text, fontFamily: fonts.regular, fontSize: 14 }}
+            style={{ flex: 1, minWidth: 0, height: 48, color: colors.text, fontFamily: fonts.regular, fontSize: 16 }}
           />
         </View>
       </Card>
-      {error && <T size={12} color={colors.danger} style={{ marginTop: 6 }}>{error}</T>}
+      {error && <T variant="bodyS" color={colors.danger} style={{ marginTop: space.s }}>{error}</T>}
 
-      {(data?.sleep || data?.heart) && (
-        <Card style={{ marginTop: 12, paddingVertical: 12, gap: 6 }}>
-          <T size={12} color={colors.sub}>Health Connect から取り込み</T>
-          {data.sleep && (
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="sleep-day">
-              <T size={15} color={colors.sub} style={{ width: 52 }}>睡眠</T>
-              <T num bold size={20}>{formatMinutes(data.sleep.asleepMin)}</T>
-              <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>
-                {formatClock(data.sleep.mainStartAt)}〜{formatClock(data.sleep.mainEndAt)}
-                {data.sleep.sessions > 1 ? `ほか${data.sleep.sessions - 1}回` : ''}
-              </T>
-            </View>
-          )}
-          {data.heart && (
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }} testID="heart-day">
-              <T size={15} color={colors.sub} style={{ width: 52 }}>心拍</T>
-              <T size={12} color={colors.sub} style={{ flexShrink: 1 }}>{formatHeartRate(data.heart)}</T>
-            </View>
-          )}
-        </Card>
-      )}
+      {/* 取り込んだ睡眠・心拍。押すとそれぞれの推移（記録がなければ、Health Connect をつなぐ導線） */}
+      <Card style={{ marginTop: space.m, padding: 0 }}>
+        <HealthRow
+          testID="sleep-day"
+          icon="moon"
+          title="睡眠"
+          sub={data?.sleep ? `${formatClock(data.sleep.mainStartAt)}〜${formatClock(data.sleep.mainEndAt)}${data.sleep.sessions > 1 ? `（ほか${data.sleep.sessions - 1}回）` : ''}` : 'この日の記録はありません'}
+          value={data?.sleep ? formatHM(data.sleep.asleepMin) : '—'}
+          unit={data?.sleep ? '時間:分' : ''}
+          label={data?.sleep ? `睡眠 ${formatMinutes(data.sleep.asleepMin)}。睡眠の推移を見る` : '睡眠の推移を見る'}
+          onPress={() => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } })}
+        />
+        <HealthRow
+          testID="heart-day"
+          icon="heart"
+          title="心拍"
+          sub={data?.heart?.avgBpm != null ? formatHeartRate({ ...data.heart, restingBpm: null }).replace(' 拍/分', '') : 'この日の記録はありません'}
+          lead={data?.heart?.restingBpm != null ? '安静時' : undefined}
+          value={data?.heart?.restingBpm != null ? String(Math.round(data.heart.restingBpm)) : '—'}
+          unit={data?.heart?.restingBpm != null ? 'bpm' : ''}
+          label={data?.heart ? `心拍 ${formatHeartRate(data.heart)}。安静時心拍の推移を見る` : '安静時心拍の推移を見る'}
+          onPress={() => router.push({ pathname: '/health-trend', params: { kind: 'heart' } })}
+          line
+        />
+      </Card>
 
-      <T bold size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 8 }}>
-        自動で計算{height != null ? `（身長 ${trimNumber(height)}cm）` : ''}
-      </T>
-      {height == null && <T size={12} color={colors.sub} style={{ marginBottom: 8 }}>BMI は、設定で身長を入れると出ます</T>}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+      <SectionTitle title={`自動で計算${height != null ? `（身長 ${trimNumber(height)}cm）` : ''}`} />
+      {height == null && <T variant="bodyS" color={colors.sub} style={{ marginBottom: space.s }}>BMI は、設定で身長を入れると出ます</T>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.m }}>
         {computed.map((c) => (
           <PressableScale key={c.label} accessibilityRole="button" accessibilityLabel={`${c.label}の推移`} onPress={() => openTrend(c.metric)} style={s.computed}>
             <View style={{ flex: 1 }}>
-              <T size={12} color={colors.sub}>{c.label}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+              <T variant="bodyS" color={colors.sub}>{c.label}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.xs }}>
                 <RollNumber num bold size={22} value={c.value == null ? '—' : fmt1(c.weight ? kgToUnit(c.value, unit) : c.value)} ready={data != null} />
-                <T size={11} color={colors.sub}>{c.unit}</T>
+                <T variant="labelS" bold={false} color={colors.sub}>{c.unit}</T>
               </View>
             </View>
-            <Icon name="chart" size={18} color={colors.sub} />
+            <Icon name="chart" size={24} color={colors.sub} />
           </PressableScale>
         ))}
       </View>
 
       {progress && goal != null && (
-        <Card style={{ marginTop: 14 }}>
+        <Card style={{ marginTop: space.l }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <T bold size={16}>目標体重まで</T>
-            <T size={13} color={colors.sub}>目標 {fmt1(kgToUnit(goal, unit))}{unit}</T>
+            <T variant="titleM">目標体重まで</T>
+            <T variant="bodyM" color={colors.sub}>目標 {fmt1(kgToUnit(goal, unit))}{unit}</T>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 }}>
             {progress.direction === 'reached' ? (
-              <T bold size={18} color={colors.accent}>目標に届きました</T>
+              <T variant="titleM" size={18} color={colors.accent}>目標に届きました</T>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                <T size={13} color={colors.sub}>あと</T>
-                <T num bold size={30}>{fmt1(kgToUnit(progress.remaining, unit))}</T>
-                <T size={12} color={colors.sub}>{unit}</T>
+                <T variant="bodyM" color={colors.sub}>あと</T>
+                <T variant="numL">{fmt1(kgToUnit(progress.remaining, unit))}</T>
+                <T variant="bodyS" color={colors.sub}>{unit}</T>
               </View>
             )}
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
               {progress.weeks != null && <Badge label={`このペースで約${progress.weeks}週`} />}
-              <T size={11} color={colors.sub}>
+              <T variant="bodyS" color={colors.sub} align="right">
                 {pace == null ? '直近28日の記録が2つ以上あるとペースが出ます' : `直近28日のペース ${formatSigned(kgToUnit(pace, unit))}${unit}／週`}
               </T>
             </View>
@@ -267,11 +269,11 @@ export default function BodyScreen() {
       )}
 
       <PressableScale accessibilityRole="button" accessibilityLabel="体重の推移を見る" scaleTo={0.98} onPress={() => openTrend('weight')}>
-        <Card style={{ marginTop: 14 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <T bold size={16}>体重の推移</T>
+        <Card style={{ marginTop: space.l }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.s }}>
+            <T variant="titleM">体重の推移</T>
             {monthChange != null && (
-              <T bold size={13} color={colors.accent}>1か月で {formatSigned(kgToUnit(monthChange, unit))}{unit}</T>
+              <T variant="labelL" color={colors.accent}>1か月で {formatSigned(kgToUnit(monthChange, unit))}{unit}</T>
             )}
           </View>
           {recent.length >= 2 ? (
@@ -282,7 +284,7 @@ export default function BodyScreen() {
               height={120}
             />
           ) : (
-            <T size={13} color={colors.sub}>この1か月の体重の記録が2日以上になると、グラフが出ます</T>
+            <T variant="bodyM" color={colors.sub}>この1か月の体重の記録が2日以上になると、グラフが出ます</T>
           )}
         </Card>
       </PressableScale>
@@ -290,10 +292,33 @@ export default function BodyScreen() {
   );
 }
 
+/** 睡眠・心拍の行（高さ 64、右に ›）。押すとそれぞれの推移へ */
+function HealthRow({ testID, icon, title, sub, lead, value, unit, label, onPress, line }: {
+  testID: string; icon: IconName; title: string; sub: string; lead?: string; value: string; unit: string; label: string; onPress: () => void; line?: boolean;
+}) {
+  return (
+    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={label} scaleTo={0.98} onPress={onPress} style={[s.healthRow, line && s.line]}>
+      <Icon name={icon} size={24} color={colors.sub} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T variant="bodyL">{title}</T>
+        <T variant="bodyS" color={colors.sub} numberOfLines={1}>{sub}</T>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.xs }}>
+        {lead && <T variant="bodyS" color={colors.sub}>{lead}</T>}
+        <T variant="numM" bold>{value}</T>
+        {unit !== '' && <T variant="bodyS" color={colors.sub}>{unit}</T>}
+      </View>
+      <Icon name="chevron" size={24} color={colors.sub} />
+    </PressableScale>
+  );
+}
+
 const s = StyleSheet.create({
-  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, minHeight: 60 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingLeft: space.l, paddingRight: space.s, minHeight: 72 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  value: { width: 90, height: 44, color: colors.text, fontFamily: fonts.numBold, fontSize: 26, textAlign: 'right', borderWidth: 1.5, borderColor: 'transparent', borderRadius: 10, paddingHorizontal: 6 },
-  valueError: { borderColor: colors.danger },
-  computed: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, padding: 14 },
+  valueBox: { flexDirection: 'row', alignItems: 'center', width: 128, height: 48, borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, paddingRight: space.s },
+  value: { flex: 1, minWidth: 0, height: 46, color: colors.text, fontFamily: fonts.numBold, fontSize: 22, textAlign: 'right', paddingHorizontal: space.s },
+  valueError: { borderColor: colors.danger, borderWidth: 2 },
+  healthRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, minHeight: 64, paddingVertical: space.s },
+  computed: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.l, padding: space.l, minHeight: 72 },
 });

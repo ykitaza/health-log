@@ -132,29 +132,41 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
   );
 }
 
-/** 積み上げの棒グラフ */
-export function StackedBarChart({ bars, height = 180, animKey }: {
+/** 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大） */
+export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY, max: maxProp }: {
   bars: { label: string; segments: { value: number; color: string }[] }[];
   height?: number;
   animKey?: string;
+  refLine?: number;
+  formatY?: (v: number) => string;
+  /** 縦の最大（ないときは棒の最大） */
+  max?: number;
 }) {
   const reducedMotion = useReducedMotion();
   const total = barDelay(bars.length - 1, bars.length, reducedMotion) + duration.barGrow;
   const { progress, reduced } = useDrawProgress(animKey, total);
   const [width, onLayout] = useWidth();
   const top = 6, bottom = 22;
-  const max = Math.max(1, ...bars.map((b) => b.segments.reduce((a, s) => a + s.value, 0)));
-  const slot = width / Math.max(1, bars.length);
+  const left = formatY ? 36 : 0;
+  const max = maxProp ?? Math.max(1, ...bars.map((b) => b.segments.reduce((a, s) => a + s.value, 0)));
+  const slot = (width - left) / Math.max(1, bars.length);
   const barW = Math.min(32, slot * 0.6);
   const plotH = height - top - bottom;
+  const yOf = (v: number) => top + plotH - (v / max) * plotH;
   return (
     <View onLayout={onLayout}>
       <Svg width={width} height={height}>
-        <Line x1={0} x2={width} y1={top + plotH} y2={top + plotH} stroke={colors.line} strokeWidth={1} />
+        {formatY && [0, max / 2, max].map((t) => (
+          <G key={`y${t}`}>
+            <Line x1={left} x2={width} y1={yOf(t)} y2={yOf(t)} stroke={colors.line} strokeWidth={1} />
+            <SvgText x={left - 6} y={yOf(t) + 4} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="end">{formatY(t)}</SvgText>
+          </G>
+        ))}
+        <Line x1={left} x2={width} y1={top + plotH} y2={top + plotH} stroke={colors.line} strokeWidth={1} />
         {bars.map((b, i) => {
           const base = top + plotH;
           let y = base;
-          const x = i * slot + (slot - barW) / 2;
+          const x = left + i * slot + (slot - barW) / 2;
           // この棒が伸びる区間（全体の進みのうち、始まりと終わり）
           const from = barDelay(i, bars.length, reduced) / total;
           const to = from + duration.barGrow / total;
@@ -168,10 +180,14 @@ export function StackedBarChart({ bars, height = 180, animKey }: {
                   ? <Rect key={j} {...rect} />
                   : <GrowingRect key={j} {...rect} base={base} from={from} to={to} progress={progress} />;
               })}
-              <SvgText x={x + barW / 2} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="middle">{b.label}</SvgText>
+              <SvgText x={x + barW / 2} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num}
+                textAnchor={i === 0 && formatY ? 'start' : i === bars.length - 1 && formatY ? 'end' : 'middle'}>{b.label}</SvgText>
             </G>
           );
         })}
+        {refLine != null && (
+          <Line x1={left} x2={width} y1={yOf(refLine)} y2={yOf(refLine)} stroke={colors.text} strokeWidth={1.5} strokeDasharray={[4, 4]} />
+        )}
       </Svg>
     </View>
   );
