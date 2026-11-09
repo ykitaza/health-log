@@ -62,12 +62,14 @@ export default function HomeScreen() {
       <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} actions={<Button label="RM計算機" icon="calc" variant="text" small onPress={() => router.push('/rm')} />} />
 
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
+        {/* 左右の列の下の端をそろえる：短いほうの列も下まで伸ばし、最後の要素を下に寄せる */}
         <View style={{ flex: 1.55 }}>
           <T num bold size={28} style={{ marginBottom: 8 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
           <MonthCalendar
             year={year} month={month} today={today} marked={new Set(dates)} cell={29} testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
           />
+          <View style={{ flexGrow: 1 }} />
           <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <T num bold size={14} style={{ lineHeight: 15 }}>{'MONTHLY\nARCHIVE'}</T>
@@ -84,7 +86,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={{ flex: 1, gap: 8 }}>
+        <View style={{ flex: 1, gap: 8, justifyContent: 'space-between' }}>
           <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit} ready={data != null}>
             <View style={{ gap: 3, marginTop: 8 }}>
               {weekly.map((v, i) => (
