@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, openTrainingHistory, recordToday, see } from './helpers';
+import { button, goTab, homeCard, openApp, openSettings, openTrainingHistory, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -179,4 +179,57 @@ test('別のアカウントでログインし直すと、同期を止めて、�
   expect(server.states('workout_set')).toEqual([]);
   // アカウントの ID は画面に出さない
   await expect(see(page, 'user-', { exact: false })).toHaveCount(0);
+});
+
+/** アプリを背景に回す・前面に戻す（web では document の visibilityState。React Native Web の AppState がこれを見る） */
+async function setVisible(page: Page, visible: boolean) {
+  await page.evaluate((v) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (v ? 'visible' : 'hidden') });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, visible);
+}
+
+const homeSync = (page: Page) => page.getByTestId('sync-status').filter({ visible: true });
+
+// web では下に引っぱる操作（RefreshControl）が動かないので、ホームの同期の状態の表示と、押してやり直すところを確かめる。
+// 引っぱったときの決まり（ログインしていなければ同期しない、など）は jest の lib/__tests__/sync-status.test.ts
+test('ホームの同期の状態：ログインしていなければ案内を出し、押すとアカウントの画面', async ({ page }) => {
+  await openApp(page);
+  await expect(homeSync(page)).toHaveText('ログインすると同期できますログイン');
+  await button(page, 'ログインすると同期できます。ログイン').click();
+  await expect(button(page, 'パスキーでログイン')).toBeVisible();
+});
+
+test('ホームの同期の状態：失敗したら出し、押すとやり直す。前面に戻ると、MCP で記録した食事を受け取ってホームに出る', async ({ page, context }) => {
+  const server = createFakeSyncServer();
+  const mode = { current: 'offline' as Mode };
+  await signIn(page, context);
+  await routeSyncServer(context, server, mode);
+  await openApp(page);
+  await openAccount(page);
+  await button(page, 'パスキーでログイン').click();
+  await expect(see(page, 'ログインしています', { exact: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  await expect(homeSync(page)).toHaveText('同期できませんでしたやり直す');
+  mode.current = 'ok';
+  await button(page, '同期できませんでした。やり直す').click();
+  await expect(homeSync(page)).toHaveText('同期 たった今');
+  await expect(homeCard(page, 'meals')).not.toContainText('160 kcal');
+
+  // ChatGPT に切り替えて MCP で記録し、hlog に戻る
+  await setVisible(page, false);
+  const meal = 'cccccccc-0000-4000-8000-000000000001';
+  const at = '2026-11-08T01:30:00.000Z';
+  server.setClock(() => at);
+  server.append([
+    { change_id: crypto.randomUUID(), entity_type: 'meal', entity_id: meal, parent_id: null, op: 'create', changed_at: at, origin: 'mcp', device_id: null,
+      fields: { date: '2026-11-08', slot: 'breakfast', time: null, description: '鮭定食', source: 'text', basis: null } },
+    { change_id: crypto.randomUUID(), entity_type: 'meal_item', entity_id: 'i1', parent_id: meal, op: 'create', changed_at: at, origin: 'mcp', device_id: null,
+      fields: { name: '鮭', amount: 80, unit: 'g', kcal: 160, protein_g: 18, fat_g: 9, carbs_g: 0, confidence: 'medium', sort_order: 0 } },
+  ]);
+  await setVisible(page, true);
+  await expect(homeCard(page, 'meals')).toContainText('160 kcal');
+  await expect(homeSync(page)).toHaveText('同期 たった今');
 });

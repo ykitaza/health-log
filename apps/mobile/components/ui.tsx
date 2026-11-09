@@ -368,7 +368,17 @@ export function Fab({ label, icon = 'plus', onPress, testID, style }: { label: s
   );
 }
 
+/** M3 の snackbar（明るい地の短い知らせ）。消すのは呼ぶ側（数秒で消す） */
+export function Snackbar({ message, testID }: { message: string; testID?: string }) {
+  return (
+    <View style={s.snackbar} accessibilityLiveRegion="polite" testID={testID}>
+      <T variant="bodyM" color={colors.card}>{message}</T>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  snackbar: { minHeight: sz.touch, justifyContent: 'center', backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.s },
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l },
   button: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, paddingRight: 24 },
   buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },

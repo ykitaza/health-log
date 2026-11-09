@@ -26,6 +26,7 @@ describe('theme の色の組み合わせ（画面で文字に使っているも�
     ['onDangerDark', 'dangerDark'], // エラーのバッジ、未来の日の知らせ
     ['danger', 'input'], // ダイアログの「外す」「消す」
     ['inverseAccent', 'text'], // スナックバーの「元に戻す」
+    ['card', 'text'], // スナックバーの文（引っぱって同期の知らせ）
   ];
   test.each(text)('%s の文字 on %s は 4.5:1 以上', (fg, bg) => {
     expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(4.5);

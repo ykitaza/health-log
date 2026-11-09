@@ -5,7 +5,7 @@ export type IconName =
   | 'home' | 'meal' | 'chart' | 'scale' | 'gear' | 'back' | 'chevron' | 'plus' | 'check' | 'pencil'
   | 'star' | 'copy' | 'search' | 'up' | 'down' | 'close' | 'trash' | 'car' | 'bus' | 'plane'
   | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next' | 'calendar'
-  | 'trendUp' | 'trendFlat' | 'caution' | 'arrowUp' | 'arrowDown' | 'arrowFlat' | 'moon' | 'info' | 'heart' | 'swap'
+  | 'trendUp' | 'trendFlat' | 'caution' | 'arrowUp' | 'arrowDown' | 'arrowFlat' | 'moon' | 'info' | 'heart' | 'swap' | 'sync'
   | 'chat' | 'external';
 
 /** 線で描く簡単なアイコン（24 の格子） */
@@ -44,6 +44,7 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: 
       case 'arrowFlat': return <Path {...p} d="M5 12h14M13 6l6 6-6 6" />;
       case 'moon': return <Path {...p} d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />;
       case 'info': return (<><Circle {...p} cx="12" cy="12" r="9" /><Path {...p} d="M12 11v5M12 8h.01" /></>);
+      case 'sync': return <Path {...p} d="M20 11a8 8 0 0 0-14.5-4.5M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5M20 20v-4h-4" />;
       case 'swap': return <Path {...p} d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />;
       case 'chat': return <Path {...p} d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />;
       case 'external': return <Path {...p} d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />;
