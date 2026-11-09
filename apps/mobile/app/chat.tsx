@@ -26,7 +26,7 @@ export default function ChatScreen() {
         Claude・ChatGPT に hlog をコネクタとしてつなぐと、写真から食事を記録したり、まとめ（レポート）を作ったりできます。
       </T>
 
-      <SectionTitle title="コネクタのつなぎ方" accent />
+      <SectionTitle title="コネクタのつなぎ方" />
       <Card style={{ gap: space.m }}>
         <T variant="titleM">MCP サーバーの URL</T>
         {mcpServerUrl ? (
@@ -48,7 +48,7 @@ export default function ChatScreen() {
         ))}
       </Card>
 
-      <SectionTitle title="アプリを開く" accent />
+      <SectionTitle title="アプリを開く" />
       <View style={{ gap: space.s }}>
         {CHAT_APPS.map((app) => (
           <Button key={app} label={`${CHAT_APP_NAMES[app]} を開く`} icon="external" variant="outline" small onPress={() => open(app)} />
