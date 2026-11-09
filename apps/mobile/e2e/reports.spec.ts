@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, see } from './helpers';
+import { button, goTab, openApp, openSettings, see, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）と、食事の推定の根拠。
@@ -11,6 +11,7 @@ import { fakeCognito, fakeLoginPopup } from './login';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
 const REPORT = 'aaaaaaaa-0000-4000-8000-000000000001';
 const MEAL = 'bbbbbbbb-0000-4000-8000-000000000001';
+const DAILY = 'aaaaaaaa-0000-4000-8000-000000000002';
 
 async function connect(page: Page, context: BrowserContext, server: FakeSyncServer) {
   await fakeCognito(context, { status: 200, body: { access_token: fakeAccessToken('user-a'), refresh_token: 'r', expires_in: 3600, token_type: 'Bearer' } });
@@ -75,7 +76,7 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect(card).toBeVisible();
   await expect(card).toHaveAccessibleName(/睡眠（平均） 5\.8 時間、前より 0\.6 減った、気をつけたい変化/);
   await button(page, 'すべてのレポート').click();
-  await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。新しい順に並びます。')).toBeVisible();
+  await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。新しい順に、作った月ごとに並びます。')).toBeVisible();
   await page.getByRole('button', { name: /^気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
 
   // 中身：帯・指標・分野ごと・次の一歩・本文（リンクは文字のまま）
@@ -122,6 +123,81 @@ test('日のまとめ（daily）は、種類の名前・その日だけの期間
   await expect(see(band, '11月9日（月）', { exact: true })).toBeVisible();
   await expect(see(page, '前の日より', { exact: true })).toBeVisible();
   await expect(see(page, '明日の一歩', { exact: true })).toBeVisible();
+});
+
+test('その日の日のまとめは、筋トレ・食事・からだのタブに分野ごとに出て、押すと中身。一覧は種類で絞れる', async ({ page, context }) => {
+  const server = serverWithReport(); // 今週のまとめ（weekly）
+  const at = '2026-11-08T12:00:00.000Z';
+  const daily = (id: string, changedAt: string, fields: Record<string, unknown>) => ({
+    parent_id: null, changed_at: changedAt, origin: 'mcp' as const, device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: id, op: 'create' as const, fields: {
+      kind: 'daily', period_start: TODAY, period_end: TODAY, overall_tone: 'good', next_steps: [], body: '', ...fields,
+    },
+  });
+  // 同じ日の古い日のまとめ（新しいほうだけを出す）。作った時刻はサーバーが受け付けた時刻
+  server.setClock(() => '2026-11-08T11:00:00.000Z');
+  server.append([daily('cccccccc-0000-4000-8000-000000000001', '2026-11-08T11:00:00.000Z', {
+    title: '古いまとめ', headline: '古い', highlights: [{ area: 'training', tone: 'caution', text: '古い文' }],
+  })]);
+  server.setClock(() => at);
+  server.append([
+    daily(DAILY, at, {
+      title: '11月8日のまとめ', headline: 'ベンチプレスが伸びた日',
+      highlights: [
+        { area: 'training', tone: 'good', text: 'ベンチプレスを3セット', metric: { label: '合計負荷量', value: 2.33, unit: 't', delta: 0.4, delta_good: true } },
+        { area: 'meals', tone: 'steady', text: 'たんぱく質は 98g' },
+        { area: 'body', tone: 'caution', text: '体重が 0.6kg 増えた' },
+        { area: 'sleep', tone: 'steady', text: '睡眠はいつもどおり' },
+      ],
+    }),
+  ]);
+  await connect(page, context, server);
+  await openApp(page);
+  await signInAndSync(page);
+  const section = () => page.getByTestId('daily-highlights').filter({ visible: true });
+
+  // 筋トレ：training だけ。押すと日のまとめの中身
+  await goTab(page, '筋トレ');
+  await expect(see(section(), '今日のまとめから', { exact: true })).toBeVisible();
+  await expect(section().getByRole('button')).toHaveCount(1);
+  await button(page, '筋トレ、良い。ベンチプレスを3セット。合計負荷量 2.33 t、前より 0.4 増えた、良い変化').click();
+  await expect(see(page.getByTestId('report-band').filter({ visible: true }), '日のまとめ ・ 11月8日に作成')).toBeVisible();
+  await button(page, '戻る').click();
+
+  // 食事：meals だけ。日のまとめのない前の日は、場所も取らない
+  await goTab(page, '食事');
+  await expect(section().getByRole('button')).toHaveCount(1);
+  await expect(button(section(), '食事、変わらない。たんぱく質は 98g')).toBeVisible();
+  await button(page, '前の日').click();
+  await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
+  // 隠れたタブ（筋トレ）の分は数えない（役割で探すと、隠れたものは入らない）
+  await expect(page.getByRole('heading', { name: /のまとめから$/ })).toHaveCount(0);
+  await expect(button(page, '食事、変わらない。たんぱく質は 98g')).toHaveCount(0);
+
+  // からだ：body と sleep
+  await goTab(page, 'からだ');
+  await expect(section().getByRole('button')).toHaveCount(2);
+  await expect(button(section(), 'からだ、気をつけたい。体重が 0.6kg 増えた')).toBeVisible();
+  await expect(button(section(), '睡眠、変わらない。睡眠はいつもどおり')).toBeVisible();
+
+  // 一覧：種類のラベル・月の見出し・絞り込み・0件の空の状態
+  await goTab(page, 'ホーム');
+  await button(page, 'すべてのレポート').click();
+  await expect(page.getByRole('heading', { name: '11月', exact: true }).filter({ visible: true })).toBeVisible();
+  const weekly = page.getByRole('button', { name: /^気をつけたい、今週のまとめ、睡眠が短い日が多かった、週のまとめ、/ }).filter({ visible: true });
+  const day = page.getByRole('button', { name: /^良い調子、11月8日のまとめ、ベンチプレスが伸びた日、日のまとめ、/ }).filter({ visible: true });
+  await expect(weekly).toBeVisible();
+  await expect(day).toBeVisible();
+  await button(page, '日').click();
+  await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
+  await expect(weekly).toHaveCount(0);
+  await expect(day).toBeVisible();
+  await expect(see(page, '日のまとめだけを出しています。新しい順に、作った月ごとに並びます。')).toBeVisible();
+  await button(page, '月').click();
+  await expect(see(page, '月のまとめはまだありません')).toBeVisible();
+  await expect(button(page, 'チャットで作る。ChatGPT か Claude を開きます')).toBeVisible();
+  await button(page, 'すべて').click();
+  await expect(weekly).toBeVisible();
 });
 
 test('MCP で推定した食事は、詳しい画面に推定の根拠を出す', async ({ page, context }) => {

@@ -162,8 +162,64 @@ export function primaryMetrics(r: Report, n = 2): Metric[] {
 
 /** 一覧のカードの読み上げの名前 */
 export function reportCardLabel(r: Report): string {
-  return [TONE_LABELS[r.tone], r.title, r.headline, formatCreated(r.createdAt) && `${formatCreated(r.createdAt)}に作成`]
+  return [TONE_LABELS[r.tone], r.title, r.headline, KIND_LABELS[r.kind], formatCreated(r.createdAt) && `${formatCreated(r.createdAt)}に作成`]
     .filter(Boolean).join('、');
+}
+
+// --- 一覧の絞り込みと月の見出し ---
+
+/** 一覧の絞り込み（filter chip）。「その他」は「すべて」でだけ出す */
+export type ReportFilter = 'all' | 'daily' | 'weekly' | 'monthly';
+export const REPORT_FILTERS: { key: ReportFilter; label: string }[] = [
+  { key: 'all', label: 'すべて' }, { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
+];
+
+export function filterReports(list: Report[], filter: ReportFilter): Report[] {
+  return filter === 'all' ? list : list.filter((r) => r.kind === filter);
+}
+
+/**
+ * 作った月ごとに分ける（並びはそのまま。一覧は新しい順）。見出しは「11月」、今年でなければ「2025年12月」。
+ * 作った時刻が読めないものは、最後に見出しなしでまとめる
+ */
+export function groupByMonth(list: Report[], today: DateKey): { key: string; title: string; reports: Report[] }[] {
+  const year = today.slice(0, 4);
+  const groups: { key: string; title: string; reports: Report[] }[] = [];
+  for (const r of list) {
+    const d = new Date(r.createdAt);
+    const key = Number.isNaN(d.getTime()) ? '' : toDateKey(d).slice(0, 7);
+    const title = key === '' ? '' : `${key.slice(0, 4) === year ? '' : `${key.slice(0, 4)}年`}${Number(key.slice(5, 7))}月`;
+    const last = groups[groups.length - 1];
+    if (last?.key === key) last.reports.push(r);
+    else groups.push({ key, title, reports: [r] });
+  }
+  return groups;
+}
+
+/** 絞り込んで0件のときの題と、チャットでの頼み方 */
+export function emptyFilterText(filter: Exclude<ReportFilter, 'all'>): { title: string; body: string } {
+  const ask = { daily: '今日のまとめを作って', weekly: '今週のまとめを作って', monthly: '今月のまとめを作って' }[filter];
+  return { title: `${KIND_LABELS[filter]}はまだありません`, body: `チャット（Claude・ChatGPT）で「${ask}」と頼むと、ここに出ます。` };
+}
+
+// --- 各タブに出す、その日の日のまとめ ---
+
+/** 日のまとめの分野のうち、そのタブに出すもの（からだのタブは体組成と睡眠） */
+export const TAB_AREAS = { training: ['training'], meals: ['meals'], body: ['body', 'sleep'] } as const satisfies Record<string, readonly Area[]>;
+
+/** その分野の highlights だけ（並びはそのまま） */
+export function highlightsFor(r: Report | null, areas: readonly Area[]): Highlight[] {
+  return r ? r.highlights.filter((h) => areas.includes(h.area)) : [];
+}
+
+/** 「今日のまとめから」、過去の日は「11月6日のまとめから」 */
+export function dailySectionTitle(date: DateKey, today: DateKey): string {
+  return `${date === today ? '今日' : formatMonthDay(date)}のまとめから`;
+}
+
+/** 分野のカードの読み上げの名前（「筋トレ、良い。文。指標」） */
+export function dailyHighlightLabel(h: Highlight): string {
+  return [`${AREA_LABELS[h.area]}、${TONE_SHORT[h.tone]}。${h.text}`, h.metric && metricLabel(h.metric)].filter(Boolean).join('。');
 }
 
 // --- 本文（Markdown）を、文字のまま見分ける ---

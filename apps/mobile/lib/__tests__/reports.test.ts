@@ -1,6 +1,6 @@
 import {
-  deltaLook, formatDelta, KIND_LABELS, NEXT_TITLES, formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, primaryMetrics,
-  ReportRow, reportCardLabel,
+  dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, NEXT_TITLES,
+  formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, primaryMetrics, ReportRow, reportCardLabel, TAB_AREAS,
 } from '../reports';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
@@ -74,7 +74,68 @@ describe('見せ方', () => {
     expect(metricLabel(metric())).toBe('体重 70.4 kg、前より 0.3 減った、良い変化');
     expect(metricLabel(metric({ delta: 0.2, deltaGood: false }))).toBe('体重 70.4 kg、前より 0.2 増えた、気をつけたい変化');
     expect(metricLabel(metric({ delta: null }))).toBe('体重 70.4 kg');
-    expect(reportCardLabel(parseReport(row()))).toMatch(/^良い調子、今週のまとめ、脚の日が増えた、\d+月\d+日に作成$/);
+    expect(reportCardLabel(parseReport(row()))).toMatch(/^良い調子、今週のまとめ、脚の日が増えた、週のまとめ、\d+月\d+日に作成$/);
+  });
+});
+
+describe('一覧の絞り込みと月の見出し', () => {
+  // 作った時刻は、どの時間帯でも同じ日になる時刻（UTC の 3時）
+  const at = (d: string) => `${d}T03:00:00.000Z`;
+  const list = [
+    parseReport(row({ id: 'w', kind: 'weekly', created_at: at('2026-11-09') })),
+    parseReport(row({ id: 'd2', kind: 'daily', created_at: at('2026-11-08') })),
+    parseReport(row({ id: 'o', kind: 'other', created_at: at('2026-11-05') })),
+    parseReport(row({ id: 'd1', kind: 'daily', created_at: at('2026-10-31') })),
+    parseReport(row({ id: 'm', kind: 'monthly', created_at: at('2025-12-01') })),
+  ];
+  const ids = (l: { id: string }[]) => l.map((r) => r.id);
+
+  test('種類で絞る。「すべて」はその他も出す。並びは変えない', () => {
+    expect(ids(filterReports(list, 'all'))).toEqual(['w', 'd2', 'o', 'd1', 'm']);
+    expect(ids(filterReports(list, 'daily'))).toEqual(['d2', 'd1']);
+    expect(ids(filterReports(list, 'weekly'))).toEqual(['w']);
+    expect(filterReports(list.slice(0, 4), 'monthly')).toEqual([]);
+  });
+
+  test('作った月ごとに区切る。今年は「11月」、年が違えば「2025年12月」', () => {
+    expect(groupByMonth(list, '2026-11-09').map((g) => [g.title, ids(g.reports)])).toEqual([
+      ['11月', ['w', 'd2', 'o']], ['10月', ['d1']], ['2025年12月', ['m']],
+    ]);
+    expect(groupByMonth(filterReports(list, 'daily'), '2026-11-09').map((g) => g.title)).toEqual(['11月', '10月']);
+    expect(groupByMonth([], '2026-11-09')).toEqual([]);
+  });
+
+  test('絞り込んで0件のときの題と頼み方。種類のラベル', () => {
+    expect(emptyFilterText('daily')).toEqual({ title: '日のまとめはまだありません', body: 'チャット（Claude・ChatGPT）で「今日のまとめを作って」と頼むと、ここに出ます。' });
+    expect(emptyFilterText('monthly').title).toBe('月のまとめはまだありません');
+    expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' });
+  });
+});
+
+describe('各タブに出す、その日の日のまとめ', () => {
+  const highlights = JSON.stringify([
+    { area: 'sleep', tone: 'steady', text: '睡眠はいつもどおり' },
+    { area: 'training', tone: 'good', text: 'ベンチプレスを3セット', metric: { label: '合計負荷量', value: 2.33, unit: 't', delta: 0.4, delta_good: true } },
+    { area: 'meals', tone: 'steady', text: 'たんぱく質は 98g' },
+    { area: 'body', tone: 'caution', text: '体重が 0.6kg 増えた' },
+  ]);
+  const daily = parseReport(row({ kind: 'daily', period_start: '2026-11-08', period_end: '2026-11-08', highlights }));
+  const texts = (areas: readonly ('training' | 'meals' | 'body' | 'sleep')[]) => highlightsFor(daily, areas).map((h) => h.text);
+
+  test('分野で分ける：筋トレ＝training、食事＝meals、からだ＝body と sleep（並びはレポートのまま）', () => {
+    expect(texts(TAB_AREAS.training)).toEqual(['ベンチプレスを3セット']);
+    expect(texts(TAB_AREAS.meals)).toEqual(['たんぱく質は 98g']);
+    expect(texts(TAB_AREAS.body)).toEqual(['睡眠はいつもどおり', '体重が 0.6kg 増えた']);
+    expect(highlightsFor(null, TAB_AREAS.body)).toEqual([]);
+    expect(highlightsFor(parseReport(row({ kind: 'daily' })), TAB_AREAS.training)).toEqual([]);
+  });
+
+  test('題は「今日のまとめから」、過去の日は「11月6日のまとめから」。読み上げは言葉で', () => {
+    expect(dailySectionTitle('2026-11-08', '2026-11-08')).toBe('今日のまとめから');
+    expect(dailySectionTitle('2026-11-06', '2026-11-08')).toBe('11月6日のまとめから');
+    const [training] = highlightsFor(daily, TAB_AREAS.training);
+    expect(dailyHighlightLabel(training)).toBe('筋トレ、良い。ベンチプレスを3セット。合計負荷量 2.33 t、前より 0.4 増えた、良い変化');
+    expect(dailyHighlightLabel(highlightsFor(daily, ['meals'])[0])).toBe('食事、変わらない。たんぱく質は 98g');
   });
 });
 
