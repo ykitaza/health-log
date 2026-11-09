@@ -25,7 +25,7 @@ MCP の認可には、Authlib で書いた OAuth 2.1 の認可サーバー（認
 flowchart LR
   app["hlog（Android）<br>端末の SQLite"]
   chat["Claude・ChatGPT"]
-  subgraph aws["AWS（CognitoStudy）"]
+  subgraph aws["AWS"]
     cognito["Cognito<br>パスキー"]
     authz["認可API<br>Lambda（Authlib）"]
     mcp["MCP サーバー<br>Lambda"]
@@ -33,7 +33,7 @@ flowchart LR
     meals[("DynamoDB<br>MealsTable")]
     state[("DynamoDB<br>StateTable")]
   end
-  mon["監視（CognitoStudyMonitoring）<br>CloudWatch・CloudTrail・EventBridge・SNS"]
+  mon["監視<br>CloudWatch・CloudTrail・EventBridge・SNS"]
 
   chat -- "OAuth 2.1・PKCE" --> authz
   authz -- ログイン --> cognito
@@ -66,14 +66,16 @@ flowchart LR
 | `tools/inspector/` | MCP Inspector で試すときの CIMD の文書 |
 | `.github/` | CI（テスト）、サーバーのデプロイ、アプリの配信（EAS）、Dependabot の設定 |
 
-AWS のスタックは4つです。
+AWS のスタックは4つに分かれています。
 
-| スタック | リージョン | 中身 |
+| まとまり | リージョン | 中身 |
 |---|---|---|
-| `CognitoStudy` | ap-northeast-1 | Cognito、認可API と MCP サーバー（食事と筋トレ）とアプリ用の API の API Gateway・Lambda・DynamoDB |
-| `CognitoStudyMonitoring` | ap-northeast-1 | 監視（アラーム、CloudTrail、EventBridge、SNS）。`CognitoStudy` のあとに作られる |
-| `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京に転送する EventBridge のルール |
-| `CognitoStudyCiCd` | ap-northeast-1 | GitHub Actions から入るための OIDC の ID プロバイダーと、差分用・デプロイ用のロール。ワークフローからはデプロイせず、手でデプロイする（[サーバーの CD](docs/cd.md)） |
+| 本体 | ap-northeast-1 | Cognito、認可API と MCP サーバー（食事と筋トレ）とアプリ用の API の API Gateway・Lambda・DynamoDB |
+| 監視 | ap-northeast-1 | アラーム、CloudTrail、EventBridge、SNS。本体のあとに作られる |
+| 監視（us-east-1） | us-east-1 | IAM の操作を東京に転送する EventBridge のルール |
+| CI/CD | ap-northeast-1 | GitHub Actions から入るための OIDC の ID プロバイダーと、差分用・デプロイ用のロール。ワークフローからはデプロイせず、手でデプロイする（[サーバーの CD](docs/cd.md)） |
+
+スタックの名前とデプロイの手順は [サーバーの CD](docs/cd.md) にあります。
 
 ## 文書
 
