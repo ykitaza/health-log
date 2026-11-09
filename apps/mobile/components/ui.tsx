@@ -368,17 +368,24 @@ export function Fab({ label, icon = 'plus', onPress, testID, style }: { label: s
   );
 }
 
-/** M3 の snackbar（明るい地の短い知らせ）。消すのは呼ぶ側（数秒で消す） */
-export function Snackbar({ message, testID }: { message: string; testID?: string }) {
+/** M3 の snackbar（明るい地の短い知らせ）。消すのは呼ぶ側（数秒で消す）。action は右に添える操作（「やり直す」など、緑の文字のボタン） */
+export function Snackbar({ message, testID, action }: { message: string; testID?: string; action?: { label: string; onPress: () => void } }) {
   return (
     <View style={s.snackbar} accessibilityLiveRegion="polite" testID={testID}>
-      <T variant="bodyM" color={colors.card}>{message}</T>
+      <T variant="bodyM" color={colors.card} style={{ flexShrink: 1 }}>{message}</T>
+      {action && (
+        <PressableScale accessibilityRole="button" accessibilityLabel={`${message}。${action.label}`} onPress={action.onPress} style={s.snackbarAction}>
+          <T variant="labelL" color={colors.inverseAccent}>{action.label}</T>
+        </PressableScale>
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  snackbar: { minHeight: sz.touch, justifyContent: 'center', backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.s },
+  snackbar: { minHeight: sz.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s, backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.s },
+  // 押せる高さ 48。右の余白は snackbar の余白に重ねて、文字の端を M3 の位置（右から 8）に寄せる
+  snackbarAction: { minHeight: sz.touch, justifyContent: 'center', paddingHorizontal: space.s, marginVertical: -space.s, marginRight: -space.s },
   card: { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l },
   button: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, paddingRight: 24 },
   buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },

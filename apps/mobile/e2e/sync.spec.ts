@@ -47,6 +47,7 @@ async function openAccount(page: Page) {
   await expect(see(page, 'アカウント', { exact: true }).first()).toBeVisible();
 }
 
+const homeAlert = (page: Page) => page.getByTestId('sync-alert').filter({ visible: true });
 const status = (page: Page, id: 'sync-last' | 'sync-pending' | 'sync-rejected') => page.getByTestId(id).filter({ visible: true });
 
 /** MCP で記録したものが入ったサーバー */
@@ -179,6 +180,13 @@ test('別のアカウントでログインし直すと、同期を止めて、�
   expect(server.states('workout_set')).toEqual([]);
   // アカウントの ID は画面に出さない
   await expect(see(page, 'user-', { exact: false })).toHaveCount(0);
+
+  // ホームにも、1回目から知らせを出す。押すとアカウントの画面で確かめる
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await expect(homeAlert(page)).toHaveText('同期できませんでした確かめる');
+  await button(page, '同期できませんでした。確かめる').click();
+  await expect(see(page, '前と違うアカウントでログインしました')).toBeVisible();
 });
 
 /** アプリを背景に回す・前面に戻す（web では document の visibilityState。React Native Web の AppState がこれを見る） */
@@ -189,22 +197,33 @@ async function setVisible(page: Page, visible: boolean) {
   }, visible);
 }
 
-const homeSync = (page: Page) => page.getByTestId('sync-status').filter({ visible: true });
+const homeTitle = (page: Page) => page.getByRole('heading', { name: 'hlog' }).filter({ visible: true });
 
-// web では下に引っぱる操作（RefreshControl）が動かないので、ホームの同期の状態の表示と、押してやり直すところを確かめる。
-// 引っぱったときの決まり（ログインしていなければ同期しない、など）は jest の lib/__tests__/sync-status.test.ts
-test('ホームの同期の状態：ログインしていなければ案内を出し、押すとアカウントの画面', async ({ page }) => {
+// web では下に引っぱる操作（RefreshControl）が動かないので、ホームに同期の状態の行が出ないことと、失敗の知らせの出し方を確かめる。
+// 引っぱったときの決まり（ログインしていなければ同期しない、など）とマークの動きの値は jest の lib/__tests__/sync-status.test.ts・pull-mark.test.ts
+test('ホーム：ふだんは同期の状態を出さない（ログインしていない・同期できたとき）。時刻と件数はアカウントの画面', async ({ page, context }) => {
+  await signIn(page, context);
+  await routeSyncServer(context, createFakeSyncServer());
   await openApp(page);
-  await expect(homeSync(page)).toHaveText('ログインすると同期できますログイン');
-  await button(page, 'ログインすると同期できます。ログイン').click();
-  await expect(button(page, 'パスキーでログイン')).toBeVisible();
+  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeAlert(page)).toHaveCount(0);
+  await expect(see(page, 'ログインすると同期できます')).toHaveCount(0);
+
+  await openAccount(page);
+  await button(page, 'パスキーでログイン').click();
+  await expect(status(page, 'sync-last')).toHaveText('11/8 10:00');
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeAlert(page)).toHaveCount(0);
+  await expect(see(page, '同期 ', { exact: false })).toHaveCount(0);
 });
 
-test('ホームの同期の状態：失敗したら出し、押すとやり直す。前面に戻ると、MCP で記録した食事を受け取ってホームに出る', async ({ page, context }) => {
+test('ホーム：自動の同期が続けて失敗したときだけ知らせ、押すとやり直す。前面に戻ると、MCP で記録した食事を受け取ってホームに出る', async ({ page, context }) => {
   const server = createFakeSyncServer();
   const mode = { current: 'offline' as Mode };
   await signIn(page, context);
-  await routeSyncServer(context, server, mode);
+  const seen = await routeSyncServer(context, server, mode);
   await openApp(page);
   await openAccount(page);
   await button(page, 'パスキーでログイン').click();
@@ -212,10 +231,17 @@ test('ホームの同期の状態：失敗したら出し、押すとやり直�
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 
-  await expect(homeSync(page)).toHaveText('同期できませんでしたやり直す');
+  // 1回の失敗では出さない（自動でやり直す）
+  await expect.poll(() => seen.length).toBeGreaterThan(0);
+  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeAlert(page)).toHaveCount(0);
+  // 前面に戻ったときの同期も失敗すると、続けて 2 回なので出す
+  await setVisible(page, false);
+  await setVisible(page, true);
+  await expect(homeAlert(page)).toHaveText('同期できませんでしたやり直す');
   mode.current = 'ok';
   await button(page, '同期できませんでした。やり直す').click();
-  await expect(homeSync(page)).toHaveText('同期 たった今');
+  await expect(homeAlert(page)).toHaveCount(0);
   await expect(homeCard(page, 'meals')).not.toContainText('160 kcal');
 
   // ChatGPT に切り替えて MCP で記録し、hlog に戻る
@@ -231,5 +257,5 @@ test('ホームの同期の状態：失敗したら出し、押すとやり直�
   ]);
   await setVisible(page, true);
   await expect(homeCard(page, 'meals')).toContainText('160 kcal');
-  await expect(homeSync(page)).toHaveText('同期 たった今');
+  await expect(homeAlert(page)).toHaveCount(0);
 });

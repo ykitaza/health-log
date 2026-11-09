@@ -6,7 +6,7 @@ import { onLocalWrite } from '@/db/serial';
 import { createAppSync } from '@/lib/sync/app';
 import type { SyncErrorCode } from '@/lib/sync/engine';
 import { notifyRemoteChange } from '@/lib/sync/events';
-import { startPull, SYNC_FAILED } from '@/lib/sync/status';
+import { PULL_DONE, PULL_SYNCING, startPull, SYNC_FAILED } from '@/lib/sync/status';
 import { useAuth } from './auth';
 
 /**
@@ -23,6 +23,8 @@ export type SyncStatus = {
   rejected: number;
   /** 最後の同期の失敗。成功したら null。accountChanged なら、switchAccount で選ぶまで同期しない */
   error: SyncErrorCode | null;
+  /** 続けて失敗した回数（成功したら 0）。ホームの知らせを出すかに使う */
+  failures: number;
   syncNow: () => void;
   /** 前と違うアカウントでログインしたとき、端末の記録をどうするかを決めて、同期を始める */
   switchAccount: (mode: AccountSwitch) => Promise<void>;
@@ -38,6 +40,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [counts, setCounts] = useState({ pending: 0, rejected: 0 });
   const [error, setError] = useState<SyncErrorCode | null>(null);
+  const [failures, setFailures] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -56,6 +59,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     onDone: (outcome) => {
       setSyncing(false);
       setError(outcome.ok ? null : outcome.error);
+      setFailures((n) => (outcome.ok ? 0 : n + 1));
       void refresh();
     },
   }), [store, api, refresh]);
@@ -74,6 +78,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       scheduler.stop();
       setSyncing(false);
       setError(null);
+      setFailures(0);
       return;
     }
     scheduler.request('start');
@@ -90,13 +95,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     // 端末の記録が変わった（replace）ので、画面を読み直す
     if (mode === 'replace') notifyRemoteChange();
     setError(null);
+    setFailures(0);
     await refresh();
     if (status === 'signedIn') scheduler.request('manual');
   }, [api, store, status, scheduler, refresh]);
 
   const value = useMemo(
-    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, syncNow, switchAccount }),
-    [syncing, lastSyncedAt, counts, error, syncNow, switchAccount],
+    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, failures, syncNow, switchAccount }),
+    [syncing, lastSyncedAt, counts, error, failures, syncNow, switchAccount],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }
@@ -110,18 +116,22 @@ export function useSync(): SyncStatus {
 /** 知らせ（スナックバー）を出しておく長さ */
 const NOTICE_MS = 4_000;
 
+/** 引っぱったあとの知らせ（スナックバー）。retry なら「やり直す」を添える */
+export type PullNotice = { message: string; retry: boolean };
+
 /**
- * 下に引っぱって同期する（タブの画面の Screen が使う）。ログインしていれば同期し、終わるまで refreshing を true にする。
- * 終わったら、変わったものがなくても開いている画面を読み直す。ログインしていないときと失敗したときは notice に短い知らせを入れる
+ * 下に引っぱって同期する（タブの画面の Screen が使う）。ログインしていれば同期し、終わるまで refreshing を true にする（マークを出す）。
+ * 終わったら、変わったものがなくても開いている画面を読み直す。ログインしていないときと失敗したときは notice に短い知らせを入れる。
+ * 読み上げ：始めに「同期しています」、終わったら「同期しました」か、失敗の知らせ
  */
 export function usePullToSync() {
   const { status } = useAuth();
   const { syncing, error, syncNow } = useSync();
   const [pulling, setPulling] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<PullNotice | null>(null);
 
-  const show = useCallback((message: string) => {
-    setNotice(message);
+  const show = useCallback((message: string, retry = false) => {
+    setNotice({ message, retry });
     AccessibilityInfo.announceForAccessibility(message);
   }, []);
 
@@ -131,7 +141,8 @@ export function usePullToSync() {
     if (!pulling || syncing) return;
     setPulling(false);
     notifyRemoteChange();
-    if (error) show(SYNC_FAILED);
+    if (error) show(SYNC_FAILED, error !== 'accountChanged');
+    else AccessibilityInfo.announceForAccessibility(PULL_DONE);
   }, [pulling, syncing, error, show]);
 
   useEffect(() => {
@@ -141,7 +152,10 @@ export function usePullToSync() {
   }, [notice]);
 
   const onRefresh = useCallback(() => {
-    if (startPull(status, syncNow, show)) setPulling(true);
+    if (!startPull(status, syncNow, show)) return;
+    setNotice(null);
+    setPulling(true);
+    AccessibilityInfo.announceForAccessibility(PULL_SYNCING);
   }, [status, syncNow, show]);
 
   return { refreshing: pulling, onRefresh, notice };
