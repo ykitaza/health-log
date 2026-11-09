@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import { LoadError } from '@/components/LoadError';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
@@ -17,13 +18,15 @@ const PFC_COLORS = { p: colors.accent, f: colors.star, c: '#6FA8FF' };
 export function MealWeekly() {
   const today = todayKey();
   const [lastDay, setLastDay] = useState(today);
-  const { data } = useFocusData((r) => r.meals.summaries(addDays(lastDay, -6), lastDay), lastDay);
+  const { data, error, reload } = useFocusData((r) => r.meals.summaries(addDays(lastDay, -6), lastDay), lastDay);
   const days = data?.days ?? [];
   const review = weeklyReview(days);
   const avg = review.average;
   const ratio = avg ? pfcRatio(avg) : null;
   const targetRatio = review.averageTarget ? pfcRatio(review.averageTarget) : null;
   const includesToday = weekDates(lastDay).includes(today);
+
+  if (error) return <View style={{ marginTop: 14 }}><LoadError onRetry={reload} /></View>;
 
   return (
     <View style={{ gap: 12, marginTop: 14 }}>

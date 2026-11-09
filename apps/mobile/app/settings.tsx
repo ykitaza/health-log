@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Share, View } from 'react-native';
 import { Input } from '@/components/Input';
 import { Shake } from '@/components/motion';
+import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
@@ -17,7 +18,7 @@ import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
 export default function SettingsScreen() {
-  const { data: settings, reload, repos } = useFocusData((r) => r.settings.get());
+  const { data: settings, error, reload, repos } = useFocusData((r) => r.settings.get());
   const { status: authStatus } = useAuth();
   const [height, setHeight] = useState('');
   const [goal, setGoal] = useState('');
@@ -78,6 +79,8 @@ export default function SettingsScreen() {
       setExportError('共有のメニューを開けなかったため、CSV を書き出せませんでした。');
     }
   };
+
+  if (error) return <Screen><Header title="設定" onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen>

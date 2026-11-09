@@ -38,3 +38,10 @@ export function watchToday(onChange: (next: DateKey, prev: DateKey) => void) {
     },
   };
 }
+
+/** Android の戻るで、今日でない日を見ているなら今日に戻す。戻るを使ったら true（アプリを閉じない） */
+export function backToToday(isToday: boolean, goToday: () => void): boolean {
+  if (isToday) return false;
+  goToday();
+  return true;
+}

@@ -19,9 +19,12 @@ type ButtonProps = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   small?: boolean;
+  /** 処理中（保存など）。押せなくし、読み上げで「処理中」と伝える。文言は呼ぶ側で「保存しています…」などに変える */
+  busy?: boolean;
 };
 
-export function Button({ label, onPress, variant = 'primary', icon, disabled, style, small }: ButtonProps) {
+export function Button({ label, onPress, variant = 'primary', icon, disabled: off, style, small, busy }: ButtonProps) {
+  const disabled = off || busy;
   const bg = { primary: colors.accent, secondary: colors.input, danger: colors.dangerDark, outline: 'transparent' }[variant];
   const fg = { primary: colors.onAccent, secondary: colors.text, danger: colors.danger, outline: colors.text }[variant];
   return (
@@ -29,6 +32,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, st
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
+      aria-busy={!!busy}
       hitSlop={small ? { top: touchSlop(44), bottom: touchSlop(44) } : undefined}
       style={[
         s.button,
@@ -168,8 +172,10 @@ export function EmptyState({ icon = 'dumbbell', title, body }: { icon?: IconName
 }
 
 /** 確認のダイアログ */
-export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'キャンセル', onConfirm, onCancel, danger = true }: {
+export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel = 'キャンセル', onConfirm, onCancel, danger = true, busy }: {
   visible: boolean; title: string; body?: string; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onCancel: () => void; danger?: boolean;
+  /** 確かめたあとの処理（消すなど）の途中。どちらのボタンも押せなくする */
+  busy?: boolean;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -178,8 +184,8 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
           <T bold size={17}>{title}</T>
           {body && <T size={13} color={colors.sub} style={{ lineHeight: 20 }}>{body}</T>}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-            <Button label={cancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} small />
-            <Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onPress={onConfirm} style={{ flex: 1 }} small />
+            <Button label={cancelLabel} variant="secondary" onPress={onCancel} disabled={busy} style={{ flex: 1 }} small />
+            <Button label={confirmLabel} variant={danger ? 'danger' : 'primary'} onPress={onConfirm} busy={busy} style={{ flex: 1 }} small />
           </View>
         </View>
       </View>

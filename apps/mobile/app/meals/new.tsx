@@ -6,6 +6,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Chip, Header, IconButton, Segmented } from '@/components/ui';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
@@ -29,7 +30,6 @@ export default function NewMealScreen() {
   const [asTemplate, setAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const dirty = items.some((i) => i.kcal !== '' || i.protein_g !== '' || (!numbers && (i.name !== '' || i.amount !== '')));
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '入力した食事は記録されません。');
 
@@ -38,7 +38,8 @@ export default function NewMealScreen() {
   const valid = parsed.flatMap((p) => ('value' in p ? [p.value] : []));
   const total = sum(valid);
 
-  const submit = async () => {
+  const { busy, run } = useBusy();
+  const submit = () => run(async (stayBusy) => {
     const values: ItemInput[] = [];
     for (const [n, p] of parsed.entries()) {
       if ('error' in p) { setError(items.length > 1 ? `品目${n + 1}：${p.error}` : p.error); return; }
@@ -50,21 +51,19 @@ export default function NewMealScreen() {
       if (e) { setError(e); return; }
     }
     setError(null);
-    setSaving(true);
     try {
       const id = await repos.meals.record({ date, slot, source: numbers ? 'numbers' : 'text', items: values });
       if (asTemplate) await repos.meals.saveTemplateFromMeal(id, name);
+      stayBusy();
       allowLeave();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
     }
-  };
+  });
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="記録する" onPress={submit} disabled={saving} /></>}>
+    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '記録しています…' : '記録する'} onPress={submit} busy={busy} /></>}>
       <Header title={numbers ? 'kcal と PFC だけ' : '品目を入力'} subtitle={formatJpDate(date)} onBack={() => router.back()} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {SLOTS.map((x) => <Chip key={x} label={SLOT_LABELS[x]} active={x === slot} onPress={() => setSlot(x)} />)}

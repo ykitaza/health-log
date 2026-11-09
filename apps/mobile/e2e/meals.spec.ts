@@ -1,7 +1,7 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, openApp, see } from './helpers';
+import { button, controlDb, goTab, openApp, see } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
 const totalKcal = (page: Page) => page.getByTestId('total-kcal').filter({ visible: true });
@@ -91,4 +91,26 @@ test('過去の日に記録 → 次の日に「昨日と同じ」と「いつも
   await button(page, '食事').click();
   await expect(page.getByTestId('weekly-average-kcal').filter({ visible: true })).toContainText('225');
   await expect(see(page, '記録 2／7日')).toBeVisible();
+});
+
+test('「記録する」を続けて押しても1つだけ記録し、記録している間は押せない', async ({ page }) => {
+  // 記録が終わる前（ボタンが押せなくなる前）に2回目が届くときを、DB の返事を止めて毎回作る
+  const db = await controlDb(page);
+  await openApp(page);
+  await goTab(page, '食事');
+  await button(page, '昼食を記録').click();
+  await button(page, '品目を入力').click();
+  await expect(see(page, '品目を入力', { exact: true })).toBeVisible();
+  await field(page, '品目1の品名').fill('白米');
+  await field(page, '品目1の量').fill('200');
+  await field(page, '品目1のエネルギー').fill('312');
+  await db.hold();
+  // 2回の押下を、画面が描き直す前に続けて届ける
+  await button(page, '記録する').evaluate((el) => { (el as HTMLElement).click(); (el as HTMLElement).click(); });
+  await expect(button(page, '記録しています…')).toHaveAttribute('aria-disabled', 'true');
+  await expect(button(page, '記録しています…')).toHaveAttribute('aria-busy', 'true');
+  await db.release();
+  await expect(button(page, '白米を開く')).toBeVisible();
+  await page.reload();
+  await expect(button(page, '白米を開く')).toHaveCount(1);
 });

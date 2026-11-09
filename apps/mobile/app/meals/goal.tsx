@@ -5,6 +5,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Chip, Header, Segmented } from '@/components/ui';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import {
@@ -36,19 +37,21 @@ export default function GoalScreen() {
   }, [repos]);
   const dirty = goal !== undefined && JSON.stringify(draft) !== JSON.stringify(toDraft(goal));
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '変えた目標は保存されません。');
+  const { busy, run } = useBusy();
 
-  const save = async () => {
+  const save = () => run(async (stayBusy) => {
     const p = parseGoal(draft);
     if ('error' in p) { setError(p.error); return; }
     setError(null);
     await repos.meals.saveGoal(p.value);
+    stayBusy();
     allowLeave();
     router.back();
-  };
+  });
   const set = (patch: Partial<GoalDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="目標を保存" onPress={save} disabled={goal === undefined} /></>}>
+    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '保存しています…' : '目標を保存'} onPress={save} disabled={goal === undefined} busy={busy} /></>}>
       <Header title="目標" onBack={() => router.back()} />
       {goal !== undefined && (
         <Card style={{ gap: 8 }}>

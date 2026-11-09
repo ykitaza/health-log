@@ -11,6 +11,7 @@ import { Button, Card, DayNote, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
@@ -50,11 +51,10 @@ export default function EntryScreen() {
   const [errors, setErrors] = useState<Map<string, SetError>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
-  const [saving, setSaving] = useState(false);
   // 保存を押して入力の間違いが見つかった回数（間違いのある欄を、そのたびに揺らす）
   const [shakes, setShakes] = useState(0);
-  // 保存の途中か。saving（ボタンを押せなくする）は描き直すまで効かないので、続けて届いた2回目はこれで止める
-  const savingRef = useRef(false);
+  // 保存は1つずつ（続けて届いた2回目は止める。保存して戻るときは、戻る間も押せないまま）
+  const { busy: saving, run } = useBusy();
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -128,26 +128,23 @@ export default function EntryScreen() {
     setUndo(null);
   };
 
-  const save = async () => {
-    if (savingRef.current || isFuture) return;
+  const save = () => run(async (stayBusy) => {
+    if (isFuture) return;
     const { errors: errs, formError: message, sets } = prepareSave(drafts, exercise.recordType, unit);
     setErrors(errs);
     if (errs.size > 0) setShakes((n) => n + 1);
     if (message) { setFormError(message); return; }
-    savingRef.current = true;
-    setSaving(true);
     try {
       await repos.workouts.saveEntry({ id: entry?.id, date, exerciseId: exercise.id, sets });
+      stayBusy();
       onFeedback('save');
       allowLeave();
       if (router.canGoBack()) router.back();
       else router.replace({ pathname: '/workout', params: { date } });
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
-      savingRef.current = false;
-      setSaving(false);
     }
-  };
+  });
 
   const saveLabel = entry ? '変更を保存' : isToday ? '今日のトレーニングに追加' : 'この日のトレーニングに追加';
 
@@ -162,7 +159,7 @@ export default function EntryScreen() {
             </View>
           )}
           {formError && <T size={13} color={colors.danger} align="center">{formError}</T>}
-          <Button label={saveLabel} icon="check" onPress={save} disabled={saving || isFuture} />
+          <Button label={saving ? '保存しています…' : saveLabel} icon="check" onPress={save} disabled={isFuture} busy={saving} />
         </>
       }
     >

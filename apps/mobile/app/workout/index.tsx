@@ -4,10 +4,12 @@ import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Icon } from '@/components/Icon';
 import { PressableScale, useListMotion } from '@/components/motion';
+import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, DayNote, EmptyState, Header, IconButton, SetNo } from '@/components/ui';
 import type { Entry } from '@/db/repositories/workouts';
+import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { formatSetLong, tonnes } from '@/lib/format';
@@ -22,7 +24,7 @@ export default function WorkoutDayScreen() {
   const today = todayKey();
   const date = params.date ?? today;
   const isToday = date === today;
-  const { data, reload, repos } = useFocusData(async (r) => {
+  const { data, error, reload, repos } = useFocusData(async (r) => {
     const [entries, settings] = await Promise.all([r.workouts.getDay(date), r.settings.get()]);
     return { entries, settings };
   }, date);
@@ -34,12 +36,16 @@ export default function WorkoutDayScreen() {
   const volume = entries.reduce((a, e) => a + totalVolume(e.sets), 0);
 
   const move = async (id: string, d: -1 | 1) => { await repos.workouts.moveEntry(id, d); reload(); };
-  const remove = async () => {
+  // 外すは1つずつ（確認の「外す」を続けて押しても2回消さない）。並べ替えは、続けて押した分だけ動かす
+  const { busy, run } = useBusy();
+  const remove = () => run(async () => {
     if (!removing) return;
     await repos.workouts.deleteEntry(removing.id);
     setRemoving(null);
-    reload();
-  };
+    await reload();
+  });
+
+  if (error) return <Screen><Header overline={isToday ? '今日のトレーニング' : 'トレーニング'} title={formatJpDate(date)} onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen
@@ -112,6 +118,7 @@ export default function WorkoutDayScreen() {
         confirmLabel="外す"
         onCancel={() => setRemoving(null)}
         onConfirm={remove}
+        busy={busy}
       />
     </Screen>
   );

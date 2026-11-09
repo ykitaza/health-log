@@ -6,6 +6,7 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Chip, ConfirmDialog, Header } from '@/components/ui';
 import { BodyPart, HiddenDuplicateError } from '@/db/repositories/catalog';
+import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import type { RecordType } from '@/lib/sets';
@@ -35,29 +36,33 @@ export default function NewExerciseScreen() {
     });
   }, [repos]);
 
-  const submit = async () => {
+  // 続けて押しても、同じ種目を2つ足さない
+  const { busy, run } = useBusy();
+  const submit = () => run(async (stayBusy) => {
     if (name.trim() === '') { setError('種目の名前を入れてください'); return; }
     if (!partId) { setError('部位を選んでください'); return; }
     try {
       await repos.catalog.createExercise({ name, bodyPartId: partId, recordType: type });
+      stayBusy();
       allowLeave();
       router.back();
     } catch (e) {
       if (e instanceof HiddenDuplicateError) setHiddenDup(e);
       else setError(e instanceof Error ? e.message : String(e));
     }
-  };
+  });
   // 同じ部位の非表示の種目と同じ名前なら、新しく足さずに、その種目を表示に戻す
-  const showHiddenExercise = async () => {
+  const showHiddenExercise = () => run(async (stayBusy) => {
     if (!hiddenDup) return;
     await repos.catalog.setExerciseHidden(hiddenDup.id, false);
+    stayBusy();
     setHiddenDup(null);
     allowLeave();
     router.back();
-  };
+  });
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="追加する" onPress={submit} /></>}>
+    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '追加しています…' : '追加する'} onPress={submit} busy={busy} /></>}>
       {dialog}
       <ConfirmDialog
         visible={hiddenDup != null}
@@ -67,6 +72,7 @@ export default function NewExerciseScreen() {
         danger={false}
         onCancel={() => setHiddenDup(null)}
         onConfirm={showHiddenExercise}
+        busy={busy}
       />
       <Header title="種目を追加" onBack={() => router.back()} />
       <T size={13} color={colors.sub} style={{ marginTop: 12, marginBottom: 6 }}>種目の名前</T>

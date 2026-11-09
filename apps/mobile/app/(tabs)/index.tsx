@@ -2,11 +2,13 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
+import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, IconButton, SetNo } from '@/components/ui';
+import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, yearMonth } from '@/lib/date';
@@ -27,7 +29,9 @@ export default function HomeScreen() {
   const selected = pickedDayOrToday(picked, today);
   const isToday = selected === today;
   const dayLabel = isToday ? '今日' : formatMonthDay(selected);
-  const { data } = useFocusData(async (r) => {
+  // 過去の日を見ているときは、Android の戻るでまず今日に戻す
+  useBackToToday(isToday, () => setPicked(null));
+  const { data, error, reload } = useFocusData(async (r) => {
     const [rows, todays, settings] = await Promise.all([r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get()]);
     return { rows, todays, settings, day: selected };
   }, selected);
@@ -41,6 +45,8 @@ export default function HomeScreen() {
   const totals = periodTotals(rows, today);
   const weekly = weeklyVolumes(rows, today, 6);
   const maxWeek = Math.max(1, ...weekly);
+
+  if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen tab>

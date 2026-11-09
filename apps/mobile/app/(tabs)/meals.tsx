@@ -4,12 +4,15 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
+import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, IconButton } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
+import { useBackToToday } from '@/hooks/backToToday';
+import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
@@ -25,7 +28,9 @@ export default function MealsScreen() {
   const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   const [adding, setAdding] = useState<Slot | null>(null);
   const { status } = useAuth();
-  const { data, reload, repos } = useFocusData(async (r) => {
+  // 前の日を見ているときは、Android の戻るでまず今日に戻す
+  useBackToToday(date === today, () => setDate(today));
+  const { data, error, reload, repos } = useFocusData(async (r) => {
     const [{ days, goal }, templates, yesterday] = await Promise.all([
       r.meals.summaries(date, date), r.meals.listTemplates(), r.meals.listDay(addDays(date, -1)),
     ]);
@@ -33,13 +38,17 @@ export default function MealsScreen() {
   }, date);
   const day = data?.date === date ? data.day : null;
   const list = useListMotion(day != null);
+  // 書き込み（日の種類の切り替え、いつもの・昨日と同じで記録）は1つずつ。続けて押しても2回書かない
+  const { busy, run } = useBusy();
 
   // 日の種類のバッジを押すと、その日を筋トレの日／休みの日に決める（MCP の set_day_type と同じ）
-  const toggleDayType = async () => {
+  const toggleDayType = () => run(async () => {
     if (!day) return;
     await repos.meals.setDayType(date, day.dayType === 'training' ? 'rest' : 'training');
-    reload();
-  };
+    await reload();
+  });
+
+  if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
     <Screen tab>
@@ -55,7 +64,8 @@ export default function MealsScreen() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...touchRoom(12) }}>
             <T bold size={15}>{date === today ? '今日の合計' : 'この日の合計'}</T>
             <Pressable accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-              style={[s.badge, day.dayType === 'training' ? { backgroundColor: colors.accentDark } : { backgroundColor: colors.input }]}>
+              disabled={busy} aria-busy={busy}
+              style={[s.badge, day.dayType === 'training' ? { backgroundColor: colors.accentDark } : { backgroundColor: colors.input }, busy && { opacity: 0.45 }]}>
               <T size={12} bold color={day.dayType === 'training' ? colors.accent : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
             </Pressable>
           </View>
@@ -116,7 +126,7 @@ export default function MealsScreen() {
         templates={data?.templates ?? []}
         yesterday={data?.yesterday ?? []}
         onClose={() => setAdding(null)}
-        onRecord={async (run) => { setAdding(null); await run(); reload(); }}
+        onRecord={(record) => run(async () => { setAdding(null); await record(); await reload(); })}
       />
     </Screen>
   );
