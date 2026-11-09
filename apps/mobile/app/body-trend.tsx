@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { LineChart } from '@/components/charts';
+import { RollNumber } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, Segmented } from '@/components/ui';
@@ -59,7 +60,7 @@ export default function BodyTrendScreen() {
       ) : (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 18 }}>
-            <T num bold size={60}>{fmt1(conv(last.value))}</T>
+            <RollNumber num bold size={60} value={fmt1(conv(last.value))} />
             <T size={16} color={colors.sub}>{unitLabel}</T>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>

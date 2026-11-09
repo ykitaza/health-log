@@ -1,6 +1,6 @@
 import { toCsv } from '../csv';
 import { formatSetLong, formatSetShort, tonnes } from '../format';
-import { copyOf, hasChanges, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
+import { beatsBest, copyOf, hasChanges, lastFilledSet, SetDraft, toSetInputs, validateSets } from '../sets';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg } from '../units';
 
 test('数の読み取り', () => {
@@ -93,4 +93,30 @@ test('セットの表示', () => {
   expect(formatSetLong(null, 20, 'kg')).toBe('20 回');
   expect(formatSetShort(82.5, 8, 'kg')).toBe('82.5kg × 8');
   expect(tonnes(12450)).toBe('12.45');
+});
+
+describe('自己ベストを超えたか（バッジを出す）', () => {
+  const d = (weight: string, reps: string, weightKg?: number): SetDraft => ({ key: 'k', weight, reps, memo: '', done: false, weightKg });
+  const best = { e1rm: 80 * (1 + 8 / 30) }; // 80kg × 8 = 101.3
+
+  test('推定1RM が自己ベストより大きければ超える。同じなら超えない', () => {
+    expect(beatsBest(d('80', '9'), best, 'weight_reps', 'kg')).toBe(true);
+    expect(beatsBest(d('80', '8'), best, 'weight_reps', 'kg')).toBe(false);
+    expect(beatsBest(d('85', '5'), best, 'weight_reps', 'kg')).toBe(false); // 99.2
+  });
+
+  test('自己ベストがまだない、回数だけの種目、入力が足りない・正しくない行は超えない', () => {
+    expect(beatsBest(d('100', '5'), null, 'weight_reps', 'kg')).toBe(false);
+    expect(beatsBest(d('', '50'), best, 'reps_only', 'kg')).toBe(false);
+    expect(beatsBest(d('100', ''), best, 'weight_reps', 'kg')).toBe(false);
+    expect(beatsBest(d('100', '5.5'), best, 'weight_reps', 'kg')).toBe(false);
+    expect(beatsBest(d('9999', '5'), best, 'weight_reps', 'kg')).toBe(false);
+  });
+
+  test('lb で入れても kg に直して比べる。保存済みの値を変えていなければ、その kg で比べる', () => {
+    expect(beatsBest(d('180', '8'), best, 'weight_reps', 'lb')).toBe(true); // 81.6kg
+    expect(beatsBest(d('176', '8'), best, 'weight_reps', 'lb')).toBe(false); // 79.8kg
+    // 80kg を lb で出すと 176.4。そのままなら 80kg（同じなので超えない）
+    expect(beatsBest(d(trimNumber(kgToUnit(80, 'lb')), '8', 80), best, 'weight_reps', 'lb')).toBe(false);
+  });
 });

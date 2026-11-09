@@ -1,4 +1,5 @@
 import { inRange, LIMITS, memoLengthError, rangeMessage, REPS_MAX } from './limits';
+import { estimated1RM } from './training';
 import { kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from './units';
 
 /** 記録の入力画面の1セット（入力中の文字列のまま持つ） */
@@ -104,4 +105,17 @@ export function lastFilledSet(drafts: SetDraft[]): SetDraft | null {
 /** 上のセットを写す（メモと完了は写さない） */
 export function copyOf(d: SetDraft, key: string): SetDraft {
   return { key, weight: d.weight, weightKg: d.weightKg, reps: d.reps, memo: '', done: false };
+}
+
+/**
+ * 入れている行が、それまでの自己ベスト（その日より前の推定1RM の最大）を超えるか（「自己ベスト」のバッジを出す）。
+ * 自己ベストがまだない種目、回数だけの種目、入力が正しくない行は超えない
+ */
+export function beatsBest(d: SetDraft, best: { e1rm: number } | null, recordType: RecordType, unit: WeightUnit): boolean {
+  if (!best || recordType !== 'weight_reps') return false;
+  const reps = parseNumber(d.reps);
+  if (reps == null || !Number.isInteger(reps) || reps <= 0 || reps > REPS_MAX) return false;
+  const kg = draftWeightKg(d, unit);
+  if (kg == null || !inRange(kg, LIMITS.setWeight)) return false;
+  return estimated1RM(kg, reps) > best.e1rm + 1e-9;
 }
