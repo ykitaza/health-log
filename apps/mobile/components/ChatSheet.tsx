@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRepos } from '@/hooks/data';
-import { CHAT_APP_NAMES, ChatApp, ChatPrompt, openChat, openFailedMessage, orderedApps, promptText, REPORT_SPAN_LABELS, ReportSpan } from '@/lib/chat';
+import { CHAT_APP_NAMES, ChatApp, ChatPrompt, openChat, openFailedMessage, orderedApps, promptSummary, REPORT_SPAN_LABELS, ReportSpan } from '@/lib/chat';
+import { todayKey } from '@/lib/date';
 import { colors, radius, space } from '@/theme';
 import { Sheet } from './motion';
 import { T } from './Text';
@@ -39,7 +40,7 @@ export function useChatChooser() {
 
   const choose = async (app: ChatApp) => {
     if (!req) return;
-    const prompt: ChatPrompt = 'report' in req ? { kind: 'report', span } : req.prompt;
+    const prompt: ChatPrompt = 'report' in req ? { kind: 'report', span, today: todayKey() } : req.prompt;
     if (!(await openChat(app, prompt))) { setFailed(app); return; }
     setVisible(false);
     await repos.settings.setLastChatApp(app).catch(() => {});
@@ -64,12 +65,12 @@ function ChatSheetBody({ req, last, failed, span, onSpan, onChoose }: {
 }) {
   const insets = useSafeAreaInsets();
   const report = 'report' in req;
-  const text = promptText(report ? { kind: 'report', span } : req.prompt);
+  const text = promptSummary(report ? { kind: 'report', span, today: todayKey() } : req.prompt);
   return (
     <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="chat-sheet">
       <View>
         <T variant="titleL" accessibilityRole="header">{report ? 'チャットで作る' : 'AI で記録'}</T>
-        <T variant="bodyM" color={colors.sub}>「{text}」と入れて開きます</T>
+        <T variant="bodyM" color={colors.sub}>{text}ための文を入れて開きます</T>
       </View>
       {report && (
         <Segmented<ReportSpan>
