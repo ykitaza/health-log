@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { AiRecordButton } from './ChatSheet';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
@@ -18,7 +19,18 @@ import { colors, space } from '@/theme';
 
 /** 「種目を追加」のボタン（画面の下に固定する）。未来の日は押せない */
 export function AddExerciseButton({ date }: { date: string }) {
-  return <Button label="種目を追加" icon="plus" disabled={date > todayKey()} onPress={() => router.push({ pathname: '/workout/select', params: { date } })} />;
+  return <Button label="種目を追加" icon="plus" disabled={date > todayKey()} onPress={() => router.push({ pathname: '/workout/select', params: { date } })} style={{ flex: 1 }} />;
+}
+
+/** 記録の画面の下：「AI で記録」（チャットを開く）と「種目を追加」を横に並べる。未来の日はどちらも押せない */
+export function WorkoutFooter({ date }: { date: string }) {
+  const today = todayKey();
+  return (
+    <View style={{ flexDirection: 'row', gap: space.s }}>
+      <AiRecordButton prompt={{ kind: 'training', date, today }} disabled={date > today} style={{ flex: 1 }} />
+      <AddExerciseButton date={date} />
+    </View>
+  );
 }
 
 /**

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AI_RECORD_LABEL, useChatChooser } from '@/components/ChatSheet';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
@@ -45,6 +46,7 @@ export default function MealsScreen() {
   const list = useListMotion(day != null);
   // 書き込み（日の種類の切り替え、いつもの・昨日と同じで記録）は1つずつ。続けて押しても2回書かない
   const { busy, run } = useBusy();
+  const chat = useChatChooser();
 
   // 日の種類のバッジを押すと、その日を筋トレの日／休みの日に決める（MCP の set_day_type と同じ）
   const toggleDayType = () => run(async () => {
@@ -144,7 +146,9 @@ export default function MealsScreen() {
         yesterday={data?.yesterday ?? []}
         onClose={() => setAdding(null)}
         onRecord={(record) => run(async () => { setAdding(null); await record(); await reload(); })}
+        onAi={() => { setAdding(null); chat.record({ kind: 'meal', date, today }); }}
       />
+      {chat.sheet}
     </Screen>
   );
 }
@@ -168,9 +172,9 @@ function MealRow({ meal }: { meal: Meal }) {
 }
 
 /** 記録の方法を選ぶ（いつもの・昨日と同じ・品目を入力・kcal と PFC だけ） */
-function AddSheet({ slot, date, templates, yesterday, onClose, onRecord }: {
+function AddSheet({ slot, date, templates, yesterday, onClose, onRecord, onAi }: {
   slot: Slot | null; date: string; templates: { id: string; name: string; items: { kcal: number }[] }[]; yesterday: Meal[];
-  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void;
+  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: () => void;
 }) {
   const repos = useRepos();
   const insets = useSafeAreaInsets();
@@ -180,14 +184,14 @@ function AddSheet({ slot, date, templates, yesterday, onClose, onRecord }: {
   const shown = slot ?? last;
   return (
     <Sheet visible={slot != null} onClose={onClose}>
-      {shown && <AddSheetBody slot={shown} date={date} templates={templates} yesterday={yesterday.filter((m) => m.slot === shown)} insetBottom={insets.bottom} onClose={onClose} onRecord={onRecord} repos={repos} />}
+      {shown && <AddSheetBody slot={shown} date={date} templates={templates} yesterday={yesterday.filter((m) => m.slot === shown)} insetBottom={insets.bottom} onClose={onClose} onRecord={onRecord} onAi={onAi} repos={repos} />}
     </Sheet>
   );
 }
 
-function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, onRecord, repos }: {
+function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, onRecord, onAi, repos }: {
   slot: Slot; date: string; templates: { id: string; name: string; items: { kcal: number }[] }[]; yesterday: Meal[]; insetBottom: number;
-  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; repos: ReturnType<typeof useRepos>;
+  onClose: () => void; onRecord: (run: () => Promise<unknown>) => void; onAi: () => void; repos: ReturnType<typeof useRepos>;
 }) {
   const to = { date, slot };
   const open = (mode: 'items' | 'numbers') => { onClose(); router.push({ pathname: '/meals/new', params: { date, slot, mode } }); };
@@ -237,6 +241,14 @@ function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, 
             <Icon name="chevron" color={colors.sub} size={18} />
           </PressableScale>
         ))}
+        <PressableScale accessibilityRole="button" accessibilityLabel={AI_RECORD_LABEL} style={[s.sheetRow, s.line]} onPress={onAi} testID="meal-ai-record">
+          <MethodIcon name="chat" />
+          <View style={{ flex: 1 }}>
+            <T bold size={15}>AI で記録（写真や文から推定）</T>
+            <T size={12} color={colors.sub}>写真や文を送ると、推定して記録します</T>
+          </View>
+          <Icon name="external" color={colors.sub} size={18} />
+        </PressableScale>
         <PressableScale accessibilityRole="button" accessibilityLabel="品目を入力" style={[s.sheetRow, s.line]} onPress={() => open('items')}>
           <MethodIcon name="pencil" />
           <View style={{ flex: 1 }}>
@@ -258,7 +270,7 @@ function AddSheetBody({ slot, date, templates, yesterday, insetBottom, onClose, 
   );
 }
 
-function MethodIcon({ name }: { name: 'copy' | 'pencil' | 'calc' }) {
+function MethodIcon({ name }: { name: 'copy' | 'pencil' | 'calc' | 'chat' }) {
   return (
     <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
       <Icon name={name} size={20} color={colors.accent} />

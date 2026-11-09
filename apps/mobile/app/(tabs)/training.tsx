@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { TrainingHistory } from '@/components/TrainingHistory';
 import { PrimaryTabs, TabHeader } from '@/components/ui';
-import { AddExerciseButton, WorkoutDayContent } from '@/components/WorkoutDay';
+import { WorkoutDayContent, WorkoutFooter } from '@/components/WorkoutDay';
 import { useToday } from '@/hooks/today';
 
 type Pane = 'today' | 'history';
@@ -20,7 +20,7 @@ export default function TrainingScreen() {
   useEffect(() => { if (params.view === 'today' || params.view === 'history') setView(params.view); }, [params.view]);
   const today = useToday();
   return (
-    <Screen tab footer={view === 'today' ? <AddExerciseButton date={today} /> : undefined}>
+    <Screen tab footer={view === 'today' ? <WorkoutFooter date={today} /> : undefined}>
       <TabHeader title="筋トレ" />
       <PrimaryTabs<Pane>
         options={[{ key: 'today', label: '今日', icon: 'dumbbell' }, { key: 'history', label: '履歴', icon: 'calendar' }]}
