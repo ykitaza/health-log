@@ -136,7 +136,7 @@ def test_full_flow_issues_access_token_for_the_resource(client):
     assert page.headers["X-Frame-Options"] == "DENY"
     text = page.get_data(as_text=True)
     assert "Example" in text and "client.example" in text and "u@example.com" in text
-    assert "食事記録と目標の読み取り" in text
+    assert "食事の記録と目標を読む" in text
 
     res = client.post("/consent", data={"decision": "allow"})
     assert res.status_code == 303 and res.headers["Location"].startswith(REDIRECT + "?")
@@ -207,8 +207,8 @@ def test_consent_page_explains_training_scopes(client):
     client.get("/authorize", query_string=authorize_params(
         scope="meals:read meals:write training:read training:write"))
     text = client.get("/cognito/callback").get_data(as_text=True)
-    assert "筋トレ（種目・重量・回数）と体組成の記録の読み取り" in text
-    assert "筋トレと体組成の記録の追加・修正・削除" in text
+    assert "筋トレ（種目・重量・回数）と体組成の記録を読む" in text
+    assert "筋トレと体組成の記録を書く（追加・修正・削除）" in text
     res = client.post("/consent", data={"decision": "allow"})
     body = exchange(client, query_of(res)["code"]).json
     assert body["scope"] == "meals:read meals:write training:read training:write"

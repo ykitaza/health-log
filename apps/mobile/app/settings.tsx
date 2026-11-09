@@ -101,7 +101,7 @@ export default function SettingsScreen() {
     <Screen>
       <Header title="設定" onBack={() => router.back()} />
 
-      <SectionTitle title="アカウント" accent />
+      <SectionTitle title="アカウント" />
       <Card style={{ padding: 0 }}>
         <ListRow
           first
@@ -115,7 +115,7 @@ export default function SettingsScreen() {
       </Card>
 
       {/* 筋トレ：記録の初期値と種目。食事：目標（前は「種目」の区分けに食事の目標が入っていた） */}
-      <SectionTitle title="筋トレ" accent />
+      <SectionTitle title="筋トレ" />
       <Card style={{ gap: space.l }}>
         <View style={{ gap: space.s }}>
           <T variant="titleM">重さの単位</T>
@@ -135,12 +135,12 @@ export default function SettingsScreen() {
         <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
       </Card>
 
-      <SectionTitle title="食事" accent />
+      <SectionTitle title="食事" />
       <Card style={{ padding: 0 }}>
         <ListRow first title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
       </Card>
 
-      <SectionTitle title="体の情報" accent />
+      <SectionTitle title="体の情報" />
       <Card style={{ gap: space.l }}>
         <Field label="身長" unit="cm" shake={bad?.field === 'height' ? bad.count : 0} value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
         <Field label="目標体重" unit={unit} shake={bad?.field === 'goal' ? bad.count : 0} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
         <T variant="bodyS" color={colors.sub}>性別と生まれた年はこの端末の中だけに置き、サーバーには送りません。</T>
       </Card>
 
-      <SectionTitle title="データ" accent />
+      <SectionTitle title="データ" />
       <Card style={{ padding: 0 }}>
         <ListRow first title="筋トレの記録を CSV で書き出す" subtitle="共有のメニューから、保存先やアプリを選びます" onPress={exportCsv} />
       </Card>

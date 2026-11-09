@@ -328,11 +328,11 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
   );
 }
 
-/** 区分けの見出し（14、M3 の titleSmall）。accent なら緑（設定の区分けなど） */
-export function SectionTitle({ title, right, accent }: { title: string; right?: string; accent?: boolean }) {
+/** 区分けの見出し（14、M3 の titleSmall）。どの画面でも緑 */
+export function SectionTitle({ title, right }: { title: string; right?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.l, marginBottom: space.s }}>
-      <T variant="titleS" color={accent ? colors.accent : colors.sub} accessibilityRole="header">{title}</T>
+      <T variant="titleS" color={colors.accent} accessibilityRole="header">{title}</T>
       {right && <T variant="bodyS" color={colors.sub}>{right}</T>}
     </View>
   );

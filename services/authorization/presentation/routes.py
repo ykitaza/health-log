@@ -13,7 +13,9 @@ from infrastructure.cimd_client_directory import CimdClientDirectory, ClientReje
 from oauth.models import Client, Subject
 from oauth.server import AuthorizationServer, TokenRevocationEndpoint, new_id, use_client
 from oauth.store import Store
-from presentation.pages import render_consent_page, render_error_page, render_logged_out_page, render_privacy_page
+from presentation.pages import (
+    CONTENT_SECURITY_POLICY, render_consent_page, render_error_page, render_logged_out_page, render_privacy_page,
+)
 
 # ブラウザのセッション（署名付き Cookie）に、進行中の認可リクエストの ID を入れておく
 SESSION_KEY = "authorization_request_id"
@@ -49,6 +51,15 @@ def create_blueprint(
     server: AuthorizationServer, clients: CimdClientDirectory, store: Store, login: LoginGateway,
 ) -> Blueprint:
     bp = Blueprint("authorization", __name__)
+
+    @bp.after_request
+    def protect_pages(response: Response) -> Response:
+        # HTML の画面はすべて、埋め込んだ CSS と JS のほかを読み込ませず（CSP）、別のサイトに埋め込ませない
+        # （「許可する」を押させる攻撃を防ぐ。古いブラウザのために X-Frame-Options も付ける）
+        if response.mimetype == "text/html":
+            response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+            response.headers["X-Frame-Options"] = "DENY"
+        return response
 
     @bp.get("/authorize")
     def authorize():
@@ -91,8 +102,7 @@ def create_blueprint(
         store.put("request", request_id, {**pending, "subject": subject.to_dict()}, REQUEST_TTL_SECONDS)
         client = Client.from_dict(pending["client"])
         page = render_consent_page(client.client_name, client.host, subject.email, pending["scope"].split())
-        # 別のサイトに埋め込んで「許可する」を押させる攻撃を防ぐ
-        return Response(page, mimetype="text/html", headers={"X-Frame-Options": "DENY"})
+        return Response(page, mimetype="text/html")
 
     @bp.post("/consent")
     def consent():
