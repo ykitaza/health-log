@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { MIN_TOUCH } from '@/lib/touch';
+import { colors } from '@/theme';
 import { Button, Chip, CHIP_HEIGHT, ConfirmDialog, IconButton } from '../ui';
 
 // 動きの部品（Reanimated）は、ここでは要らない。props だけを見る
@@ -38,7 +39,8 @@ describe('処理中のボタン（二重押しを止める）', () => {
     const el = Button({ label: '保存しています…', onPress: () => {}, busy: true });
     expect(el.props.disabled).toBe(true);
     expect(el.props['aria-busy']).toBe(true);
-    expect(StyleSheet.flatten(el.props.style).opacity).toBeLessThan(1);
+    // 使えない見た目：灰色の地（M3 の disabled container）
+    expect(StyleSheet.flatten(el.props.style).backgroundColor).toBe(colors.disabledContainer);
   });
 
   test('busy でないボタンは押せる', () => {
