@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import re
+from html.parser import HTMLParser
 
 import pytest
 
@@ -13,6 +14,30 @@ from presentation.pages import (
 from tests.test_flow import authorize_params, client, login, store  # noqa: F401（同じ組み立てを使う）
 
 EVIL = '<script>alert(1)</script>"\'&'
+
+
+class Tags(HTMLParser):
+    """ページの中のタグ、イベント属性、style・script の中身を集める。"""
+
+    def __init__(self, page: str):
+        super().__init__(convert_charrefs=True)
+        self.tags: set[str] = set()
+        self.event_attrs: list[str] = []
+        self.blocks: dict[str, list[str]] = {"style": [], "script": []}
+        self._open: str | None = None
+        self.feed(page)
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag)
+        self.event_attrs += [name for name, _ in attrs if name.startswith("on")]
+        self._open = tag if tag in self.blocks else None
+
+    def handle_endtag(self, tag):
+        self._open = None
+
+    def handle_data(self, data):
+        if self._open:
+            self.blocks[self._open].append(data)
 
 
 def sha256(text: str) -> str:
@@ -48,10 +73,11 @@ def test_consent_page_shows_scopes_in_plain_words_and_named_buttons():
     render_error_page("x"), render_logged_out_page(), render_privacy_page(),
 ])
 def test_pages_load_nothing_from_outside_and_keep_only_hashed_inline_code(page):
-    assert not re.search(r"<link|<img|@import|url\(|https?://(?!www\.w3\.org)", page)
-    assert not re.search(r"\son[a-z]+=", page)  # インラインのイベント属性は CSP で動かないので使わない
-    assert re.findall(r"<style>(.*?)</style>", page, re.S) == [STYLE]
-    assert re.findall(r"<script>(.*?)</script>", page, re.S) == [SCRIPT]
+    tags = Tags(page)
+    assert not tags.tags & {"link", "img", "iframe", "object", "embed"}
+    assert not re.search(r"@import|url\(|https?://(?!www\.w3\.org)", page)
+    assert tags.event_attrs == []  # インラインのイベント属性は CSP で動かないので使わない
+    assert tags.blocks == {"style": [STYLE], "script": [SCRIPT]}
     assert 'aria-label="hlog"' in page
 
 
