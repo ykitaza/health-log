@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, goTab, homeCard, openApp, openBody, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, enterBody, goPane, goTab, homeCard, openApp, openBody, openBodySheet, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -22,7 +22,8 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
   await setBodyInfo(page, { goal: '65' });
   await openBody(page);
-  await enter(page, '体重', '70');
+  await enterBody(page, { weight: '70' });
+  await goPane(page, '推移');
   await expect(see(page, '目標 65.0kg')).toBeVisible();
 
   // lb にする（からだの歯車から）
@@ -34,9 +35,16 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await button(page, '戻る').click();
 
   // からだ：70kg = 154.32lb、目標 143.3lb、残り 11.0lb
-  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toHaveValue('154.32');
   await expect(see(page, '目標 143.3lb')).toBeVisible();
   await expect(see(page, '11.0', { exact: true })).toBeVisible();
+  await goPane(page, '今日');
+  await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('154.3');
+  await expect(page.getByTestId('body-summary').filter({ visible: true })).toHaveText('週の平均 154.3 lb ・ 目標まで あと 11.0 lb');
+  // シートの欄も lb。変えずに保存しても kg のまま（下で kg に戻して確かめる）
+  await openBodySheet(page);
+  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toHaveValue('154.32');
+  await button(page, '保存').click();
+  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
 
   // ホーム：負荷量 640kg = 1410.96lb → 1.41 k lb。筋トレの今日：80kg = 176.4lb、推定1RM 101.33kg = 223.4lb
   await goTab(page, 'ホーム');
@@ -76,6 +84,9 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   expect(csv).toContain('2026-11-08,胸,ベンチプレス,1,80,8,,0\r\n');
   expect(csv).toMatch(/2026-11-08,脚,スクワット,1,45\.359237\d*,5,,0\r\n/);
   await button(page, '戻る').click();
+  // lb で開いて変えずに保存した体重も 70kg のまま
+  await openBody(page);
+  await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('70.0');
   await goTab(page, '筋トレ');
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
   await expect(see(page, '45.4 kg × 5 回')).toBeVisible();
@@ -150,9 +161,14 @@ test('身長と目標体重の不正な値はエラーを出し、空にする�
   await button(page, '戻る').click();
 
   await openBody(page);
-  await expect(see(page, '自動で計算（身長 250cm）')).toBeVisible();
-  await enter(page, '体重', '661.4');
+  await openBodySheet(page);
+  await page.getByRole('textbox', { name: '体重', exact: true }).fill('661.4');
+  await button(page, '保存').click();
   await expect(see(page, '体重は 66.2〜661.3lb で入れてください')).toBeVisible();
+  await page.getByRole('textbox', { name: '体重', exact: true }).fill('150');
+  await button(page, '保存').click();
+  // 身長 250cm・150lb（68.04kg）の BMI = 10.9
+  await expect(see(page, '10.9', { exact: true })).toBeVisible();
 
   // 身長を空にすると消える
   await setBodyInfo(page, { height: '' });
@@ -206,7 +222,6 @@ test('身長を入れたまま単位を押しても、身長と単位の両方�
   await expect(button(page, '5セット')).toHaveAttribute('aria-selected', 'true');
   await button(page, '戻る').click();
   await openBody(page);
-  await expect(see(page, '自動で計算（身長 170cm）')).toBeVisible();
   await openSettings(page);
   await expect(page.getByRole('textbox', { name: '目標体重' })).toHaveValue('150');
   await page.reload();

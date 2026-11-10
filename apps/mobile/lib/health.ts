@@ -1,3 +1,5 @@
+import { addDays, DateKey, weekday } from './date';
+
 // 睡眠・心拍の表示（からだのタブ、ホームの体調のカード）
 
 /** 分を「7時間12分」に（1時間未満は「45分」） */
@@ -47,4 +49,24 @@ export function averageClock(isos: string[], acrossMidnight: boolean): number | 
   });
   const avg = average(mins);
   return avg == null ? null : Math.round(avg) % (24 * 60);
+}
+
+// からだの推移のタブの睡眠のカード
+
+const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+
+/** 長く眠れた日（明るい色の棒）にする睡眠の長さ（分）。7時間 */
+export const LONG_SLEEP_MIN = 7 * 60;
+
+/**
+ * 今日までの7日の睡眠（記録のない日は asleepMin が null）と、記録のある日の平均、7時間以上の日の曜日（「火」「土」）
+ */
+export function sleepWeek(days: { date: DateKey; asleepMin: number }[], today: DateKey) {
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i - 6);
+    const asleepMin = days.find((d) => d.date === date)?.asleepMin ?? null;
+    return { date, weekday: WEEKDAY_JA[weekday(date)], asleepMin, long: asleepMin != null && asleepMin >= LONG_SLEEP_MIN };
+  });
+  const recorded = week.filter((d) => d.asleepMin != null).map((d) => d.asleepMin!);
+  return { days: week, average: average(recorded), longDays: week.filter((d) => d.long).map((d) => d.weekday) };
 }

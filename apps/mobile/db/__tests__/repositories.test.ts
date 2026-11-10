@@ -402,6 +402,12 @@ describe('体組成', () => {
     expect(row).toEqual({ source: 'manual', external_id: null, origin_package: null });
   });
 
+  test('取り込みだけの値：手入力の行だけの日は null', async () => {
+    const { r } = await setup();
+    await r.body.saveManual('2026-11-08', { weightKg: 68.4 });
+    expect(await r.body.getImportedDay('2026-11-08')).toBeNull();
+  });
+
   test('記録のない日に値を消しても、空の行を作らない。値が変わらなければ書かない', async () => {
     const { r, db, deps } = await setup();
     const rows = () => db.raw.prepare('SELECT date, weight_kg, memo, updated_at FROM body_records').all();

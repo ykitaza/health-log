@@ -1,6 +1,8 @@
 // 今週の目標と、週・日の達成（ホーム・レポートの画面が使う）。どれも純粋な関数で、DB は読まない
 // （読むのは db/repositories/achievements.ts、画面からは hooks/data.ts の useWeeklyAchievement・useDailyAchievement）
-import { addDays, DateKey, weekday } from './date';
+import { mondayOf } from './body';
+import { addDays, DateKey } from './date';
+import { LONG_SLEEP_MIN } from './health';
 import type { DaySummary, DayType } from './meals';
 import { estimated1RM, personalBests, setVolume, TrainingSetRow } from './training';
 
@@ -9,9 +11,6 @@ export const WEEKLY_TRAINING_OPTIONS = [2, 3, 4, 5, 6] as const;
 export const WEEKLY_MEAL_OPTIONS = [3, 5, 7] as const;
 export const WEEKLY_SLEEP_OPTIONS = [0, 3, 4, 5, 7] as const;
 export const REST_TIMER_OPTIONS = [0, 60, 90, 120, 180] as const;
-
-/** 7時間以上寝た日を数える（分） */
-export const SLEEP_GOAL_MIN = 7 * 60;
 
 export type WeeklyGoals = {
   /** 1週間に筋トレをする回数（日数） */
@@ -22,9 +21,9 @@ export type WeeklyGoals = {
   sleepDays: number;
 };
 
-/** その日を含む週（月曜始まり、月〜日） */
+/** その日を含む週（月曜始まり、月〜日）。月曜は lib/body.ts の mondayOf */
 export function weekOf(date: DateKey): { start: DateKey; end: DateKey } {
-  const start = addDays(date, -((weekday(date) + 6) % 7));
+  const start = mondayOf(date);
   return { start, end: addDays(start, 6) };
 }
 
@@ -92,7 +91,7 @@ export function weeklyAchievement(input: {
       trained: trained.has(date),
       mealRecorded: recorded,
       proteinReached: recorded && proteinTarget != null && meal!.total.protein_g >= proteinTarget,
-      sleptEnough: (sleepByDate.get(date) ?? 0) >= SLEEP_GOAL_MIN,
+      sleptEnough: (sleepByDate.get(date) ?? 0) >= LONG_SLEEP_MIN,
     });
   }
   const count = (f: (d: WeekDayMark) => boolean) => days.filter(f).length;
@@ -172,6 +171,6 @@ export function dailyAchievement(input: {
       kcalTarget: meal.target?.kcal ?? null,
       proteinTarget: meal.target?.protein_g ?? null,
     },
-    sleep: { asleepMin, goalMin: SLEEP_GOAL_MIN, reached: asleepMin != null && asleepMin >= SLEEP_GOAL_MIN },
+    sleep: { asleepMin, goalMin: LONG_SLEEP_MIN, reached: asleepMin != null && asleepMin >= LONG_SLEEP_MIN },
   };
 }

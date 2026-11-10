@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, enter, fillSets, goTab, homeCard, openApp, openBody, openSettings, saveButton, see } from './helpers';
+import { button, chooseExercise, enterBody, fillSets, goTab, homeCard, openApp, openBody, openSettings, saveButton, see } from './helpers';
 
 // 自重の負荷量の計算（体重 × 割合 × 回数、30日以内の前の日の体重、名前から決める割合）は jest
 // （lib/__tests__/shared-testdata.test.ts の bodyweight.json）。ここは種目の追加・編集の割合の欄と、ホームの合計に入ること
@@ -44,7 +44,7 @@ test('回数だけの種目を割合つきで足して記録すると、体重 �
 
   // 体重を記録すると入る：70 × 90% ×（10 ＋ 8）= 1134kg
   await openBody(page);
-  await enter(page, '体重', '70');
+  await enterBody(page, { weight: '70' });
   await goTab(page, 'ホーム');
   await expect(visible(page, 'volume-7d')).toContainText('1.13t');
   await expect(homeCard(page, 'training')).toContainText('1種目 ・ 2セット ・ 1.13 t');

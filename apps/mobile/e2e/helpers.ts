@@ -151,8 +151,8 @@ export async function controlDb(page: Page) {
 /** ホームの小さなカード（今日のトレーニング・食事・体調） */
 export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
-/** タブの中の切り替え（筋トレの「今日」「履歴」、食事の「記録」「週のまとめ」） */
-export async function goPane(page: Page, name: '今日' | '履歴' | '記録' | '週のまとめ') {
+/** タブの中の切り替え（筋トレの「今日」「履歴」、食事の「記録」「推移」、からだの「今日」「推移」） */
+export async function goPane(page: Page, name: '今日' | '履歴' | '記録' | '推移') {
   const t = page.getByRole('tab', { name, exact: true }).filter({ visible: true });
   await t.click();
   await expect(t).toHaveAttribute('aria-selected', 'true');
@@ -164,16 +164,34 @@ export async function openTrainingHistory(page: Page) {
   await goPane(page, '履歴');
 }
 
-/** 食事のタブの「週のまとめ」を開く（前の履歴／分析のタブの食事） */
+/** 食事のタブの「推移」（週のまとめ）を開く（前の履歴／分析のタブの食事） */
 export async function openMealWeek(page: Page) {
   await goTab(page, '食事');
-  await goPane(page, '週のまとめ');
+  await goPane(page, '推移');
 }
 
-/** ホームからからだのタブを開く */
+/** からだのタブの「今日」を開く */
 export async function openBody(page: Page) {
   await goTab(page, 'からだ');
-  await expect(see(page, '自動で計算', { exact: false }).first()).toBeVisible();
+  await goPane(page, '今日');
+  await expect(button(page, '前の日')).toBeVisible();
+}
+
+/** からだの今日で、計測を入れるシートを開く（記録がある日は「入力・編集」、ない日は「計測を入れる」） */
+export async function openBodySheet(page: Page) {
+  await page.getByRole('button', { name: /^(入力・編集|計測を入れる)$/ }).filter({ visible: true }).click();
+  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeVisible();
+}
+
+/** 計測を入れるシートで値を入れて保存し、シートが閉じるのを待つ（渡さなかった欄はそのまま。'' は欄を空にする） */
+export async function enterBody(page: Page, values: { weight?: string; bodyFat?: string; memo?: string }) {
+  await openBodySheet(page);
+  const fill = (label: string, v?: string) => (v === undefined ? null : page.getByRole('textbox', { name: label, exact: true }).fill(v));
+  await fill('体重', values.weight);
+  await fill('体脂肪率', values.bodyFat);
+  await fill('体組成のメモ', values.memo);
+  await button(page, '保存').click();
+  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
 }
 
 /** 設定（ホームか体組成の歯車から）で身長・目標体重を入れて、元の画面に戻る */

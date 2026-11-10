@@ -1,4 +1,4 @@
-import { addDays, addMonths, DateKey, daysBetween } from './date';
+import { addDays, addMonths, DateKey, daysBetween, weekday } from './date';
 
 /** BMI ＝ 体重 ÷ 身長(m)² */
 export function bmi(weightKg: number | null, heightCm: number | null): number | null {
@@ -32,17 +32,15 @@ export type BodyValues = {
   waistCm: number | null;
 };
 
-export type BodyMetric = 'weight' | 'bodyFat' | 'muscle' | 'waist' | 'bmi' | 'fatMass' | 'leanMass' | 'muscleMass';
+/** 画面に出す項目（筋肉率・ウエストと、筋肉率から出す筋肉量は画面から外した。データの列は残している） */
+export type BodyMetric = 'weight' | 'bodyFat' | 'bmi' | 'fatMass' | 'leanMass';
 
 export const BODY_METRICS: Record<BodyMetric, { label: string; unit: string; trendTitle: string }> = {
   weight: { label: '体重', unit: 'kg', trendTitle: '体重の推移' },
   bodyFat: { label: '体脂肪率', unit: '%', trendTitle: '体脂肪率の推移' },
-  muscle: { label: '筋肉率', unit: '%', trendTitle: '筋肉率の推移' },
-  waist: { label: 'ウエスト', unit: 'cm', trendTitle: 'ウエストの推移' },
   bmi: { label: 'BMI', unit: '', trendTitle: 'BMI の推移' },
   fatMass: { label: '体脂肪量', unit: 'kg', trendTitle: '体脂肪量の推移' },
   leanMass: { label: '除脂肪体重', unit: 'kg', trendTitle: '除脂肪体重の推移' },
-  muscleMass: { label: '筋肉量', unit: 'kg', trendTitle: '筋肉量の推移' },
 };
 
 /** 記録と身長から、項目の値を出す */
@@ -50,12 +48,9 @@ export function metricValue(v: BodyValues, metric: BodyMetric, heightCm: number 
   switch (metric) {
     case 'weight': return v.weightKg;
     case 'bodyFat': return v.bodyFatPct;
-    case 'muscle': return v.musclePct;
-    case 'waist': return v.waistCm;
     case 'bmi': return bmi(v.weightKg, heightCm);
     case 'fatMass': return fatMass(v.weightKg, v.bodyFatPct);
     case 'leanMass': return leanMass(v.weightKg, v.bodyFatPct);
-    case 'muscleMass': return muscleMass(v.weightKg, v.musclePct);
   }
 }
 
@@ -166,4 +161,21 @@ export function movingAverage(points: { date: DateKey; value: number }[], days =
 export function averageBetween(points: { date: DateKey; value: number }[], from: DateKey, to: DateKey): number | null {
   const inRange = points.filter((p) => p.date >= from && p.date <= to);
   return inRange.length === 0 ? null : inRange.reduce((n, p) => n + p.value, 0) / inRange.length;
+}
+
+/** その日を含む週（月曜始まり）の月曜 */
+export function mondayOf(date: DateKey): DateKey {
+  return addDays(date, -((weekday(date) + 6) % 7));
+}
+
+/** その日を含む週（月曜〜日曜）の、記録のある日の平均（からだの今日の「週の平均」） */
+export function weekAverage(points: { date: DateKey; value: number }[], date: DateKey): number | null {
+  const monday = mondayOf(date);
+  return averageBetween(points, monday, addDays(monday, 6));
+}
+
+/** その日より前の、いちばん新しい体重の記録（記録がない日の「前回」）。なければ null */
+export function previousWeight(daily: { date: DateKey; weightKg: number | null }[], date: DateKey): { date: DateKey; weightKg: number } | null {
+  const before = daily.filter((d) => d.date < date && d.weightKg != null).sort((a, b) => (a.date < b.date ? -1 : 1)).at(-1);
+  return before ? { date: before.date, weightKg: before.weightKg! } : null;
 }
