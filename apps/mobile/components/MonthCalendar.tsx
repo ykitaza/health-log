@@ -12,6 +12,8 @@ type Props = {
   today: DateKey;
   /** 印を付ける日（トレーニングした日） */
   marked: Set<DateKey>;
+  /** 右上に小さな白い点を付ける日（ホームの、食事を記録した日）。読み上げに「食事の記録あり」を足す */
+  dotted?: Set<DateKey>;
   /** 塗りつぶす日（選んだ日）。なければ今日を塗る */
   selected?: DateKey | null;
   onPressDay?: (key: DateKey) => void;
@@ -26,7 +28,7 @@ type Props = {
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
@@ -47,6 +49,7 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
               const isMarked = marked.has(d.key) && d.inMonth;
               const isToday = d.key === today && d.inMonth;
               const isAfterMax = maxDate != null && d.key > maxDate;
+              const isDotted = (dotted?.has(d.key) ?? false) && d.inMonth;
               const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
               return (
                 <Pressable
@@ -55,7 +58,7 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
                   aria-selected={onPressDay ? isFilled : undefined}
                   onPress={() => onPressDay?.(d.key)}
                   accessibilityRole={onPressDay && d.inMonth ? 'button' : undefined}
-                  accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked })}
+                  accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked }) + (isDotted ? ' 食事の記録あり' : '')}
                   // 月の外の日（薄く出すだけ）は読ませない
                   importantForAccessibility={d.inMonth ? 'auto' : 'no-hide-descendants'}
                   aria-hidden={!d.inMonth || undefined}
@@ -72,6 +75,8 @@ export function MonthCalendar({ year, month, today, marked, selected, onPressDay
                 >
                   {isFilled && <Animated.View entering={grow} style={[StyleSheet.absoluteFill, { borderRadius: cell / 2, backgroundColor: colors.accent }]} />}
                   <T num bold size={15} color={fg}>{d.day}</T>
+                  {/* 今日や筋トレの日の丸の上でも見えるよう、背景の色の縁を付ける */}
+                  {isDotted && <View style={s.dot} testID={`meal-dot-${d.key}`} />}
                 </Pressable>
               );
             })}
@@ -86,4 +91,5 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   cellBox: { alignItems: 'center', justifyContent: 'center' },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 4 },
+  dot: { position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.text },
 });

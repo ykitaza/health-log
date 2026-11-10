@@ -13,7 +13,12 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
   await expect(homeCard(page, 'meals')).toContainText('11月3日の食事');
 
-  await button(page, '11月3日のトレーニングを追加').click();
+  // 「記録する」のシートは、選んだ日の記録
+  await button(page, '記録する').click();
+  await expect(see(page, '11月3日（火）の記録', { exact: true })).toBeVisible();
+  await expect(see(page, '区分を選んで記録します', { exact: true })).toBeVisible();
+  await expect(see(page, '11月3日の体重や体脂肪率を入れます', { exact: true })).toBeVisible();
+  await page.getByTestId('record-training').click();
   await expect(see(page, '11月3日（火）', { exact: true })).toBeVisible();
   await expect(see(page, '過去の日（11月3日（火））に記録しています')).toBeVisible();
   await button(page, '種目を追加').click();
@@ -50,7 +55,9 @@ test('未来の日は選べず、開いても記録できない', async ({ page 
   await expect(day(page, '2026-11-20')).toHaveAttribute('aria-disabled', 'true');
   await day(page, '2026-11-20').click({ force: true });
   await expect(homeCard(page, 'training')).toContainText('今日のトレーニング');
-  await expect(button(page, '今日のトレーニングを追加')).toBeVisible();
+  // 「記録する」は今日の記録のまま
+  await button(page, '記録する').click();
+  await expect(see(page, '11月8日（日）の記録', { exact: true })).toBeVisible();
 
   // URL で直接開いても、種目を足せない
   await page.goto('/workout?date=2026-11-20');

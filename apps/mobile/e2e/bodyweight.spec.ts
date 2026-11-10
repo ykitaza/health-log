@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, enterBody, fillSets, goTab, homeCard, openApp, openBody, openSettings, saveButton, see } from './helpers';
+import { button, chooseExercise, enterBody, fillSets, goTab, homeCard, openApp, openBody, openSettings, saveButton, see, recordFromHome } from './helpers';
 
 // 自重の負荷量の計算（体重 × 割合 × 回数、30日以内の前の日の体重、名前から決める割合）は jest
 // （lib/__tests__/shared-testdata.test.ts の bodyweight.json）。ここは種目の追加・編集の割合の欄と、ホームの合計に入ること
@@ -11,7 +11,7 @@ const NAME = 'ハンドスタンドプッシュアップ';
 
 test('回数だけの種目を割合つきで足して記録すると、体重 × 割合 × 回数がホームの合計に入る。体重がなければ入れずに知らせる', async ({ page }) => {
   await openApp(page);
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await button(page, '種目を追加').click();
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
   await button(page, '種目を追加').click();
