@@ -167,7 +167,8 @@ describe('ホームの数字（home.spec.ts から）', () => {
   });
 
   test('週ごとの棒（今週から）と、トレーニングした日数', () => {
-    expect(weeklyVolumes(rows, TODAY, 5)).toEqual([1980, 1500, 0, 1200, 0]);
+    // 週は月曜始まり：11/3 は今日（11/8・日曜）と同じ週
+    expect(weeklyVolumes(rows, TODAY, 5)).toEqual([3480, 0, 1200, 0, 0]);
     const dates = trainingDates(rows);
     expect(dates).toHaveLength(4);
     expect(daysInMonth(dates, 2026, 11)).toBe(2);
@@ -202,8 +203,9 @@ describe('履歴の数字（history.spec.ts から）', () => {
   test('「すべて」：週ごとの総負荷量の見出しと、自己ベストの順', () => {
     const weeks = weeklyVolumeByBodyPart(rows, TODAY, 8);
     const s = weeklySummary(weeks);
-    expect(s).toEqual({ thisWeek: 425, lastWeek: 1280, avg: (500 + 1280 + 425) / 8 });
-    expect([(s.thisWeek / 1000).toFixed(1), (s.avg / 1000).toFixed(1), ((s.thisWeek - s.lastWeek) / 1000).toFixed(1)]).toEqual(['0.4', '0.3', '-0.9']);
+    // 週は月曜始まり：11/5 は今日（11/8・日曜）と同じ週
+    expect(s).toEqual({ thisWeek: 1705, lastWeek: 0, avg: (600 + 500 + 1705) / 8 });
+    expect([(s.thisWeek / 1000).toFixed(1), (s.avg / 1000).toFixed(1), ((s.thisWeek - s.lastWeek) / 1000).toFixed(1)]).toEqual(['1.7', '0.4', '1.7']);
     // 凡例に出す部位：記録のある部位だけ（回数だけの懸垂の背中は出ない）
     expect(new Set(weeks.flatMap((w) => Object.keys(w.byPart)))).toEqual(new Set(['chest', 'legs']));
     const pbs = [...personalBests(rows).values()].sort((a, b) => b.e1rm - a.e1rm);

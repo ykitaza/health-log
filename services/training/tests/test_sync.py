@@ -31,7 +31,7 @@ def seed(engine):
         change("body_part", "chest", fields={"name": "胸", "sort_order": 0, "hidden": False}),
         change("exercise", "bench", fields={"body_part_id": "chest", "name": "ベンチプレス", "record_type": "weight_reps",
                                             "sort_order": 0, "hidden": False}),
-        change("workout_entry", "e1", fields={"date": "2026-11-07", "exercise_id": "bench", "sort_order": 0}),
+        change("workout_entry", "e1", fields={"date": "2026-11-01", "exercise_id": "bench", "sort_order": 0}),
         change("workout_set", "s1", fields={"entry_id": "e1", "set_index": 0, "weight_kg": 80.0, "reps": 8}),
         change("workout_set", "s2", fields={"entry_id": "e1", "set_index": 1, "weight_kg": 85.0, "reps": 5}),
         change("workout_entry", "e2", fields={"date": "2026-11-08", "exercise_id": "bench", "sort_order": 0}),
@@ -42,15 +42,15 @@ def seed(engine):
 def test_その日のトレーニングと週のふり返り(engine):
     seed(engine)
     queries = create_queries(engine)
-    workout = asyncio.run(queries.workout(USER, "2026-11-07"))
+    workout = asyncio.run(queries.workout(USER, "2026-11-01"))
     assert [(s.weight_kg, s.reps) for s in workout.entries[0].sets] == [(80.0, 8), (85.0, 5)]
     review = asyncio.run(queries.weekly_review(USER, "2026-11-08", weeks=2))
     assert review.weekly_volumes == [100.0, 80 * 8 + 85 * 5]
-    assert review.training_days == ["2026-11-07", "2026-11-08"]
+    assert review.training_days == ["2026-11-01", "2026-11-08"]
     history = asyncio.run(queries.exercise_history(USER, "bench"))
     # 80kg × 8 の推定1RM（101.3）は、100kg × 1（100）より大きい
     assert (history.personal_best.weight_kg, history.personal_best.reps) == (80.0, 8)
-    assert [p.date for p in history.series] == ["2026-11-07", "2026-11-08"]
+    assert [p.date for p in history.series] == ["2026-11-01", "2026-11-08"]
 
 
 def test_消したセットと消した日の種目は集計に入れない_種目を消しても過去の記録は残る(engine):
@@ -59,7 +59,7 @@ def test_消したセットと消した日の種目は集計に入れない_種�
                          change("exercise", "bench", "delete")])
     queries = create_queries(engine)
     review = asyncio.run(queries.weekly_review(USER, "2026-11-08", weeks=2))
-    assert review.weekly_volumes == [0, 80 * 8]  # 今週（11-08 の分）は日ごと消した。先週は s1 だけ残る
+    assert review.weekly_volumes == [0, 80 * 8]  # 今週（11-02〜11-08。11-08 の分）は日ごと消した。先週（11-01 の分）は s1 だけ残る
     assert asyncio.run(queries.repository.exercises(TraineeId(USER))) == []  # 種目の一覧からは消える
 
 
@@ -90,6 +90,12 @@ def test_体組成は手入力が取り込みに勝つ(engine):
                   "bodyweight_ratio": 1.01}),  # 体重に対する割合は 0〜1
     ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0, "hidden": False,
                   "bodyweight_ratio": -0.1}),
+    ("exercise", {"big3": "overhead_press"}),  # BIG3 の役は3つだけ
+    ("exercise", {"form_video_url": "http://youtu.be/x"}),  # フォームの動画は https:// だけ
+    ("exercise", {"form_video_url": "https://"}),
+    ("exercise", {"form_video_url": "https://youtu.be/a b"}),  # 空白を含まない
+    ("exercise", {"form_video_url": "javascript:alert(1)"}),
+    ("exercise", {"form_video_url": "https://youtu.be/" + "a" * 1984}),  # 2000文字まで（17 + 1984 = 2001）
 ])
 def test_アプリの範囲の外は断る(entity_type, fields):
     raw = {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": "x", "op": "create",
@@ -106,6 +112,10 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
         ("body_part", {"name": "胸" * 40, "sort_order": 0, "hidden": False}),
         ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0,
                       "hidden": False, "bodyweight_ratio": 1}),
+        ("exercise", {"body_part_id": "back", "name": "デッドリフト", "record_type": "weight_reps", "sort_order": 0,
+                      "hidden": False, "big3": "deadlift", "form_video_url": "https://youtu.be/" + "a" * 1983}),
+        ("exercise", {"body_part_id": "back", "name": "デッドリフト", "record_type": "weight_reps", "sort_order": 0,
+                      "hidden": False, "big3": None, "form_video_url": None}),  # 割り当てなし・リンクなし
     ]
     for entity_type, fields in raws:
         raw = {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": "x", "op": "create",

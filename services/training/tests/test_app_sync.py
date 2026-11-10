@@ -102,6 +102,10 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
     exercises = {e["name"]: e for p in tool("list_exercises", include_hidden=True)["body_parts"] for e in p["exercises"]}
     assert exercises["スクワット"]["hidden"] is True
     assert exercises["ブルガリアンスクワット"]["record_type"] == "weight_reps" and not exercises["ブルガリアンスクワット"].get("hidden")
+    # BIG3 の役（スクワットの代わりにブルガリアンスクワット）とフォームの動画のリンク
+    assert {name: e["big3"] for name, e in exercises.items() if "big3" in e} == {
+        "ベンチプレス": "bench", "ブルガリアンスクワット": "squat", "デッドリフト": "deadlift"}
+    assert exercises["ブルガリアンスクワット"]["form_video_url"] == "https://youtu.be/bss"
     # 11/7 は体重計の取り込みだけ。11/8 は手入力よりあとに体重計の取り込みがあるが、手入力が先
     body = tool("body_progress", days=7)["days"]
     assert [(d["date"], d["weight_kg"], d["body_fat_pct"], d["waist_cm"]) for d in body] == [

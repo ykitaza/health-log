@@ -11,7 +11,7 @@ from datetime import date, timedelta
 
 from training.domain.model import SetRow
 
-# --- 日付（アプリの date.ts と同じ。週は日曜始まり） ---
+# --- 日付（アプリの date.ts と同じ。週は月曜始まり。食事の週のまとめと同じ） ---
 
 
 def add_days(day: str, n: int) -> str:
@@ -24,9 +24,9 @@ def days_between(a: str, b: str) -> int:
 
 
 def week_start(day: str) -> str:
-    """その週の日曜。"""
+    """その週の月曜。"""
     d = date.fromisoformat(day)
-    return (d - timedelta(days=(d.weekday() + 1) % 7)).isoformat()
+    return (d - timedelta(days=d.weekday())).isoformat()
 
 
 # --- 1セット ---
@@ -113,7 +113,7 @@ def period_totals(rows: list[SetRow], today: str) -> PeriodTotals:
 
 
 def weekly_volumes(rows: list[SetRow], today: str, weeks: int = 6) -> list[float]:
-    """週ごと（日曜始まり）の負荷量。[0] が今週、[1] が1週前…"""
+    """週ごと（月曜始まり）の負荷量。[0] が今週、[1] が1週前…"""
     this_week = week_start(today)
     out: list[float] = [0] * weeks
     for r in rows:

@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '../body';
 import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bodyweight';
+import { big3Assignments, Big3Role } from '../exercises';
+import type { RecordType } from '../sets';
 import {
   bestSet, estimated1RM, exerciseDailySeries, periodTotals, personalBests, rmTable, setVolume, topSet,
   totalVolume, TrainingSetRow, trainingDates, weeklyVolumeByBodyPart, weeklyVolumes,
@@ -152,5 +154,19 @@ describe('body.json', () => {
     const names: Record<string, string> = { weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct', musclePct: 'muscle_pct', waistCm: 'waist_cm' };
     expect(Object.fromEntries(daily.filter((d) => d.imported).map((d) => [d.date, d.imported!.map((f) => names[f])])))
       .toEqual(data.daily_body_values.expected_imported);
+  });
+});
+
+describe('big3.json：BIG3 の役と種目の対応（割り当てがなければ名前で決める）', () => {
+  type Case = {
+    name: string;
+    exercises: { id: string; name: string; hidden?: boolean; record_type?: RecordType; big3?: Big3Role }[];
+    expected: Partial<Record<Big3Role, string>>;
+  };
+  const cases: Case[] = load('big3.json').cases;
+  test.each(cases)('$name', ({ exercises, expected }) => {
+    expect(big3Assignments(exercises.map((e) => ({
+      id: e.id, name: e.name, hidden: e.hidden ?? false, recordType: e.record_type ?? 'weight_reps', big3: e.big3 ?? null,
+    })))).toEqual(expected);
   });
 });

@@ -49,9 +49,9 @@ export function weekday(key: DateKey): number {
   return new Date(toUtc(key)).getUTCDay();
 }
 
-/** その週の日曜 */
+/** その週の月曜（週は月〜日。サーバーの筋トレ・食事の週と同じ） */
 export function weekStart(key: DateKey): DateKey {
-  return addDays(key, -weekday(key));
+  return addDays(key, -((weekday(key) + 6) % 7));
 }
 
 export function addMonths(key: DateKey, n: number): DateKey {
@@ -104,7 +104,8 @@ export function formatShortDate(key: DateKey): string {
  */
 export function monthMatrix(year: number, month: number): { key: DateKey; day: number; inMonth: boolean }[][] {
   const first = `${year}-${pad(month)}-01`;
-  const start = weekStart(first);
+  // カレンダーは日曜始まりのまま（週の集計の weekStart は月曜始まり）
+  const start = addDays(first, -weekday(first));
   const rows: { key: DateKey; day: number; inMonth: boolean }[][] = [];
   for (let w = 0; w < 6; w++) {
     const row = [];

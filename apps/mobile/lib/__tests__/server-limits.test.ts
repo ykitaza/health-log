@@ -4,7 +4,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN } from '../healthConnect/importer';
-import { LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
+import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -23,6 +23,13 @@ function fieldArgs(source: string, model: string | null, name: string): Record<s
 }
 
 describe('同期のサーバーの決まりと合っている', () => {
+  test('フォームの動画のリンク：長さの上限と形（pattern）が同じ。種目の項目は FormVideoUrl 型', () => {
+    const m = /^FormVideoUrl = Annotated\[str, Field\(max_length=(\d+), pattern=r"(.+)"\)\]$/m.exec(entities);
+    expect(m?.slice(1)).toEqual([String(FORM_VIDEO_URL_MAX_LENGTH), FORM_VIDEO_URL_PATTERN.source.replace(/\\\//g, '/')]);
+    expect(entities).toMatch(/^class ExerciseFields[\s\S]*?^\s+form_video_url: FormVideoUrl \| None = None/m);
+    expect(entities).toMatch(/^class ExerciseFields[\s\S]*?^\s+big3: Literal\["bench", "squat", "deadlift"\] \| None = None/m);
+  });
+
   test('メモ（セットと体組成）は Memo 型。長さの上限が同じ', () => {
     expect(entities).toMatch(/^class WorkoutSetFields[\s\S]*?^\s+memo: Memo = None/m);
     expect(entities).toMatch(/^class BodyRecordFields[\s\S]*?^\s+memo: Memo = None/m);

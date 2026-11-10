@@ -68,3 +68,18 @@ export function parseInRange(text: string, limit: Limit, unit: WeightUnit = 'kg'
   if (value == null || !inRange(value, limit)) return { error: rangeMessage(limit, unit) };
   return { value };
 }
+
+/** フォームの動画のリンクの長さの上限（コードポイント）。同期のサーバーの exercise.form_video_url（FormVideoUrl の max_length）と同じ */
+export const FORM_VIDEO_URL_MAX_LENGTH = 2000;
+/** フォームの動画のリンクの形：https:// で始まり、空白を含まない。サーバーの FormVideoUrl の pattern と同じ */
+export const FORM_VIDEO_URL_PATTERN = /^https:\/\/\S+$/;
+
+/** フォームの動画のリンクの入力（前後の空白は取る）。空なら value は null（リンクなし）。形が違うか長すぎれば error */
+export function parseFormVideoUrl(text: string): { value: string | null } | { error: string } {
+  const url = text.trim();
+  if (url === '') return { value: null };
+  if (!FORM_VIDEO_URL_PATTERN.test(url)) return { error: 'リンクは https:// で始まるものを入れてください（空白は入れられません）' };
+  const n = [...url].length;
+  if (n > FORM_VIDEO_URL_MAX_LENGTH) return { error: `リンクは ${FORM_VIDEO_URL_MAX_LENGTH} 文字以内で入れてください（今は${n}文字）` };
+  return { value: url };
+}

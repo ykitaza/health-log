@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from training.domain import body, bodyweight
+from training.domain import big3, body, bodyweight
 from training.domain import calculations as c
-from training.domain.model import BodyRecord, SetRow
+from training.domain.model import BodyRecord, Exercise, RecordType, SetRow
 
 TESTDATA = Path(__file__).parents[3] / "testdata" / "training"
 
@@ -70,6 +70,13 @@ def test_自重の負荷量():
     assert bodyweight.missing_bodyweight(rows) == e["missing_bodyweight"]
 
 
+@pytest.mark.parametrize("case", load("big3.json")["cases"], ids=lambda c: c["name"])
+def test_BIG3_の割り当て(case):
+    exercises = [Exercise(e["id"], "part", e["name"], RecordType(e.get("record_type", "weight_reps")), 0,
+                          e.get("hidden", False), big3=e.get("big3")) for e in case["exercises"]]
+    assert big3.assignments(exercises) == case["expected"]
+
+
 def test_体組成():
     data = load("body.json")
     for case in data["bmi"]:
@@ -88,6 +95,6 @@ def test_体組成():
     assert [asdict(d) for d in body.daily_body_values(records)] == data["daily_body_values"]["expected"]
 
 
-def test_週の始まりは日曜():
-    assert [c.week_start(d) for d in ("2026-11-08", "2026-11-11", "2026-11-14", "2026-11-15")] == [
-        "2026-11-08", "2026-11-08", "2026-11-08", "2026-11-15"]
+def test_週の始まりは月曜():
+    assert [c.week_start(d) for d in ("2026-11-08", "2026-11-09", "2026-11-11", "2026-11-15", "2026-11-16")] == [
+        "2026-11-02", "2026-11-09", "2026-11-09", "2026-11-09", "2026-11-16"]

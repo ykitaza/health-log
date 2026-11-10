@@ -43,7 +43,7 @@ test('記録がないときのホーム（まっさらなデータから始ま�
 });
 
 test('記録したあとの総負荷量のカード、週ごとの棒、カレンダーの印、今日の記録', async ({ page }) => {
-  // 1週前の週（11/1〜）：スクワット 100×5×3 = 1500kg
+  // 今週（月曜始まり、11/2〜）：スクワット 100×5×3 = 1500kg
   await recordOn(page, '2026-11-03', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }, { weight: '100', reps: '5' }, { weight: '100', reps: '5' }] }]);
   // 今日：ベンチ 80×8、80×8、70×10 = 1980kg と、回数だけの懸垂（負荷量は 0）
   await recordOn(page, TODAY, [
@@ -58,11 +58,10 @@ test('記録したあとの総負荷量のカード、週ごとの棒、カレ�
   await expect(visible(page, 'volume-28d')).toContainText('3.48t');
   await expect(visible(page, 'volume-total')).toContainText('3.48t');
 
-  // 週ごとの棒：今週 1980、1週前 1500（いちばん長い今週を 100% とする）
+  // 週ごとの棒（週は月曜始まり）：今週 1980 + 1500 = 3480、1週前 0（いちばん長い今週を 100% とする）
   const width = (i: number) => page.getByTestId(`week-bar-${i}`).evaluate((el) => el.style.width);
   expect(await width(0)).toBe('100%');
-  expect(parseFloat(await width(1))).toBeCloseTo((1500 / 1980) * 100, 3);
-  expect(parseFloat(await width(2))).toBe(0);
+  expect(parseFloat(await width(1))).toBe(0);
 
   // カレンダーの印は 11 月の 3 日と 8 日
   await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '11月3日（火） 記録あり');

@@ -18,7 +18,7 @@ from training.main import create_commands, create_queries, register_sync_entitie
 from training.presentation import mcp_tools
 
 JST = timezone(timedelta(hours=9))
-TODAY = date(2026, 11, 8)  # 日曜（週のはじめ）
+TODAY = date(2026, 11, 8)  # 日曜（週の最後の日。週は月曜〜日曜）
 NOW = datetime(2026, 11, 8, 21, 30, tzinfo=JST)
 REGISTRY = Registry()
 register_sync_entities(REGISTRY)
@@ -154,15 +154,15 @@ def test_消すと集計からも消える(call):
 
 
 def test_一覧と週のふり返り(call):
-    call("record_workout", exercises=[bench((80, 8))], day="2026-11-03")
+    call("record_workout", exercises=[bench((80, 8))], day="2026-11-01")  # 日曜（先週の最後の日）
     call("record_workout", exercises=[{"exercise": "スクワット", "sets": [{"weight_kg": 100, "reps": 5}]}],
          day="2026-11-08")
     call("record_workout", exercises=[bench((60, 10))], day="2026-11-08")
     listed = call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"]
     assert [(w["date"], w["exercises"], w["total_volume"]) for w in listed] == [
-        ("2026-11-03", [BENCH], 640), ("2026-11-08", ["スクワット", BENCH], 1100)]
+        ("2026-11-01", [BENCH], 640), ("2026-11-08", ["スクワット", BENCH], 1100)]
     review = call("weekly_training_review")
-    assert review["week"] == {"from": "2026-11-08", "to": "2026-11-14", "until": "2026-11-08"}
+    assert review["week"] == {"from": "2026-11-02", "to": "2026-11-08", "until": "2026-11-08"}
     assert (review["sessions"], review["total_volume"], review["days_since_last_training"]) == (1, 1100, 0)
     parts = {p["body_part"]: p for p in review["by_body_part"]}
     assert (parts["脚"]["volume"], parts["脚"]["share_pct"], parts["胸"]["share_pct"]) == (500, 45.5, 54.5)
@@ -175,11 +175,11 @@ def test_一覧と週のふり返り(call):
 
 def test_自重の種目は_体重_割合_回数で総負荷量に入る_体重がなければ入れずに知らせる(call):
     pullups = {"exercise": "懸垂", "sets": [{"reps": 10}, {"reps": 8}]}
-    first = call("record_workout", exercises=[pullups, bench((80, 8))], day="2026-11-03")
+    first = call("record_workout", exercises=[pullups, bench((80, 8))], day="2026-11-01")  # 先週の日曜
     assert (first["total_volume"], first["bodyweight_kg"]) == (640, None)  # 体重の記録がない
     assert "2セット" in first["note"] and first["entries"][0]["sets"][0]["volume"] == 0
     call("record_body", day="2026-10-20", weight_kg=70)  # 30日以内のいちばん近い前の日の体重を使う
-    day = call("get_workout", day="2026-11-03")
+    day = call("get_workout", day="2026-11-01")
     assert (day["bodyweight_kg"], day["total_volume"], "note" in day) == (70, 70 * 18 + 640, False)
     assert day["entries"][0]["sets"][0]["volume"] == 700 and day["entries"][0]["max_estimated_1rm"] is None
     call("record_body", day="2026-11-08", weight_kg=72)
@@ -317,6 +317,30 @@ def test_アプリが同期で送った種目の変更と_MCP_の変更は項目
     listed = call("list_exercises", include_hidden=True)
     found = [e for p in listed["body_parts"] for e in p["exercises"] if e["exercise_id"] == exercise_id]
     assert found == [{"exercise_id": exercise_id, "name": "バーベルベンチプレス", "record_type": "weight_reps", "hidden": True}]
+
+
+def test_種目の一覧に_BIG3_の役とフォームの動画を付ける_MCP_の変更では消さない(call, engine):
+    def listed():
+        return {e["name"]: e for p in call("list_exercises")["body_parts"] for e in p["exercises"]}
+
+    # 割り当てる前は、名前で決めた役（インクラインダンベルプレス・ルーマニアンデッドリフトは入らない）
+    roles = {name: e["big3"] for name, e in listed().items() if "big3" in e}
+    assert roles == {"ベンチプレス": "bench", "スクワット": "squat", "デッドリフト": "deadlift"}
+    assert all("form_video_url" not in e for e in listed().values())
+    # アプリでベンチプレスの役をほかの種目に移し、フォームの動画を入れた
+    narrow = call("add_exercise", name="ナローベンチ", body_part="胸")["exercise_id"]
+    engine.append("alice", [
+        Change(str(uuid.uuid4()), "exercise", narrow, None, "update",
+               {"big3": "bench", "form_video_url": "https://youtu.be/abc"}, "2026-11-08T10:00:00.000Z", "app"),
+    ])
+    found = listed()
+    assert {name: e["big3"] for name, e in found.items() if "big3" in e} == {"ナローベンチ": "bench"}  # 名前では決めない
+    assert found["ナローベンチ"]["form_video_url"] == "https://youtu.be/abc"
+    # MCP で名前を変えても、役とリンクは残り、送るのは名前だけ
+    call("update_exercise", exercise=narrow, name="ナローグリップベンチ")
+    entries, _, _ = engine.pull("alice", 0, 100, {"exercise"})
+    assert entries[-1].change.fields == {"name": "ナローグリップベンチ"}
+    assert listed()["ナローグリップベンチ"]["big3"] == "bench"
 
 
 def test_体組成を記録し_同じ日は渡した項目だけ書き換える(call):

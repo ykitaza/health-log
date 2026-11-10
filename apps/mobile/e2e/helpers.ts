@@ -1,6 +1,6 @@
 import { expect, Locator, Page } from '@playwright/test';
 
-/** テストの「今日」。2026-11-08 は日曜（週は日曜始まり） */
+/** テストの「今日」。2026-11-08 は日曜（週は月曜始まりなので、11/2〜11/8 が今週。カレンダーは日曜始まり） */
 export const TODAY = '2026-11-08';
 
 export type SetSpec = { weight?: string; reps?: string; memo?: string; done?: boolean };

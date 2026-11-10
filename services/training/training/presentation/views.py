@@ -12,7 +12,7 @@ from training.application.queries import (
     SleepSummary,
     WeeklyTrainingReview,
 )
-from training.domain import body, bodyweight, calculations, health
+from training.domain import big3, body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
 from training.domain.model import Exercise, SetRow, Workout
 
@@ -45,12 +45,16 @@ def _rows(w: Workout, catalog: Catalog, weights: list[tuple[str, float]]) -> dic
 
 
 def catalog_view(catalog: Catalog, include_hidden: bool) -> dict:
+    """部位と種目の一覧。BIG3 の役（アプリと同じく、割り当てがなければ名前で決めたもの）とフォームの動画のリンクは、ある種目だけに付ける。"""
+    roles = {exercise_id: role for role, exercise_id in big3.assignments(catalog.exercises).items()}
     parts = []
     for p in catalog.body_parts:
         if p.hidden and not include_hidden:
             continue
         exercises = [{"exercise_id": e.id, "name": e.name, "record_type": e.record_type.value,
                       **({"bodyweight_ratio": bodyweight.ratio_of(e)} if e.record_type.value == "reps_only" else {}),
+                      **({"big3": roles[e.id]} if e.id in roles else {}),
+                      **({"form_video_url": e.form_video_url} if e.form_video_url else {}),
                       **({"hidden": True} if e.hidden else {})}
                      for e in catalog.exercises if e.body_part_id == p.id and (include_hidden or not e.hidden)]
         parts.append({"body_part_id": p.id, "body_part": p.name, **({"hidden": True} if p.hidden else {}),
@@ -125,7 +129,7 @@ def history(h: ExerciseHistory, e: Exercise, catalog: Catalog, start: str, end: 
 
 
 def weekly(review: WeeklyTrainingReview, catalog: Catalog) -> dict:
-    """週は日曜始まり（アプリと同じ）。by_body_part は今週と先週、weeks は古い順の週ごとの総負荷量。"""
+    """週は月曜始まり（アプリと同じ）。by_body_part は今週と先週、weeks は古い順の週ごとの総負荷量。"""
     this_week, last_week = review.by_body_part[-1], review.by_body_part[-2]
     week_end = calculations.add_days(this_week.week_start, 6)
     sessions = [d for d in review.training_days if this_week.week_start <= d <= review.today]

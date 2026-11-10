@@ -137,9 +137,13 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
   },
 ];
 
-/** 筋トレの今の形。版8で、種目に体重に対する割合（bodyweight_ratio。回数だけの種目の自重の負荷量に使う）を足した */
-export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V2.map((s) =>
+/** 版8の形。種目に体重に対する割合（bodyweight_ratio。回数だけの種目の自重の負荷量に使う）を足した。版8のマイグレーションは、この形でトリガーを作る */
+export const TRAINING_ENTITIES_V8: EntitySpec[] = TRAINING_ENTITIES_V2.map((s) =>
   s.type === 'exercise' ? { ...s, columns: { ...s.columns, bodyweight_ratio: 'real' } } : s);
+
+/** 筋トレの今の形。版10で、種目に BIG3 の役（big3）とフォームの動画のリンク（form_video_url）を足した */
+export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V8.map((s) =>
+  s.type === 'exercise' ? { ...s, columns: { ...s.columns, big3: 'text', form_video_url: 'text' } } : s);
 
 /** 食事の今の形。版7で、食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した */
 export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
