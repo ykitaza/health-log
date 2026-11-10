@@ -36,6 +36,8 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   await saveButton(page).click();
 
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
+  // 種目のカードの並びの上に見出し（記録がない日は出さない）
+  await expect(page.getByRole('heading', { name: '記録した種目', exact: true }).filter({ visible: true })).toBeVisible();
   // 空の3セット目は保存しない：2セット、負荷量 80×8 + 80×6 = 1120kg
   await expect(see(page, '種目1セット2合計負荷量1.12 t')).toBeVisible();
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();

@@ -10,7 +10,7 @@ import { todayKey } from '@/lib/date';
 import {
   Area, AREA_LABELS, Block, dailyHighlightLabel, dailySectionTitle, deltaLook, formatCreated, formatDelta, formatMetricValue, formatPeriod, formatReportDate,
   Highlight, highlightsFor, KIND_LABELS, Metric, metricLabel, parseMarkdown, primaryMetrics, Report, reportCardLabel, ReportKind, Span, Tone,
-  TONE_LABELS, TONE_SHORT,
+  KIND_SHORT, TONE_LABELS, TONE_SHORT,
 } from '@/lib/reports';
 import { colors, onToneSub, radius, space, toneColors } from '@/theme';
 import { duration, HOLD_MS, springs, staggerDelay } from '@/theme/motion';
@@ -117,17 +117,25 @@ function MetricRow({ metrics }: { metrics: Metric[] }) {
   );
 }
 
-/** レポートの種類のラベル（日のまとめ・週のまとめ・月のまとめ・その他）。Figma の KindBadge */
-export function KindBadge({ kind }: { kind: ReportKind }) {
+/**
+ * カードの左上の、レポートの種類の四角（28dp の角丸に「日」「週」「月」「他」の1文字）。色ではなく文字で分ける。
+ * 読み上げはカード全体の名前（reportCardLabel）に「週のまとめ」などの名前で入れる
+ */
+function KindSquare({ kind }: { kind: ReportKind }) {
   return (
-    <View style={{ backgroundColor: colors.input, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 }} testID="report-kind">
-      <T variant="labelM" color={colors.sub}>{KIND_LABELS[kind]}</T>
+    <View
+      style={{ width: 28, height: 28, borderRadius: radius.s, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}
+      accessibilityLabel={KIND_LABELS[kind]}
+      testID="report-kind"
+    >
+      <T bold size={14}>{KIND_SHORT[kind]}</T>
     </View>
   );
 }
 
 /**
- * 一覧とホームのカード：左に調子の色の帯、調子のアイコンとラベル、種類、日付（一覧の並びと同じ、期間の日付）、題、要約、主な指標を2つまで。
+ * 一覧とホームのカード：上の行に種類の四角、調子のアイコンとラベル（調子は色の帯ではなく、アイコンと言葉で伝える）、日付（一覧の並びと同じ、期間の日付）。
+ * その下に題、要約、主な指標を2つまで。
  * 高さをそろえるため、題と要約は1行ずつ（長ければ「…」）、指標は1段（入らない分は出さない。指標がなくても同じ高さ）。
  * 高さは固定の数字ではなく行の数で決める（文字の大きさの設定を大きくしても、文字が切れて読めなくならない）。
  * unread（まだ開いていない）なら、題の横に「新着」の札（読み上げにも入れる）
@@ -145,12 +153,11 @@ export function ReportCard({ report, onPress, unread = false }: { report: Report
       testID={`report-${report.id}`}
       style={{ flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.card, overflow: 'hidden', minHeight: 72 }}
     >
-      <View style={{ width: 6, backgroundColor: tone.accent }} />
-      <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 14, paddingRight: 8, gap: 6 }}>
+      <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 16, paddingRight: 8, gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <KindSquare kind={report.kind} />
           <Icon name={TONE_ICON[report.tone]} size={18} color={tone.accent} />
           <T bold size={14} color={tone.accent} style={{ flex: 1 }} numberOfLines={1}>{TONE_LABELS[report.tone]}</T>
-          <KindBadge kind={report.kind} />
           <T size={12} color={colors.sub} numberOfLines={1}>{formatReportDate(report)}</T>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -184,7 +191,7 @@ export function LatestReportCard() {
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="すべてのレポート"
-            onPress={() => router.push('/reports')}
+            onPress={() => router.navigate('/reports')}
             style={{ minHeight: 48, minWidth: 48, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}
           >
             <T bold size={14} color={colors.accent}>すべて</T>
@@ -381,7 +388,8 @@ export function ReportSection({ title, children }: { title: string; children: Re
 
 
 /**
- * 日のまとめの分野のカード（Figma の DailyHighlightCard）。分野のアイコンと名前、調子の印（アイコンと言葉）、一文、指標があれば値と変化。
+ * 日のまとめの分野のカード（Figma の DailyHighlightCard）。書類のアイコン（レポートから抜き出したもの）、分野の名前、調子の印（アイコンと言葉）、
+ * 一文、指標があれば値と変化。記録のカード（塗りのカード）と見分けられるよう、塗りをなくして点線の枠にする。
  * 全体が1つのボタンで、押すと日のまとめの中身を開く
  */
 export function DailyHighlightCard({ highlight, index, onPress }: { highlight: Highlight; index: number; onPress: () => void }) {
@@ -396,10 +404,14 @@ export function DailyHighlightCard({ highlight, index, onPress }: { highlight: H
         accessibilityHint="日のまとめを開く"
         scaleTo={0.98}
         onPress={onPress}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, paddingVertical: 12, paddingLeft: 12, paddingRight: 8, minHeight: 48 }}
+        style={{
+          flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card,
+          paddingVertical: 12, paddingLeft: 12, paddingRight: 8, minHeight: 48,
+        }}
+        testID="daily-highlight"
       >
         <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name={AREA_ICON[highlight.area]} size={22} color={colors.text} />
+          <Icon name="report" size={22} color={colors.text} />
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

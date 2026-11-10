@@ -123,7 +123,9 @@ export function WorkoutDayContent({ date }: { date: string }) {
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xs }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
           )}
           <DailyHighlights date={date} areas={TAB_AREAS.training} />
-          <View style={{ gap: space.m, marginTop: space.l }}>
+          {/* 上の「レポートから」のカード（抜き出し）と分けて、ここからが記録そのものだと分かるように見出しを付ける */}
+          <T variant="titleS" color={colors.sub} accessibilityRole="header" style={{ marginTop: space.l }}>記録した種目</T>
+          <View style={{ gap: space.m, marginTop: space.s }}>
             {entries.map((e, i) => {
               const best = bestSet(e.sets);
               return (
