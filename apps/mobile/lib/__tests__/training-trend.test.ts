@@ -1,4 +1,4 @@
-import { openFormVideo } from '../exercises';
+import { completeBig3, openFormVideo } from '../exercises';
 import { big3Trend, dayCardSummary, menuFromDay, summarizeSets, TrainingSetRow, trendDays } from '../training';
 
 const row = (date: string, exerciseId: string, weightKg: number | null, reps: number): TrainingSetRow =>
@@ -90,4 +90,9 @@ test('フォームの動画：開けたら true、開けなかったら false', 
   expect(await openFormVideo('https://youtu.be/abc', async (u) => { opened.push(u); })).toBe(true);
   expect(opened).toEqual(['https://youtu.be/abc']);
   expect(await openFormVideo('https://youtu.be/abc', async () => { throw new Error('no app'); })).toBe(false);
+});
+
+test('レポートの BIG3：3つの役がそろったときだけ', () => {
+  expect(completeBig3({ bench: 'b', squat: 's', deadlift: 'd' })).toEqual({ bench: 'b', squat: 's', deadlift: 'd' });
+  expect(completeBig3({ bench: 'b', squat: 's' })).toBeNull();
 });

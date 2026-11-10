@@ -1,7 +1,12 @@
 // レポート（版7）：同期で受け取って読む、消すと delete だけを送る、積み直さない。食事の推定の根拠も
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { ItemInput } from '@/lib/meals';
-import { memoryDb, testDeps } from '@/test-utils/nodeDb';
+import { syncStore } from '../repositories/sync';
+import { createApiClient } from '@/lib/api';
+import { createSyncEngine } from '@/lib/sync/engine';
+import { createFakeSyncServer } from '@/test-utils/fakeSyncServer';
+import { fakeAccessToken } from '@/test-utils/fakeToken';
+import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
 import { device, Device } from '@/test-utils/syncHarness';
 
 const rice: ItemInput = { name: '白米', amount: 200, unit: 'g', kcal: 312, protein_g: 5, fat_g: 0.6, carbs_g: 74 };
@@ -97,6 +102,23 @@ describe('レポート', () => {
     expect((await d.r.reports.dailyFor('2026-11-08'))?.id).toBe(DAY1);
   });
 
+  test('つながり（links）と目標の見直し（review）を受け取って読む。ないレポートは空と null', async () => {
+    const d = await device();
+    saveReport(d, MONTH, '2026-11-01T01:00:00.000Z', {
+      title: '10月のまとめ', kind: 'monthly', period_start: '2026-10-01', period_end: '2026-10-31',
+      links: [{ from_area: 'sleep', to_area: 'training', text: '睡眠が短い週は回数が半分', basis: '2週' }, { from_area: 'meals', to_area: 'body', text: 'kcal が多い週は体重が減らない', basis: null }],
+      review: { text: '食事の目標を少し下げる案', target: 'meals_goal' },
+    });
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', WEEKLY);
+    await d.engine.run();
+    expect(await d.r.reports.get(MONTH)).toMatchObject({
+      links: [{ from: 'sleep', to: 'training', text: '睡眠が短い週は回数が半分', basis: '2週' }, { from: 'meals', to: 'body', text: 'kcal が多い週は体重が減らない', basis: null }],
+      review: { text: '食事の目標を少し下げる案', target: 'meals_goal' },
+    });
+    expect(await d.r.reports.get(WEEK)).toMatchObject({ links: [], review: null });
+    expect(d.outbox()).toEqual([]);
+  });
+
   test('壊れた値（知らない調子、JSON でない highlights）でも落ちず、前の形と同じに読む', async () => {
     const d = await device();
     saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', { title: 'x', overall_tone: 'great', highlights: 'nope', next_steps: [1, ''] });
@@ -147,5 +169,70 @@ describe('版7のマイグレーション', () => {
     db.raw.prepare(`INSERT INTO meals (id, date, slot, description, source, created_at, updated_at) VALUES ('m2', '2026-11-08', 'dinner', '', 'text', 'x', 'x')`).run();
     const created = db.raw.prepare('SELECT fields FROM sync_outbox ORDER BY seq DESC LIMIT 1').get() as { fields: string };
     expect(JSON.parse(created.fields)).toHaveProperty('basis', null);
+  });
+});
+
+describe('版9のマイグレーション', () => {
+  const LINKS = [{ from_area: 'sleep', to_area: 'training', text: '睡眠が短い日の翌日は負荷量が少ない', basis: '3日' }];
+
+  test('版8の端末：受け取ったレポートに links と review を当てはめ直す。重ならず、端末で消したものは消えたまま', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-09T01:00:00.000Z' });
+    const mcp = { parent_id: null, changed_at: '2026-11-09T01:00:00.000Z', origin: 'mcp' as const, device_id: null };
+    const KEEP = WEEK;
+    const GONE = MONTH;
+    server.append([
+      { ...mcp, change_id: crypto.randomUUID(), entity_type: 'report', entity_id: KEEP, op: 'create',
+        fields: { ...WEEKLY, links: LINKS, review: { text: '睡眠の目標を4日にする案', target: null } } },
+      { ...mcp, change_id: crypto.randomUUID(), entity_type: 'report', entity_id: GONE, op: 'create',
+        fields: { title: '10月のまとめ', body: '', kind: 'monthly', period_start: null, period_end: null, links: LINKS } },
+    ]);
+
+    // 版8の端末：2件を受け取って当てはめた（links と review は捨てた）あと、1件を消してまだ送っていない
+    const db = memoryDb();
+    const deps = testDeps();
+    const v9 = MIGRATIONS.splice(8);
+    try {
+      await migrate(db, deps.now);
+    } finally {
+      MIGRATIONS.push(...v9);
+    }
+    const insert = db.raw.prepare(`INSERT INTO reports (id, title, body, kind, created_at, updated_at) VALUES (?, ?, '', ?, '2026-11-09T01:00:00.000Z', '2026-11-09T01:00:00.000Z')`);
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('applying', '1')`).run();
+    insert.run(KEEP, '今週のまとめ', 'weekly');
+    insert.run(GONE, '10月のまとめ', 'monthly');
+    db.raw.prepare(`DELETE FROM sync_meta WHERE key = 'applying'`).run();
+    db.raw.prepare(`INSERT INTO sync_seen (entity_type, entity_id, seq) VALUES ('report', ?, 1), ('report', ?, 2), ('meal', 'm1', 5)`).run(KEEP, GONE);
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '2')`).run();
+    db.raw.prepare(`UPDATE reports SET deleted_at = '2026-11-09T03:00:00.000Z', updated_at = '2026-11-09T03:00:00.000Z' WHERE id = ?`).run(GONE);
+    expect(db.raw.prepare('SELECT entity_type, op FROM sync_outbox').all()).toEqual([{ entity_type: 'report', op: 'delete' }]);
+
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
+    expect(db.raw.prepare('SELECT entity_type, entity_id FROM sync_seen').all()).toEqual([{ entity_type: 'meal', entity_id: 'm1' }]);
+
+    // 次の同期：スナップショットを取り直して当てはめ、消した分の delete を送る
+    const store = syncStore(db);
+    const api = createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: async () => fakeAccessToken('user-a'), fetch: server.fetch });
+    await store.rememberAccount('user-a');
+    expect(await createSyncEngine({ store, api, now: deps.now }).run()).toMatchObject({ ok: true, sent: 1 });
+    const r = repos(db, deps);
+    const list = await r.reports.list();
+    expect(list.map((x) => x.id)).toEqual([KEEP]);
+    expect(list[0]).toMatchObject({
+      headline: '脚の日が増えた',
+      links: [{ from: 'sleep', to: 'training', text: '睡眠が短い日の翌日は負荷量が少ない', basis: '3日' }],
+      review: { text: '睡眠の目標を4日にする案', target: null },
+    });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM reports').get()).toEqual({ n: 2 });
+    expect(server.state('report', GONE)!.deleted).toBe(true);
+    expect(db.raw.prepare(`SELECT COUNT(*) AS n FROM sync_outbox WHERE status = 'pending'`).get()).toEqual({ n: 0 });
+  });
+
+  test('作り直したトリガー：消すと delete だけを積む', async () => {
+    const d = await device();
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', { ...WEEKLY, links: LINKS });
+    await d.engine.run();
+    await d.r.reports.remove(WEEK);
+    expect(d.outbox().map((r) => [r.entity_type, r.op, r.fields])).toEqual([['report', 'delete', null]]);
   });
 });

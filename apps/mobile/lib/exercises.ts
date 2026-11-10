@@ -69,3 +69,9 @@ export async function openFormVideo(url: string, open: (url: string) => Promise<
     return false;
   }
 }
+
+/** 3つの役がそろっていれば、役 → 種目の ID（レポートの BIG3 のタイル。lib/reports.ts の Big3Lifts）。そろわなければ null */
+export function completeBig3(assignments: Partial<Record<Big3Role, string>>): Record<Big3Role, string> | null {
+  const { bench, squat, deadlift } = assignments;
+  return bench && squat && deadlift ? { bench, squat, deadlift } : null;
+}

@@ -22,13 +22,13 @@ import { T } from './Text';
 import { Button } from './ui';
 
 const TONE_ICON: Record<Tone, IconName> = { good: 'trendUp', steady: 'trendFlat', caution: 'caution' };
-const AREA_ICON: Record<Area, IconName> = { training: 'dumbbell', meals: 'meal', body: 'scale', sleep: 'moon' };
+export const AREA_ICON: Record<Area, IconName> = { training: 'dumbbell', meals: 'meal', body: 'scale', sleep: 'moon' };
 const ARROW_ICON = { up: 'arrowUp', down: 'arrowDown', flat: 'arrowFlat' } as const;
 const qualityColor = (q: 'good' | 'bad' | 'neutral') =>
   q === 'good' ? toneColors.good.accent : q === 'bad' ? toneColors.caution.accent : colors.sub;
 
 /** 開いたときに下から順に出す動き。i 番目は 40ms ずつ遅らせ、全体を 300ms ほどに収める。動きを減らす設定と web では出さない */
-function useEntering() {
+export function useEntering() {
   const reduced = useReducedMotion();
   // web（E2E で使うだけ）では動かさない（components/motion.tsx の useListMotion と同じ）
   if (reduced || Platform.OS === 'web') return () => undefined;
@@ -55,7 +55,7 @@ function TonePop({ tone, size }: { tone: Tone; size: number }) {
 }
 
 /** 変化の矢印と数（良い向きは緑、悪い向きは琥珀色、どちらでもなければ灰色） */
-function Delta({ metric, size = 13, suffix }: { metric: Metric; size?: number; suffix?: string }) {
+export function Delta({ metric, size = 13, suffix }: { metric: Metric; size?: number; suffix?: string }) {
   const look = deltaLook(metric);
   if (!look || metric.delta == null) return null;
   const color = qualityColor(look.quality);
@@ -223,15 +223,19 @@ export function MetricTile({ highlight, index, vs, animKey }: { highlight: Highl
   );
 }
 
-/** 分野ごとのカード：分野のアイコン、分野の名前と調子の印（アイコンと言葉）、一文 */
-export function HighlightCard({ highlight, index }: { highlight: Highlight; index: number }) {
+/**
+ * 分野ごとのカード：分野のアイコン、分野の名前と調子の印（アイコンと言葉）、一文。
+ * metricVs を渡すと、指標があれば値と変化を下に小さく出す（日のまとめは指標のタイルを出さないので、前の形の指標をここで見せる）
+ */
+export function HighlightCard({ highlight, index, metricVs }: { highlight: Highlight; index: number; metricVs?: string }) {
   const enter = useEntering();
   const tone = toneColors[highlight.tone];
+  const m = metricVs ? highlight.metric : null;
   return (
     <Animated.View
       entering={enter(index)}
       accessible
-      accessibilityLabel={`${AREA_LABELS[highlight.area]}、${TONE_SHORT[highlight.tone]}。${highlight.text}`}
+      accessibilityLabel={metricVs ? dailyHighlightLabel(highlight) : `${AREA_LABELS[highlight.area]}、${TONE_SHORT[highlight.tone]}。${highlight.text}`}
       style={{ flexDirection: 'row', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 12 }}
     >
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}>
@@ -246,8 +250,26 @@ export function HighlightCard({ highlight, index }: { highlight: Highlight; inde
           </View>
         </View>
         <T size={16} style={{ lineHeight: 24 }}>{highlight.text}</T>
+        {m && <MetricLine metric={m} vs={metricVs!} />}
       </View>
     </Animated.View>
+  );
+}
+
+/** 指標の小さな1行（名前・値・単位・変化と比べた相手） */
+function MetricLine({ metric: m, vs }: { metric: Metric; vs: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+      <T variant="labelS" bold={false} color={colors.sub}>{m.label}</T>
+      <T variant="numS">{formatMetricValue(m.value)}</T>
+      {m.unit !== '' && <T variant="labelS" bold={false} color={colors.sub}>{m.unit}</T>}
+      {m.delta != null && (
+        <>
+          <Delta metric={m} size={12} />
+          <T variant="labelS" bold={false} color={colors.sub}>{vs}</T>
+        </>
+      )}
+    </View>
   );
 }
 
@@ -344,19 +366,7 @@ export function DailyHighlightCard({ highlight, index, onPress }: { highlight: H
             </View>
           </View>
           <T variant="bodyM">{highlight.text}</T>
-          {m && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              <T variant="labelS" bold={false} color={colors.sub}>{m.label}</T>
-              <T variant="numS">{formatMetricValue(m.value)}</T>
-              {m.unit !== '' && <T variant="labelS" bold={false} color={colors.sub}>{m.unit}</T>}
-              {m.delta != null && (
-                <>
-                  <Delta metric={m} size={12} />
-                  <T variant="labelS" bold={false} color={colors.sub}>前の日より</T>
-                </>
-              )}
-            </View>
-          )}
+          {m && <MetricLine metric={m} vs="前の日より" />}
         </View>
         <Icon name="chevron" size={20} color={colors.sub} />
       </PressableScale>

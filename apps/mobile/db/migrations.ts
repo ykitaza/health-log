@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -273,7 +273,7 @@ DROP TRIGGER sync_meals_insert;
 DROP TRIGGER sync_meals_update;
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
-      for (const spec of [...MEAL_ENTITIES.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES]) await db.execAsync(triggerSql(spec));
+      for (const spec of [...MEAL_ENTITIES.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES_V7]) await db.execAsync(triggerSql(spec));
     },
   },
   {
@@ -293,11 +293,32 @@ DROP TRIGGER sync_exercises_update;
     },
   },
   {
+    // レポートのつながり（links）と目標の見直し（review）。どちらも JSON の文字列で、ないレポートは NULL。列を足してトリガーを作り直す
+    // （アプリはレポートを消すだけなので、積むものは変わらない。トリガーの項目を表の列とそろえておく）。
+    // 版8までの端末は、受け取ったレポートの知らない項目（links・review）を捨てていた。受け取りの位置を消してスナップショットを
+    // 取り直し、レポートの当てはめた印（sync_seen）も消して、受け取り済みのレポートにも当てはめ直す（同じ ID の行を上書きするので
+    // 重ならない。消したものはサーバーでも消えているか、まだ送っていない delete が outbox にあって端末の削除が残る）。
+    // ほかの種類は当てはめた印が残るので、スナップショットでは上書きしない（版3・版7と同じ）
+    version: 9,
+    up: async (db) => {
+      await db.execAsync(`
+ALTER TABLE reports ADD COLUMN links TEXT;
+ALTER TABLE reports ADD COLUMN review TEXT;
+DROP TRIGGER sync_reports_insert;
+DROP TRIGGER sync_reports_update;
+DELETE FROM sync_meta WHERE key = 'cursor';
+DELETE FROM sync_seen WHERE entity_type = 'report';
+DELETE FROM sync_held WHERE entity_type = 'report';
+`);
+      for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
     // 種目の BIG3 の役（big3：bench・squat・deadlift。NULL は割り当てなし）と、フォームの動画のリンク（form_video_url）。
     // 列を足して種目のトリガーを作り直す。今までの種目は NULL のまま（版8と同じく、ここで値を書くと初期の種目の変更を送ることになる）。
     // どの種目にも役がないあいだは、読むときに名前で決める（lib/exercises.ts の big3Assignments。サーバーも同じ決まり）。
     // 値の確かめ（役の3つ、https:// のリンク）はサーバーと画面で行い、表には CHECK を付けない（受け取った値の当てはめを止めないため）
-    version: 9,
+    version: 10,
     up: async (db) => {
       await db.execAsync(`
 ALTER TABLE exercises ADD COLUMN big3 TEXT;
@@ -345,7 +366,7 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, wit
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
       // 割合（版8）は、初期の値を持たない（NULL は名前から決める）。画面で決めた割合は、変えた項目として送る
       bodyweight_ratio: null,
-      // BIG3 の役とフォームの動画（版9）も、初期の値を持たない（役は、どれにもなければ名前で決める）
+      // BIG3 の役とフォームの動画（版10）も、初期の値を持たない（役は、どれにもなければ名前で決める）
       big3: null, form_video_url: null,
     }])),
   };

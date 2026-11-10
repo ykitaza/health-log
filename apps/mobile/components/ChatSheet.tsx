@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRepos } from '@/hooks/data';
 import { CHAT_APP_NAMES, ChatApp, ChatPrompt, openChat, openFailedMessage, orderedApps, promptSummary, REPORT_SPAN_LABELS, ReportSpan } from '@/lib/chat';
 import { todayKey } from '@/lib/date';
+import type { PendingReport } from '@/lib/reports';
 import { colors, radius, space } from '@/theme';
 import { Sheet } from './motion';
 import { T } from './Text';
@@ -13,7 +14,7 @@ import { Button, ListRow, Segmented } from './ui';
 export const AI_RECORD_LABEL = 'AI で記録。ChatGPT か Claude を開きます';
 export const REPORT_CHAT_LABEL = 'チャットで作る。ChatGPT か Claude を開きます';
 
-/** 記録（筋トレ・食事）なら決まった文、レポートなら期間をシートの中で選ぶ */
+/** 記録（筋トレ・食事）とまだのまとめなら決まった文、レポートなら期間をシートの中で選ぶ */
 type Request = { prompt: Exclude<ChatPrompt, { kind: 'report' }> } | { report: true };
 
 /**
@@ -56,6 +57,8 @@ export function useChatChooser() {
     record: (prompt: Exclude<ChatPrompt, { kind: 'report' }>) => show({ prompt }),
     /** レポートを頼む（期間はシートで選ぶ） */
     report: () => show({ report: true }),
+    /** まだ作っていないまとめを、まとめて頼む（ホームのおすすめ） */
+    pending: (items: PendingReport[]) => show({ prompt: { kind: 'pending', items } }),
     sheet,
   };
 }
@@ -65,11 +68,12 @@ function ChatSheetBody({ req, last, failed, span, onSpan, onChoose }: {
 }) {
   const insets = useSafeAreaInsets();
   const report = 'report' in req;
+  const making = report || req.prompt.kind === 'pending';
   const text = promptSummary(report ? { kind: 'report', span, today: todayKey() } : req.prompt);
   return (
     <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="chat-sheet">
       <View>
-        <T variant="titleL" accessibilityRole="header">{report ? 'チャットで作る' : 'AI で記録'}</T>
+        <T variant="titleL" accessibilityRole="header">{making ? 'チャットで作る' : 'AI で記録'}</T>
         <T variant="bodyM" color={colors.sub}>{text}ための文を入れて開きます</T>
       </View>
       {report && (

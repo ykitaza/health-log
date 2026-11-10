@@ -1,46 +1,87 @@
 import { addDays } from '../date';
-import { ChatPrompt, chatUrl, openChat, openFailedMessage, orderedApps, promptSummary, promptText } from '../chat';
+import { ChatPrompt, chatUrl, openChat, openFailedMessage, orderedApps, pendingPrompt, promptSummary, promptText } from '../chat';
+import type { PendingReport } from '../reports';
 
 const TODAY = '2026-11-09';
 const C = 'hlog（健康記録の MCP コネクタ）';
 const SAVED = '保存したら、記録した内容を短く見せてください。';
 
 describe('まとめの文', () => {
-  test('日：今日の日付で、読むツール・書き方・保存の引数を入れる', () => {
+  test('日：period_overview をその日で読み、達成はアプリが出すこと・体重は週の平均と比べること・明日の一歩・保存の引数を入れる', () => {
     expect(promptText({ kind: 'report', span: 'day', today: TODAY })).toBe(
       `${C}で今日（11月9日）のまとめを作ってください。`
-      + 'get_workout と today_status（day=2026-11-09）、body_progress・sleep_summary・heart_rate_summary（days=7）を読み、数字は記録の値だけを使い推測で補わないでください。'
-      + '良い点と気をつける点を3つほど、次の一歩を1〜2つ、責めない言い方で書き、save_report で保存してください（kind=daily、period_start=2026-11-09、period_end=2026-11-09、overall_tone、headline、highlights の area と tone）。'
-      + '保存したら、アプリで画面を下に引っぱって同期すると見られると一言添えてください。');
+      + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使い推測で補わないでください。達成の数字はアプリが出します。'
+      + '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ、責めない言い方で書き、'
+      + 'save_report(kind=daily, period_start=2026-11-09, period_end=2026-11-09)で保存してください。'
+      + '保存したら、画面を下に引っぱって同期すると見られると添えてください。');
   });
 
-  test('週：今日までの7日（weekly_review と同じ区切り）', () => {
-    const text = promptText({ kind: 'report', span: 'week', today: TODAY });
-    expect(text).toContain('11月3日〜今日（11月9日）の7日間のまとめ');
-    expect(text).toContain('list_workouts（start=2026-11-03、end=2026-11-09）、weekly_review（last_day=2026-11-09）');
-    expect(text).toContain('（days=7）');
-    expect(text).toContain('良い点と気をつける点を6つまで、次の一歩を3つまで');
-    expect(text).toContain('（kind=weekly、period_start=2026-11-03、period_end=2026-11-09、');
+  test('週：月曜から今日まで（アプリの「今週の目標」と同じ区切り）。つながり（links）と来週の一歩', () => {
+    const text = promptText({ kind: 'report', span: 'week', today: '2026-11-12' });
+    expect(text).toContain(`${C}で今週（11月9日〜今日（11月12日））のまとめ`);
+    expect(promptText({ kind: 'report', span: 'week', today: TODAY })).toContain(`${C}で今週（今日（11月9日））のまとめ`); // 月曜
+    expect(text).toContain('period_overview(start=2026-11-09, end=2026-11-12)');
+    expect(text).toContain('分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで');
+    expect(text).toContain('save_report(kind=weekly, period_start=2026-11-09, period_end=2026-11-12)');
+    expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('period_overview(start=2025-12-29, end=2026-01-02)');
   });
 
-  test('月：その月の1日から今日まで。月や年をまたぐ週も正しく数える', () => {
+  test('月：その月の1日から今日まで。体重のペース、links、review（食事の目標なら meals_goal）、来月の一歩', () => {
     const text = promptText({ kind: 'report', span: 'month', today: TODAY });
-    expect(text).toContain('11月1日〜今日（11月9日）のまとめ');
-    expect(text).toContain('list_workouts と list_meals（start=2026-11-01、end=2026-11-09）');
-    expect(text).toContain('（days=9）');
-    expect(text).toContain('（kind=monthly、period_start=2026-11-01、period_end=2026-11-09、');
-    expect(promptText({ kind: 'report', span: 'month', today: '2026-10-31' })).toContain('（days=31）');
-    expect(promptText({ kind: 'report', span: 'month', today: '2026-11-03' })).toContain('（days=7）');
-    expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('12月27日〜今日（1月2日）の7日間のまとめ');
-    expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('list_workouts（start=2025-12-27、end=2026-01-02）');
+    expect(text).toContain(`${C}で今月（11月1日〜今日（11月9日））のまとめ`);
+    expect(text).toContain('period_overview(start=2026-11-01, end=2026-11-09)');
+    expect(text).toContain('体重の推移と目標までのペース');
+    expect(text).toContain('目標の見直しを review に（食事の目標なら target=meals_goal）');
+    expect(text).toContain('来月の一歩を3つまで');
+    expect(text).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-09)');
   });
 
   test('今日が決まった形でなければ、日付を入れない', () => {
     const text = promptText({ kind: 'report', span: 'week', today: 'x&q=1' });
-    expect(text).toContain(`${C}で今日までの7日間のまとめ`);
-    expect(text).toContain('list_workouts、weekly_review、body_progress');
-    expect(text).toContain('（kind=weekly、overall_tone、');
+    expect(text).toContain(`${C}で今週のまとめ`);
+    expect(text).toContain('period_overviewを読み');
+    expect(text).toContain('save_report(kind=weekly)で保存');
     expect(text).not.toMatch(/x&q|\d{4}-/);
+  });
+});
+
+describe('まだのまとめを、まとめて作る文', () => {
+  const p = (kind: PendingReport['kind'], start: string, end = start): PendingReport => ({ kind, periodStart: start, periodEnd: end, key: `${kind}:${start}` });
+  const FIG = [p('daily', '2026-11-07'), p('daily', '2026-11-06'), p('weekly', '2026-10-26', '2026-11-01')];
+
+  test('図の例：古い順に並べ、1件ずつ save_report で保存、種類ごとの要点、記録がなければ作らない、戻ると取り込まれる', () => {
+    expect(promptText({ kind: 'pending', items: FIG })).toBe(
+      `${C}で、まだ作っていないまとめを1件ずつ作り、save_report で保存してください。`
+      + '対象は3件：weekly(2026-10-26..2026-11-01), daily(2026-11-06), daily(2026-11-07)。'
+      + '期間ごとに period_overview を読み、数字は記録の値だけを使ってください。'
+      + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで。'
+      + '記録がない期間は作らず、そう伝えてください。'
+      + '終わったら、アプリに戻ると自動で取り込まれると添えてください。');
+    expect(promptSummary({ kind: 'pending', items: FIG })).toBe('まだのまとめ 3 件を作る');
+  });
+
+  test('月があれば review も。URL の上限を超えるなら件数を絞り、残りは次にと書く', () => {
+    const all = [
+      p('monthly', '2026-10-01', '2026-10-31'),
+      ...['2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02'].map((d) => p('weekly', d, addDays(d, 6))),
+      ...Array.from({ length: 8 }, (_, i) => p('daily', addDays('2026-11-03', i))),
+    ];
+    const { text, included } = pendingPrompt(all);
+    expect(included.length).toBeGreaterThan(1);
+    expect(included.length).toBeLessThan(all.length);
+    expect(included[0].kind).toBe('monthly'); // 古い順
+    expect(text).toContain('月は links・review と来月の一歩を3つまで');
+    expect(text).toContain(`対象は${included.length}件：`);
+    expect(text).toContain(`残りの${all.length - included.length}件は次に頼みます。`);
+    for (const app of ['claude', 'chatgpt'] as const) expect(chatUrl(app, { kind: 'pending', items: all }).length).toBeLessThanOrEqual(2000);
+    expect(pendingPrompt(FIG).included).toHaveLength(3);
+  });
+
+  test('決まった形でない期間は入れない', () => {
+    const bad = { ...p('daily', '2026-11-06'), periodStart: '2026-11-06&x=1' };
+    const text = promptText({ kind: 'pending', items: [bad, p('daily', '2026-11-07')] });
+    expect(text).toContain('対象は1件：daily(2026-11-07)。');
+    expect(text).not.toContain('x=1');
   });
 });
 
@@ -95,6 +136,7 @@ const ALL: ChatPrompt[] = [
   { kind: 'meal', date: TODAY, today: TODAY },
   { kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'breakfast' },
   { kind: 'training', date: '2026-11-06', today: TODAY },
+  { kind: 'pending', items: [{ kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08', key: 'weekly:2026-11-02' }] },
 ];
 
 describe('どの文も', () => {
@@ -114,8 +156,8 @@ describe('どの文も', () => {
   test('決まった文と日付だけ（日付以外の数字の並びや、渡したもの以外が入らない）', () => {
     for (const p of ALL) {
       const text = promptText(p);
-      // 日付と days を除くと、残る数字は決まった件数（3つ・1〜2つ・6つ）だけ。記録の数字（重さ・kcal など）は入らない
-      const rest = text.replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/\d{1,2}月\d{1,2}日/g, '').replace(/days=\d{1,2}/g, '');
+      // 日付を除くと、残る数字は決まった件数（1つ・3つまで）だけ。記録の数字（重さ・kcal など）は入らない
+      const rest = text.replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/\d{1,2}月\d{1,2}日/g, '');
       expect(rest).not.toMatch(/\d{3,}/);
       expect(text).not.toMatch(/[\n<>&@]/);
     }
