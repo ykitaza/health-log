@@ -22,6 +22,17 @@ updates:
     groups:
       uv-minor-and-patch:
         update-types: [minor, patch]
+    # このリポジトリの中のパッケージ（tool.uv.sources の path で読むもの）は更新しない。
+    # PyPI に同じ名前の別のパッケージ（reports など）があり、Dependabot がそちらで解こうとして失敗するため
+    ignore:
+      - dependency-name: "meals"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "reports"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "sync"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+      - dependency-name: "training"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
 
   # CDK
   - package-ecosystem: npm
