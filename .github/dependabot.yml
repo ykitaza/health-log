@@ -99,6 +99,12 @@ updates:
       # （https://github.com/expo/expo/issues/47627）。Expo の SDK が TypeScript 7 を求めるようになったら外す
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # eslint-config-expo（58.0.4）が使う eslint-plugin-react（7.37.5）と eslint-plugin-import（2.32.0）が
+      # ESLint 10 に未対応で、expo lint が落ちる（https://github.com/jsx-eslint/eslint-plugin-react/issues/3977、
+      # https://github.com/import-js/eslint-plugin-import/issues/3278）。Expo も ESLint 9 を使うよう案内している
+      # （https://github.com/expo/expo/issues/46717）。eslint-config-expo が ESLint 10 に対応したら外す
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
       # Node 24 で動かしている（.node-version）ので、型も 24 に合わせる。Node を上げるときに、この ignore を外す
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
