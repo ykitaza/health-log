@@ -18,7 +18,7 @@ from training.main import create_commands, create_queries, register_sync_entitie
 from training.presentation import mcp_tools
 
 JST = timezone(timedelta(hours=9))
-TODAY = date(2026, 11, 8)  # 日曜（週のはじめ）
+TODAY = date(2026, 11, 8)  # 日曜（週の最後の日。週は月曜〜日曜）
 NOW = datetime(2026, 11, 8, 21, 30, tzinfo=JST)
 REGISTRY = Registry()
 register_sync_entities(REGISTRY)
@@ -154,15 +154,15 @@ def test_消すと集計からも消える(call):
 
 
 def test_一覧と週のふり返り(call):
-    call("record_workout", exercises=[bench((80, 8))], day="2026-11-03")
+    call("record_workout", exercises=[bench((80, 8))], day="2026-11-01")  # 日曜（先週の最後の日）
     call("record_workout", exercises=[{"exercise": "スクワット", "sets": [{"weight_kg": 100, "reps": 5}]}],
          day="2026-11-08")
     call("record_workout", exercises=[bench((60, 10))], day="2026-11-08")
     listed = call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"]
     assert [(w["date"], w["exercises"], w["total_volume"]) for w in listed] == [
-        ("2026-11-03", [BENCH], 640), ("2026-11-08", ["スクワット", BENCH], 1100)]
+        ("2026-11-01", [BENCH], 640), ("2026-11-08", ["スクワット", BENCH], 1100)]
     review = call("weekly_training_review")
-    assert review["week"] == {"from": "2026-11-08", "to": "2026-11-14", "until": "2026-11-08"}
+    assert review["week"] == {"from": "2026-11-02", "to": "2026-11-08", "until": "2026-11-08"}
     assert (review["sessions"], review["total_volume"], review["days_since_last_training"]) == (1, 1100, 0)
     parts = {p["body_part"]: p for p in review["by_body_part"]}
     assert (parts["脚"]["volume"], parts["脚"]["share_pct"], parts["胸"]["share_pct"]) == (500, 45.5, 54.5)
@@ -175,11 +175,11 @@ def test_一覧と週のふり返り(call):
 
 def test_自重の種目は_体重_割合_回数で総負荷量に入る_体重がなければ入れずに知らせる(call):
     pullups = {"exercise": "懸垂", "sets": [{"reps": 10}, {"reps": 8}]}
-    first = call("record_workout", exercises=[pullups, bench((80, 8))], day="2026-11-03")
+    first = call("record_workout", exercises=[pullups, bench((80, 8))], day="2026-11-01")  # 先週の日曜
     assert (first["total_volume"], first["bodyweight_kg"]) == (640, None)  # 体重の記録がない
     assert "2セット" in first["note"] and first["entries"][0]["sets"][0]["volume"] == 0
     call("record_body", day="2026-10-20", weight_kg=70)  # 30日以内のいちばん近い前の日の体重を使う
-    day = call("get_workout", day="2026-11-03")
+    day = call("get_workout", day="2026-11-01")
     assert (day["bodyweight_kg"], day["total_volume"], "note" in day) == (70, 70 * 18 + 640, False)
     assert day["entries"][0]["sets"][0]["volume"] == 700 and day["entries"][0]["max_estimated_1rm"] is None
     call("record_body", day="2026-11-08", weight_kg=72)
