@@ -10,7 +10,7 @@ import type { Bind } from './types';
 export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
-  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'report';
+  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'step_day' | 'report';
 
 export type EntitySpec = {
   type: SyncType;
@@ -115,7 +115,7 @@ export const MEAL_ENTITIES_V3: EntitySpec[] = [
 ];
 
 /**
- * Health Connect から取り込むもの（版5で睡眠、版6で心拍の日のまとめ）。サーバーの筋トレの種類（training.*）として同期する。
+ * Health Connect から取り込むもの（版5で睡眠、版6で心拍の日のまとめ、版11で歩数の日の合計）。サーバーの筋トレの種類（training.*）として同期する。
  * どれも取り込みだけで作る（手入力はない）
  */
 export const HEALTH_ENTITIES: EntitySpec[] = [
@@ -133,6 +133,13 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
     type: 'heart_rate_day', table: 'heart_rate_days',
     columns: { date: 'text', resting_bpm: 'real', avg_bpm: 'real', min_bpm: 'real', max_bpm: 'real', samples: 'int' },
     required: ['date', 'samples'],
+    imported: 'always',
+  },
+  {
+    // 歩数の1日の合計（版11）。心拍の日のまとめと同じく、source の列はなく、どの行も取り込み
+    type: 'step_day', table: 'step_days',
+    columns: { date: 'text', steps: 'int' },
+    required: ['date', 'steps'],
     imported: 'always',
   },
 ];

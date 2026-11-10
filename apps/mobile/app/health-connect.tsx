@@ -38,7 +38,7 @@ export default function HealthConnectScreen() {
           {hc.connected && <Badge label="連携中" />}
         </View>
         <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
-          体重計・ウォッチなどが Health Connect に書いた体重・体脂肪率・睡眠・心拍を、アプリを開いたときに読み込みます。読むだけで、書き込みはしません。
+          体重計・ウォッチ・スマホなどが Health Connect に書いた体重・体脂肪率・睡眠・心拍・歩数を、アプリを開いたときに読み込みます。読むだけで、書き込みはしません。
         </T>
         {!hc.supported && <T size={13} color={colors.sub} testID="hc-unsupported">Health Connect は Android だけで使えます。</T>}
         {hc.error && <T size={13} color={colors.danger}>{errorMessage(hc.error)}</T>}
@@ -48,6 +48,14 @@ export default function HealthConnectScreen() {
               <T size={14} color={colors.sub} style={{ flex: 1 }}>最後に取り込んだ時刻</T>
               <T bold size={14} testID="hc-last">{hc.lastImportAt ? formatAt(hc.lastImportAt) : 'まだ取り込んでいません'}</T>
             </View>
+            {hc.stepsGranted === false && (
+              <View style={{ gap: 8 }} testID="hc-steps-missing">
+                <T size={13} color={colors.sub} style={{ lineHeight: 19 }}>
+                  歩数の許可がありません。歩数はあとから足したので、前のアプリ（APK）では許可できません。新しいアプリを入れてから「歩数を許可する」を押し、Health Connect の画面で歩数をオンにしてください。
+                </T>
+                <Button label="歩数を許可する" variant="secondary" small onPress={() => act(hc.connect)} disabled={hc.importing || busy} />
+              </View>
+            )}
             <Button label={hc.importing ? '取り込んでいます…' : '今すぐ取り込む'} variant="secondary" small onPress={hc.importNow} disabled={hc.importing || busy} />
             <Button label="連携を切る" variant="danger" small onPress={() => setConfirmOff(true)} disabled={busy} />
           </>

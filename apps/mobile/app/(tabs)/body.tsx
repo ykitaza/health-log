@@ -13,10 +13,11 @@ import { T } from '@/components/Text';
 import { Badge, Button, Card, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
+import { useHealthConnect } from '@/hooks/healthConnect';
 import { useToday } from '@/hooks/today';
 import { BodyMetric, bmi, DailyBody, goalProgress, leanMass, previousWeight, weekAverage } from '@/lib/body';
 import { addDays, formatJpDate, formatMonthDay, todayKey } from '@/lib/date';
-import { formatClock, formatHeartRate, formatHM, formatMinutes } from '@/lib/health';
+import { formatClock, formatHeartRate, formatHM, formatMinutes, formatSteps } from '@/lib/health';
 import { TAB_AREAS } from '@/lib/reports';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
@@ -25,13 +26,14 @@ type Pane = 'today' | 'trend';
 
 /**
  * からだのタブ。上の切り替え（M3 の primary tabs）で「今日」と「推移」を分ける。
- * 今日はその日の計測を見る画面（体重、週の平均、目標までの残り、体脂肪率・除脂肪体重・BMI、取り込んだ睡眠・心拍）。入れるのは下からのシート。
- * 推移は体重（7日の平均・目標）、目標体重まで、睡眠と安静時心拍の直近7日
+ * 今日はその日の計測を見る画面（体重、週の平均、目標までの残り、体脂肪率・除脂肪体重・BMI、取り込んだ睡眠・心拍・歩数）。入れるのは下からのシート。
+ * 推移は体重（7日の平均・目標）、目標体重まで、睡眠・安静時心拍・歩数の直近7日
  */
 export default function BodyScreen() {
   const [pane, setPane] = useState<Pane>('today');
   const [date, setDate] = useState(todayKey);
   const [editing, setEditing] = useState(false);
+  const hc = useHealthConnect();
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
   const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
@@ -48,14 +50,16 @@ export default function BodyScreen() {
 
   const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
     const from = addDays(today, -6);
-    const [daily, settings, sleep, heart, imported, sleepWeek, heartWeek] = await Promise.all([
-      r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date), r.body.getImportedDay(date),
-      r.health.sleepDays(from, today), r.health.heartRateDays(from, today),
+    const [daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek] = await Promise.all([
+      r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date), r.health.stepDay(date), r.body.getImportedDay(date),
+      r.health.sleepDays(from, today), r.health.heartRateDays(from, today), r.health.stepDays(from, today),
     ]);
-    return { date, daily, settings, sleep, heart, imported, sleepWeek, heartWeek };
+    return { date, daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek };
   }, `${date}|${today}`);
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
+  // 歩数の許可がない（前の APK か、許可をまだ出していない）ときは、記録がない日にそう出す
+  const stepsBlocked = hc.connected && hc.stepsGranted === false;
   const askedReady = inputAsked != null && inputAsked === date && data?.date === date;
   useEffect(() => { if (askedReady) { setInputAsked(null); setEditing(true); } }, [askedReady]);
 
@@ -76,7 +80,9 @@ export default function BodyScreen() {
         onChange={setPane}
       />
       {pane === 'trend' ? (
-        data && <BodyTrend daily={data.daily} settings={data.settings} sleep={data.sleepWeek} heart={data.heartWeek} today={today} />
+        data && (
+          <BodyTrend daily={data.daily} settings={data.settings} sleep={data.sleepWeek} heart={data.heartWeek} steps={data.stepWeek} today={today} />
+        )
       ) : (<>
         <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs, marginTop: space.l }}>
           <IconButton name="prev" label="前の日" onPress={() => setDate(addDays(date, -1))} />
@@ -92,7 +98,7 @@ export default function BodyScreen() {
           />
         )}
 
-        {/* 取り込んだ睡眠・心拍。押すとそれぞれの推移（記録がなければ、Health Connect をつなぐ導線） */}
+        {/* 取り込んだ睡眠・心拍・歩数。押すとそれぞれの推移（記録がなければ、Health Connect をつなぐ導線） */}
         <Card style={{ marginTop: space.m, padding: 0 }}>
           <HealthRow
             testID="sleep-day"
@@ -114,6 +120,19 @@ export default function BodyScreen() {
             unit={data?.heart?.restingBpm != null ? 'bpm' : ''}
             label={data?.heart ? `心拍 ${formatHeartRate(data.heart)}。安静時心拍の推移を見る` : '安静時心拍の推移を見る'}
             onPress={() => router.push({ pathname: '/health-trend', params: { kind: 'heart' } })}
+            line
+          />
+          <HealthRow
+            testID="steps-day"
+            icon="steps"
+            title="歩数"
+            sub={data?.steps ? '1日の合計' : stepsBlocked ? '新しいアプリで許可すると取り込めます' : 'この日の記録はありません'}
+            value={data?.steps ? formatSteps(data.steps.steps) : '—'}
+            unit={data?.steps ? '歩' : ''}
+            label={data?.steps
+              ? `歩数 1日の合計 ${formatSteps(data.steps.steps)} 歩。歩数の推移を見る`
+              : `歩数。${stepsBlocked ? '新しいアプリを入れて歩数を許可すると取り込めます' : 'この日の記録はありません'}。歩数の推移を見る`}
+            onPress={() => router.push({ pathname: '/health-trend', params: { kind: 'steps' } })}
             line
           />
         </Card>
@@ -213,7 +232,7 @@ function WeightCard({ date, day, daily, unit, heightCm, goalKg, onEdit }: {
   );
 }
 
-/** 睡眠・心拍の行（高さ 64、右に ›）。押すとそれぞれの推移へ */
+/** 睡眠・心拍・歩数の行（高さ 64、右に ›）。押すとそれぞれの推移へ */
 function HealthRow({ testID, icon, title, sub, lead, value, unit, label, onPress, line }: {
   testID: string; icon: IconName; title: string; sub: string; lead?: string; value: string; unit: string; label: string; onPress: () => void; line?: boolean;
 }) {

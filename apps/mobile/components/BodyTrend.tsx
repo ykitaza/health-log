@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
 import { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
+import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import type { Settings } from '@/db/repositories/settings';
 import { DailyBody, movingAverage, weightOverview } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
-import { average, formatHM, sleepWeek } from '@/lib/health';
+import { average, formatHM, formatSteps, sleepWeek, stepWeek } from '@/lib/health';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
 import { LineChart, StackedBarChart } from './charts';
@@ -17,11 +17,11 @@ import { T } from './Text';
 import { Badge, Card } from './ui';
 
 /**
- * からだのタブの「推移」。体重の推移（1か月、7日の平均、目標）、目標体重まで、睡眠・安静時心拍の直近7日。
+ * からだのタブの「推移」。体重の推移（1か月、7日の平均、目標）、目標体重まで、睡眠・安静時心拍・歩数の直近7日。
  * カードを押すと、それぞれの詳しい推移の画面（body-trend、health-trend）へ
  */
-export function BodyTrend({ daily, settings, sleep, heart, today }: {
-  daily: DailyBody[]; settings: Settings; sleep: SleepDay[]; heart: HeartRateDay[]; today: string;
+export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
+  daily: DailyBody[]; settings: Settings; sleep: SleepDay[]; heart: HeartRateDay[]; steps: StepDay[]; today: string;
 }) {
   const unit = settings.weightUnit;
   const goal = settings.goalWeightKg ?? null;
@@ -89,6 +89,7 @@ export function BodyTrend({ daily, settings, sleep, heart, today }: {
 
       <SleepCard days={sleep} today={today} />
       <HeartCard days={heart} today={today} />
+      <StepsCard days={steps} today={today} />
     </View>
   );
 }
@@ -103,7 +104,7 @@ export function LineSwatch({ color, dot }: { color: string; dot?: boolean }) {
   );
 }
 
-/** 睡眠・心拍のカードの上の段：アイコンと題、右に「7日の平均」と値、› */
+/** 睡眠・心拍・歩数のカードの上の段：アイコンと題、右に「7日の平均」と値、› */
 function TrendCard({ icon, title, average: avg, unit, label, onPress, testID, children }: {
   icon: IconName; title: string; average: string; unit?: string; label: string; onPress: () => void; testID: string; children: ReactNode;
 }) {
@@ -180,6 +181,36 @@ function HeartCard({ days, today }: { days: HeartRateDay[]; today: string }) {
           {rest.length === 0 ? 'この7日の記録はありません' : '記録が2日以上になると、グラフが出ます'}
         </T>
       )}
+    </TrendCard>
+  );
+}
+
+/** 歩数の直近7日の棒と平均、いちばん多い日（曜日と歩数は文でも出す） */
+function StepsCard({ days, today }: { days: StepDay[]; today: string }) {
+  const week = stepWeek(days, today);
+  const open = () => router.push({ pathname: '/health-trend', params: { kind: 'steps' } });
+  if (week.average == null || week.best == null) {
+    return (
+      <TrendCard icon="steps" title="歩数" average="—" label="歩数。この7日の記録はありません。歩数の推移を見る" onPress={open} testID="steps-week">
+        <T variant="bodyM" color={colors.sub} style={{ marginTop: space.s }}>この7日の記録はありません</T>
+      </TrendCard>
+    );
+  }
+  const avg = formatSteps(week.average);
+  const bestText = `いちばん多い日は${week.best.weekday}曜（${formatSteps(week.best.steps)} 歩）`;
+  return (
+    <TrendCard icon="steps" title="歩数" average={avg} unit="歩" label={`歩数。7日の平均 ${avg} 歩。${bestText}。歩数の推移を見る`} onPress={open} testID="steps-week">
+      <View style={{ marginTop: space.m }}>
+        <StackedBarChart
+          height={110}
+          max={Math.max(10000, ...week.days.map((d) => d.steps ?? 0))}
+          bars={week.days.map((d) => ({
+            label: d.weekday,
+            segments: d.steps == null ? [] : [{ value: d.steps, color: colors.accentMuted }],
+          }))}
+        />
+      </View>
+      <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>{bestText}</T>
     </TrendCard>
   );
 }

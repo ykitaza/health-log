@@ -1,6 +1,6 @@
 import { addDays, DateKey, weekday } from './date';
 
-// 睡眠・心拍の表示（からだのタブ、ホームの体調のカード）
+// 睡眠・心拍・歩数の表示（からだのタブ、ホームの体調のカード）
 
 /** 分を「7時間12分」に（1時間未満は「45分」） */
 export function formatMinutes(min: number): string {
@@ -69,4 +69,26 @@ export function sleepWeek(days: { date: DateKey; asleepMin: number }[], today: D
   });
   const recorded = week.filter((d) => d.asleepMin != null).map((d) => d.asleepMin!);
   return { days: week, average: average(recorded), longDays: week.filter((d) => d.long).map((d) => d.weekday) };
+}
+
+// 歩数
+
+/** 歩数を「8,240」に（3桁ごとのカンマ） */
+export function formatSteps(steps: number): string {
+  return Math.round(steps).toLocaleString('en-US');
+}
+
+/**
+ * 今日までの7日の歩数（記録のない日は steps が null）と、記録のある日の平均、いちばん多い日（同じなら新しい日）。
+ * からだの推移のタブの歩数のカード
+ */
+export function stepWeek(days: { date: DateKey; steps: number }[], today: DateKey) {
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i - 6);
+    const steps = days.find((d) => d.date === date)?.steps ?? null;
+    return { date, weekday: WEEKDAY_JA[weekday(date)], steps };
+  });
+  const recorded = week.filter((d): d is typeof d & { steps: number } => d.steps != null);
+  const best = recorded.reduce<(typeof recorded)[number] | null>((b, d) => (b == null || d.steps >= b.steps ? d : b), null);
+  return { days: week, average: average(recorded.map((d) => d.steps)), best };
 }

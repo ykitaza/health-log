@@ -6,39 +6,42 @@ import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
-import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
+import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import { useFocusData } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { formatJpDate, formatShortDate, todayKey } from '@/lib/date';
-import { average, averageClock, formatClock, formatHM } from '@/lib/health';
+import { average, averageClock, formatClock, formatHM, formatSteps } from '@/lib/health';
 import { Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { colors, space } from '@/theme';
 
-type Kind = 'sleep' | 'heart';
+type Kind = 'sleep' | 'heart' | 'steps';
 const PERIODS: Period[] = ['1m', '3m', '6m', '1y'];
-const TITLES: Record<Kind, string> = { sleep: '睡眠の推移', heart: '安静時心拍の推移' };
+const TITLES: Record<Kind, string> = { sleep: '睡眠の推移', heart: '安静時心拍の推移', steps: '歩数の推移' };
+const ICONS = { sleep: 'moon', heart: 'heart', steps: 'steps' } as const;
 
 /**
- * 睡眠・安静時心拍の推移（からだのタブの睡眠・心拍の行から開く）。体重の推移と同じ作り：期間の切り替え、大きな数字、グラフ、日ごとの一覧。
+ * 睡眠・安静時心拍・歩数の推移（からだのタブの睡眠・心拍・歩数の行から開く）。体重の推移と同じ作り：期間の切り替え、大きな数字、グラフ、日ごとの一覧。
  * Health Connect から取り込んだ記録がないときは、つなぐ画面への導線を出す
  */
 export default function HealthTrendScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
-  const kind: Kind = params.kind === 'heart' ? 'heart' : 'sleep';
+  const kind: Kind = params.kind === 'heart' || params.kind === 'steps' ? params.kind : 'sleep';
   const [period, setPeriod] = useState<Period>('1m');
   const today = todayKey();
   // いちばん長い期間（1年）を読んで、期間ごとに絞る
   const { data, error, reload } = useFocusData(async (r) => {
     const from = periodStart(today, '1y')!;
-    const [sleep, heart] = await Promise.all([r.health.sleepDays(from, today), r.health.heartRateDays(from, today)]);
-    return { sleep, heart };
+    const [sleep, heart, steps] = await Promise.all([
+      r.health.sleepDays(from, today), r.health.heartRateDays(from, today), r.health.stepDays(from, today),
+    ]);
+    return { sleep, heart, steps };
   }, today);
   const from = periodStart(today, period)!;
   const title = TITLES[kind];
 
   if (error) return <Screen><Header title={title} onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
-  const all = kind === 'sleep' ? data?.sleep ?? [] : (data?.heart ?? []).filter((h) => h.restingBpm != null);
+  const all = kind === 'sleep' ? data?.sleep ?? [] : kind === 'steps' ? data?.steps ?? [] : (data?.heart ?? []).filter((h) => h.restingBpm != null);
   const inRange = all.filter((d) => d.date >= from);
 
   return (
@@ -49,9 +52,11 @@ export default function HealthTrendScreen() {
       </View>
       {data && all.length === 0 ? (
         <EmptyState
-          icon={kind === 'sleep' ? 'moon' : 'heart'}
+          icon={ICONS[kind]}
           title="まだ記録がありません"
-          body={'Health Connect をつなぐと、ここに出ます。\n体重計や腕時計の睡眠・心拍を取り込みます'}
+          body={kind === 'steps'
+            ? 'Health Connect をつなぎ、歩数を許可すると、ここに出ます。\n前のアプリを入れているときは、新しいアプリを入れてから許可します'
+            : 'Health Connect をつなぐと、ここに出ます。\n体重計や腕時計の睡眠・心拍を取り込みます'}
           action={
             <View style={{ gap: space.s }}>
               <Button label="Health Connect をつなぐ" onPress={() => router.push('/health-connect')} />
@@ -63,6 +68,8 @@ export default function HealthTrendScreen() {
         <EmptyState icon="chart" title="この期間の記録がありません" body="期間を長くすると、前の記録を見られます" />
       ) : data && kind === 'sleep' ? (
         <SleepTrend days={inRange as SleepDay[]} period={period} />
+      ) : data && kind === 'steps' ? (
+        <StepsTrend days={inRange as StepDay[]} period={period} />
       ) : data ? (
         <HeartTrend days={inRange as HeartRateDay[]} period={period} from={from} today={today} />
       ) : null}
@@ -184,6 +191,58 @@ function HeartTrend({ days, period, from, today }: { days: HeartRateDay[]; perio
       </Card>
       <T variant="bodyS" color={colors.sub} style={{ marginTop: space.m }}>
         Health Connect から取り込んだ値です。一覧の補足は、その日の平均と最小〜最大です
+      </T>
+    </>
+  );
+}
+
+function StepsTrend({ days, period }: { days: StepDay[]; period: Period }) {
+  const animKey = `steps-${period}`;
+  const avg = average(days.map((d) => d.steps)) ?? 0;
+  const shown = useCountUp(avg, animKey);
+  const last = days[days.length - 1];
+  return (
+    <>
+      <T variant="bodyS" color={colors.sub} style={{ marginTop: space.l }}>{PERIOD_LABELS[period]}の平均（記録のある日）</T>
+      <View style={s.big} testID="steps-average" accessible accessibilityLabel={`${PERIOD_LABELS[period]}の平均 ${formatSteps(avg)} 歩`}>
+        <T variant="numDisplay">{formatSteps(shown)}</T>
+        <T variant="bodyL" color={colors.sub}>歩</T>
+      </View>
+      <View style={s.meta}>
+        <T variant="titleS">{days.length} 日の記録</T>
+        <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)}まで</T>
+      </View>
+      <Card style={{ marginTop: space.l }}>
+        <StackedBarChart
+          animKey={animKey}
+          max={Math.max(10000, ...days.map((d) => d.steps))}
+          refLine={avg}
+          formatY={(v) => `${Math.round(v / 100) / 10}k`}
+          bars={days.map((d, i) => ({
+            label: barLabel(i, days.length, d.date),
+            // 最新の日だけ明るい緑、ほかは 3:1 以上の濃い緑（睡眠と同じ）
+            segments: [{ value: d.steps, color: i === days.length - 1 ? colors.accent : colors.accentMuted }],
+          }))}
+        />
+        <View style={s.legend}>
+          <View style={[s.swatch, { backgroundColor: colors.accent }]} />
+          <T variant="bodyS" color={colors.sub}>最新の日</T>
+          <View style={s.dash} />
+          <T variant="bodyS" color={colors.sub}>平均</T>
+        </View>
+      </Card>
+      <SectionTitle title="日ごと" />
+      <Card style={{ padding: 0 }}>
+        {[...days].reverse().map((d, i) => (
+          <View key={d.date} style={[s.row, i > 0 && s.rowLine]} testID={`steps-${d.date}`}>
+            <T variant="bodyL" style={{ flex: 1 }}>{formatJpDate(d.date)}</T>
+            <T variant="numM" bold>{formatSteps(d.steps)}</T>
+            <T variant="bodyS" color={colors.sub} style={{ marginLeft: space.xs }}>歩</T>
+          </View>
+        ))}
+      </Card>
+      <T variant="bodyS" color={colors.sub} style={{ marginTop: space.m }}>
+        Health Connect から取り込んだ1日の合計です。スマホとウォッチの両方が数えた時間は、Health Connect が重ならないようにまとめます
       </T>
     </>
   );

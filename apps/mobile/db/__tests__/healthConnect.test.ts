@@ -4,9 +4,11 @@ import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { HC_META, healthConnectStore } from '../repositories/healthConnect';
 import { toPushChange } from '../repositories/sync';
 import { formatClock, formatHeartRate, formatMinutes } from '@/lib/health';
-import { heartRateDayId, importedId, importHealthConnect, INITIAL_DAYS, sleepMinutes } from '@/lib/healthConnect/importer';
+import {
+  heartRateDayId, importedId, importHealthConnect, INITIAL_DAYS, PERMISSIONS, requestReadPermissions, sleepMinutes, stepDayId, STEPS_MAX,
+} from '@/lib/healthConnect/importer';
 import { uuid5 } from '@/lib/uuid5';
-import { bodyFat, fakeHealthConnect as hc, heartRate, leanMass, restingHeartRate, sleep, weight } from '@/test-utils/fakeHealthConnect';
+import { bodyFat, fakeHealthConnect as hc, heartRate, leanMass, restingHeartRate, sleep, steps, weight } from '@/test-utils/fakeHealthConnect';
 import { memoryDb, testDeps } from '@/test-utils/nodeDb';
 import { Device, device } from '@/test-utils/syncHarness';
 
@@ -399,6 +401,125 @@ describe('版4のマイグレーション', () => {
     db.raw.prepare(`UPDATE settings SET value = 'kg', updated_at = 'y' WHERE id = 'weight_unit'`).run();
     const rows = db.raw.prepare('SELECT op, origin FROM sync_outbox ORDER BY seq').all();
     expect(rows).toEqual([{ op: 'create', origin: 'app' }, { op: 'update', origin: 'app' }]);
+  });
+});
+
+describe('歩数', () => {
+  // 日付は端末の暦（心拍と同じく、日本時間でも UTC でも同じ日になるよう、UTC の 0〜15時の記録にする）
+  const stepRows = (d: Device) => d.db.raw.prepare('SELECT id, date, steps, deleted_at FROM step_days ORDER BY date').all() as Record<string, unknown>[];
+  const stepCalls = () => hc.calls.filter((c) => c.fn === 'aggregateRecord' && (c.args[0] as { recordType: string }).recordType === 'Steps')
+    .map((c) => (c.args[0] as { timeRangeFilter: { startTime: string } }).timeRangeFilter.startTime);
+
+  test('初回は記録を読まず、過去30日を日ごとに集計する（Health Connect の集計の合計）。1日1行（ID は日付から）で、合計だけを送る', async () => {
+    const d = await device();
+    hc.put(steps('st1', '2026-11-06T01:00:00Z', '2026-11-06T02:00:00Z', 3000));
+    hc.put(steps('st2', '2026-11-06T09:00:00Z', '2026-11-06T10:00:00Z', 5240, 'com.example.watch'));
+    hc.put(steps('st3', '2026-11-07T03:00:00Z', '2026-11-07T04:00:00Z', 120));
+    hc.put(steps('st-old', '2026-09-01T03:00:00Z', '2026-09-01T04:00:00Z', 9000)); // 30日より前
+    await runImport(d);
+    expect(hc.calls.filter((c) => c.fn === 'readRecords' && c.args[0] === 'Steps')).toEqual([]);
+    expect(stepCalls()).toHaveLength(INITIAL_DAYS + 1); // 30日前の日から今日まで
+    expect(stepRows(d)).toEqual([
+      { id: stepDayId('2026-11-06'), date: '2026-11-06', steps: 8240, deleted_at: null },
+      { id: stepDayId('2026-11-07'), date: '2026-11-07', steps: 120, deleted_at: null },
+    ]);
+    const changes = outbox(d).filter((c) => c.type === 'step_day');
+    expect(changes.map((c) => [c.op, c.origin, c.fields])).toEqual([
+      ['create', 'import', { date: '2026-11-06', steps: 8240 }], ['create', 'import', { date: '2026-11-07', steps: 120 }],
+    ]);
+    expect(stepDayId('2026-11-06')).toBe(uuid5('08e139e3-1bcd-47c7-af17-1a18a473f1c3', 'hc-steps-day:2026-11-06'));
+    expect(await d.r.health.stepDay('2026-11-06')).toEqual({ date: '2026-11-06', steps: 8240 });
+    expect(await d.r.health.stepDay('2026-11-05')).toBeNull();
+  });
+
+  test('差分：変わった記録の日だけ集計し直す。記録がなくなった日は消し、また記録があれば戻す', async () => {
+    const d = await device();
+    hc.put(steps('st1', '2026-11-06T01:00:00Z', '2026-11-06T02:00:00Z', 3000));
+    hc.put(steps('st2', '2026-11-07T01:00:00Z', '2026-11-07T02:00:00Z', 4000));
+    await runImport(d);
+    await d.engine.run();
+
+    hc.calls.length = 0;
+    hc.put(steps('st3', '2026-11-07T05:00:00Z', '2026-11-07T06:00:00Z', 1500));
+    await runImport(d);
+    expect(stepCalls()).toEqual([new Date(2026, 10, 7).toISOString()]);
+    expect(outbox(d).map((c) => [c.op, c.origin, c.fields])).toEqual([['update', 'import', { steps: 5500 }]]);
+    await d.engine.run();
+
+    hc.remove('st1'); // どの日のものか分からないので、過去30日を集計し直す
+    await runImport(d);
+    expect(outbox(d).map((c) => [c.id, c.op, c.origin])).toEqual([[stepDayId('2026-11-06'), 'delete', 'import']]);
+    expect(await d.r.health.stepDay('2026-11-06')).toBeNull();
+    await d.engine.run();
+
+    hc.put(steps('st4', '2026-11-06T03:00:00Z', '2026-11-06T04:00:00Z', 700));
+    await runImport(d);
+    expect(outbox(d).map((c) => [c.op, c.origin, c.fields])).toEqual([['restore', 'import', null], ['update', 'import', { steps: 700 }]]);
+    expect(await d.r.health.stepDays('2026-11-01', '2026-11-08')).toEqual([{ date: '2026-11-06', steps: 700 }, { date: '2026-11-07', steps: 5500 }]);
+  });
+
+  test('サーバーの範囲（1〜1,000,000）の外の日は取り込まない', async () => {
+    const d = await device();
+    hc.put(steps('st1', '2026-11-06T01:00:00Z', '2026-11-06T02:00:00Z', STEPS_MAX));
+    hc.put(steps('st2', '2026-11-07T01:00:00Z', '2026-11-07T02:00:00Z', STEPS_MAX));
+    hc.put(steps('st3', '2026-11-07T03:00:00Z', '2026-11-07T04:00:00Z', 1));
+    await runImport(d);
+    expect(stepRows(d).map((r) => [r.date, r.steps])).toEqual([['2026-11-06', STEPS_MAX]]);
+  });
+
+  test('歩数の許可がないあいだ（前の APK・許可していない）は歩数を読まず、ほかの型はいつもどおり取り込む', async () => {
+    const d = await device();
+    hc.grant(['Weight', 'SleepSession', 'HeartRate', 'RestingHeartRate']);
+    hc.put(steps('st1', '2026-11-06T01:00:00Z', '2026-11-06T02:00:00Z', 3000));
+    hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
+    const result = await runImport(d);
+    expect(result.types).not.toContain('Steps');
+    expect(result.types).toContain('Weight');
+    expect(stepCalls()).toEqual([]);
+    expect(stepRows(d)).toEqual([]);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w1']);
+    // あとで許可したら、そのときに過去30日を取り込む
+    hc.grant(['Weight', 'SleepSession', 'HeartRate', 'RestingHeartRate', 'Steps']);
+    expect((await runImport(d)).types).toContain('Steps');
+    expect(stepRows(d).map((r) => [r.date, r.steps])).toEqual([['2026-11-06', 3000]]);
+  });
+
+  test('権限を求める：前の APK（AndroidManifest に READ_STEPS がない）で失敗したら、歩数を外して求め直す', async () => {
+    const request = hc.module.requestPermission;
+    expect((await requestReadPermissions(request)).map((p) => p.recordType)).toContain('Steps');
+
+    hc.calls.length = 0;
+    hc.declare(['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate']);
+    hc.grant(['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate']);
+    const granted = await requestReadPermissions(request);
+    expect(granted.map((p) => p.recordType)).toEqual(['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate']);
+    const asked = hc.calls.filter((c) => c.fn === 'requestPermission').map((c) => (c.args[0] as { recordType: string }[]).length);
+    expect(asked).toEqual([PERMISSIONS.length, PERMISSIONS.length - 1]);
+
+    // 歩数のせいでないとき（Health Connect が使えないなど）は、2回目も失敗し、初めの失敗を投げる
+    const failing = jest.fn(async () => { throw new Error('unavailable'); });
+    await expect(requestReadPermissions(failing)).rejects.toThrow('unavailable');
+  });
+});
+
+describe('版11のマイグレーション', () => {
+  test('版10の端末：今までの記録とまだ送っていない変更は残り、歩数の表ができる（受け取りの位置は消さない）', async () => {
+    const db = memoryDb();
+    const deps = testDeps();
+    const v11 = MIGRATIONS.splice(10);
+    try {
+      expect(await migrate(db, deps.now)).toBe(10);
+    } finally {
+      MIGRATIONS.push(...v11);
+    }
+    db.raw.prepare(`INSERT INTO settings (id, value, created_at, updated_at) VALUES ('weight_unit', 'lb', 'x', 'x')`).run();
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '42')`).run();
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    expect(db.raw.prepare('SELECT entity_type, op FROM sync_outbox ORDER BY seq').all()).toEqual([{ entity_type: 'setting', op: 'create' }]);
+    expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toEqual({ value: '42' });
+    db.raw.prepare(`INSERT INTO step_days (id, date, steps, created_at, updated_at) VALUES ('s', '2026-11-08', 10, 'y', 'y')`).run();
+    expect(db.raw.prepare(`SELECT entity_type, op, fields FROM sync_outbox WHERE entity_type = 'step_day'`).all())
+      .toEqual([{ entity_type: 'step_day', op: 'create', fields: JSON.stringify({ date: '2026-11-08', steps: 10 }) }]);
   });
 });
 

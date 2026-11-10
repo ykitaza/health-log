@@ -150,7 +150,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## アプリの同期（apps/mobile）
 
-アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版10で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。
+アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）と歩数の1日の合計（`step_day`。版11）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版10で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。
 種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）
@@ -203,8 +203,8 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ### Health Connect の取り込み
 
-Android の端末で、Health Connect から体組成（体重・体脂肪率・除脂肪体重）・睡眠・心拍の1日のまとめを取り込みます（`lib/healthConnect/importer.ts`、`db/repositories/healthConnect.ts`、`hooks/healthConnect.tsx`）。
-権限は読み取りだけ（`READ_WEIGHT`・`READ_BODY_FAT`・`READ_LEAN_BODY_MASS`・`READ_SLEEP`・`READ_HEART_RATE`・`READ_RESTING_HEART_RATE`）で、書き込み・過去のデータ（HISTORY）・バックグラウンドの権限は求めません。睡眠と心拍の権限は、あとで取り込みを足したときに APK を作り直さないよう、先に求めています。
+Android の端末で、Health Connect から体組成（体重・体脂肪率・除脂肪体重）・睡眠・心拍の1日のまとめ・歩数の1日の合計を取り込みます（`lib/healthConnect/importer.ts`、`db/repositories/healthConnect.ts`、`hooks/healthConnect.tsx`）。
+権限は読み取りだけ（`READ_WEIGHT`・`READ_BODY_FAT`・`READ_LEAN_BODY_MASS`・`READ_SLEEP`・`READ_HEART_RATE`・`READ_RESTING_HEART_RATE`・`READ_STEPS`）で、書き込み・過去のデータ（HISTORY）・バックグラウンドの権限は求めません。睡眠と心拍の権限は、あとで取り込みを足したときに APK を作り直さないよう、先に求めています。歩数（`READ_STEPS`）はあとから足したので、APK を作り直して入れるまで求められません（下の「歩数」）。
 
 - **いつ読むか**：連携しているとき（設定 → Health Connect →「連携する」）だけ、アプリを開いたとき・前面に戻ったとき・「今すぐ取り込む」で読みます。web と iOS では呼びません（`lib/healthConnect/client.web.ts`、`Platform.OS`）
 - **差分**：型ごとに `getChanges` の `changesToken` を `sync_meta` に持ち、変わったものだけを読みます。初めての型は、先にトークンを取ってから過去30日を `readRecords` で全ページ読みます（読んでいるあいだの変更は、次の差分で届く）。トークンが切れていたら、最後に読んだ時刻（なければ30日前）から読み直します
@@ -213,6 +213,8 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 - **体組成**：Health Connect の1件を `body_records` の1行にします（体重と体脂肪率は別の行。`source = 'health_connect'`）。日付は記録の `zoneOffset` でのその土地の日付です。値は `lib/limits.ts`（サーバーの範囲と同じ）で確かめ、範囲の外は取り込みません。筋肉率は Health Connect に型がないので、手入力だけです
 - **睡眠**：Health Connect の `SleepSession` の1件を `sleep_sessions` の1行（`sleep_session`。版5）にします。`date` は起きた日（終わりの時刻の `zoneOffset` でのその土地の日付）、`asleep_min` は全体から段階の「起きていた・ベッドの外・ベッドで起きていた」を引いた分、`awake_min` はその引いた分です（段階がなければ全部を眠っていたとする）。段階の詳細は持ちません。24時間を超えるもの、終わりが始まりより前のものは取り込みません（サーバーも 0〜1440 分で確かめる）。手入力はなく、ほかの記録を指す項目（refs）もありません。体組成のタブに、その日の睡眠（合計と、いちばん長い睡眠の時刻）を小さく出します
 - **心拍**：サンプルそのものは持たず、送りません。`HeartRate` と `RestingHeartRate` の変更から、変わった記録の日（端末の暦の日付）を集め、その日を `aggregateRecord` で集計し直して `heart_rate_days` の1行（`heart_rate_day`。版6）を作るか直します。項目は `date`・`resting_bpm`（安静時心拍の平均）・`avg_bpm`・`min_bpm`・`max_bpm`・`samples`（サンプルの数）。ID は `uuid5(同じ名前空間, "hc-hr-day:" + 日付)` で、どの端末で集計しても同じ行になります。心拍も安静時心拍もなくなった日は消し、また記録があれば戻します（`restore`）。消えた記録は ID しか届かず、どの日のものか分からないので、過去30日を集計し直します。初めてのとき・トークンが切れたときは、記録を読まず（ウォッチの心拍は数が多いため）、その期間の日を集計します。値は 1〜300 拍/分で確かめます。refs なし。体組成のタブに、その日の心拍を小さく出します
+- **歩数**：1件ごとの記録は持たず、送りません。`Steps` の変更から変わった記録の日（端末の暦の日付）を集め、その日（0時〜24時）を `aggregateRecord` の `COUNT_TOTAL` で集計し直して `step_days` の1行（`step_day`。版11）を作るか直します。集計は、同じ時間をスマホとウォッチなど複数のアプリが書いたときの重なりを Health Connect が除いた合計です（記録を足し合わせると二重に数える）。項目は `date`・`steps`。ID は `uuid5(同じ名前空間, "hc-steps-day:" + 日付)`。記録がなくなった日（集計が 0）は消し、また記録があれば戻します。消えた記録・初めてのとき・トークンが切れたときの扱いは心拍と同じです。値は 1〜1,000,000（Health Connect の `StepsRecord` の1件の範囲。サーバーも同じ）で確かめ、外の日は取り込みません。版11では受け取りの位置を消しません（`step_day` はこの版の取り込みだけが作るので、前の版の端末が飛ばしたものはサーバーにない）。体組成のタブに、その日の歩数と直近7日を出します
+- **歩数の許可と前の APK**：`READ_STEPS` は `app.json` の `android.permissions` に足したので、前の APK の AndroidManifest にはありません。`runtimeVersion` は `fingerprint` なので、`app.json` を変えたこの JS は前の APK には配信されません（[eas.md](../apps/mobile/docs/eas.md#runtimeversion-の方針)）。それでも前の APK で動いたときに備え、権限を求めて失敗したら歩数を外して求め直し（`requestReadPermissions`）、許可のない型は読まないので、ほかの取り込みは止まりません。連携したあとに足した歩数の許可は、設定 → Health Connect の「歩数を許可する」で求めます（許可がないあいだ、からだのタブの歩数の行に「新しいアプリで許可すると取り込めます」と出す）
 - **消したもの**：Health Connect で消えた記録は、端末の行も消します（`delete`、`import`）。アプリで消した取り込みの行（体組成の画面の ×）は、Health Connect で直されても戻しません（同じ `external_id` の行が消えたまま残るため。サーバーでも、取り込みの `create` で消えた記録は戻らない）
 - **手入力が先**：1日の値は、項目ごとに手入力の記録（いちばん新しいもの）を使い、手入力がない項目だけ取り込みを使います（`lib/body.ts` の `dailyBodyValues`、サーバーの `daily_body_values`、`testdata/training/body.json`）。体組成の画面では、取り込みの値に「取り込み」の印を付けます。同じ記録の同じ項目を手（アプリ・MCP）で直した値も、サーバーで取り込みより強く当てはめるので、次の取り込みで負けません
 - **ログインの前の記録・アカウントを変えたとき**：`backfillOutbox` は、`source = 'health_connect'` の行を `import` で積みます。「端末の記録を消して受け取り直す」では、Health Connect のトークンと読んだ時刻も消し、次の取り込みで過去30日から読み直します。ログアウトではトークンを残します
