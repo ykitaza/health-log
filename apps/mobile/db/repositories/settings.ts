@@ -66,11 +66,11 @@ const KEYS: Record<keyof Settings, string> = {
   heightCm: 'height_cm',
   goalWeightKg: 'goal_weight_kg',
   activity: 'activity_level',
-  // サーバーの担当と決めた名前のまま、同期の ID にする（ほかの設定のような snake_case にしない）
-  weeklyGoalTrainingDays: 'weeklyGoalTrainingDays',
-  weeklyGoalMealDays: 'weeklyGoalMealDays',
-  weeklyGoalSleepDays: 'weeklyGoalSleepDays',
-  restTimerSeconds: 'restTimerSeconds',
+  // 今週の目標は、サーバー（レポートの材料の period_overview）も読む
+  weeklyGoalTrainingDays: 'weekly_goal_training_days',
+  weeklyGoalMealDays: 'weekly_goal_meal_days',
+  weeklyGoalSleepDays: 'weekly_goal_sleep_days',
+  restTimerSeconds: 'rest_timer_seconds',
 };
 
 function num(v: string | null | undefined): number | null {

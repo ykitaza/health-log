@@ -60,19 +60,19 @@ describe('設定', () => {
     const { r, db } = await setup();
     await r.settings.update({ weeklyGoalTrainingDays: 5, weeklyGoalMealDays: 7, weeklyGoalSleepDays: 0, restTimerSeconds: 0 });
     expect(await r.settings.get()).toMatchObject({ weeklyGoalTrainingDays: 5, weeklyGoalMealDays: 7, weeklyGoalSleepDays: 0, restTimerSeconds: 0 });
-    // 同期の ID はサーバーの担当と決めた名前のまま
+    // 同期の ID は、ほかの設定と同じ snake_case（サーバーの period_overview が読む）
     expect(db.raw.prepare("SELECT entity_id, fields FROM sync_outbox WHERE entity_type = 'setting' ORDER BY entity_id").all()).toEqual([
-      { entity_id: 'restTimerSeconds', fields: JSON.stringify({ value: '0' }) },
-      { entity_id: 'weeklyGoalMealDays', fields: JSON.stringify({ value: '7' }) },
-      { entity_id: 'weeklyGoalSleepDays', fields: JSON.stringify({ value: '0' }) },
-      { entity_id: 'weeklyGoalTrainingDays', fields: JSON.stringify({ value: '5' }) },
+      { entity_id: 'rest_timer_seconds', fields: JSON.stringify({ value: '0' }) },
+      { entity_id: 'weekly_goal_meal_days', fields: JSON.stringify({ value: '7' }) },
+      { entity_id: 'weekly_goal_sleep_days', fields: JSON.stringify({ value: '0' }) },
+      { entity_id: 'weekly_goal_training_days', fields: JSON.stringify({ value: '5' }) },
     ]);
     for (const bad of [{ weeklyGoalTrainingDays: 1 }, { weeklyGoalMealDays: 4 }, { weeklyGoalSleepDays: 6 }, { restTimerSeconds: 30 }]) {
       await expect(r.settings.update(bad)).rejects.toThrow();
     }
     // 選択肢にない値（壊れた値、ほかの版が書いた値）は初期値として読む
-    db.raw.prepare("UPDATE settings SET value = '9' WHERE id IN ('weeklyGoalTrainingDays', 'restTimerSeconds')").run();
-    db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'weeklyGoalMealDays'").run();
+    db.raw.prepare("UPDATE settings SET value = '9' WHERE id IN ('weekly_goal_training_days', 'rest_timer_seconds')").run();
+    db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'weekly_goal_meal_days'").run();
     expect(await r.settings.get()).toMatchObject({ weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 0, restTimerSeconds: 90 });
   });
 
