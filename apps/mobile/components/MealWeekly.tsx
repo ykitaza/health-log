@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
-import { DateSwitcher, DayPickerSheet, SwipeArea } from '@/components/DayPicker';
+import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/components/DayPicker';
 import { LoadError } from '@/components/LoadError';
 import { T } from '@/components/Text';
 import { Badge, Card } from '@/components/ui';
@@ -9,6 +9,7 @@ import { useFocusData } from '@/hooks/data';
 import { niceTicks } from '@/lib/chart';
 import { addDays, formatMonthDay, todayKey, weekday } from '@/lib/date';
 import { DaySummary, Gap, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
+import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -27,22 +28,33 @@ export function MealWeekly() {
   const ratio = avg ? pfcRatio(avg) : null;
   const targetRatio = review.averageTarget ? pfcRatio(review.averageTarget) : null;
   const includesToday = weekDates(lastDay).includes(today);
-  // 前の週・次の週（ボタンとスワイプ）。次の週は今日を最後の日にするところまで
-  const move = (d: 'prev' | 'next') => {
-    if (d === 'prev') setLastDay(addDays(lastDay, -7));
-    else if (lastDay < today) setLastDay(addDays(lastDay, 7) > today ? today : addDays(lastDay, 7));
+  // 週を変えるときは、向きに合わせて中身を横へすべらせる（スワイプ・前後のボタン・日を選ぶ）
+  const slide = usePageSlide();
+  // 前の週・次の週（ボタンとスワイプ）。次の週は今日を最後の日にするところまで。最新の週から計算する（続けて動かしたとき）
+  const move = (d: SwipeDirection) => setLastDay((cur) => {
+    if (d === 'prev') return addDays(cur, -7);
+    return cur < today ? (addDays(cur, 7) > today ? today : addDays(cur, 7)) : cur;
+  });
+  const goTo = (to: string) => {
+    const d = pageDirection(lastDay, to);
+    if (d) slide.go(d, () => setLastDay(to));
   };
 
   if (error) return <View style={{ marginTop: 14 }}><LoadError onRetry={reload} /></View>;
 
   return (
     <>
-    <SwipeArea onSwipe={move} testID="meals-week" style={{ gap: 12, marginTop: 14 }}>
-      {/* 日付を押すと「日を選ぶ」。選んだ日を含む週（月〜日。今週は今日まで）にする */}
-      <DateSwitcher
-        label={`${formatMonthDay(addDays(lastDay, -6))}〜${formatMonthDay(lastDay)}`} prevLabel="前の週" nextLabel="次の週" canNext={lastDay < today}
-        onPrev={() => move('prev')} onNext={() => move('next')} onPick={() => setPicking(true)}
-      />
+    <SwipeArea
+      slide={slide} onSwipe={move} canNext={lastDay < today} hint="meal-week" testID="meals-week"
+      style={{ marginTop: 14 }} contentStyle={{ gap: 12, marginTop: 12 }}
+      header={(
+        // 日付を押すと「日を選ぶ」。選んだ日を含む週（月〜日。今週は今日まで）にする
+        <DateSwitcher
+          label={`${formatMonthDay(addDays(lastDay, -6))}〜${formatMonthDay(lastDay)}`} prevLabel="前の週" nextLabel="次の週" canNext={lastDay < today}
+          onPrev={() => slide.go('prev', () => move('prev'))} onNext={() => slide.go('next', () => move('next'))} onPick={() => setPicking(true)}
+        />
+      )}
+    >
 
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -99,7 +111,7 @@ export function MealWeekly() {
       </Card>
     </SwipeArea>
     <DayPickerSheet visible={picking} kind="meal" value={lastDay} today={today} onClose={() => setPicking(false)}
-      onPick={(d) => setLastDay(weekLastDayFor(d, today))} />
+      onPick={(d) => goTo(weekLastDayFor(d, today))} />
     </>
   );
 }

@@ -130,6 +130,22 @@ describe('設定', () => {
     expect(await r.settings.volumeRange()).toBe('week');
   });
 
+  test('スワイプのヒントは端末だけに覚え、同期に載せない。出した回数は画面ごと、スワイプで動かしたかは全体で1つ', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.swipeHint('meal-day')).toEqual({ shown: 0, used: false });
+    await r.settings.markSwipeHintShown('meal-day');
+    await r.settings.markSwipeHintShown('meal-day');
+    expect(await r.settings.swipeHint('meal-day')).toEqual({ shown: 2, used: false });
+    expect(await r.settings.swipeHint('meal-week')).toEqual({ shown: 0, used: false });
+    await r.settings.setSwipeHintUsed();
+    expect(await r.settings.swipeHint('training-day')).toEqual({ shown: 0, used: true });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    // 壊れた回数は 0 として数え直す
+    db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'swipe_hint.shown.meal-day'").run();
+    expect(await r.settings.swipeHint('meal-day')).toEqual({ shown: 0, used: true });
+  });
+
   test('活動の量は設定（同期する）。性別・生まれた年・自動計算の体重は端末だけに覚え、同期に載せない', async () => {
     const { r, db } = await setup();
     await r.settings.update({ activity: 'moderate' });
