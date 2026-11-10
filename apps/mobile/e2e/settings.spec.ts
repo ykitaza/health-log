@@ -109,6 +109,26 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
   await expect(button(page, '1セット')).toHaveAttribute('aria-selected', 'true');
 });
 
+test('休憩のタイマーと今週の目標：初期値が選ばれ、選び直すと再読み込みしても残る', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  // 同じ「切」「3日」のチップがあるので、読み上げの名前は何の選択肢かを足す
+  for (const name of ['休憩のタイマー、90秒', '筋トレ、3回', '食事の記録、5日', '睡眠、4日']) {
+    await expect(button(page, name)).toHaveAttribute('aria-selected', 'true');
+  }
+  await button(page, '休憩のタイマー、切').click();
+  await button(page, '筋トレ、5回').click();
+  await button(page, '食事の記録、7日').click();
+  await button(page, '睡眠、切').click();
+  const chosen = ['休憩のタイマー、切', '筋トレ、5回', '食事の記録、7日', '睡眠、切'];
+  // 保存が終わってから読み込み直す
+  for (const name of chosen) await expect(button(page, name)).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, '休憩のタイマー、90秒')).toHaveAttribute('aria-selected', 'false');
+  await page.reload();
+  for (const name of chosen) await expect(button(page, name)).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, '睡眠、4日')).toHaveAttribute('aria-selected', 'false');
+});
+
 test('身長と目標体重の不正な値はエラーを出し、空にすると消える。lb の表示では範囲を lb で出す', async ({ page }) => {
   await openApp(page);
   await openSettings(page);

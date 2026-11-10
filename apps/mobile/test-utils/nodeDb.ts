@@ -1,5 +1,6 @@
 // テスト用：Node の node:sqlite（メモリー上）で Db の形を作る
 import { DatabaseSync } from 'node:sqlite';
+import { achievementRepository } from '@/db/repositories/achievements';
 import { bodyRepository } from '@/db/repositories/body';
 import { catalogRepository } from '@/db/repositories/catalog';
 import { healthRepository } from '@/db/repositories/health';
@@ -50,5 +51,6 @@ export function repos(db: Db, deps: Deps) {
     meals: mealRepository(db, deps),
     health: healthRepository(db),
     reports: reportRepository(db, deps),
+    achievements: achievementRepository(db, deps),
   };
 }

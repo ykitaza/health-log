@@ -49,17 +49,37 @@ describe('マイグレーション', () => {
 describe('設定', () => {
   test('初期値と更新', async () => {
     const { r } = await setup();
-    expect(await r.settings.get()).toEqual({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null, weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 4, restTimerSeconds: 90 });
     await r.settings.update({ weightUnit: 'lb', defaultSetCount: 5, heightCm: 170 });
     await r.settings.update({ heightCm: null, goalWeightKg: 65, activity: 'light' });
-    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 5, heightCm: null, goalWeightKg: 65, activity: 'light' });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 5, heightCm: null, goalWeightKg: 65, activity: 'light', weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 4, restTimerSeconds: 90 });
     await expect(r.settings.update({ defaultSetCount: 7 })).rejects.toThrow();
+  });
+
+  test('今週の目標と休憩のタイマー：選択肢の値だけ保存し、ほかの設定と同じく同期に積む', async () => {
+    const { r, db } = await setup();
+    await r.settings.update({ weeklyGoalTrainingDays: 5, weeklyGoalMealDays: 7, weeklyGoalSleepDays: 0, restTimerSeconds: 0 });
+    expect(await r.settings.get()).toMatchObject({ weeklyGoalTrainingDays: 5, weeklyGoalMealDays: 7, weeklyGoalSleepDays: 0, restTimerSeconds: 0 });
+    // 同期の ID はサーバーの担当と決めた名前のまま
+    expect(db.raw.prepare("SELECT entity_id, fields FROM sync_outbox WHERE entity_type = 'setting' ORDER BY entity_id").all()).toEqual([
+      { entity_id: 'restTimerSeconds', fields: JSON.stringify({ value: '0' }) },
+      { entity_id: 'weeklyGoalMealDays', fields: JSON.stringify({ value: '7' }) },
+      { entity_id: 'weeklyGoalSleepDays', fields: JSON.stringify({ value: '0' }) },
+      { entity_id: 'weeklyGoalTrainingDays', fields: JSON.stringify({ value: '5' }) },
+    ]);
+    for (const bad of [{ weeklyGoalTrainingDays: 1 }, { weeklyGoalMealDays: 4 }, { weeklyGoalSleepDays: 6 }, { restTimerSeconds: 30 }]) {
+      await expect(r.settings.update(bad)).rejects.toThrow();
+    }
+    // 選択肢にない値（壊れた値、ほかの版が書いた値）は初期値として読む
+    db.raw.prepare("UPDATE settings SET value = '9' WHERE id IN ('weeklyGoalTrainingDays', 'restTimerSeconds')").run();
+    db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'weeklyGoalMealDays'").run();
+    expect(await r.settings.get()).toMatchObject({ weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 0, restTimerSeconds: 90 });
   });
 
   test('今の値と同じなら書かない（初期値と同じ値も、空を空にするのも）', async () => {
     const { r, db, deps } = await setup();
     const rows = () => db.raw.prepare('SELECT id, value, updated_at FROM settings ORDER BY id').all();
-    await r.settings.update({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null });
+    await r.settings.update({ weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null, weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 4, restTimerSeconds: 90 });
     expect(rows()).toEqual([]);
     await r.settings.update({ heightCm: 170 });
     const saved = rows();
@@ -78,7 +98,7 @@ describe('設定', () => {
     // 身長の欄を離れたときの保存と、単位の切り替えなどが同時に走る。トランザクションが入れ子になって失敗していた
     const { r } = await setup();
     await Promise.all([r.settings.update({ heightCm: 170 }), r.settings.update({ goalWeightKg: 65 }), r.settings.update({ weightUnit: 'lb' })]);
-    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65, activity: null });
+    expect(await r.settings.get()).toEqual({ weightUnit: 'lb', defaultSetCount: 3, heightCm: 170, goalWeightKg: 65, activity: null, weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 4, restTimerSeconds: 90 });
   });
 
   test('最後に選んだチャットのアプリは端末だけに覚え、同期に載せない', async () => {

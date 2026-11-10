@@ -1,6 +1,6 @@
 import {
   dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, NEXT_TITLES,
-  formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, primaryMetrics, ReportRow, reportCardLabel, TAB_AREAS,
+  formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, pendingReports, primaryMetrics, ReportRow, reportCardLabel, TAB_AREAS,
 } from '../reports';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
@@ -168,5 +168,46 @@ describe('本文（Markdown）を見分ける', () => {
   test('改行の \\r\\n をそろえ、空の本文は何も出さない', () => {
     expect(parseMarkdown('a\r\nb')).toEqual([{ type: 'paragraph', spans: [{ text: 'a\nb', bold: false }] }]);
     expect(parseMarkdown('\n \n')).toEqual([]);
+  });
+});
+
+describe('まだ作っていないまとめ', () => {
+  // 2026-11-10 は火曜。今週は 11/9（月）〜11/15（日）
+  const at = (hour: number) => new Date(2026, 10, 10, hour, 0);
+  const keys = (list: { key: string }[]) => list.map((p) => p.key);
+
+  test('記録のある日・週・月だけ。日は7日前から昨日、週は4週前から先週（月〜日）、月は先月', () => {
+    const recordDates = ['2026-09-30', '2026-10-10', '2026-10-20', '2026-11-02', '2026-11-03', '2026-11-09', '2026-11-10'];
+    const out = pendingReports({ now: at(20), reports: [], recordDates });
+    expect(keys(out)).toEqual(['daily:2026-11-09', 'daily:2026-11-03', 'weekly:2026-11-02', 'weekly:2026-10-19', 'monthly:2026-10-01']);
+    expect(out.find((p) => p.kind === 'weekly')).toEqual({ kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08', key: 'weekly:2026-11-02' });
+    expect(out.at(-1)).toMatchObject({ periodStart: '2026-10-01', periodEnd: '2026-10-31' });
+    // 11/2 は8日前なので日のまとめに出さない。10/10 の週（10/5〜）は5週前なので出さない
+    expect(keys(out)).not.toContain('daily:2026-11-02');
+  });
+
+  test('今日の日のまとめは、21時を過ぎていて今日に記録があるときだけ', () => {
+    expect(keys(pendingReports({ now: at(20), reports: [], recordDates: ['2026-11-10'] }))).toEqual([]);
+    expect(keys(pendingReports({ now: at(21), reports: [], recordDates: ['2026-11-10'] }))).toEqual(['daily:2026-11-10']);
+    expect(keys(pendingReports({ now: at(22), reports: [], recordDates: ['2026-11-09'] }))).toEqual(['daily:2026-11-09']);
+  });
+
+  test('作ってある分（同じ種類で、期間の半分より多く重なる）と、閉じた分は出さない', () => {
+    const recordDates = ['2026-11-03', '2026-11-05', '2026-10-28'];
+    const reports = [
+      { kind: 'daily' as const, periodStart: '2026-11-05', periodEnd: '2026-11-05' },
+      // 日曜始まりの週のまとめ（11/1〜11/7）は、11/2〜11/8 の週を作ってあるとみなす
+      { kind: 'weekly' as const, periodStart: '2026-11-01', periodEnd: '2026-11-07' },
+      // 週のまとめは日のまとめの代わりにならない
+      { kind: 'weekly' as const, periodStart: '2026-11-03', periodEnd: '2026-11-03' },
+      { kind: 'monthly' as const, periodStart: null, periodEnd: null },
+    ];
+    expect(keys(pendingReports({ now: at(10), reports, recordDates }))).toEqual(['daily:2026-11-03', 'weekly:2026-10-26', 'monthly:2026-10-01']);
+    expect(keys(pendingReports({ now: at(10), reports, recordDates, dismissed: ['daily:2026-11-03', 'monthly:2026-10-01'] }))).toEqual(['weekly:2026-10-26']);
+  });
+
+  test('1月なら先月は前の年の12月', () => {
+    const out = pendingReports({ now: new Date(2027, 0, 5, 9), reports: [], recordDates: ['2026-12-31'] });
+    expect(out.at(-1)).toEqual({ kind: 'monthly', periodStart: '2026-12-01', periodEnd: '2026-12-31', key: 'monthly:2026-12-01' });
   });
 });

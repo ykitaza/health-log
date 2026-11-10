@@ -1,5 +1,6 @@
 import { Activity, isActivity, isSex, Sex } from '@/lib/autoGoal';
 import { ChatApp, isChatApp } from '@/lib/chat';
+import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS, WeeklyGoals } from '@/lib/goals';
 import type { WeightUnit } from '@/lib/units';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -11,9 +12,35 @@ export type Settings = {
   goalWeightKg: number | null;
   /** ふだんの活動の量（食事の目標の自動計算に使う） */
   activity: Activity | null;
+  /** 今週の目標：1週間に筋トレをする回数（2〜6） */
+  weeklyGoalTrainingDays: number;
+  /** 今週の目標：1週間に食事を記録する日数（3・5・7） */
+  weeklyGoalMealDays: number;
+  /** 今週の目標：7時間以上寝る日数（0 は切。3・4・5・7） */
+  weeklyGoalSleepDays: number;
+  /** 休憩のタイマーの秒数（0 は切。60・90・120・180） */
+  restTimerSeconds: number;
 };
 
-export const DEFAULT_SETTINGS: Settings = { weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null };
+export const DEFAULT_SETTINGS: Settings = {
+  weightUnit: 'kg', defaultSetCount: 3, heightCm: null, goalWeightKg: null, activity: null,
+  weeklyGoalTrainingDays: 3, weeklyGoalMealDays: 5, weeklyGoalSleepDays: 4, restTimerSeconds: 90,
+};
+
+/** 選択肢から選ぶ設定。選択肢にない値（壊れた値、ほかの版が書いた値）は、読むときは初期値にし、書くときは断る */
+const CHOICES = {
+  weeklyGoalTrainingDays: WEEKLY_TRAINING_OPTIONS,
+  weeklyGoalMealDays: WEEKLY_MEAL_OPTIONS,
+  weeklyGoalSleepDays: WEEKLY_SLEEP_OPTIONS,
+  restTimerSeconds: REST_TIMER_OPTIONS,
+} as const satisfies Partial<Record<keyof Settings, readonly number[]>>;
+type ChoiceKey = keyof typeof CHOICES;
+const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
+
+/** 設定の今週の目標（lib/goals.ts の weeklyAchievement に渡す形） */
+export function weeklyGoalsOf(s: Settings): WeeklyGoals {
+  return { trainingDays: s.weeklyGoalTrainingDays, mealDays: s.weeklyGoalMealDays, sleepDays: s.weeklyGoalSleepDays };
+}
 
 /**
  * 性別と生まれた年（食事の目標の自動計算に使う）。個人の情報なので、同期しない sync_meta に置き、端末の外に出さない。
@@ -39,6 +66,11 @@ const KEYS: Record<keyof Settings, string> = {
   heightCm: 'height_cm',
   goalWeightKg: 'goal_weight_kg',
   activity: 'activity_level',
+  // サーバーの担当と決めた名前のまま、同期の ID にする（ほかの設定のような snake_case にしない）
+  weeklyGoalTrainingDays: 'weeklyGoalTrainingDays',
+  weeklyGoalMealDays: 'weeklyGoalMealDays',
+  weeklyGoalSleepDays: 'weeklyGoalSleepDays',
+  restTimerSeconds: 'restTimerSeconds',
 };
 
 function num(v: string | null | undefined): number | null {
@@ -55,12 +87,20 @@ export function settingsRepository(db: Db, deps: Deps) {
     const m = new Map(rows.map((r) => [r.id, r.value]));
     const unit = m.get(KEYS.weightUnit);
     const sets = num(m.get(KEYS.defaultSetCount));
+    const choice = (k: ChoiceKey): number => {
+      const v = num(m.get(KEYS[k]));
+      return v != null && (CHOICES[k] as readonly number[]).includes(v) ? v : DEFAULT_SETTINGS[k];
+    };
     return {
       weightUnit: unit === 'lb' ? 'lb' : 'kg',
       defaultSetCount: sets != null && sets >= 1 && sets <= 6 ? Math.round(sets) : DEFAULT_SETTINGS.defaultSetCount,
       heightCm: num(m.get(KEYS.heightCm)),
       goalWeightKg: num(m.get(KEYS.goalWeightKg)),
       activity: isActivity(m.get(KEYS.activity)) ? (m.get(KEYS.activity) as Activity) : null,
+      weeklyGoalTrainingDays: choice('weeklyGoalTrainingDays'),
+      weeklyGoalMealDays: choice('weeklyGoalMealDays'),
+      weeklyGoalSleepDays: choice('weeklyGoalSleepDays'),
+      restTimerSeconds: choice('restTimerSeconds'),
     };
   }
 
@@ -111,6 +151,10 @@ export function settingsRepository(db: Db, deps: Deps) {
       const now = deps.now().toISOString();
       if (patch.defaultSetCount != null && (patch.defaultSetCount < 1 || patch.defaultSetCount > 6)) {
         throw new Error('セット数の初期値は1〜6です');
+      }
+      for (const k of CHOICE_KEYS) {
+        const v = patch[k];
+        if (v != null && !(CHOICES[k] as readonly number[]).includes(v)) throw new Error(`${k} は ${CHOICES[k].join('・')} のどれかです`);
       }
       const current = await get();
       await db.withTransactionAsync(async () => {
