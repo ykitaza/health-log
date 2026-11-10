@@ -1,5 +1,7 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
-import { parseNumber } from './units';
+import type { Big3Role } from './exercises';
+import type { SetInput } from './sets';
+import { fmt1, kgToUnit, parseNumber, WeightUnit } from './units';
 
 /**
  * 1セット分の値（重さは kg。回数だけの種目は weightKg が null）。
@@ -266,4 +268,110 @@ export function rmTable(oneRm: number) {
 export function rmFromInput(weight: string, reps: string): number {
   const r = parseNumber(reps);
   return estimated1RM(parseNumber(weight), r != null && Number.isInteger(r) ? r : null);
+}
+
+// ---- 筋トレの推移（記録のカードと BIG3 のグラフ）と、前回のメニュー ----
+
+/** その日の種目の、セットの要約（「80.0 kg × 8・8　75.0 kg × 10」。同じ重さが続くセットは回数を「・」でつなぐ。回数だけは「10・8 回」） */
+export function summarizeSets(sets: { weightKg: number | null; reps: number }[], unit: WeightUnit): string {
+  const groups: { weightKg: number | null; reps: number[] }[] = [];
+  for (const s of sets) {
+    const last = groups[groups.length - 1];
+    if (last && last.weightKg === s.weightKg) last.reps.push(s.reps);
+    else groups.push({ weightKg: s.weightKg, reps: [s.reps] });
+  }
+  return groups
+    .map((g) => (g.weightKg == null ? `${g.reps.join('・')} 回` : `${fmt1(kgToUnit(g.weightKg, unit))} ${unit} × ${g.reps.join('・')}`))
+    .join('　');
+}
+
+/** 推移の記録に出す日（新しい順）。exerciseId を渡すと、その種目をした日だけ */
+export function trendDays(rows: { date: DateKey; exerciseId: string }[], exerciseId: string | null): DateKey[] {
+  return trainingDates(exerciseId == null ? rows : rows.filter((r) => r.exerciseId === exerciseId)).reverse();
+}
+
+/** 推移の記録の日のカードの見出し：部位（出てきた順、重なりなし）と、その日の合計負荷量（kg） */
+export function dayCardSummary(entries: { bodyPartName: string; sets: SetValues[] }[]): { parts: string[]; volume: number } {
+  return {
+    parts: [...new Set(entries.map((e) => e.bodyPartName))],
+    volume: entries.reduce((a, e) => a + totalVolume(e.sets), 0),
+  };
+}
+
+/**
+ * 「同じメニューで始める」で今日に写す中身：種目ごとに、重さと回数だけ（メモと完了は写さない。種目ごとの「前回をコピー」と同じ）。
+ * 種目の並びはその日のまま
+ */
+export function menuFromDay(entries: { exerciseId: string; sets: { weightKg: number | null; reps: number }[] }[]): { exerciseId: string; sets: SetInput[] }[] {
+  return entries
+    .filter((e) => e.sets.length > 0)
+    .map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.map((s) => ({ weightKg: s.weightKg, reps: s.reps, memo: '', done: false })) }));
+}
+
+export type Big3Lift = {
+  role: Big3Role;
+  /** 割り当てた種目（なければ null） */
+  exerciseId: string | null;
+  /** 今日までの最高の推定1RM（kg。記録がなければ null） */
+  current: number | null;
+  /** 1か月前の日までの最高の推定1RM（kg。なければ null） */
+  monthAgo: number | null;
+};
+
+export type Big3Trend = {
+  lifts: Big3Lift[];
+  /** まだ割り当てていない役 */
+  unassigned: Big3Role[];
+  /** 割り当てたが、推定1RM の出る記録がまだない役 */
+  noRecord: Big3Role[];
+  /** 3種目の今の合計（そろわなければ null）と、1か月前の合計（そのときにそろっていなければ null） */
+  total: number | null;
+  totalMonthAgo: number | null;
+  /** 合計の折れ線（from〜today。3種目がそろった日から。記録のあった日と、from・today の点） */
+  points: { date: DateKey; total: number }[];
+};
+
+/**
+ * BIG3 の推定1RM の合計。役ごとに、その日までの最高の推定1RM（estimated1RM）を出し、3つの和を合計とする。
+ * 推移は from〜today（3か月など）。from より前の記録も「その日までの最高」には入る
+ */
+export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey, from: DateKey): Big3Trend {
+  const roles: Big3Role[] = ['bench', 'squat', 'deadlift'];
+  const series = new Map(roles.map((role) => {
+    const id = assignments[role];
+    return [role, id ? exerciseDailySeries(rows, id).filter((p) => p.max1RM > 0 && p.date <= today) : []];
+  }));
+  const bestUpTo = (role: Big3Role, d: DateKey): number | null => {
+    let best: number | null = null;
+    for (const p of series.get(role)!) if (p.date <= d && (best == null || p.max1RM > best)) best = p.max1RM;
+    return best;
+  };
+  const sumAt = (d: DateKey): number | null => {
+    let sum = 0;
+    for (const role of roles) {
+      const v = assignments[role] ? bestUpTo(role, d) : null;
+      if (v == null) return null;
+      sum += v;
+    }
+    return sum;
+  };
+  const monthAgo = addMonths(today, -1);
+  const lifts = roles.map((role) => ({
+    role, exerciseId: assignments[role] ?? null, current: bestUpTo(role, today), monthAgo: bestUpTo(role, monthAgo),
+  }));
+  const dates = new Set<DateKey>([from, today]);
+  for (const role of roles) for (const p of series.get(role)!) if (p.date > from) dates.add(p.date);
+  const points: { date: DateKey; total: number }[] = [];
+  for (const d of [...dates].sort()) {
+    const total = sumAt(d);
+    if (total != null) points.push({ date: d, total });
+  }
+  return {
+    lifts,
+    unassigned: roles.filter((r) => !assignments[r]),
+    noRecord: lifts.filter((l) => l.exerciseId && l.current == null).map((l) => l.role),
+    total: sumAt(today),
+    totalMonthAgo: sumAt(monthAgo),
+    points,
+  };
 }

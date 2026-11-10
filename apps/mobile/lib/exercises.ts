@@ -56,3 +56,16 @@ export function big3Assignments(exercises: Big3Candidate[]): Partial<Record<Big3
 export function big3RoleById(exercises: Big3Candidate[]): Map<string, Big3Role> {
   return new Map(Object.entries(big3Assignments(exercises)).map(([role, id]) => [id, role as Big3Role]));
 }
+
+/** フォームの動画を開けなかったときの案内（AI で記録の「開けなかったとき」と同じ形） */
+export const FORM_VIDEO_OPEN_FAILED = 'フォームの動画を開けませんでした。ブラウザで開けるか確かめてください。';
+
+/** フォームの動画のリンクを外のアプリ（YouTube・ブラウザ）で開く。開けたら true、開けなかったら false（呼ぶ側で案内を出す） */
+export async function openFormVideo(url: string, open: (url: string) => Promise<unknown>): Promise<boolean> {
+  try {
+    await open(url);
+    return true;
+  } catch {
+    return false;
+  }
+}

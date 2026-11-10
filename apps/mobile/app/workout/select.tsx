@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { Big3Badge } from '@/components/ExerciseFields';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
@@ -9,7 +10,7 @@ import { Button, Card, Chip, ChipRow, DayNote, EmptyState, Header, ListRow, Sect
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { formatJpDate, lastDoneLabel, todayKey } from '@/lib/date';
-import { searchExercises } from '@/lib/exercises';
+import { big3RoleById, searchExercises } from '@/lib/exercises';
 import { formatSetShort } from '@/lib/format';
 import { lastTopSets } from '@/lib/training';
 import { colors, fonts, radius, space } from '@/theme';
@@ -21,10 +22,11 @@ export default function SelectExerciseScreen() {
   const [query, setQuery] = useState('');
   const [part, setPart] = useState<string | null>(null);
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [parts, exercises, rows, settings, day] = await Promise.all([
+    const [parts, exercises, rows, settings, day, all] = await Promise.all([
       r.catalog.listBodyParts(), r.catalog.listExercises(), r.workouts.allSetRows(), r.settings.get(), r.workouts.getDay(date),
+      r.catalog.listExercises({ includeHidden: true }),
     ]);
-    return { parts, exercises, rows, settings, day };
+    return { parts, exercises, rows, settings, day, big3: big3RoleById(all) };
   }, date);
 
   // 種目ごとの前回（その日まで）のいちばん重いセット
@@ -87,6 +89,7 @@ export default function SelectExerciseScreen() {
                 first={i === 0}
                 title={e.name}
                 subtitle={last.get(e.id)?.text ?? 'まだ記録がありません'}
+                badge={data?.big3.has(e.id) ? <Big3Badge /> : undefined}
                 onPress={() => choose(e.id)}
               />
             ))}

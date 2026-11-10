@@ -3,16 +3,19 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { AiRecordButton } from './ChatSheet';
+import { Big3Badge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
 import { DailyHighlights } from './reports';
+import { RestTimerBar } from './RestTimer';
 import { T } from './Text';
 import { Button, Card, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
-import { todayKey } from '@/lib/date';
+import { formatJpDate, todayKey } from '@/lib/date';
+import { big3RoleById } from '@/lib/exercises';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
@@ -25,14 +28,20 @@ export function AddExerciseButton({ date }: { date: string }) {
   return <Button label="種目を追加" icon="plus" disabled={date > todayKey()} onPress={() => router.push({ pathname: '/workout/select', params: { date } })} style={{ flex: 1 }} />;
 }
 
-/** 記録の画面の下：「AI で記録」（チャットを開く）と「種目を追加」を横に並べる。未来の日はどちらも押せない */
+/**
+ * 記録の画面の下：「AI で記録」（チャットを開く）と「種目を追加」を横に並べる。未来の日はどちらも押せない。
+ * 休憩のタイマーが動いていれば、その上に帯を出す（記録の入力の画面と同じ1つのタイマー）
+ */
 export function WorkoutFooter({ date }: { date: string }) {
   const today = todayKey();
   return (
-    <View style={{ flexDirection: 'row', gap: space.s }}>
-      <AiRecordButton prompt={{ kind: 'training', date, today }} disabled={date > today} style={{ flex: 1 }} />
-      <AddExerciseButton date={date} />
-    </View>
+    <>
+      <RestTimerBar />
+      <View style={{ flexDirection: 'row', gap: space.s }}>
+        <AiRecordButton prompt={{ kind: 'training', date, today }} disabled={date > today} style={{ flex: 1 }} />
+        <AddExerciseButton date={date} />
+      </View>
+    </>
   );
 }
 
@@ -43,8 +52,12 @@ export function WorkoutFooter({ date }: { date: string }) {
 export function WorkoutDayContent({ date }: { date: string }) {
   const today = todayKey();
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [entries, settings] = await Promise.all([r.workouts.getDay(date), r.settings.get()]);
-    return { entries, settings };
+    const [entries, settings, exercises] = await Promise.all([
+      r.workouts.getDay(date), r.settings.get(), r.catalog.listExercises({ includeHidden: true }),
+    ]);
+    // 今日が空なら「前回のメニュー」（直近のトレーニングの日）を出す
+    const previous = entries.length === 0 && date === todayKey() ? await r.workouts.previousDay(date) : null;
+    return { entries, settings, big3: big3RoleById(exercises), previous };
   }, date);
   const [removing, setRemoving] = useState<Entry | null>(null);
   const list = useListMotion(data != null);
@@ -62,15 +75,41 @@ export function WorkoutDayContent({ date }: { date: string }) {
     setRemoving(null);
     await reload();
   });
+  // 前回のメニューを写す（2回押しても二重にしない：useBusy とリポジトリの確かめ）
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const copyPrevious = () => run(async () => {
+    if (!data?.previous) return;
+    try {
+      await repos.workouts.copyDay(data.previous.date, date);
+      setCopyError(null);
+    } catch (e) {
+      setCopyError(e instanceof Error ? e.message : String(e));
+    }
+    await reload();
+  });
+  const previous = data?.previous;
 
   if (error) return <LoadError onRetry={reload} />;
 
   return (
     <>
       {data && entries.length === 0 && date <= today && (
-        <View style={{ marginTop: space.xxl * 2 }}>
-          <EmptyState title="まだ種目がありません" body="下の「種目を追加」から始めましょう" />
+        <View style={{ marginTop: previous ? space.xxl : space.xxl * 2 }}>
+          <EmptyState title="まだ種目がありません" body={previous ? '下の「種目を追加」か、前回のメニューから始めましょう' : '下の「種目を追加」から始めましょう'} />
         </View>
+      )}
+      {data && entries.length === 0 && previous && (
+        <View testID="previous-menu"><Card style={{ gap: space.xs }}>
+          <T variant="labelM" color={colors.sub}>前回のメニュー</T>
+          <T variant="titleM">{formatJpDate(previous.date)} ・ {[...new Set(previous.entries.map((e) => e.bodyPartName))].join('・')}</T>
+          <T variant="bodyM" color={colors.sub}>{previous.entries.map((e) => e.exerciseName).join(' ・ ')}</T>
+          <Button
+            label={busy ? '写しています…' : '同じメニューで始める'} variant="text" small busy={busy} onPress={copyPrevious}
+            accessibilityLabel={`${formatJpDate(previous.date)}と同じメニューで始める`}
+            style={{ alignSelf: 'flex-start', paddingLeft: 12, paddingRight: 12, marginLeft: -12, marginTop: space.xs }}
+          />
+          {copyError && <T variant="bodyS" color={colors.danger}>{copyError}</T>}
+        </Card></View>
       )}
       {data && entries.length === 0 && <DailyHighlights date={date} areas={TAB_AREAS.training} />}
       {entries.length > 0 && (
@@ -98,7 +137,10 @@ export function WorkoutDayContent({ date }: { date: string }) {
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <SetNo n={i + 1} active />
-                        <T variant="titleM" style={{ flex: 1 }} numberOfLines={2}>{e.exerciseName}</T>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.s, flexWrap: 'wrap' }}>
+                          <T variant="titleM" style={{ flexShrink: 1 }} numberOfLines={2}>{e.exerciseName}</T>
+                          {data?.big3.has(e.exerciseId) && <Big3Badge />}
+                        </View>
                         {best && <T variant="labelL" color={colors.accent}>推定1RM {fmt1(kgToUnit(best.e1rm, unit))}{unit}</T>}
                         <Icon name="chevron" size={24} color={colors.sub} />
                       </View>

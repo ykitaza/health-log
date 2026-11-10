@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { Big3Badge } from '@/components/ExerciseFields';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { CheckPop, ColorFade, PopIn, Shake, useListMotion } from '@/components/motion';
+import { RestTimerBar, restTimer } from '@/components/RestTimer';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Button, Card, DayNote, Header, IconButton } from '@/components/ui';
@@ -15,6 +17,7 @@ import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
+import { big3Assignments, FORM_VIDEO_OPEN_FAILED, openFormVideo } from '@/lib/exercises';
 import { formatSetShort } from '@/lib/format';
 import { MEMO_MAX_LENGTH } from '@/lib/limits';
 import { onFeedback } from '@/lib/feedback';
@@ -35,6 +38,7 @@ type Loaded = {
   best: PersonalBest | null;
   settings: Settings;
   position: number; // その日の何種目目か
+  big3: boolean; // BIG3 に割り当てた種目か
 };
 
 /** 記録の入力（セットを組む） */
@@ -51,6 +55,9 @@ export default function EntryScreen() {
   const [errors, setErrors] = useState<Map<string, SetError>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ draft: SetDraft; index: number } | null>(null);
+  // フォームの動画を開けなかったときの案内（数秒で消す）
+  const [openFailed, setOpenFailed] = useState(false);
+  const openFailedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 保存を押して入力の間違いが見つかった回数（間違いのある欄を、そのたびに揺らす）
   const [shakes, setShakes] = useState(0);
   // 保存は1つずつ（続けて届いた2回目は止める。保存して戻るときは、戻る間も押せないまま）
@@ -63,16 +70,18 @@ export default function EntryScreen() {
       const entry = params.entryId ? await repos.workouts.getEntry(params.entryId) : null;
       const exerciseId = entry?.exerciseId ?? params.exerciseId;
       if (!exerciseId) return;
-      const [exercise, previous, rows, settings, day] = await Promise.all([
+      const [exercise, previous, rows, settings, day, all] = await Promise.all([
         repos.catalog.getExercise(exerciseId),
         repos.workouts.previousEntry(exerciseId, date),
         repos.workouts.allSetRows(),
         repos.settings.get(),
         repos.workouts.getDay(date),
+        repos.catalog.listExercises({ includeHidden: true }),
       ]);
       if (!alive || !exercise) return;
       const position = entry ? day.findIndex((d) => d.id === entry.id) + 1 : day.length + 1;
-      setLoaded({ exercise, entry, previous, best: personalBests(rows, date).get(exerciseId) ?? null, settings, position });
+      const big3 = Object.values(big3Assignments(all)).includes(exerciseId);
+      setLoaded({ exercise, entry, previous, best: personalBests(rows, date).get(exerciseId) ?? null, settings, position, big3 });
       const unit = settings.weightUnit;
       const start = entry
         ? entry.sets.map((s) => draftFromSet(s, unit, newKey()))
@@ -83,7 +92,10 @@ export default function EntryScreen() {
     return () => { alive = false; };
   }, [repos, params.entryId, params.exerciseId, date]);
 
-  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    if (openFailedTimer.current) clearTimeout(openFailedTimer.current);
+  }, []);
 
   // 保存していない変更があれば、戻る前に確かめる（Figma の「入力をやめますか？」）
   const { dialog, allowLeave } = useConfirmDiscard(hasChanges(initial, drafts), 'まだ追加していないセットは保存されません。');
@@ -146,12 +158,27 @@ export default function EntryScreen() {
     }
   });
 
+  const openForm = async () => {
+    if (!exercise.formVideoUrl) return;
+    const ok = await openFormVideo(exercise.formVideoUrl, (u) => Linking.openURL(u));
+    setOpenFailed(!ok);
+    if (openFailedTimer.current) clearTimeout(openFailedTimer.current);
+    if (!ok) openFailedTimer.current = setTimeout(() => setOpenFailed(false), 6000);
+  };
+
   const saveLabel = entry ? '変更を保存' : isToday ? '今日のトレーニングに追加' : 'この日のトレーニングに追加';
 
   return (
     <Screen
       footer={
         <>
+          {openFailed && (
+            // AI で記録の「開けなかったとき」と同じ snackbar（明るい地）
+            <View style={s.banner} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <T variant="bodyM" color={colors.card} style={{ flex: 1, paddingVertical: 12 }}>{FORM_VIDEO_OPEN_FAILED}</T>
+            </View>
+          )}
+          <RestTimerBar />
           {undo && (
             // M3 の snackbar（明るい地、操作は緑の文字）
             <View style={s.banner}>
@@ -169,6 +196,13 @@ export default function EntryScreen() {
         title={exercise.name}
         subtitle={`${exercise.bodyPartName} ・ ${isToday ? '今日' : formatJpDate(date)}の${loaded.position}種目目`}
         onBack={() => router.back()}
+        badge={loaded.big3 ? <Big3Badge /> : undefined}
+        right={exercise.formVideoUrl ? (
+          <Button
+            label="フォーム" icon="external" variant="text" small onPress={openForm}
+            accessibilityLabel={`${exercise.name}のフォームの動画を開く（外のアプリ）`} style={{ paddingLeft: 12, paddingRight: 12 }}
+          />
+        ) : undefined}
       />
       <DayNote date={date} today={today} />
 
@@ -233,7 +267,11 @@ export default function EntryScreen() {
                   aria-checked={d.done}
                   accessibilityLabel={`セット${i + 1}の完了`}
                   onPress={() => {
-                    if (!d.done) onFeedback('complete');
+                    if (!d.done) {
+                      onFeedback('complete');
+                      // 今日のセットを完了にしたら休憩を数え始める（設定が「切」の 0 秒なら動かさない。過去の日を直すときは動かさない）
+                      if (isToday) restTimer.start(settings.restTimerSeconds);
+                    }
                     update(d.key, { done: !d.done });
                   }}
                   style={s.doneTouch}

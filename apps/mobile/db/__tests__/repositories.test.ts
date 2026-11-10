@@ -334,6 +334,36 @@ describe('筋トレの記録', () => {
     expect(await r.workouts.findEntry('2026-11-08', BENCH)).toMatchObject({ id });
   });
 
+  test('前回のメニューを写す：直近の日の種目・重さ・回数を、未完了で（メモと完了は写さない）。写す先に記録があれば断る', async () => {
+    const { db, r } = await setup();
+    expect(await r.workouts.previousDay('2026-11-08')).toBeNull();
+    await r.workouts.saveEntry({ date: '2026-11-04', exerciseId: DEADLIFT, sets: [set(120, 5)] });
+    await r.workouts.saveEntry({ date: '2026-11-06', exerciseId: SQUAT, sets: [set(100, 5, { memo: '深く' }), set(100, 4)] });
+    await r.workouts.saveEntry({ date: '2026-11-06', exerciseId: BENCH, sets: [set(80, 8)] });
+    await r.workouts.saveEntry({ date: '2026-11-09', exerciseId: BENCH, sets: [set(85, 5)] }); // 写す先より後の日は見ない
+
+    const prev = await r.workouts.previousDay('2026-11-08');
+    expect(prev?.date).toBe('2026-11-06');
+    expect(prev?.entries.map((e) => e.exerciseName)).toEqual(['スクワット', 'ベンチプレス']);
+
+    await r.workouts.copyDay('2026-11-06', '2026-11-08');
+    const today = await r.workouts.getDay('2026-11-08');
+    expect(today.map((e) => [e.exerciseName, e.sets.map((x) => [x.weightKg, x.reps, x.memo, x.done])])).toEqual([
+      ['スクワット', [[100, 5, '', false], [100, 4, '', false]]],
+      ['ベンチプレス', [[80, 8, '', false]]],
+    ]);
+    // 2回押しても二重にしない
+    await expect(r.workouts.copyDay('2026-11-06', '2026-11-08')).rejects.toThrow('この日にはもう種目があります');
+    expect(await r.workouts.getDay('2026-11-08')).toHaveLength(2);
+    // 同期の outbox にも積む（記録と同じ）
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'workout_set' AND op = 'create'").get())
+      .toEqual({ n: 3 + 3 + 1 + 1 });
+    // 推移の記録のカード：いくつかの日を新しい順に
+    expect((await r.workouts.getDays(['2026-11-04', '2026-11-08'])).map((e) => [e.date, e.exerciseName]))
+      .toEqual([['2026-11-08', 'スクワット'], ['2026-11-08', 'ベンチプレス'], ['2026-11-04', 'デッドリフト']]);
+    expect(await r.workouts.getDays([])).toEqual([]);
+  });
+
   test('過去の日に足すと、その日の記録になり、前回・何種目目はその日を基準にする', async () => {
     const { r } = await setup();
     await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: BENCH, sets: [set(80, 8)] });

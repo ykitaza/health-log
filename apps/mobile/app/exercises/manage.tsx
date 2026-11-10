@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { Big3Badge } from '@/components/ExerciseFields';
 import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
@@ -11,6 +12,7 @@ import { HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
+import { big3RoleById } from '@/lib/exercises';
 import { touchRoom } from '@/lib/touch';
 import { colors, fonts } from '@/theme';
 
@@ -20,7 +22,7 @@ const TYPE_LABEL = { weight_reps: '重量×回数', reps_only: '回数だけ' } 
 export default function ManageScreen() {
   const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
     const [parts, exercises] = await Promise.all([r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true })]);
-    return { parts, exercises };
+    return { parts, exercises, big3: big3RoleById(exercises) };
   });
   const [adding, setAdding] = useState(false);
   const [partName, setPartName] = useState('');
@@ -144,6 +146,7 @@ export default function ManageScreen() {
                   first={i === 0}
                   title={e.name}
                   subtitle={TYPE_LABEL[e.recordType]}
+                  badge={data.big3.has(e.id) ? <Big3Badge /> : undefined}
                   dim={e.hidden}
                   onPress={() => router.push({ pathname: '/exercises/[id]', params: { id: e.id } })}
                   right={

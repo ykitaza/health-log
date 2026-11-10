@@ -115,16 +115,23 @@ export function IconButton({ name, onPress, label, color, bg, variant = 'standar
   );
 }
 
-/** M3 の small top app bar（高さ 64）。戻るボタンと題。overline と subtitle（補足）は題の上に出す（Figma の TopAppBar） */
-export function Header({ title, subtitle, onBack, right, overline }: {
-  title: string; subtitle?: string; overline?: string; onBack?: () => void; right?: ReactNode;
+/** M3 の small top app bar（高さ 64）。戻るボタンと題。overline と subtitle（補足）は題の上に出す（Figma の TopAppBar）。badge は題の横の印 */
+export function Header({ title, subtitle, onBack, right, overline, badge }: {
+  title: string; subtitle?: string; overline?: string; onBack?: () => void; right?: ReactNode; badge?: ReactNode;
 }) {
   return (
     <View style={[s.header, !onBack && { paddingLeft: 12 }]}>
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} />}
       <View style={{ flex: 1 }}>
         {(overline || subtitle) && <T variant="bodyS" color={colors.sub} numberOfLines={1}>{[overline, subtitle].filter(Boolean).join(' ・ ')}</T>}
-        <T variant="titleL" numberOfLines={1} accessibilityRole="header">{title}</T>
+        {badge ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+            <T variant="titleL" numberOfLines={1} accessibilityRole="header" style={{ flexShrink: 1 }}>{title}</T>
+            {badge}
+          </View>
+        ) : (
+          <T variant="titleL" numberOfLines={1} accessibilityRole="header">{title}</T>
+        )}
       </View>
       {right}
     </View>
@@ -314,10 +321,10 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
   );
 }
 
-/** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印 */
-export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, testID, label }: {
+/** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印。badge は題の横の印 */
+export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, testID, label, badge }: {
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
-  /** 左のアイコン */ icon?: IconName; testID?: string; /** 読み上げの名前（ないときは中の文字） */ label?: string;
+  /** 左のアイコン */ icon?: IconName; testID?: string; /** 読み上げの名前（ないときは中の文字） */ label?: string; badge?: ReactNode;
 }) {
   return (
     <PressableScale
@@ -331,7 +338,14 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
     >
       {icon && <Icon name={icon} color={colors.sub} size={24} />}
       <View style={{ flex: 1, opacity: dim ? DISABLED_OPACITY : 1 }}>
-        <T variant="titleM">{title}</T>
+        {badge ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+            <T variant="titleM" style={{ flexShrink: 1 }}>{title}</T>
+            {badge}
+          </View>
+        ) : (
+          <T variant="titleM">{title}</T>
+        )}
         {subtitle ? <T variant="bodyM" color={colors.sub}>{subtitle}</T> : null}
       </View>
       {right}

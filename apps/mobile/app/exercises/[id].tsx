@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { BodyweightRatioField } from '@/components/BodyweightRatio';
+import { Big3Field, FormVideoUrlField } from '@/components/ExerciseFields';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -11,12 +12,14 @@ import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { parseRatioPct, ratioOf, ratioToPct } from '@/lib/bodyweight';
+import { big3Assignments, Big3Role } from '@/lib/exercises';
+import { parseFormVideoUrl } from '@/lib/limits';
 import { colors, fonts } from '@/theme';
 
 const TYPE_LABEL = { weight_reps: '重量 × 回数', reps_only: '回数だけ' } as const;
 
 /**
- * 種目の編集（名前、部位、回数だけの種目は体重に対する割合、選択に表示するか）。
+ * 種目の編集（名前、部位、BIG3 の役、フォームの動画のリンク、回数だけの種目は体重に対する割合、選択に表示するか）。
  * 記録は種目の ID でつながるので、過去の記録も新しい名前で出る（割合を変えると、過去の負荷量も新しい割合で出る）
  */
 export default function EditExerciseScreen() {
@@ -31,15 +34,29 @@ export default function EditExerciseScreen() {
   const [ratio, setRatio] = useState('');
   const [ratioInvalid, setRatioInvalid] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // BIG3 の役（今の役。名前で決めた役も含む）と、ほかの種目が持っている役（付け替えるときに、外す種目を伝える）
+  const [savedBig3, setSavedBig3] = useState<Big3Role | null>(null);
+  const [big3, setBig3] = useState<Big3Role | null>(null);
+  const [holders, setHolders] = useState<Partial<Record<Big3Role, string>>>({});
+  const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState<string | null>(null);
   const savedRatio = exercise ? ratioOf(exercise) : null;
   const dirty = exercise != null && (name.trim() !== exercise.name || partId !== exercise.bodyPartId || hidden !== exercise.hidden
-    || (savedRatio != null && ratio !== ratioToPct(savedRatio)));
+    || (savedRatio != null && ratio !== ratioToPct(savedRatio)) || big3 !== savedBig3 || url.trim() !== (exercise.formVideoUrl ?? ''));
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '変更は保存されません。');
 
   useEffect(() => {
-    Promise.all([repos.catalog.getExercise(id), repos.catalog.listBodyParts({ includeHidden: true })]).then(([ex, ps]) => {
+    Promise.all([
+      repos.catalog.getExercise(id), repos.catalog.listBodyParts({ includeHidden: true }), repos.catalog.listExercises({ includeHidden: true }),
+    ]).then(([ex, ps, all]) => {
       if (!ex) return;
       setExercise(ex);
+      const roles = big3Assignments(all);
+      const mine = (Object.keys(roles) as Big3Role[]).find((r) => roles[r] === ex.id) ?? null;
+      setSavedBig3(mine);
+      setBig3(mine);
+      setHolders(Object.fromEntries(Object.entries(roles).filter(([, eid]) => eid !== ex.id).map(([r, eid]) => [r, all.find((e) => e.id === eid)?.name ?? ''])));
+      setUrl(ex.formVideoUrl ?? '');
       setName(ex.name);
       setPartId(ex.bodyPartId);
       setHidden(ex.hidden);
@@ -56,9 +73,13 @@ export default function EditExerciseScreen() {
     const pct = parseRatioPct(ratio);
     const reps = exercise.recordType === 'reps_only';
     if (reps && pct == null) { setRatioInvalid(true); setError('体重に対する割合を 0〜100 で入れてください'); return; }
+    const link = parseFormVideoUrl(url);
+    if ('error' in link) { setUrlError(link.error); setError(link.error); return; }
     try {
       // 回数だけの種目は、出している割合をそのまま残す（名前を変えても、割合が名前から決め直されないように）
-      await repos.catalog.updateExercise(exercise.id, { name, bodyPartId: partId, ...(reps ? { bodyweightRatio: pct! / 100 } : {}) });
+      await repos.catalog.updateExercise(exercise.id, {
+        name, bodyPartId: partId, big3, formVideoUrl: link.value, ...(reps ? { bodyweightRatio: pct! / 100 } : {}),
+      });
       if (hidden !== exercise.hidden) await repos.catalog.setExerciseHidden(exercise.id, hidden);
       stayBusy();
       allowLeave();
@@ -88,6 +109,8 @@ export default function EditExerciseScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {parts.map((p) => <Chip key={p.id} label={p.name} active={partId === p.id} onPress={() => { setPartId(p.id); setError(null); }} />)}
           </View>
+          <Big3Field value={big3} onChange={(v) => { setBig3(v); setError(null); }} holders={holders} />
+          <FormVideoUrlField value={url} error={urlError} onChange={(t) => { setUrl(t); setUrlError(null); setError(null); }} />
           <T size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 6 }}>記録のしかた</T>
           <Card>
             <T bold size={16}>{TYPE_LABEL[exercise.recordType]}</T>
