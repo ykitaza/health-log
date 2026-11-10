@@ -3,8 +3,9 @@
  * → 端末に当てはめる。衝突の決まりはサーバーだけが持ち、端末はサーバーが返した状態で上書きする（docs/sync-design.md）。
  * まだ送っていない変更は、上書きのあとも端末の値を残す（db/repositories/sync.ts の applyStates）
  */
-import { ApiClient, ApiError, ApiErrorCode, PushChange } from '@/lib/api';
+import { ApiClient, ApiError, ApiErrorCode, ChangesPage, PushChange } from '@/lib/api';
 import { OutboxRow, SyncStore, toPushChange } from '@/db/repositories/sync';
+import { countReceived, NOTHING_RECEIVED, Received } from './received';
 
 /** サーバーが1回に受け付ける件数（services/sync の MAX_PUSH） */
 export const MAX_PUSH = 25;
@@ -19,7 +20,8 @@ const PULL_LIMIT = 500;
 export type SyncErrorCode = ApiErrorCode | 'accountChanged';
 
 export type SyncOutcome =
-  | { ok: true; applied: number; sent: number; rejected: number }
+  /** received：受け取った食事・筋トレの件数（ホームの知らせ。lib/sync/received.ts） */
+  | { ok: true; applied: number; sent: number; rejected: number; received: Received }
   | { ok: false; error: SyncErrorCode; retry: boolean };
 
 /** UTF-8 にしたときのバイト数 */
@@ -85,9 +87,10 @@ export function createSyncEngine({ store, api, now = () => new Date() }: Deps) {
     return { sent, rejected };
   }
 
-  /** 受け取って当てはめる。初めての端末はスナップショットから */
-  async function pull(): Promise<number> {
+  /** 受け取って当てはめる。初めての端末はスナップショットから。受け取った変更（スナップショットは除く）の件数も数える */
+  async function pull(): Promise<{ applied: number; received: Received }> {
     let applied = 0;
+    const entries: ChangesPage['entries'] = [];
     let cursor = Number(await store.getMeta('cursor') ?? NaN);
     if (!Number.isFinite(cursor)) {
       let token: string | null = null;
@@ -105,10 +108,11 @@ export function createSyncEngine({ store, api, now = () => new Date() }: Deps) {
       const page = await api.pullChanges(cursor, PULL_LIMIT);
       if (page.has_more && page.next_cursor <= cursor) throw new ApiError('server', 200); // 進まない
       applied += await store.applyStates(page.entries.map((e) => e.state), { cursor: String(page.next_cursor) });
+      entries.push(...page.entries);
       cursor = page.next_cursor;
       if (!page.has_more) break;
     }
-    return applied;
+    return { applied, received: entries.length === 0 ? NOTHING_RECEIVED : countReceived(entries, await store.deviceId()) };
   }
 
   return {
@@ -121,9 +125,9 @@ export function createSyncEngine({ store, api, now = () => new Date() }: Deps) {
         if (known && known !== sub) return { ok: false, error: 'accountChanged', retry: false };
         if (!known) await store.rememberAccount(sub);
         const { sent, rejected } = await push();
-        const applied = await pull();
+        const { applied, received } = await pull();
         await store.setMeta('last_synced_at', now().toISOString());
-        return { ok: true, applied, sent, rejected };
+        return { ok: true, applied, sent, rejected, received };
       } catch (e) {
         const error: ApiErrorCode = e instanceof ApiError ? e.code : 'server';
         // ログインの期限切れはログインの層に任せる（ログインし直すまで同期しない）

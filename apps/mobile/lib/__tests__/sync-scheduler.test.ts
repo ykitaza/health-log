@@ -1,7 +1,8 @@
 import type { SyncOutcome } from '../sync/engine';
+import { NOTHING_RECEIVED } from '../sync/received';
 import { backoffDelay, createSyncScheduler } from '../sync/scheduler';
 
-const OK: SyncOutcome = { ok: true, applied: 0, sent: 0, rejected: 0 };
+const OK: SyncOutcome = { ok: true, applied: 0, sent: 0, rejected: 0, received: NOTHING_RECEIVED };
 const OFFLINE: SyncOutcome = { ok: false, error: 'network', retry: true };
 const flush = () => new Promise((r) => setImmediate(r));
 

@@ -74,9 +74,16 @@ export async function addEntry(page: Page, exercise: string, sets: SetSpec[]) {
   await expect(page.getByRole('button', { name: `${exercise}を直す` })).toBeVisible();
 }
 
+/** ホームの「記録する」のシートを開き、行（筋トレ・食事・体重・AI で記録）を押す */
+export async function recordFromHome(page: Page, row: 'training' | 'meal' | 'body' | 'ai') {
+  await button(page, '記録する').click();
+  await expect(page.getByTestId('record-sheet')).toBeVisible();
+  await page.getByTestId(`record-${row}`).click();
+}
+
 /** ホームから、今日の記録を足してホームに戻る */
 export async function recordToday(page: Page, entries: { exercise: string; sets: SetSpec[] }[]) {
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
   for (const e of entries) await addEntry(page, e.exercise, e.sets);
   await button(page, '戻る').click();
