@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, enterBody, goPane, goTab, homeCard, openApp, openBody, openBodySheet, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo } from './helpers';
+import { button, chooseExercise, chooseUnit, controlDb, enter, enterBody, goPane, goTab, homeCard, openApp, openBody, openBodySheet, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo, recordFromHome } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -56,7 +56,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await goTab(page, 'ホーム');
 
   // lb で入れた記録は kg で保存する：100lb = 45.36kg
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await button(page, '種目を追加').click();
   await chooseExercise(page, 'スクワット');
   await expect(see(page, '重量（lb）')).toBeVisible();
@@ -102,7 +102,7 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
   await expect(button(page, '3セット')).toHaveAttribute('aria-selected', 'false');
   await button(page, '戻る').click();
 
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await button(page, '種目を追加').click();
   await chooseExercise(page, 'スクワット');
   await expect(page.getByLabel(/^セット\d+の回数$/)).toHaveCount(5);

@@ -1,8 +1,9 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { BodyInputPatch, BodyInputSheet } from '@/components/BodyInputSheet';
 import { BodyTrend } from '@/components/BodyTrend';
+import { takeBodyInputRequest } from '@/components/home';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber } from '@/components/motion';
@@ -38,6 +39,12 @@ export default function BodyScreen() {
   // ホームの体調のカードから、その日を指定して開いたとき
   const { date: asked } = useLocalSearchParams<{ date?: string }>();
   useEffect(() => { if (asked && asked <= todayKey()) { setDate(asked); setPane('today'); } }, [asked]);
+  // ホームの「記録する」の体重から開いたときは、その日に移り、その日の値を読んでから計測のシートを出す
+  const [inputAsked, setInputAsked] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => {
+    const d = takeBodyInputRequest();
+    if (d && d <= todayKey()) { setDate(d); setPane('today'); setInputAsked(d); }
+  }, []));
 
   const { data, error: loadError, reload, repos } = useFocusData(async (r) => {
     const from = addDays(today, -6);
@@ -49,6 +56,8 @@ export default function BodyScreen() {
   }, `${date}|${today}`);
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
+  const askedReady = inputAsked != null && inputAsked === date && data?.date === date;
+  useEffect(() => { if (askedReady) { setInputAsked(null); setEditing(true); } }, [askedReady]);
 
   const save = async (patch: BodyInputPatch) => {
     if (Object.keys(patch).length > 0) await repos.body.saveManual(date, patch);

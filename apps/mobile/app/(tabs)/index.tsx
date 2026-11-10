@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { CalendarLegend, ReceivedNotice, RecordSheet, WeeklyGoalCard, WeeklyTodoCard } from '@/components/home';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
@@ -15,14 +16,15 @@ import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, pickedDayOrToday, yearMonth } from '@/lib/date';
+import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, monthMatrix, pickedDayOrToday, yearMonth } from '@/lib/date';
 import { formatMinutes } from '@/lib/health';
+import { goalLine, sleepNote } from '@/lib/home';
 import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
 import { tonnes } from '@/lib/format';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { daysInMonth, periodTotals, totalVolume, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { colors, radius, size, space } from '@/theme';
+import { colors, radius, size, space, toneColors } from '@/theme';
 
 const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週前'];
 const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo: 'plane' };
@@ -37,32 +39,40 @@ export default function HomeScreen() {
   const dayLabel = isToday ? '今日' : formatMonthDay(selected);
   // 過去の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(isToday, () => setPicked(null));
+  const [recording, setRecording] = useState(false);
+  const { year, month } = yearMonth(today);
   const { data, error, reload } = useFocusData(async (r) => {
-    const [rows, todays, settings, meals, daily, sleep, heart] = await Promise.all([
+    // カレンダーに出す月の、食事を記録した日（点を付ける）
+    const cells = monthMatrix(year, month).flat().filter((d) => d.inMonth);
+    const [rows, todays, settings, meals, daily, sleep, heart, monthMeals] = await Promise.all([
       r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get(), r.meals.summaries(selected, selected),
       r.body.listDaily(), r.health.sleepDay(selected), r.health.heartRateDay(selected),
+      r.meals.summaries(cells[0].key, cells[cells.length - 1].key),
     ]);
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
-    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected };
-  }, selected);
+    const mealDates = new Set(monthMeals.days.filter((d) => d.meals.length > 0).map((d) => d.date));
+    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected, mealDates };
+  }, `${selected}|${today}`);
   // 日を選び直した直後は、読み終わるまで前の日の記録を出さない
   const dayEntries = data?.day === selected ? data.todays : null;
   const meal = data?.day === selected ? data.meal : null;
 
-  const { year, month } = yearMonth(today);
   const rows = data?.rows ?? [];
   const unit = data?.settings.weightUnit ?? 'kg';
   const dates = trainingDates(rows);
   const totals = periodTotals(rows, today);
   const weekly = weeklyVolumes(rows, today, 6);
   const maxWeek = Math.max(1, ...weekly);
+  const condition = data?.day === selected ? data : null;
+  // 寝不足の日のひとこと（今日だけ。今日の体調と同じ、その日に起きた睡眠）
+  const sleepy = isToday ? sleepNote(condition?.sleep?.asleepMin) : null;
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
     <View style={{ flex: 1 }}>
     <Screen tab fab bottomSpace={size.fab + space.l * 2}>
-      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} actions={<Button label="RM計算機" icon="calc" variant="text" small onPress={() => router.push('/rm')} />} />
+      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} />
       {/* 同期が続けて失敗しているときだけ、見出しの下に1行で知らせる（ふだんは出さない。時刻と未送信の件数はアカウントの画面） */}
       <SyncAlertLine />
 
@@ -72,9 +82,10 @@ export default function HomeScreen() {
           {/* 大きさは Figma（ホーム 1. ホーム）に合わせる：見出し 30、日の丸 26、行の間 8、曜日の下に線 */}
           <T num bold size={30} style={{ marginBottom: 4 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
           <MonthCalendar
-            year={year} month={month} today={today} marked={new Set(dates)} cell={26} rowGap={8} divider testID="home-calendar"
+            year={year} month={month} today={today} marked={new Set(dates)} dotted={data?.mealDates} cell={26} rowGap={8} divider testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
           />
+          <CalendarLegend />
           <View style={{ flexGrow: 1 }} />
           <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -105,8 +116,12 @@ export default function HomeScreen() {
               ))}
             </View>
           </VolumeCard>
-          <VolumeCard testID="volume-28d" title="合計負荷量／28日間" kg={totals.last28} vehicle="bus" unit={unit} ready={data != null} />
-          <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} ready={data != null} />
+          {/* 28日間と総合計は1つのカードに1行ずつ（乗り物の倍率は出さない） */}
+          <View style={[s.volume, { gap: 4 }]}>
+            <VolumeRow testID="volume-28d" title="28日間" kg={totals.last28} unit={unit} ready={data != null} />
+            <VolumeRow testID="volume-total" title="総合計" kg={totals.total} unit={unit} ready={data != null} />
+          </View>
+          <WeeklyGoalCard today={today} />
         </View>
       </View>
       <ReportSuggestion />
@@ -128,6 +143,7 @@ export default function HomeScreen() {
           body={dayEntries == null ? '' : dayEntries.length === 0
             ? 'まだ記録がありません'
             : `${dayEntries.length}種目 ・ ${dayEntries.reduce((n, e) => n + e.sets.length, 0)}セット ・ ${tonnes(dayEntries.reduce((n, e) => n + totalVolume(e.sets), 0), unit)} ${unit === 'kg' ? 't' : 'k lb'}`}
+          note={sleepy ?? undefined}
           onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
         />
         <SummaryCard
@@ -142,17 +158,17 @@ export default function HomeScreen() {
           testID="home-condition"
           icon="scale"
           title={`${dayLabel}の体調`}
-          body={data?.day === selected ? conditionLine(data.weightKg, data.sleep, data.heart, unit) : ''}
+          body={condition ? conditionLine(condition.weightKg, condition.sleep, condition.heart, unit) : ''}
+          sub={condition ? goalLine(condition.weightKg, condition.settings.goalWeightKg ?? null, unit) ?? undefined : undefined}
           onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
         />
+        <WeeklyTodoCard today={today} />
       </View>
       <LatestReportCard />
     </Screen>
-    <Fab
-      label={isToday ? '今日のトレーニングを追加' : `${dayLabel}のトレーニングを追加`}
-      onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
-      style={s.fab}
-    />
+    <Fab label="記録する" onPress={() => setRecording(true)} style={s.fab} testID="home-record" />
+    <ReceivedNotice bottom={size.fab + space.l * 2} />
+    <RecordSheet visible={recording} date={selected} today={today} onClose={() => setRecording(false)} />
     </View>
   );
 }
@@ -175,12 +191,15 @@ function conditionLine(weightKg: number | null, sleep: SleepDay | null, heart: H
   return parts.length === 0 ? 'まだ記録がありません' : parts.join(' ・ ');
 }
 
-/** ホームの小さなカード（今日のトレーニング・食事・体調）。押すとそれぞれの画面へ */
-function SummaryCard({ testID, icon, title, badge, body, onPress }: {
-  testID: string; icon: IconName; title: string; badge?: string; body: string; onPress: () => void;
+/**
+ * ホームの小さなカード（今日のトレーニング・食事・体調）。押すとそれぞれの画面へ。
+ * sub は2行目（体調の目標体重まで）、note は注意の色のひとこと（寝不足の日。月のアイコン付き）
+ */
+function SummaryCard({ testID, icon, title, badge, body, sub, note, onPress }: {
+  testID: string; icon: IconName; title: string; badge?: string; body: string; sub?: string; note?: string; onPress: () => void;
 }) {
   return (
-    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={`${title}を開く。${badge ? `${badge}。` : ''}${body}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
+    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={`${title}を開く。${badge ? `${badge}。` : ''}${[body, sub, note].filter(Boolean).join('。')}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
       <View style={s.summaryIcon}><Icon name={icon} size={24} color={colors.onAccentDark} /></View>
       <View style={{ flex: 1, gap: space.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
@@ -188,9 +207,31 @@ function SummaryCard({ testID, icon, title, badge, body, onPress }: {
           {badge && <Badge label={badge} />}
         </View>
         <T variant="bodyM" color={colors.sub}>{body}</T>
+        {sub && <T variant="bodyM" color={colors.sub}>{sub}</T>}
+        {note && (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.xs }} testID={`${testID}-note`}>
+            {/* 1行目の文字の高さ（20）のまん中に置く */}
+            <View style={{ height: 20, justifyContent: 'center' }}><Icon name="moon" size={16} color={toneColors.caution.accent} /></View>
+            <T variant="bodyM" bold color={toneColors.caution.accent} style={{ flexShrink: 1 }}>{note}</T>
+          </View>
+        )}
       </View>
       <Icon name="chevron" size={24} color={colors.sub} />
     </PressableScale>
+  );
+}
+
+/** 28日間・総合計の1行（ラベルと値） */
+function VolumeRow({ testID, title, kg, unit, ready }: { testID: string; title: string; kg: number; unit: 'kg' | 'lb'; ready: boolean }) {
+  return (
+    <View testID={testID} accessible accessibilityLabel={`合計負荷量 ${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}
+      style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}>
+      <T variant="labelS" color={colors.sub}>{title}</T>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+        <RollNumber num bold size={18} value={tonnes(kg, unit)} ready={ready} />
+        <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
+      </View>
+    </View>
   );
 }
 
