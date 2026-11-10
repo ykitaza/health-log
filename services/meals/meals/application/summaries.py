@@ -8,6 +8,11 @@ from meals.domain.values import DayType, EaterId
 DEFAULT_DAY_TYPE = DayType.REST
 
 
+def week_start(day: date) -> date:
+    """その週の月曜（週は月曜〜日曜。筋トレの週と同じ）。"""
+    return day - timedelta(days=day.weekday())
+
+
 class NoTrainingDays:
     """筋トレの記録をつながないとき（食事だけで動かすとき）。どの日も筋トレの記録はない。"""
 
@@ -33,13 +38,17 @@ class SummaryService:
         eater = await self.eaters.resolve(subject)
         return await self._daily(eater, day, await self.training_days.training_days(eater, day, day))
 
-    async def weekly(self, subject: str, last_day: date) -> WeeklyReview:
-        """last_day までの7日間。"""
+    async def weekly(self, subject: str, day: date) -> WeeklyReview:
+        """day を含む週（月曜〜日曜の7日間）。"""
+        start = week_start(day)
+        return await self.period(subject, start, start + timedelta(days=6))
+
+    async def period(self, subject: str, start: date, end: date) -> WeeklyReview:
+        """start から end まで（両端を含む）の日ごとのまとめ（週・月のふり返り）。期間の長さは呼ぶ側が決める。"""
         eater = await self.eaters.resolve(subject)
-        first_day = last_day - timedelta(days=6)
-        trained = await self.training_days.training_days(eater, first_day, last_day)  # 7日分を1回で読む
+        trained = await self.training_days.training_days(eater, start, end)  # 期間の分を1回で読む
         return WeeklyReview(tuple(
-            [await self._daily(eater, last_day - timedelta(days=n), trained) for n in range(6, -1, -1)]))
+            [await self._daily(eater, start + timedelta(days=n), trained) for n in range((end - start).days + 1)]))
 
     async def _daily(self, eater: EaterId, day: date, trained: set[date]) -> DailySummary:
         # 本人が決めた日の種類がいちばん強い。決めていなければ、筋トレの記録があるか

@@ -89,7 +89,7 @@ Cronometer は写真日記（ノートへの添付）を AI 記録と別の機�
 | `suggest_goals` | 体組成の記録とアプリの設定から目標の案を計算する（アプリの「自動で計算」と同じ式。保存はしない） |
 | `set_goals`、`set_day_type` | 目標と日の種類（決めていない日は、筋トレの記録があれば筋トレの日） |
 | `today_status` | 今日の合計・残り（記録のたびに返す） |
-| `weekly_review` | 週の平均と目標との差 |
+| `weekly_review`、`meal_summary` | 週（月曜〜日曜）の平均と目標との差、期間（31日まで。月のふり返り）の同じまとめ |
 | `record_weight`、`goal_progress` | 体重を記録する、目標体重までの進み具合 |
 | `logout` | 連携を解除する（間違えたアカウントでログインしたとき）。食事ではなくコネクタのツールなので、`services/mcp/connector/tools.py` にある |
 

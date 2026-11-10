@@ -135,10 +135,43 @@ def test_食事の一覧の期間は366日まで(call):
         call("list_meals", start="2025-10-11", end="2026-10-12")
 
 
-def test_週のふり返り(call):
-    call("record_meal", meal=LUNCH)
+def test_週のふり返りは月曜から_今週は今日まで(call):
+    call("record_meal", meal=LUNCH)  # 今日（月曜）
+    call("record_meal", meal={**LUNCH, "date": "2026-10-11"})  # 先週の日曜
     review = call("weekly_review")
-    assert (review["from"], review["to"], review["recorded_days"]) == ("2026-10-06", "2026-10-12", 1)
+    assert (review["from"], review["to"], review["recorded_days"], review["total_days"]) == (
+        "2026-10-12", "2026-10-12", 1, 1)
+    last_week = call("weekly_review", day="2026-10-08")
+    assert (last_week["from"], last_week["to"], last_week["recorded_days"]) == ("2026-10-05", "2026-10-11", 1)
+
+
+def test_期間の食事のまとめ_月のふり返り(call):
+    call("set_goals", **GOALS)
+    call("record_meal", meal={**LUNCH, "date": "2026-09-01"})
+    call("record_meal", meal={**LUNCH, "date": "2026-09-30"})
+    month = call("meal_summary", start="2026-09-01", end="2026-09-30")
+    assert (month["from"], month["to"], month["total_days"], month["recorded_days"]) == (
+        "2026-09-01", "2026-09-30", 30, 2)
+    assert month["average_of_recorded_days"]["kcal"] == 420 and month["goal"]["policy"] == "bulk"
+    assert month["days"][0] == {"date": "2026-09-01", "day_type": "rest", "recorded": True, "kcal": 420,
+                                "protein_g": 27, "fat_g": 2.1, "carbs_g": 74, "target_kcal": 2400}
+    assert month["last_app_sync_at"] is None
+
+
+def test_週と期間のまとめの説明():
+    mcp = MCPServer(name="test")
+    register_meal_tools(mcp, None, today=lambda: TODAY)
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    assert "月曜〜日曜" in tools["weekly_review"].description
+    assert "31日まで" in tools["meal_summary"].description and "月のふり返り" in tools["meal_summary"].description
+
+
+def test_期間の食事のまとめは31日まで(call):
+    assert call("meal_summary", start="2026-08-01", end="2026-08-31")["total_days"] == 31
+    with pytest.raises(ToolError, match="31日"):
+        call("meal_summary", start="2026-08-01", end="2026-09-01")
+    with pytest.raises(ToolError, match="end は start"):
+        call("meal_summary", start="2026-09-02", end="2026-09-01")
 
 
 def body_data(call, days, height=175, goal_weight=72, activity=Activity.MODERATE):

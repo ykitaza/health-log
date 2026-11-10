@@ -151,10 +151,11 @@ async def test_目標を決めていなければ残りは出ない(app):
 
 
 @pytest.mark.anyio
-async def test_週のふり返りは7日分で_平均は記録した日だけ(app):
-    await record_lunch(app)
-    await record_lunch(app, eaten_on=EatenOn(date(2026, 10, 10), MealSlot.LUNCH))
-    review = await app["summaries"].weekly("alice", DAY)
-    assert [d.day for d in review.days] == [date(2026, 10, n) for n in range(6, 13)]
+async def test_週のふり返りは月曜から日曜の7日分で_平均は記録した日だけ(app):
+    await record_lunch(app)  # 10/12（月）
+    await record_lunch(app, eaten_on=EatenOn(date(2026, 10, 10), MealSlot.LUNCH))  # 先週の土曜
+    await record_lunch(app, eaten_on=EatenOn(date(2026, 10, 18), MealSlot.LUNCH))  # 日曜
+    review = await app["summaries"].weekly("alice", date(2026, 10, 15))
+    assert [d.day for d in review.days] == [date(2026, 10, n) for n in range(12, 19)]
     assert len(review.recorded_days) == 2
     assert astuple(review.average) == approx(Nutrition(420, 27, 2.1, 74))

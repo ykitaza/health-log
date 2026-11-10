@@ -6,7 +6,7 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Callable, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -18,7 +18,7 @@ from pydantic import Field
 from meals.application.commands import MealChanges
 from meals.application.goals import GoalService
 from meals.application.meals import MealService
-from meals.application.summaries import SummaryService
+from meals.application.summaries import SummaryService, week_start
 from meals.application.templates import TemplateService
 from meals.application.weights import WeightService
 from meals.domain.errors import MealError
@@ -41,6 +41,8 @@ from meals.presentation.schemas import (
 
 # 一度に読める期間（筋トレの MAX_RANGE_DAYS と同じ）。長い期間で一度に読みすぎないようにする
 MAX_RANGE_DAYS = 366
+# 食事のまとめ（meal_summary）で一度に読める日数。1か月が入る長さ
+MAX_SUMMARY_DAYS = 31
 
 # 食事のツールに要る scope。組み立ての場所が、接続（HTTP）のところで両方を必須にする（足りなければ SDK が 403）
 READ_SCOPE, WRITE_SCOPE = "meals:read", "meals:write"
@@ -192,14 +194,32 @@ def register_meal_tools(
         return await synced(sub, {**daily, "suggested_next": [NEXT_WEEK, NEXT_PROGRESS]})
 
     @mcp.tool(annotations=READ)
-    async def weekly_review(last_day: date | None = None) -> dict:
-        """last_day（省略すると今日）までの7日間のふり返り。平均は記録した日だけで出す。
+    async def weekly_review(day: date | None = None) -> dict:
+        """day（省略すると今日）を含む週（月曜〜日曜）の食事のふり返り。今週は今日までの日を返す。平均は記録した日だけで出す。
 
         記録しなかった日や目標との差を責めず、次の一歩を1つだけ提案する。
         """
         sub = subject()
-        weekly = views.weekly(await s.summaries.weekly(sub, last_day or today()))
+        start = week_start(day or today())
+        end = start + timedelta(days=6)
+        if start <= today() < end:  # 今週は今日まで
+            end = today()
+        weekly = views.weekly(await s.summaries.period(sub, start, end))
         return await synced(sub, {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]})
+
+    @mcp.tool(annotations=READ)
+    async def meal_summary(start: date, end: date) -> dict:
+        """期間（両端を含む。31日まで）の食事のまとめ：日ごとの kcal・PFC と記録の有無、目標、記録した日の平均と目標との差。
+
+        月のふり返り（start は月の初日、end は月の最後の日か今日）や、前の週（月曜〜日曜）のふり返りに使う。形は weekly_review と同じ。
+        記録しなかった日や目標との差を責めない。
+        """
+        if end < start:
+            raise ToolError("end は start と同じか後の日にしてください")
+        if (end - start).days >= MAX_SUMMARY_DAYS:
+            raise ToolError(f"期間は{MAX_SUMMARY_DAYS}日までにしてください")
+        sub = subject()
+        return await synced(sub, views.weekly(await s.summaries.period(sub, start, end)))
 
     # --- 体重とゴールまでの道のり ---
 

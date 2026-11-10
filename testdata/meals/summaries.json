@@ -1,5 +1,5 @@
 {
-  "description": "アプリから届いた食事の変更（changes）を、サーバーが当てはめた状態（states）と、そこから出す1日の合計・目標・残りと週のふり返り（expected）。数値は丸めない。週は last_day までの7日",
+  "description": "アプリから届いた食事の変更（changes）を、サーバーが当てはめた状態（states）と、そこから出す1日の合計・目標・残りと週のふり返り（expected）。数値は丸めない。週は last_day（日曜）を含む月曜〜日曜の7日（last_day までの7日と同じ）",
   "last_day": "2026-11-08",
   "training_days": [
     "2026-11-03",

@@ -856,6 +856,66 @@ components:
             type: string
             minLength: 1
             maxLength: 80
+          description: 次の一歩。日のまとめは1つ、週・月のまとめは3つまで（上限の検証は3件）
+        links:
+          type: array
+          maxItems: 3
+          description: つながり（分野をまたぐ気づき）。前の形のレポートにはない
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - from_area
+            - to_area
+            - text
+            properties:
+              from_area:
+                type: string
+                enum:
+                - training
+                - meals
+                - body
+                - sleep
+              to_area:
+                type: string
+                enum:
+                - training
+                - meals
+                - body
+                - sleep
+                description: from_area と違う分野
+              text:
+                type: string
+                minLength: 1
+                maxLength: 120
+              basis:
+                type:
+                - string
+                - 'null'
+                minLength: 1
+                maxLength: 20
+                description: 根拠の短い言葉（「2日」「3週」など）。なければ null
+        review:
+          type:
+          - object
+          - 'null'
+          additionalProperties: false
+          required:
+          - text
+          description: 目標の見直しの提案。前の形のレポートにはない
+          properties:
+            text:
+              type: string
+              minLength: 1
+              maxLength: 200
+            target:
+              type:
+              - string
+              - 'null'
+              enum:
+              - meals_goal
+              - null
+              description: 見直す目標。meals_goal ならアプリが食事の目標を開くボタンを出す。なければ null
       description: レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）。書くのは MCP だけで、アプリから受け付けるのは delete だけ（create・update・restore は op_not_allowed）。項目を JSON にした大きさは 150,000 バイトまで
     EntityType:
       type: string

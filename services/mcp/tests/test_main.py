@@ -90,8 +90,8 @@ def test_食事と筋トレとレポートとログアウトのツールが1つ�
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
             "sleep_summary", "heart_rate_summary"} <= names
     assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
-    assert "logout" in names
-    assert len(names) == 16 + 14 + 4 + 1
+    assert {"logout", "period_overview", "meal_summary"} <= names
+    assert len(names) == 17 + 14 + 4 + 1 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):
@@ -202,6 +202,89 @@ def test_MCP_で保存したレポートは_同期の受け取りでアプリに
     assert listed["reports"] == []
 
 
+def app_change(engine, entity_type, entity_id, fields):
+    """アプリが同期で送った変更（origin = app）。"""
+    engine.append("alice", [Change(str(uuid.uuid4()), entity_type, entity_id, None, "create", fields,
+                                   "2026-11-08T09:00:00.000Z", "app", "pixel")])
+
+
+def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_心拍_目標(server):
+    engine = server["engine"]
+    for key, value in [("goal_weight_kg", "65"), ("weekly_goal_training_days", "3"), ("weeklyGoalMealDays", "5"),
+                       ("weekly_goal_sleep_days", "0"), ("rest_timer_seconds", "90")]:
+        app_change(engine, "setting", key, {"value": value})
+    app_change(engine, "sleep_session", "s1", {
+        "date": "2026-11-03", "start_at": "2026-11-02T14:00:00.000Z", "end_at": "2026-11-02T21:30:00.000Z",
+        "asleep_min": 440, "awake_min": 10, "source": "health_connect"})
+    app_change(engine, "heart_rate_day", "h1", {"date": "2026-11-03", "resting_bpm": 55, "samples": 10})
+    app_change(engine, "heart_rate_day", "h2", {"date": "2026-11-04", "resting_bpm": None, "samples": 0})
+
+    async def body(client):
+        data(await client.call_tool("set_goals", GOALS))
+        data(await client.call_tool("record_workout", {"day": "2026-11-03", "exercises": [
+            {"exercise": "ベンチプレス", "sets": [{"weight_kg": 80, "reps": 8}, {"weight_kg": 85, "reps": 3}]}]}))
+        data(await client.call_tool("record_workout", {"day": "2026-11-06", "exercises": [
+            {"exercise": "スクワット", "sets": [{"weight_kg": 100, "reps": 5}]}]}))
+        data(await client.call_tool("record_workout", {"day": "2026-11-01", "exercises": [  # 期間の外
+            {"exercise": "ベンチプレス", "sets": [{"weight_kg": 120, "reps": 1}]}]}))
+        data(await client.call_tool("record_meal", {"meal": {**LUNCH, "date": "2026-11-03"}}))
+        data(await client.call_tool("record_body", {"day": "2026-11-02", "weight_kg": 70.0, "body_fat_pct": 18.0,
+                                                    "waist_cm": 80.0}))
+        data(await client.call_tool("record_body", {"day": "2026-11-05", "weight_kg": 69.0}))
+        data(await client.call_tool("record_body", {"day": "2026-11-07", "waist_cm": 79.0}))  # ウエストだけの日は出さない
+        week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        today = data(await client.call_tool("period_overview", {}))
+        return week, today
+
+    week, today = run(server, ALL_SCOPES, body)
+    assert (week["from"], week["to"], week["days"]) == ("2026-11-02", "2026-11-08", 7)
+    assert (today["from"], today["to"], today["days"]) == ("2026-11-08", "2026-11-08", 1)
+    training = week["training"]
+    assert (training["sessions"], training["total_volume"]) == (2, 80 * 8 + 85 * 3 + 100 * 5)
+    assert training["days"] == [{"date": "2026-11-03", "volume": 895, "sets": 2},
+                                {"date": "2026-11-06", "volume": 500, "sets": 1}]
+    assert [(e["exercise"], e["max_estimated_1rm"], e["date"]) for e in training["exercises"]] == [
+        ("スクワット", round(100 * (1 + 5 / 30), 1), "2026-11-06"), ("ベンチプレス", round(80 * (1 + 8 / 30), 1), "2026-11-03")]
+    meals = week["meals"]
+    assert (meals["recorded_days"], meals["total_days"], len(meals["days"])) == (1, 7, 7)
+    assert meals["days"][1] == {"date": "2026-11-03", "day_type": "training", "recorded": True, "kcal": 312,
+                                "protein_g": 5, "fat_g": 0.6, "carbs_g": 74, "target_kcal": 2800}
+    assert "goal" not in meals and "from" not in meals
+    assert week["body"] == {
+        "days_recorded": 2, "average_weight_kg": 69.5, "average_body_fat_pct": 18.0, "weekly_weight_change_kg": -2.33,
+        "days": [{"date": "2026-11-02", "weight_kg": 70.0, "body_fat_pct": 18.0},
+                 {"date": "2026-11-05", "weight_kg": 69.0, "body_fat_pct": None}]}
+    assert week["sleep"] == {"nights_recorded": 1, "average_asleep_min": 440, "nights": [
+        {"date": "2026-11-03", "asleep_min": 440, "bedtime": "2026-11-02T23:00+09:00", "wake_time": "2026-11-03T06:30+09:00"}]}
+    assert week["heart_rate"] == {"days_recorded": 1, "average_resting_bpm": 55, "days": [
+        {"date": "2026-11-03", "resting_bpm": 55}]}
+    goals = week["goals"]
+    assert goals["meals"]["policy"] == "bulk" and goals["goal_weight_kg"] == 65
+    assert goals["weekly"] == {"training_days": 3, "meal_days": 5, "sleep_days": 0}
+    assert week["last_app_sync_at"] is not None  # アプリから同期した記録がある
+
+
+def test_期間の材料は31日まで(server):
+    async def body(client):
+        return (await client.call_tool("period_overview", {"start": "2026-10-08", "end": "2026-11-08"}),
+                await client.call_tool("period_overview", {"start": "2026-11-08", "end": "2026-11-07"}),
+                data(await client.call_tool("period_overview", {"start": "2026-10-09", "end": "2026-11-08"})))
+
+    too_long, reversed_, month = run(server, ALL_SCOPES, body)
+    assert too_long.is_error and "31日" in too_long.content[0].text
+    assert reversed_.is_error and "end は start" in reversed_.content[0].text
+    assert month["days"] == 31 and month["goals"]["weekly"] == {"training_days": None, "meal_days": None, "sleep_days": None}
+    assert month["goals"]["goal_weight_kg"] is None and month["goals"]["meals"] is None
+
+
+def test_期間の材料は_筋トレの_scope_がなければ断る(server):
+    async def body(client):
+        return await client.call_tool("period_overview", {})
+
+    result = run(server, MEAL_SCOPES, body)
+    assert result.is_error and "training:read" in result.content[0].text
+
+
 def test_筋トレの_scope_がない今のコネクタも_食事のツールはそのまま使え_筋トレは断られる(server):
     async def body(client):
         meal = data(await client.call_tool("record_meal", {"meal": LUNCH}))
@@ -253,3 +336,13 @@ def test_アイコンは認証なしで返す(server):
             return await h.get("/favicon.ico")
 
     assert anyio.run(go).status_code == 200
+
+
+@pytest.mark.parametrize("value, expected", [("3", 3), ("0", 0), ("7", 7), ("8", None), ("-1", None), ("2.5", None),
+                                             ("abc", None), ("", None), (None, None)])
+def test_今週の目標は0から7の整数だけを読む(server, value, expected):
+    engine = server["engine"]
+    app_change(engine, "setting", "weekly_goal_training_days", {"value": value})
+    app_change(engine, "setting", "weeklyGoalTrainingDays", {"value": "5"})  # snake_case を先に読む
+    body = main.SyncedBodyData(engine, main.create_queries(engine))
+    assert anyio.run(body.weekly_goals, EaterId("alice"))["training_days"] == expected

@@ -27,7 +27,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 写真を貼って「昼ごはん」 | AI が料理と量を推定して表で見せ、了承を得てから記録する |
 | 「朝はいつもの」「昨日の夜と同じ」 | 保存した組み合わせや前の食事を、確認なしで記録する |
 | 「今日あと何を食べればいい？」 | 今日の合計と、目標までの残り（kcal・PFC）を返す |
-| 「今週の食事をふり返って」 | 日ごとの kcal の推移と、PFC の割合を、表やグラフで見せる |
+| 「今週の食事をふり返って」「10月の食事をふり返って」 | 日ごとの kcal の推移と、PFC の割合を、表やグラフで見せる（週は月曜〜日曜の `weekly_review`、月や前の週は期間で `meal_summary`） |
 | 「目標を決めたい」 | 方針（増量・減量・維持）だけでも決められる。体重や身長を答えると、kcal と PFC の目標を計算する |
 | 「体重 70kg」「目標まであとどれくらい？」 | 体重を記録し、最近のペースから目標体重までの週数を出す |
 | 「さっきのご飯、量を半分に」 | 記録を直す（消すこともできる） |
@@ -43,13 +43,13 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 「今日のトレーニングを見せて」「11月の記録」 | 1日の記録（`get_workout`）、期間の一覧（`list_workouts`） |
 | 「2セット目は6回だった」「スクワットは消して」「昨日の分だった」 | 直す・消す・日を移す（`update_workout`、`delete_workout`） |
 | 「ベンチプレスの伸びは？」 | 日ごとの総負荷量と推定1RM の推移、自己ベスト（`exercise_history`） |
-| 「今週の筋トレをふり返って」 | 週の回数、総負荷量、部位ごとの割合（偏り）、前回からの日数、先週との比べ（`weekly_training_review`） |
+| 「今週の筋トレをふり返って」 | 週の回数、総負荷量、部位ごとの割合（偏り）、前回からの日数、先週との比べ（`weekly_training_review`。週は日曜始まり） |
 | 「ハンドスタンドプッシュアップを肩に足して。体重の9割」「膝つき腕立ての割合を40%に」 | 回数だけの種目の、体重に対する割合を決める・変える（`add_exercise`、`update_exercise` の `bodyweight_ratio`）。過去の記録の総負荷量も新しい割合で出る |
 | 「種目の一覧」「ケトルベルスイングを脚に足して」 | 部位と種目（`list_exercises`、`add_exercise`） |
 | 「ベンチプレスをバーベルベンチプレスに変えて」「懸垂はもう使わないので隠して」 | 種目の名前・部位を変える、隠す・表示に戻す（`update_exercise`）。過去の記録は新しい名前で出る。種目は消さず、使わなくなったら隠す |
-| 「体脂肪率 15%」「体組成の推移」 | 体組成の記録と推移（`record_body`、`body_progress`） |
-| 「最近よく眠れてる？」「今週の睡眠」 | 起きた日ごとの睡眠の時間と寝た・起きた時刻、期間の平均（`sleep_summary`。7〜90日） |
-| 「安静時心拍の推移は？」「疲れがたまってる？」 | 日ごとの安静時・平均・最低・最高の心拍と、安静時心拍の平均（`heart_rate_summary`。7〜90日） |
+| 「体脂肪率 15%」「体組成の推移」 | 体組成の記録と推移（`record_body`、`body_progress`。期間は `days`（今日まで）か `start`・`end`） |
+| 「最近よく眠れてる？」「今週の睡眠」 | 起きた日ごとの睡眠の時間と寝た・起きた時刻、期間の平均（`sleep_summary`。今日までの7〜90日か、`start`・`end` で90日まで） |
+| 「安静時心拍の推移は？」「疲れがたまってる？」 | 日ごとの安静時・平均・最低・最高の心拍と、安静時心拍の平均（`heart_rate_summary`。今日までの7〜90日か、`start`・`end` で90日まで） |
 
 - 回数だけの自重の種目（懸垂・腕立て伏せなど）も総負荷量に入ります：その日の体重 × 種目の割合 × 回数。体重はその日の体組成の記録（Health Connect の取り込みを含む）で、なければ30日以内のいちばん近い前の日の体重。それもなければ入れず、応答の `note` で知らせます。推定1RM と自己ベストは、自重の種目では出しません
 - 計算（総負荷量、推定1RM、自己ベスト、体脂肪量など）はアプリと同じ式で、`testdata/training/*.json` で両方が同じ結果になることを確かめています
@@ -60,13 +60,15 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 | 頼み方 | 起きること（ツール） |
 |---|---|
-| 「今週のまとめを作って」「10月をふり返ってレポートにして」 | AI が記録のツール（`weekly_review`、`weekly_training_review`、`body_progress`、`sleep_summary` など）で数字を読んで書き、保存する（`save_report`）。アプリのホームの「最新のレポート」と一覧に出る |
-| 「今日のまとめを作って」 | AI がその日の筋トレ・食事・からだ・睡眠を記録のツール（`get_workout`、`today_status`、`body_progress`、`sleep_summary` など）で読み、短めのまとめ（日のまとめ。`kind` は `daily`、期間はその日だけ）を保存する |
+| 「今週のまとめを作って」「10月をふり返ってレポートにして」 | AI が期間の材料（`period_overview`。週は月曜〜日曜、月は月の初日〜最後の日）を1回で読んで書き、保存する（`save_report`）。くわしく見たいときは記録のツール（`weekly_training_review`、`body_progress`、`sleep_summary` など）も読む。アプリのホームの「最新のレポート」と一覧に出る |
+| 「今日のまとめを作って」「3日前のまとめを作って」 | AI がその日の材料（`period_overview` の `start`・`end` をその日に）を読み、短めのまとめ（日のまとめ。`kind` は `daily`、期間はその日だけ）を保存する |
 | 「前のまとめと比べて」 | 保存したレポートを読む（`list_reports`、`get_report`） |
 | 「さっきのレポートは消して」 | 消す（`delete_report`。アプリからも消える） |
 
 - 種類（`kind`）は、日のまとめ（`daily`）・週のまとめ（`weekly`）・月のまとめ（`monthly`）・その他（`other`）。日のまとめは期間の初日と最後の日（`period_start`・`period_end`）が同じ日でないと断ります。種類を知らない前の版のアプリは、その他として見せます
-- レポートは、全体の調子（`overall_tone`：良い調子・いつもどおり・気をつけたい）、ひと言の要約（`headline`）、分野ごとの要点と数字（`highlights`。6件まで）、次の一歩（`next_steps`。3件まで）、くわしい本文（`body`。Markdown、20,000字まで）を持ちます。アプリは調子を色・アイコン・ラベルで、数字を前の期間からの変化と一緒に見せます
+- レポートは、全体の調子（`overall_tone`：良い調子・いつもどおり・気をつけたい）、ひと言の要約（`headline`）、分野ごとの要点と数字（`highlights`。6件まで）、次の一歩（`next_steps`。3件まで）、つながり（`links`。分野をまたぐ気づき。3件まで）、目標の見直し（`review`）、くわしい本文（`body`。Markdown、20,000字まで）を持ちます。アプリは調子を色・アイコン・ラベルで、数字を前の期間からの変化と一緒に見せます
+- 種類ごとに書くこと（`save_report` の説明で AI に頼む）：日＝その日の目標に対する一言と、明日の一歩を1つ。週＝今週の目標の達成、つながり、来週の一歩を3つまで。月＝体の変化（体重の推移と目標までのペース）、BIG3、つながり、目標の見直しの提案。達成の数字そのもの（今日の達成、今週の目標、体の変化のグラフ）はアプリが記録から計算して見せるので、レポートには持たせません
+- つながり（`links`）の1件は `from_area`・`to_area`（`training`・`meals`・`body`・`sleep`。違う分野）と `text`（120字まで）、任意で `basis`（「2日」「3週」のような根拠の短い言葉。20字まで）。目標の見直し（`review`）は `text`（200字まで）と、任意で `target`（いまは `meals_goal` だけ。アプリが食事の目標を開くボタンを出す）。どちらも省けて、ない前の形のレポートも読めます
 - 数字は記録のツールが返した値だけを使うよう、ツールの説明で AI に頼んでいます。サーバーは値の種類・件数・長さを確かめ、1人200件までにしています
 - 本文はモデルが書いた文なので、アプリは文字として表示するだけです（見出し・箇条書き・太字・段落だけを整え、HTML やリンクは開きません）
 - アプリからは読むのと消すのだけで、書き換えはできません。筋トレの scope（`training:read`・`training:write`）を使うので、筋トレのツールを足す前につないだコネクタは、同意し直すまで使えません
@@ -75,7 +77,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 ## ツールの一覧
 
-1つのコネクタに、次の36個が並びます。
+1つのコネクタに、次の37個が並びます。
 
 | 分類 | ツール | 説明 |
 |---|---|---|
@@ -89,7 +91,8 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 食事 | `update_meal` | 食事を直す（量、品目の追加・削除、日時と区分） |
 | 食事 | `delete_meal` | 食事を消す |
 | 食事 | `today_status` | その日の合計・目標・残り |
-| 食事 | `weekly_review` | 7日間のふり返り |
+| 食事 | `weekly_review` | 週（月曜〜日曜。今週は今日まで）のふり返り |
+| 食事 | `meal_summary` | 期間（31日まで）の食事のまとめ（月のふり返り、前の週のふり返り）。形は `weekly_review` と同じ |
 | 食事 | `record_weight` | 体重を記録する（体組成の手入力の記録として残す） |
 | 食事 | `goal_progress` | 直近90日の体重の推移と、目標体重までの週数 |
 | 食事 | `suggest_goals` | 体組成の記録とアプリの設定から、アプリの自動計算と同じ式で目標の案を計算する（保存はしない。体脂肪率がないときだけ性別と生まれた年を引数で受け取る） |
@@ -106,16 +109,34 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 筋トレ | `add_exercise` | 種目を足す（アプリにも出る）。回数だけの種目は体重に対する割合（`bodyweight_ratio`、省くと名前から決める） |
 | 筋トレ | `update_exercise` | 種目の名前・部位・体重に対する割合を変える、隠す・表示に戻す（消すツールはなく、消す代わりに隠す） |
 | 筋トレ | `record_body` | 体組成（体重・体脂肪率・筋肉率・ウエスト）を記録する |
-| 筋トレ | `body_progress` | 体組成の推移と、体脂肪量・除脂肪量、体重の週あたりの変化 |
-| 筋トレ | `sleep_summary` | 睡眠のまとめ（起きた日ごとの眠っていた時間・寝た時刻と起きた時刻、期間の平均）。Health Connect の取り込み |
-| 筋トレ | `heart_rate_summary` | 心拍の1日のまとめ（安静時・平均・最低・最高）と、安静時心拍の平均。Health Connect の取り込み |
-| レポート | `save_report` | まとめ・分析を保存し、アプリで読めるようにする（「今週のまとめを作って」） |
+| 筋トレ | `body_progress` | 体組成の推移と、体脂肪量・除脂肪量、体重の週あたりの変化（期間は `days` か `start`・`end`） |
+| 筋トレ | `sleep_summary` | 睡眠のまとめ（起きた日ごとの眠っていた時間・寝た時刻と起きた時刻、期間の平均）。Health Connect の取り込み。期間は `days` か `start`・`end` |
+| 筋トレ | `heart_rate_summary` | 心拍の1日のまとめ（安静時・平均・最低・最高）と、安静時心拍の平均。Health Connect の取り込み。期間は `days` か `start`・`end` |
+| レポート | `period_overview` | 期間（31日まで）の材料を1回で読む：筋トレ・食事・体組成（体重・体脂肪率）・睡眠・心拍と目標（下の「期間の材料」） |
+| レポート | `save_report` | まとめ・分析を保存し、アプリで読めるようにする（「今週のまとめを作って」）。つながり（`links`）と目標の見直し（`review`）も持てる |
 | レポート | `list_reports` | 保存したレポートの一覧（新しい順。本文は含まない） |
 | レポート | `get_report` | レポートを1件、本文と要点まで返す |
 | レポート | `delete_report` | レポートを消す（アプリからも消える） |
 | その他 | `logout` | ログアウトする（別のアカウントで入り直すとき、連携をやめるとき） |
 
-食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py` にあります。
+食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py`、`period_overview` は `services/mcp/connector/period_overview.py`（筋トレ・食事・設定をまたぐので、組み立ての場所）にあります。
+
+### 期間の材料（`period_overview`）
+
+レポートを書くチャットが何度もツールを呼ばずに済むよう、期間（`start`・`end`。両端を含む、31日まで。省くと両方とも今日）の材料を1回で返します。筋トレの scope（`training:read`）が要ります。
+
+| 項目 | 中身 |
+|---|---|
+| `from`・`to`・`days` | 期間と日数 |
+| `training` | `sessions`（筋トレをした日数）、`total_volume`、`days`（筋トレをした日ごとの `date`・`volume`・`sets`）、`exercises`（種目ごとの期間の最高の推定1RM：`exercise`・`body_part`・`max_estimated_1rm`・`weight_kg`・`reps`・`date`。大きい順に20件まで。自重の種目は出ない）、`exercises_omitted`（20件を超えた数）、体重がなくて総負荷量に入らなかった自重のセットがあれば `note` |
+| `meals` | `weekly_review` と同じ形から `from`・`to`・`goal` を除いたもの：`recorded_days`・`total_days`・`average_of_recorded_days`・`average_target`・`gap`・`days`（日ごとの `date`・`day_type`・`recorded`・`kcal`・`protein_g`・`fat_g`・`carbs_g`・`target_kcal`） |
+| `body` | `days_recorded`、`average_weight_kg`、`average_body_fat_pct`、`weekly_weight_change_kg`（`end` までの28日）、`days`（体重か体脂肪率がある日の `date`・`weight_kg`・`body_fat_pct`）。ウエストと筋肉率は入れない |
+| `sleep` | `nights_recorded`、`average_asleep_min`、`nights`（起きた日ごとの `date`・`asleep_min`・`bedtime`・`wake_time`。日本時間） |
+| `heart_rate` | `days_recorded`、`average_resting_bpm`、`days`（安静時心拍がある日の `date`・`resting_bpm`） |
+| `goals` | `meals`（食事の目標。`today_status` の `goal` と同じ形。なければ null）、`goal_weight_kg`（アプリの設定の目標体重。なければ食事の目標の目標体重）、`weekly`（今週の目標：`training_days`・`meal_days`・`sleep_days`。週の日数で 0〜7、0 は「切」、未設定は null） |
+| `last_app_sync_at` | ほかのツールと同じ |
+
+今週の目標は、アプリの設定（同期の `setting`）から読みます。ID は `weekly_goal_training_days`・`weekly_goal_meal_days`・`weekly_goal_sleep_days`（ほかの設定と同じ snake_case。なければアプリの設定の名前 `weeklyGoalTrainingDays` などを読む）。値は整数の文字列で、0〜7 の整数でなければ null にします。
 
 ## アプリと MCP で同じデータを使う
 
