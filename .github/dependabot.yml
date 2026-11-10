@@ -3,7 +3,7 @@ version: 2
 # 版の更新の PR は、公開から3日（uv と npm の major は7日）待ってから作る。cooldown は版の更新にだけかかり、
 # セキュリティの更新（脆弱性を直す版への PR）は待たない
 updates:
-  # Python（uv）：uv.lock のあるフォルダすべて（Lambda に載せる mcp・app_api と、その path の依存の sync・training も）
+  # Python（uv）：uv.lock のあるフォルダすべて（Lambda に載せる mcp・app_api と、その path の依存の sync・training・reports も）
   - package-ecosystem: uv
     directories:
       - /services/authorization
@@ -12,8 +12,9 @@ updates:
       - /services/app_api
       - /services/sync
       - /services/training
+      - /services/reports
     schedule:
-      interval: weekly
+      interval: daily
     cooldown:
       default-days: 3
       semver-major-days: 7
@@ -26,7 +27,7 @@ updates:
   - package-ecosystem: npm
     directory: /cdk
     schedule:
-      interval: weekly
+      interval: daily
     cooldown:
       default-days: 3
       semver-major-days: 7
@@ -45,7 +46,7 @@ updates:
   - package-ecosystem: npm
     directory: /apps/mobile
     schedule:
-      interval: weekly
+      interval: daily
     cooldown:
       default-days: 3
       semver-major-days: 7
@@ -95,7 +96,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: daily
     # github-actions では semver ごとの日数（semver-major-days など）が使えないので、一律の日数だけにする
     cooldown:
       default-days: 3
