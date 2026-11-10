@@ -146,7 +146,7 @@ export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
   s.type === 'meal' ? { ...s, columns: { ...s.columns, basis: 'text' } } : s);
 
 /** レポート（版7）。MCP の save_report だけが作る。highlights と next_steps は SQLite では JSON の文字列 */
-export const REPORT_ENTITIES: EntitySpec[] = [
+export const REPORT_ENTITIES_V7: EntitySpec[] = [
   {
     type: 'report', table: 'reports',
     columns: {
@@ -157,6 +157,9 @@ export const REPORT_ENTITIES: EntitySpec[] = [
     readOnly: true,
   },
 ];
+
+/** レポートの今の形。版9で、つながり（links）と目標の見直し（review）を足した（どちらも JSON の文字列。ないレポートは NULL） */
+export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({ ...s, columns: { ...s.columns, links: 'json', review: 'json' } }));
 
 export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES];
 

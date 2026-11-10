@@ -2,8 +2,13 @@
 // 同期で受け取るだけで、アプリからは読むのと消すのだけ。本文（Markdown）はモデルが書いた文なので、
 // 文字として表示するだけにする（HTML やリンクを開かない。下の parseMarkdown は見出し・箇条書き・太字・段落だけを見分ける）。
 // 端末の値はサーバーで確かめたものだが、前の版や壊れた値でも画面が落ちないよう、読むときにもう一度形を確かめる
+import { movingAverage } from './body';
 import { addDays, addMonths, DateKey, daysBetween, formatJpDate, formatMonthDay, toDateKey } from './date';
-import { weekOf } from './goals';
+import { tonnes } from './format';
+import { DailyAchievement, weekOf, WeeklyAchievement } from './goals';
+import { formatHM } from './health';
+import { estimated1RM, TrainingSetRow } from './training';
+import { fmtInt, WeightUnit } from './units';
 
 export type Tone = 'good' | 'steady' | 'caution';
 export type Area = 'training' | 'meals' | 'body' | 'sleep';
@@ -11,6 +16,10 @@ export type ReportKind = 'daily' | 'weekly' | 'monthly' | 'other';
 
 export type Metric = { label: string; value: number; unit: string; delta: number | null; deltaGood: boolean | null };
 export type Highlight = { area: Area; tone: Tone; text: string; metric: Metric | null };
+/** つながり（分野をまたぐ気づき）。from の分野が to の分野に響いた、という向き。basis は根拠の短い言葉（「2日」） */
+export type ReportLink = { from: Area; to: Area; text: string; basis: string | null };
+/** 目標の見直しの提案。target が meals_goal なら、食事の目標の画面を開くボタンを出す */
+export type ReportReview = { text: string; target: 'meals_goal' | null };
 
 export type Report = {
   id: string;
@@ -24,14 +33,19 @@ export type Report = {
   headline: string;
   highlights: Highlight[];
   nextSteps: string[];
+  /** つながり。前の形のレポートは空 */
+  links: ReportLink[];
+  /** 目標の見直し。前の形のレポートは null */
+  review: ReportReview | null;
   /** サーバーが受け付けた時刻（ISO 8601） */
   createdAt: string;
 };
 
-/** 端末の reports の表の1行（db/migrations.ts の版7） */
+/** 端末の reports の表の1行（db/migrations.ts の版7。links と review は版9） */
 export type ReportRow = {
   id: string; title: string; body: string; kind: string; period_start: string | null; period_end: string | null;
-  overall_tone: string | null; headline: string | null; highlights: string | null; next_steps: string | null; created_at: string;
+  overall_tone: string | null; headline: string | null; highlights: string | null; next_steps: string | null;
+  links: string | null; review: string | null; created_at: string;
 };
 
 export const TONE_LABELS: Record<Tone, string> = { good: '良い調子', steady: 'いつもどおり', caution: '気をつけたい' };
@@ -48,6 +62,7 @@ const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly', 'other'];
 // サーバーの上限（services/reports/reports/domain/report.py）。壊れた値で画面が長くなりすぎないよう、読むときも切る
 const MAX_HIGHLIGHTS = 6;
 const MAX_NEXT_STEPS = 3;
+const MAX_LINKS = 3;
 
 const isTone = (v: unknown): v is Tone => TONES.includes(v as Tone);
 const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -91,6 +106,29 @@ function parseSteps(raw: string | null): string[] {
   return Array.isArray(list) ? list.filter((s): s is string => typeof s === 'string' && s.trim() !== '').slice(0, MAX_NEXT_STEPS) : [];
 }
 
+function parseLinks(raw: string | null): ReportLink[] {
+  const list = parseJson(raw);
+  if (!Array.isArray(list)) return [];
+  const out: ReportLink[] = [];
+  for (const v of list) {
+    if (!v || typeof v !== 'object') continue;
+    const l = v as Record<string, unknown>;
+    const from = l.from_area as Area;
+    const to = l.to_area as Area;
+    if (!AREAS.includes(from) || !AREAS.includes(to) || from === to || !text(l.text).trim()) continue;
+    out.push({ from, to, text: text(l.text), basis: text(l.basis).trim() || null });
+  }
+  return out.slice(0, MAX_LINKS);
+}
+
+function parseReview(raw: string | null): ReportReview | null {
+  const v = parseJson(raw);
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  if (!text(r.text).trim()) return null;
+  return { text: text(r.text), target: r.target === 'meals_goal' ? 'meals_goal' : null };
+}
+
 /** 端末の1行をレポートにする。知らない値は、前の形のレポートと同じ扱い（steady、指標なし）にする */
 export function parseReport(row: ReportRow): Report {
   return {
@@ -104,6 +142,8 @@ export function parseReport(row: ReportRow): Report {
     headline: row.headline ?? '',
     highlights: parseHighlights(row.highlights),
     nextSteps: parseSteps(row.next_steps),
+    links: parseLinks(row.links),
+    review: parseReview(row.review),
     createdAt: row.created_at,
   };
 }
@@ -277,6 +317,161 @@ export function pendingReports(input: {
   const thisMonth = `${today.slice(0, 7)}-01`;
   push('monthly', addMonths(thisMonth, -1), addDays(thisMonth, -1));
   return out;
+}
+
+/** 「先週の分と、11月6日・7日の分」（ホームのおすすめの補足）。並びは月・週・日 */
+export function pendingSummary(items: PendingReport[], today: DateKey): string {
+  const lastWeek = addDays(weekOf(today).start, -7);
+  const lastMonth = addMonths(`${today.slice(0, 7)}-01`, -1);
+  const parts: string[] = [];
+  const months = items.filter((p) => p.kind === 'monthly');
+  if (months.length > 0) parts.push(months.length === 1 && months[0].periodStart === lastMonth ? '先月の分' : `${months.length}か月分`);
+  const weeks = items.filter((p) => p.kind === 'weekly');
+  if (weeks.length > 0) parts.push(weeks.length === 1 && weeks[0].periodStart === lastWeek ? '先週の分' : `${weeks.length}週分`);
+  const days = items.filter((p) => p.kind === 'daily').map((p) => p.periodStart).sort();
+  if (days.length > 3) parts.push(`${days.length}日分`);
+  else if (days.length > 0) parts.push(`${dayList(days, today)}の分`);
+  return parts.join('と、');
+}
+
+/** 「11月6日・7日」（同じ月は月を省く）。今日は「今日」 */
+function dayList(dates: DateKey[], today: DateKey): string {
+  let month = '';
+  return dates.map((d) => {
+    if (d === today) return '今日';
+    const m = d.slice(0, 7);
+    const text = m === month ? `${Number(d.slice(8, 10))}日` : formatMonthDay(d);
+    month = m;
+    return text;
+  }).join('・');
+}
+
+// --- 中身の画面で、アプリが自分の記録から出す達成（レポートに保存された数字ではない） ---
+
+/**
+ * レポートの期間について、アプリが出す達成のブロック。
+ * - 日のまとめ（期間が1日）：その日の達成
+ * - 週のまとめ（月曜から、その週の日曜までのどこか）：その週の目標。前の形（今日までの7日など）は出さない
+ * - 月のまとめ（31日まで）：体の変化
+ * どれでもなければ null（何も出さない）
+ */
+export function achievementScope(r: Pick<Report, 'kind' | 'periodStart' | 'periodEnd'>):
+  | { type: 'day'; date: DateKey } | { type: 'week'; date: DateKey } | { type: 'month'; start: DateKey; end: DateKey } | null {
+  const { periodStart: start, periodEnd: end } = r;
+  if (!start || !end || end < start) return null;
+  if (r.kind === 'daily' && start === end) return { type: 'day', date: start };
+  if (r.kind === 'weekly' && weekOf(start).start === start && end <= weekOf(start).end) return { type: 'week', date: start };
+  if (r.kind === 'monthly' && daysBetween(start, end) < 31) return { type: 'month', start, end };
+  return null;
+}
+
+/** 達成の印。reached は届いた（チェック）、short は届いていない（注意）、none は目標がない・記録がない（印なし） */
+export type AchievementMark = 'reached' | 'short' | 'none';
+export const MARK_LABELS: Record<AchievementMark, string> = { reached: '達成', short: 'まだ届いていない', none: '' };
+
+/** 達成の1行。ratio は棒の長さ（0〜1）、null なら棒を出さない。goal は「／2,600」の数字 */
+export type AchievementRow = { key: string; label: string; value: string; goal: string | null; unit: string; ratio: number | null; mark: AchievementMark };
+
+/** kcal は目標の前後 10% に入っていれば達成（減量でも増量でも、目標に近いのが良い） */
+export const KCAL_TOLERANCE = 0.1;
+
+const ratioOf = (n: number, goal: number) => (goal > 0 ? Math.min(1, Math.max(0, n / goal)) : null);
+
+/**
+ * 日のまとめの「今日の達成」の行：筋トレ（自己ベストの種目）、kcal、たんぱく質、睡眠（昨夜）。
+ * names は種目の ID から名前（自己ベストの種目を書くため）。記録がない分野は「記録なし」で印を付けない
+ */
+export function dailyAchievementRows(a: DailyAchievement, names: ReadonlyMap<string, string>, unit: WeightUnit): AchievementRow[] {
+  const trained = a.training.exercises > 0;
+  const bests = a.training.personalBestExerciseIds.map((id) => names.get(id)).filter((n): n is string => !!n);
+  const best = bests.length === 0 ? '' : bests.length <= 2 ? `（${bests.join('・')}が自己ベスト）` : `（${bests[0]}ほか${bests.length - 1}種目が自己ベスト）`;
+  const m = a.meals;
+  const meal = (key: string, label: string, n: number, target: number | null, u: string, reached: (n: number, t: number) => boolean): AchievementRow =>
+    !m.recorded ? { key, label, value: '記録なし', goal: null, unit: '', ratio: null, mark: 'none' }
+      : target == null || target <= 0 ? { key, label, value: fmtInt(n), goal: null, unit: u, ratio: null, mark: 'none' }
+        : { key, label, value: fmtInt(n), goal: fmtInt(target), unit: u, ratio: ratioOf(n, target), mark: reached(n, target) ? 'reached' : 'short' };
+  const sleep = a.sleep;
+  return [
+    trained
+      ? { key: 'training', label: `筋トレ${best}`, value: tonnes(a.training.volumeKg, unit), goal: null, unit: unit === 'kg' ? 't' : 'k lb', ratio: null, mark: 'reached' }
+      : { key: 'training', label: '筋トレ', value: '記録なし', goal: null, unit: '', ratio: null, mark: 'none' },
+    meal('kcal', 'kcal', m.kcal, m.kcalTarget, '', (n, t) => Math.abs(n - t) <= t * KCAL_TOLERANCE),
+    meal('protein', 'たんぱく質', m.proteinG, m.proteinTarget, 'g', (n, t) => n >= t),
+    sleep.asleepMin == null
+      ? { key: 'sleep', label: '睡眠（昨夜）', value: '記録なし', goal: null, unit: '', ratio: null, mark: 'none' }
+      : { key: 'sleep', label: '睡眠（昨夜）', value: formatHM(sleep.asleepMin), goal: formatHM(sleep.goalMin), unit: '', ratio: ratioOf(sleep.asleepMin, sleep.goalMin), mark: sleep.reached ? 'reached' : 'short' },
+  ];
+}
+
+/** 週のまとめの「今週の目標」の行と、「4つのうち 3つ達成」。目標がない（たんぱく質の目標がない・睡眠が切）の行は出さない */
+export function weeklyAchievementRows(w: WeeklyAchievement): { rows: AchievementRow[]; summary: string } {
+  const row = (key: string, label: string, p: { days: number; goal: number | null; reached: boolean }, u: string): AchievementRow[] =>
+    p.goal == null ? [] : [{ key, label, value: String(p.days), goal: String(p.goal), unit: u, ratio: ratioOf(p.days, p.goal), mark: p.reached ? 'reached' : 'short' }];
+  const rows = [
+    ...row('training', '筋トレ', w.training, '回'),
+    ...row('meals', '食事を記録した日', w.meals, '日'),
+    ...(w.protein ? row('protein', 'たんぱく質が目標に届いた日', w.protein, '日') : []),
+    ...row('sleep', '7時間以上寝た日', w.sleep, '日'),
+  ];
+  return { rows, summary: `${rows.length}つのうち ${rows.filter((r) => r.mark === 'reached').length}つ達成` };
+}
+
+/** 達成の1行の読み上げ（「たんぱく質 98 g、目標 150 g、まだ届いていない」） */
+export function achievementRowLabel(r: AchievementRow): string {
+  const u = r.unit ? ` ${r.unit}` : '';
+  return [r.label, `${r.value}${r.value === '記録なし' ? '' : u}`, r.goal && `目標 ${r.goal}${u}`, MARK_LABELS[r.mark]].filter(Boolean).join('、');
+}
+
+/**
+ * 月のまとめの「体の変化」：期間の体重の7日の平均（期間より前の記録も平均に入れる）、初めと終わりの値、目標までの残りとペース。
+ * 平均の点が2つ未満なら null。eta は、今のペースのまま目標に届くまでの目安（目標の向きに動いていなければ null）
+ */
+export function bodyChange(daily: { date: DateKey; weightKg: number | null }[], goalKg: number | null, start: DateKey, end: DateKey) {
+  const weights = daily.filter((d) => d.weightKg != null && d.date <= end).map((d) => ({ date: d.date, value: d.weightKg! }));
+  const points = movingAverage(weights).filter((p) => p.date >= start);
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const change = last.value - first.value;
+  const diff = goalKg == null ? null : goalKg - last.value;
+  const reached = diff != null && Math.abs(diff) < 0.05;
+  const span = daysBetween(first.date, last.date);
+  let eta: string | null = null;
+  if (diff != null && !reached && span > 0 && Math.abs(change) >= 0.05 && Math.sign(change) === Math.sign(diff)) {
+    const days = Math.abs(diff) / (Math.abs(change) / span);
+    eta = days < 60 ? `約 ${Math.max(1, Math.ceil(days / 7))} 週` : `約 ${Math.round(days / 30)} か月`;
+  }
+  return { points, first, last, change, goalKg, remaining: diff == null ? null : Math.abs(diff), reached, eta };
+}
+
+/** BIG3（スクワット・ベンチプレス・デッドリフト）に割り当てた種目の ID */
+export type Big3Lifts = { squat: string; bench: string; deadlift: string };
+
+/**
+ * BIG3 の合計（それぞれの期間の中の推定1RMのいちばん高い値を足したもの、kg）と、前の同じ長さの期間からの変化。
+ * 割り当てがない、または期間にどれかの記録がなければ null（タイルを出さない）。前の期間にどれかがなければ delta は null
+ */
+export function big3Total(sets: TrainingSetRow[], lifts: Big3Lifts | null, start: DateKey, end: DateKey): { totalKg: number; deltaKg: number | null } | null {
+  if (!lifts) return null;
+  const sum = (from: DateKey, to: DateKey) => {
+    let total = 0;
+    for (const id of [lifts.squat, lifts.bench, lifts.deadlift]) {
+      const best = Math.max(0, ...sets.filter((r) => r.exerciseId === id && r.date >= from && r.date <= to).map((r) => estimated1RM(r.weightKg, r.reps)));
+      if (best <= 0) return null;
+      total += best;
+    }
+    return total;
+  };
+  const now = sum(start, end);
+  if (now == null) return null;
+  const length = daysBetween(start, end) + 1;
+  const prev = sum(addDays(start, -length), addDays(start, -1));
+  return { totalKg: now, deltaKg: prev == null ? null : now - prev };
+}
+
+/** つながりの補足（「睡眠 → 筋トレ・2日」） */
+export function linkCaption(l: ReportLink): string {
+  return `${AREA_LABELS[l.from]} → ${AREA_LABELS[l.to]}${l.basis ? `・${l.basis}` : ''}`;
 }
 
 // --- 本文（Markdown）を、文字のまま見分ける ---

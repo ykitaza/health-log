@@ -1,6 +1,7 @@
 import { Linking } from 'react-native';
-import { addDays, daysBetween } from './date';
+import { weekOf } from './goals';
 import { SLOT_LABELS, SLOTS, Slot } from './meals';
+import type { PendingReport } from './reports';
 
 /**
  * チャット（ChatGPT・Claude）を開くショートカット。https の URL を開くだけ（Android の App Links で、
@@ -21,7 +22,9 @@ export const REPORT_SPAN_LABELS: Record<ReportSpan, string> = { day: '今日', w
 export type ChatPrompt =
   | { kind: 'meal'; date: string; today: string; slot?: Slot }
   | { kind: 'training'; date: string; today: string }
-  | { kind: 'report'; span: ReportSpan; today: string };
+  | { kind: 'report'; span: ReportSpan; today: string }
+  /** まだ作っていないまとめを、まとめて作る（lib/reports.ts の pendingReports の結果） */
+  | { kind: 'pending'; items: PendingReport[] };
 
 /** 決まった形の日付（'YYYY-MM-DD'）ならそのまま、でなければ null（文に入れない） */
 function validDate(date: string): string | null {
@@ -38,9 +41,9 @@ function todayText(today: string | null): string {
   return today ? `今日（${dayText(today)}）` : '今日';
 }
 
-/** 「（day=2026-11-09）」のような引数の書き添え。値のないもの（決まった形でない日付など）は省く。rest は最後に足す言葉 */
-function args(pairs: [string, string | null][], ...rest: string[]): string {
-  const set = [...pairs.filter((p): p is [string, string] => p[1] !== null).map(([k, v]) => `${k}=${v}`), ...rest];
+/** 「（day=2026-11-09）」のような引数の書き添え。値のないもの（決まった形でない日付など）は省く */
+function args(pairs: [string, string | null][]): string {
+  const set = pairs.filter((p): p is [string, string] => p[1] !== null).map(([k, v]) => `${k}=${v}`);
   return set.length ? `（${set.join('、')}）` : '';
 }
 
@@ -48,37 +51,98 @@ const CONNECTOR = 'hlog（健康記録の MCP コネクタ）';
 const FACTS_ONLY = '数字は記録の値だけを使い推測で補わないでください';
 const AFTER_SAVE = '保存したら、記録した内容を短く見せてください。';
 
-/** まとめの期間ごとの決まり。start は期間の初日（today から求める） */
-const REPORT_RULES: Record<ReportSpan, { kind: string; points: string; steps: string }> = {
-  day: { kind: 'daily', points: '3つほど', steps: '1〜2つ' },
-  week: { kind: 'weekly', points: '6つまで', steps: '3つまで' },
-  month: { kind: 'monthly', points: '6つまで', steps: '3つまで' },
+/** URL の長さの上限（エンコードしたあと。BASE のどちらでも） */
+export const MAX_URL_LENGTH = 2000;
+
+type ReportKind = PendingReport['kind'];
+
+/**
+ * 「period_overview(start=2026-11-01, end=2026-11-30)」のような呼び方。値のないもの（決まった形でない日付など）は省く。
+ * まとめの文は長いので、エンコードしても長くならない半角の記号で書く（全角の1文字は URL で9文字になる）
+ */
+function call(name: string, pairs: [string, string | null][]): string {
+  const set = pairs.filter((p): p is [string, string] => p[1] !== null).map(([k, v]) => `${k}=${v}`);
+  return set.length ? `${name}(${set.join(', ')})` : name;
+}
+
+/**
+ * 種類ごとに書くもの。達成の数字（今日の達成・今週の目標・体の変化）はアプリが記録から出すので、AI には並べさせない。
+ * 日のまとめの体重は、前の日との差ではなく週の平均と比べてもらう（日々の上下で一喜一憂しないため）。
+ * links（つながり）と review（目標の見直し）の形は、MCP の save_report の説明にある
+ */
+const WRITE: Record<ReportKind, string> = {
+  daily: '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ',
+  weekly: '分野ごとに一言、分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで',
+  monthly: '体重の推移と目標までのペース、分野ごとに一言、links、目標の見直しを review に（食事の目標なら target=meals_goal）、来月の一歩を3つまで',
 };
+const ACHIEVED_BY_APP = '達成の数字はアプリが出します。';
+const KIND_OF_SPAN: Record<ReportSpan, ReportKind> = { day: 'daily', week: 'weekly', month: 'monthly' };
 
 function reportText(span: ReportSpan, rawToday: string): string {
   const today = validDate(rawToday);
-  const rule = REPORT_RULES[span];
-  // 週は MCP の weekly_review と同じ「その日までの7日」、月はその月の1日から
-  const start = !today ? null : span === 'day' ? today : span === 'week' ? addDays(today, -6) : `${today.slice(0, 8)}01`;
-  const days = today && start ? Math.max(7, daysBetween(start, today) + 1) : 7;
+  const kind = KIND_OF_SPAN[span];
+  // 週は月曜から（アプリの「今週の目標」と同じ区切り）、月はその月の1日から、どちらも今日まで
+  const start = !today ? null : span === 'day' ? today : span === 'week' ? weekOf(today).start : `${today.slice(0, 8)}01`;
   const period = span === 'day' ? todayText(today)
-    : span === 'week' ? (start ? `${dayText(start)}〜${todayText(today)}の7日間` : '今日までの7日間')
-    : (start ? `${dayText(start)}〜${todayText(today)}` : '今月の1日から今日まで');
-  const reads = span === 'day'
-    ? `get_workout と today_status${args([['day', today]])}`
-    : span === 'week'
-      ? `list_workouts${args([['start', start], ['end', today]])}、weekly_review${args([['last_day', today]])}`
-      : `list_workouts と list_meals${args([['start', start], ['end', today]])}`;
-  const save = args([['kind', rule.kind], ['period_start', start], ['period_end', today]], 'overall_tone', 'headline', 'highlights の area と tone');
+    : span === 'week' ? (!start ? '今週' : start === today ? `今週（${todayText(today)}）` : `今週（${dayText(start)}〜${todayText(today)}）`)
+    : (start ? `今月（${dayText(start)}〜${todayText(today)}）` : '今月');
   return `${CONNECTOR}で${period}のまとめを作ってください。`
-    + `${reads}、body_progress・sleep_summary・heart_rate_summary（days=${days}）を読み、${FACTS_ONLY}。`
-    + `良い点と気をつける点を${rule.points}、次の一歩を${rule.steps}、責めない言い方で書き、save_report で保存してください${save}。`
-    + '保存したら、アプリで画面を下に引っぱって同期すると見られると一言添えてください。';
+    + `${call('period_overview', [['start', start], ['end', today]])}を読み、${FACTS_ONLY}。${ACHIEVED_BY_APP}`
+    + `${WRITE[kind]}、責めない言い方で書き、${call('save_report', [['kind', kind], ['period_start', start], ['period_end', today]])}で保存してください。`
+    + '保存したら、画面を下に引っぱって同期すると見られると添えてください。';
+}
+
+/**
+ * まとめて作る文の、種類ごとに書くもの（短く。くわしい決まりは MCP の save_report の説明にあるので、要点だけ）。
+ * 全角の文字は URL で長くなるので、件数をなるべく多く入れられるよう、1件ずつの文より短くする
+ */
+const BATCH_WRITE: Record<ReportKind, string> = {
+  daily: '日は明日の一歩を1つ（体重は週の平均と比べる）',
+  weekly: '週は links と来週の一歩を3つまで',
+  monthly: '月は links・review と来月の一歩を3つまで',
+};
+
+/** まとめて作る文の、1件の書き方（「weekly(2026-10-26..2026-11-01)」）。決まった形でなければ null（入れない） */
+function pendingItem(p: PendingReport): string | null {
+  const start = validDate(p.periodStart);
+  const end = validDate(p.periodEnd);
+  if (!start || !end || !(p.kind in BATCH_WRITE)) return null;
+  return start === end ? `${p.kind}(${start})` : `${p.kind}(${start}..${end})`;
+}
+
+function pendingText(items: PendingReport[], rest: number): string {
+  const list = items.map(pendingItem).filter((x): x is string => x !== null);
+  const kinds = (['daily', 'weekly', 'monthly'] as const).filter((k) => items.some((p) => p.kind === k));
+  return `${CONNECTOR}で、まだ作っていないまとめを1件ずつ作り、save_report で保存してください。`
+    + `対象は${list.length}件：${list.join(', ')}。`
+    + `期間ごとに period_overview を読み、数字は記録の値だけを使ってください。`
+    + `${kinds.map((k) => BATCH_WRITE[k]).join('、')}。`
+    + '記録がない期間は作らず、そう伝えてください。'
+    + (rest > 0 ? `残りの${rest}件は次に頼みます。` : '')
+    + '終わったら、アプリに戻ると自動で取り込まれると添えてください。';
+}
+
+/** 長いほうの BASE で、エンコードした URL の長さ */
+const urlLength = (text: string) => Math.max(...CHAT_APPS.map((a) => BASE[a].length)) + 3 + encodeURIComponent(text).length;
+
+/**
+ * まだ作っていないまとめを、まとめて頼む文。古い期間から並べ、URL の上限に収まる件数まで入れる（残りは「次に」と書く）。
+ * 収まった件（included）を返す
+ */
+export function pendingPrompt(items: PendingReport[]): { text: string; included: PendingReport[] } {
+  const sorted = items.filter((p) => pendingItem(p) !== null)
+    .sort((a, b) => (a.periodStart === b.periodStart ? a.periodEnd.localeCompare(b.periodEnd) : a.periodStart.localeCompare(b.periodStart)));
+  for (let n = sorted.length; n > 1; n--) {
+    const text = pendingText(sorted.slice(0, n), sorted.length - n);
+    if (urlLength(text) <= MAX_URL_LENGTH) return { text, included: sorted.slice(0, n) };
+  }
+  return { text: pendingText(sorted.slice(0, 1), sorted.length - 1), included: sorted.slice(0, 1) };
 }
 
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
 export function promptText(p: ChatPrompt): string {
   if (p.kind === 'report') return reportText(p.span, p.today);
+  if (p.kind === 'pending') return pendingPrompt(p.items).text;
   // 決まった形でない日付は、今日として扱う
   const today = validDate(p.today);
   const date = validDate(p.date) ?? today;
@@ -100,6 +164,7 @@ export function promptText(p: ChatPrompt): string {
 /** シートに出す短い説明（URL には入れない） */
 export function promptSummary(p: ChatPrompt): string {
   if (p.kind === 'report') return `${REPORT_SPAN_LABELS[p.span]}のまとめを作る`;
+  if (p.kind === 'pending') return `まだのまとめ ${pendingPrompt(p.items).included.length} 件を作る`;
   const day = p.date === p.today || !validDate(p.date) ? '今日' : dayText(p.date);
   if (p.kind === 'training') return `${day}の筋トレを記録する`;
   const slot = p.slot && SLOTS.includes(p.slot) ? SLOT_LABELS[p.slot] : '食事';

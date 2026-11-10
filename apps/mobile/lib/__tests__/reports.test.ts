@@ -5,7 +5,7 @@ import {
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
   id: 'r1', title: '今週のまとめ', body: '', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08',
-  overall_tone: 'good', headline: '脚の日が増えた', highlights: null, next_steps: null, created_at: '2026-11-09T01:00:00.000Z', ...over,
+  overall_tone: 'good', headline: '脚の日が増えた', highlights: null, next_steps: null, links: null, review: null, created_at: '2026-11-09T01:00:00.000Z', ...over,
 });
 const metric = (over: Partial<Metric> = {}): Metric => ({ label: '体重', value: 70.4, unit: 'kg', delta: -0.3, deltaGood: true, ...over });
 
