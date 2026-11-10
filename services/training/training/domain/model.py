@@ -98,8 +98,6 @@ class BodyRecord:
     measured_at: str
     weight_kg: float | None
     body_fat_pct: float | None
-    muscle_pct: float | None
-    waist_cm: float | None
     memo: str
     source: str  # manual・health_connect
     updated_at: str

@@ -5,20 +5,20 @@ import type { Db, Deps } from '../types';
 
 type Row = {
   id: string; date: string; measured_at: string; updated_at: string;
-  weight_kg: number | null; body_fat_pct: number | null; muscle_pct: number | null; waist_cm: number | null; memo: string;
+  weight_kg: number | null; body_fat_pct: number | null; memo: string;
   source: 'manual' | 'health_connect';
 };
 
 const toLike = (r: Row): BodyRecordLike => ({
   date: r.date, measuredAt: r.measured_at, updatedAt: r.updated_at,
-  weightKg: r.weight_kg, bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo, source: r.source,
+  weightKg: r.weight_kg, bodyFatPct: r.body_fat_pct, memo: r.memo, source: r.source,
 });
 
-const SELECT = `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo, source
+const SELECT = `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, memo, source
   FROM body_records WHERE deleted_at IS NULL`;
 
 const COLUMNS: Record<keyof BodyValues | 'memo', string> = {
-  weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct', musclePct: 'muscle_pct', waistCm: 'waist_cm', memo: 'memo',
+  weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct', memo: 'memo',
 };
 
 export type BodyPatch = Partial<BodyValues & { memo: string }>;
@@ -56,7 +56,7 @@ export function bodyRepository(db: Db, deps: Deps) {
     async saveManual(date: DateKey, patch: BodyPatch): Promise<void> {
       const all = Object.entries(patch).filter(([, v]) => v !== undefined) as [keyof BodyPatch, number | string | null][];
       const existing = await db.getFirstAsync<Row>(
-        `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo, source
+        `SELECT id, date, measured_at, updated_at, weight_kg, body_fat_pct, memo, source
          FROM body_records WHERE deleted_at IS NULL AND source = 'manual' AND date = ?
          ORDER BY measured_at DESC LIMIT 1`, [date],
       );
@@ -79,12 +79,12 @@ export function bodyRepository(db: Db, deps: Deps) {
       const [y, m, d] = date.split('-').map(Number);
       const sameDay = now.getFullYear() === y && now.getMonth() + 1 === m && now.getDate() === d;
       const measuredAt = sameDay ? nowIso : new Date(y, m - 1, d, 12).toISOString();
-      const p = { weightKg: null, bodyFatPct: null, musclePct: null, waistCm: null, memo: '', ...patch };
+      const p = { weightKg: null, bodyFatPct: null, memo: '', ...patch };
       await db.runAsync(
-        `INSERT INTO body_records (id, date, measured_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo,
+        `INSERT INTO body_records (id, date, measured_at, weight_kg, body_fat_pct, memo,
            source, external_id, origin_package, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, ?, ?)`,
-        [deps.newId(), date, measuredAt, p.weightKg, p.bodyFatPct, p.musclePct, p.waistCm, p.memo ?? '', nowIso, nowIso],
+         VALUES (?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, ?, ?)`,
+        [deps.newId(), date, measuredAt, p.weightKg, p.bodyFatPct, p.memo ?? '', nowIso, nowIso],
       );
     },
 

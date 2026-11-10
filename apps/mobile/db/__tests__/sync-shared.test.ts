@@ -132,7 +132,7 @@ async function appPushes() {
   });
   await d.r.workouts.saveEntry({ date: '2026-11-08', exerciseId: custom, sets: [{ weightKg: 20, reps: 12, memo: '', done: false }] });
   await d.r.catalog.setExerciseHidden(SQUAT, true);
-  await d.r.body.saveManual('2026-11-08', { weightKg: 70.4, bodyFatPct: 18.2, waistCm: 80 });
+  await d.r.body.saveManual('2026-11-08', { weightKg: 70.4, bodyFatPct: 18.2 });
   await d.r.settings.update({ weightUnit: 'lb', heightCm: 172 });
   // Health Connect の取り込み（origin = import）：11/7 の体重計、11/8 の手入力よりあとの体重計（手入力が先）、11/8 に起きた睡眠
   hc.reset();

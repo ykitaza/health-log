@@ -640,24 +640,12 @@ components:
           - 'null'
           minimum: 0
           maximum: 100
-        muscle_pct:
-          type:
-          - number
-          - 'null'
-          minimum: 0
-          maximum: 100
         lean_mass_kg:
           type:
           - number
           - 'null'
           minimum: 0
           maximum: 300
-        waist_cm:
-          type:
-          - number
-          - 'null'
-          minimum: 30
-          maximum: 200
         memo:
           type: string
           maxLength: 1000
@@ -676,7 +664,7 @@ components:
           - string
           - 'null'
           maxLength: 200
-      description: '体組成。取り込み（origin: import）より手入力が勝つ。create では date, measured_at, source が要る。update では変えた項目だけを送る'
+      description: '体組成。取り込み（origin: import）より手入力が勝つ。create では date, measured_at, source が要る。update では変えた項目だけを送る。外した項目（muscle_pct・waist_cm）は、前の版のアプリが送っても断らずに捨てる'
     SettingFields:
       type: object
       additionalProperties: false

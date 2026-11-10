@@ -348,8 +348,8 @@ def test_種目の一覧に_BIG3_の役とフォームの動画を付ける_MCP_
 def test_体組成を記録し_同じ日は渡した項目だけ書き換える(call):
     first = call("record_body", weight_kg=70.2, body_fat_pct=15)
     assert first["recorded"]["weight_kg"] == 70.2 and first["recorded"]["fat_mass_kg"] == 10.5
-    second = call("record_body", waist_cm=78)
-    assert (second["recorded"]["weight_kg"], second["recorded"]["waist_cm"]) == (70.2, 78)
+    second = call("record_body", body_fat_pct=16)
+    assert (second["recorded"]["weight_kg"], second["recorded"]["body_fat_pct"]) == (70.2, 16)
     call("record_body", day="2026-10-25", weight_kg=71.0)
     progress = call("body_progress", days=30)
     assert [d["date"] for d in progress["days"]] == ["2026-10-25", "2026-11-08"]

@@ -281,8 +281,7 @@ class TrainingCommands:
             d = date.fromisoformat(day)
             measured = now if now.date() == d else datetime.combine(d, time(12), tzinfo=now.tzinfo)
             record = BodyRecord(self.new_id(), day, _timestamp(measured), given.get("weight_kg"),
-                                given.get("body_fat_pct"), given.get("muscle_pct"), given.get("waist_cm"),
-                                (memo or "").strip(), "manual", "")
+                                given.get("body_fat_pct"), (memo or "").strip(), "manual", "")
         await self.repository.save_body_record(trainee, record)
 
     # --- ケガの記録 ---

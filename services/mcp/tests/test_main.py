@@ -233,10 +233,8 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
         data(await client.call_tool("record_workout", {"day": "2026-11-01", "exercises": [  # 期間の外
             {"exercise": "ベンチプレス", "sets": [{"weight_kg": 120, "reps": 1}]}]}))
         data(await client.call_tool("record_meal", {"meal": {**LUNCH, "date": "2026-11-03"}}))
-        data(await client.call_tool("record_body", {"day": "2026-11-02", "weight_kg": 70.0, "body_fat_pct": 18.0,
-                                                    "waist_cm": 80.0}))
+        data(await client.call_tool("record_body", {"day": "2026-11-02", "weight_kg": 70.0, "body_fat_pct": 18.0}))
         data(await client.call_tool("record_body", {"day": "2026-11-05", "weight_kg": 69.0}))
-        data(await client.call_tool("record_body", {"day": "2026-11-07", "waist_cm": 79.0}))  # ウエストだけの日は出さない
         week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
         today = data(await client.call_tool("period_overview", {}))
         return week, today

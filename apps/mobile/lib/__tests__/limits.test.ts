@@ -25,14 +25,12 @@ describe('入れられる範囲', () => {
     expect(parseInRange('661.4', LIMITS.bodyWeight, 'lb')).toEqual({ error: '体重は 66.2〜661.3lb で入れてください' });
   });
 
-  test('体重・目標体重・身長・体脂肪率・筋肉率・ウエスト（両端を含む）', () => {
+  test('体重・目標体重・身長・体脂肪率（両端を含む）', () => {
     const cases = [
       [LIMITS.bodyWeight, '30', '300', '29.9', '300.1', '体重は 30〜300kg で入れてください'],
       [LIMITS.goalWeight, '30', '300', '29.9', '300.1', '目標体重は 30〜300kg で入れてください'],
       [LIMITS.height, '100', '250', '99.9', '250.1', '身長は 100〜250cm で入れてください'],
       [LIMITS.bodyFat, '0', '100', 'abc', '100.1', '体脂肪率は 0〜100% で入れてください'],
-      [LIMITS.muscle, '0', '100', '-1', '100.1', '筋肉率は 0〜100% で入れてください'],
-      [LIMITS.waist, '30', '200', '29.9', '200.1', 'ウエストは 30〜200cm で入れてください'],
     ] as const;
     for (const [limit, lo, hi, under, over, message] of cases) {
       expect(parseInRange(lo, limit)).toEqual({ value: Number(lo) });

@@ -154,9 +154,18 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
 export const TRAINING_ENTITIES_V8: EntitySpec[] = TRAINING_ENTITIES_V2.map((s) =>
   s.type === 'exercise' ? { ...s, columns: { ...s.columns, bodyweight_ratio: 'real' } } : s);
 
-/** 筋トレの今の形。版10で、種目に BIG3 の役（big3）とフォームの動画のリンク（form_video_url）を足した */
-export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V8.map((s) =>
+/** 版10の形。種目に BIG3 の役（big3）とフォームの動画のリンク（form_video_url）を足した。版10のマイグレーションは、この形でトリガーを作る */
+export const TRAINING_ENTITIES_V10: EntitySpec[] = TRAINING_ENTITIES_V8.map((s) =>
   s.type === 'exercise' ? { ...s, columns: { ...s.columns, big3: 'text', form_video_url: 'text' } } : s);
+
+/**
+ * 筋トレの今の形。版14で、体組成から筋肉率（muscle_pct）とウエスト（waist_cm）を外した。
+ * 送らず、受け取っても捨てる（toDbFields は知らない項目を捨てる）
+ */
+export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V10.map((s) =>
+  s.type === 'body_record'
+    ? { ...s, columns: Object.fromEntries(Object.entries(s.columns).filter(([c]) => c !== 'muscle_pct' && c !== 'waist_cm')) }
+    : s);
 
 /** 食事の今の形。版7で、食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した */
 export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>

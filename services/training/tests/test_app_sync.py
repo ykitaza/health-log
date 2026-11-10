@@ -108,8 +108,8 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
     assert exercises["ブルガリアンスクワット"]["form_video_url"] == "https://youtu.be/bss"
     # 11/7 は体重計の取り込みだけ。11/8 は手入力よりあとに体重計の取り込みがあるが、手入力が先
     body = tool("body_progress", days=7)["days"]
-    assert [(d["date"], d["weight_kg"], d["body_fat_pct"], d["waist_cm"]) for d in body] == [
-        ("2026-11-07", 70.1, None, None), ("2026-11-08", 70.4, 18.2, 80.0)]
+    assert [(d["date"], d["weight_kg"], d["body_fat_pct"]) for d in body] == [
+        ("2026-11-07", 70.1, None), ("2026-11-08", 70.4, 18.2)]
     # Health Connect の睡眠（origin = import）
     sleeps = [c for p in pushes for c in p["changes"] if c["entity_type"] == "sleep_session"]
     assert [c["origin"] for c in sleeps] == ["import"]
