@@ -6,6 +6,7 @@ import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { LatestReportCard } from '@/components/reports';
+import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
 import { SyncAlertLine } from '@/components/SyncStatus';
 import { T } from '@/components/Text';
@@ -108,6 +109,7 @@ export default function HomeScreen() {
           <VolumeCard testID="volume-total" title="総合計負荷量" kg={totals.total} vehicle="jumbo" unit={unit} ready={data != null} />
         </View>
       </View>
+      <ReportSuggestion />
 
       {data != null && recentMissingBodyweight(rows, today) && (
         <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>

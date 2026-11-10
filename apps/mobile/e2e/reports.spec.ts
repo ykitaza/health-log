@@ -83,6 +83,8 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   const band = page.getByTestId('report-band').filter({ visible: true });
   await expect(see(band, '気をつけたい', { exact: true })).toBeVisible();
   await expect(see(band, '11月2日（月）〜11月8日（日）')).toBeVisible();
+  // 今週の目標（アプリが記録から出す）
+  await expect(page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel(/^睡眠、睡眠（平均） 5\.8 時間/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、良い。脚の日が2回に増えた').filter({ visible: true })).toBeVisible();
   await expect(see(page, '来週の一歩', { exact: true })).toBeVisible();
@@ -121,6 +123,10 @@ test('日のまとめ（daily）は、種類の名前・その日だけの期間
   const band = page.getByTestId('report-band').filter({ visible: true });
   await expect(see(band, '日のまとめ ・ 11月9日に作成')).toBeVisible();
   await expect(see(band, '11月9日（月）', { exact: true })).toBeVisible();
+  // この日の達成（アプリが記録から出す。記録がなければ「記録なし」）。指標のタイルは出さず、指標は分野のカードに小さく
+  await expect(page.getByRole('heading', { name: 'この日の達成', exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByLabel('筋トレ、記録なし', { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('report-tiles')).toHaveCount(0);
   await expect(see(page, '前の日より', { exact: true })).toBeVisible();
   await expect(see(page, '明日の一歩', { exact: true })).toBeVisible();
 });
@@ -209,4 +215,32 @@ test('MCP で推定した食事は、詳しい画面に推定の根拠を出す'
   await button(page, '鶏むね肉の定食を開く').click();
   await expect(see(page, '推定の根拠', { exact: true })).toBeVisible();
   await expect(see(page, 'ごはんは茶碗1杯 150g として計算')).toBeVisible();
+});
+
+test('月のまとめ：つながりのカードと、目標の見直しの「食事の目標を開く」', async ({ page, context }) => {
+  const server = createFakeSyncServer({ clock: () => '2026-11-01T01:00:00.000Z' });
+  server.append([{
+    parent_id: null, changed_at: '2026-11-01T01:00:00.000Z', origin: 'mcp', device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: REPORT, op: 'create', fields: {
+      title: '10月のまとめ', kind: 'monthly', period_start: '2026-10-01', period_end: '2026-10-31', overall_tone: 'caution',
+      headline: '睡眠が6時間を切る日が多かった', body: '', next_steps: ['寝る1時間前に画面を見ない日をつくる'],
+      highlights: [{ area: 'sleep', tone: 'caution', text: '6時間を切る日が14日' }],
+      links: [{ from_area: 'sleep', to_area: 'training', text: '睡眠が6時間を切った週は、筋トレの回数が半分だった', basis: '2週' }],
+      review: { text: '体重のペースが目標より遅めです。食事の目標を少し下げる案があります。', target: 'meals_goal' },
+    },
+  }]);
+  await connect(page, context, server);
+  await openApp(page);
+  await signInAndSync(page);
+  await page.getByRole('button', { name: /^気をつけたい、10月のまとめ、/ }).filter({ visible: true }).click();
+  await expect(see(page, 'つながり', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('睡眠から筋トレへ（2週）。睡眠が6時間を切った週は、筋トレの回数が半分だった', { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(see(page, '睡眠 → 筋トレ・2週', { exact: true })).toBeVisible();
+  // 体重の記録がないので、体の変化は出さない
+  await expect(page.getByTestId('report-body-change')).toHaveCount(0);
+  const review = page.getByTestId('report-review').filter({ visible: true });
+  await expect(see(review, '体重のペースが目標より遅めです。食事の目標を少し下げる案があります。')).toBeVisible();
+  await expect(see(page, '来月の一歩', { exact: true })).toBeVisible();
+  await button(review, '食事の目標を開く').click();
+  await expect(page).toHaveURL(/\/meals\/goal$/);
 });
