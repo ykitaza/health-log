@@ -168,10 +168,14 @@ export function DayNote({ date, today }: { date: string; today: string }) {
 export const CHIP_HEIGHT = 32;
 
 /** M3 の filter chip。選んだものはチェックの印も出す（色だけにしない） */
-export function Chip({ label, active, onPress, disabled }: { label: string; active?: boolean; onPress: () => void; disabled?: boolean }) {
+/** accessibilityLabel：読み上げの名前（省くと label。同じ label のチップが画面に並ぶときに、何の選択肢かを足す） */
+export function Chip({ label, active, onPress, disabled, accessibilityLabel }: {
+  label: string; active?: boolean; onPress: () => void; disabled?: boolean; accessibilityLabel?: string;
+}) {
   return (
     <PressableScale
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       aria-selected={!!active}
       onPress={onPress}
       disabled={disabled}

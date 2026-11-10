@@ -1,4 +1,5 @@
 import { randomUUID } from 'expo-crypto';
+import { achievementRepository } from './repositories/achievements';
 import { bodyRepository } from './repositories/body';
 import { catalogRepository } from './repositories/catalog';
 import { healthRepository } from './repositories/health';
@@ -19,6 +20,7 @@ export function createRepositories(db: Db, deps: Deps = defaultDeps) {
     meals: mealRepository(db, deps),
     health: healthRepository(db),
     reports: reportRepository(db, deps),
+    achievements: achievementRepository(db, deps),
   };
 }
 

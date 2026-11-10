@@ -2,7 +2,8 @@
 // 同期で受け取るだけで、アプリからは読むのと消すのだけ。本文（Markdown）はモデルが書いた文なので、
 // 文字として表示するだけにする（HTML やリンクを開かない。下の parseMarkdown は見出し・箇条書き・太字・段落だけを見分ける）。
 // 端末の値はサーバーで確かめたものだが、前の版や壊れた値でも画面が落ちないよう、読むときにもう一度形を確かめる
-import { DateKey, formatJpDate, formatMonthDay, toDateKey } from './date';
+import { addDays, addMonths, DateKey, daysBetween, formatJpDate, formatMonthDay, toDateKey } from './date';
+import { weekOf } from './goals';
 
 export type Tone = 'good' | 'steady' | 'caution';
 export type Area = 'training' | 'meals' | 'body' | 'sleep';
@@ -220,6 +221,62 @@ export function dailySectionTitle(date: DateKey, today: DateKey): string {
 /** 分野のカードの読み上げの名前（「筋トレ、良い。文。指標」） */
 export function dailyHighlightLabel(h: Highlight): string {
   return [`${AREA_LABELS[h.area]}、${TONE_SHORT[h.tone]}。${h.text}`, h.metric && metricLabel(h.metric)].filter(Boolean).join('。');
+}
+
+// --- まだ作っていないまとめ ---
+
+/** まだ作っていないまとめ。key は閉じたことを覚えるときの名前（「daily:2026-11-09」） */
+export type PendingReport = { kind: Exclude<ReportKind, 'other'>; periodStart: DateKey; periodEnd: DateKey; key: string };
+
+/** 今日の日のまとめを出し始める時刻（端末の時刻） */
+export const TODAY_DAILY_FROM_HOUR = 21;
+
+const pendingKey = (kind: PendingReport['kind'], start: DateKey) => `${kind}:${start}`;
+
+/** 期間が重なる日数（両端を含む。重ならなければ 0） */
+function overlapDays(a: { start: DateKey; end: DateKey }, b: { start: DateKey; end: DateKey }): number {
+  const start = a.start > b.start ? a.start : b.start;
+  const end = a.end < b.end ? a.end : b.end;
+  return end < start ? 0 : daysBetween(start, end) + 1;
+}
+
+/**
+ * まだ作っていないまとめ。日→週→月の順で、それぞれ新しい順。
+ * - 日のまとめ：7日前から昨日まで。今日の分は、21時を過ぎていて記録があるときだけ
+ * - 週のまとめ：4週前から先週まで（月〜日）
+ * - 月のまとめ：先月
+ * どれも、その期間に記録（筋トレ・食事・体組成のどれか）がある日があるときだけ出す。
+ * 同じ種類のレポートが期間の半分より多く重なっていれば、作ってあるとみなす（日曜始まりの週のまとめなども数える）。
+ * dismissed（閉じた分の key）は出さない
+ */
+export function pendingReports(input: {
+  now: Date;
+  reports: Pick<Report, 'kind' | 'periodStart' | 'periodEnd'>[];
+  recordDates: Iterable<DateKey>;
+  dismissed?: Iterable<string>;
+}): PendingReport[] {
+  const today = toDateKey(input.now);
+  const dates = [...input.recordDates];
+  const dismissed = new Set(input.dismissed ?? []);
+  const hasRecord = (start: DateKey, end: DateKey) => dates.some((d) => d >= start && d <= end);
+  const made = (kind: PendingReport['kind'], start: DateKey, end: DateKey) => {
+    const length = daysBetween(start, end) + 1;
+    return input.reports.some((r) => r.kind === kind && r.periodStart && r.periodEnd
+      && overlapDays({ start: r.periodStart, end: r.periodEnd }, { start, end }) * 2 > length);
+  };
+  const out: PendingReport[] = [];
+  const push = (kind: PendingReport['kind'], start: DateKey, end: DateKey) => {
+    const key = pendingKey(kind, start);
+    if (!dismissed.has(key) && hasRecord(start, end) && !made(kind, start, end)) out.push({ kind, periodStart: start, periodEnd: end, key });
+  };
+
+  if (input.now.getHours() >= TODAY_DAILY_FROM_HOUR) push('daily', today, today);
+  for (let i = 1; i <= 7; i++) push('daily', addDays(today, -i), addDays(today, -i));
+  const thisWeek = weekOf(today).start;
+  for (let i = 1; i <= 4; i++) push('weekly', addDays(thisWeek, -7 * i), addDays(thisWeek, -7 * i + 6));
+  const thisMonth = `${today.slice(0, 7)}-01`;
+  push('monthly', addMonths(thisMonth, -1), addDays(thisMonth, -1));
+  return out;
 }
 
 // --- 本文（Markdown）を、文字のまま見分ける ---

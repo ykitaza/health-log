@@ -15,6 +15,7 @@ import { useFocusData } from '@/hooks/data';
 import { versionLines } from '@/lib/appVersion';
 import { parseBirthYear } from '@/lib/autoGoal';
 import { workoutCsv } from '@/lib/csv';
+import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS } from '@/lib/goals';
 import { LIMITS, parseInRange } from '@/lib/limits';
 import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts, radius, space } from '@/theme';
@@ -114,8 +115,8 @@ export default function SettingsScreen() {
         <ListRow title="チャットとの連携" subtitle="Claude・ChatGPT のつなぎ方と、開くボタン" onPress={() => router.push('/chat')} />
       </Card>
 
-      {/* 筋トレ：記録の初期値と種目。食事：目標（前は「種目」の区分けに食事の目標が入っていた） */}
-      <SectionTitle title="筋トレ" />
+      {/* 記録の初期値（重さの単位・セット数・休憩のタイマー）と今週の目標。種目の管理は「筋トレ」の節（体の情報の下） */}
+      <SectionTitle title="記録の初期値" />
       <Card style={{ gap: space.l }}>
         <View style={{ gap: space.s }}>
           <T variant="titleM">重さの単位</T>
@@ -130,14 +131,30 @@ export default function SettingsScreen() {
             ))}
           </View>
         </View>
-      </Card>
-      <Card style={{ padding: 0, marginTop: space.m }}>
-        <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
+        <Choices
+          title="休憩のタイマー" description="セットの完了から数え、時間になると振動します"
+          options={REST_TIMER_OPTIONS} value={settings?.restTimerSeconds} label={(n) => (n === 0 ? '切' : `${n}秒`)}
+          onChange={(restTimerSeconds) => save({ restTimerSeconds })}
+        />
       </Card>
 
-      <SectionTitle title="食事" />
-      <Card style={{ padding: 0 }}>
-        <ListRow first title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
+      <SectionTitle title="今週の目標" />
+      <Card style={{ gap: space.l }}>
+        <Choices
+          title="筋トレ" description="1週間に筋トレをする回数"
+          options={WEEKLY_TRAINING_OPTIONS} value={settings?.weeklyGoalTrainingDays} label={(n) => `${n}回`}
+          onChange={(weeklyGoalTrainingDays) => save({ weeklyGoalTrainingDays })}
+        />
+        <Choices
+          title="食事の記録" description="1週間に食事を記録する日数"
+          options={WEEKLY_MEAL_OPTIONS} value={settings?.weeklyGoalMealDays} label={(n) => `${n}日`}
+          onChange={(weeklyGoalMealDays) => save({ weeklyGoalMealDays })}
+        />
+        <Choices
+          title="睡眠" description="7時間以上寝る日数。Health Connect の睡眠で数えます"
+          options={WEEKLY_SLEEP_OPTIONS} value={settings?.weeklyGoalSleepDays} label={(n) => (n === 0 ? '切' : `${n}日`)}
+          onChange={(weeklyGoalSleepDays) => save({ weeklyGoalSleepDays })}
+        />
       </Card>
 
       <SectionTitle title="体の情報" />
@@ -150,6 +167,16 @@ export default function SettingsScreen() {
         {message && <T variant="bodyS" color={colors.danger}>{message}</T>}
         <T variant="bodyS" color={colors.sub}>身長はからだの自動計算（BMI など）に、目標体重はからだの「目標体重まで」に使います。身長・目標体重・性別・生まれた年・活動の量は、食事の目標の自動計算にも使います。空にすると消えます。</T>
         <T variant="bodyS" color={colors.sub}>性別と生まれた年はこの端末の中だけに置き、サーバーには送りません。</T>
+      </Card>
+
+      <SectionTitle title="筋トレ" />
+      <Card style={{ padding: 0 }}>
+        <ListRow first title="種目と部位の管理" subtitle="追加・非表示" onPress={() => router.push('/exercises/manage')} />
+      </Card>
+
+      <SectionTitle title="食事" />
+      <Card style={{ padding: 0 }}>
+        <ListRow first title="食事の目標" subtitle="kcal と PFC、筋トレの日と休みの日" onPress={() => router.push('/meals/goal')} />
       </Card>
 
       <SectionTitle title="データ" />
@@ -165,6 +192,24 @@ export default function SettingsScreen() {
 
       <AppVersion />
     </Screen>
+  );
+}
+
+/** 選択肢のチップ（セット数の初期値と同じ形）。読み上げは「休憩のタイマー、90秒」のように、何の選択肢かを足す */
+function Choices({ title, description, options, value, label, onChange }: {
+  title: string; description: string; options: readonly number[]; value: number | undefined;
+  label: (n: number) => string; onChange: (n: number) => void;
+}) {
+  return (
+    <View style={{ gap: space.xs }}>
+      <T variant="titleM">{title}</T>
+      <T variant="bodyM" color={colors.sub}>{description}</T>
+      <View style={{ flexDirection: 'row', columnGap: space.s, flexWrap: 'wrap' }}>
+        {options.map((n) => (
+          <Chip key={n} label={label(n)} accessibilityLabel={`${title}、${label(n)}`} active={value === n} onPress={() => onChange(n)} />
+        ))}
+      </View>
+    </View>
   );
 }
 
