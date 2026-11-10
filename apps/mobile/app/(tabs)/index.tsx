@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Sparkline } from '@/components/charts';
 import { CalendarLegend, ReceivedNotice, RecordSheet, WeeklyGoalCard, WeeklyTodoCard } from '@/components/home';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
@@ -16,17 +17,18 @@ import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
+import { datePoints } from '@/lib/chart';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, monthMatrix, pickedDayOrToday, yearMonth } from '@/lib/date';
+import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
-import { goalLine, sleepNote } from '@/lib/home';
+import { goalLine, homeBig3, signedChange, sleepNote, thisWeekVolume } from '@/lib/home';
 import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
 import { tonnes } from '@/lib/format';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
-import { daysInMonth, periodTotals, totalVolume, trainingDates, Vehicle, vehicleRatio, weeklyVolumes } from '@/lib/training';
+import { daysInMonth, totalVolume, TrainingSetRow, trainingDates, Vehicle, vehicleRatio } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space, toneColors } from '@/theme';
 
-const WEEK_LABELS = ['今週', '1週前', '2週前', '3週前', '4週前', '5週前'];
 const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo: 'plane' };
 
 export default function HomeScreen() {
@@ -44,14 +46,16 @@ export default function HomeScreen() {
   const { data, error, reload } = useFocusData(async (r) => {
     // カレンダーに出す月の、食事を記録した日（点を付ける）
     const cells = monthMatrix(year, month).flat().filter((d) => d.inMonth);
-    const [rows, todays, settings, meals, daily, sleep, heart, monthMeals] = await Promise.all([
+    const [rows, todays, settings, meals, daily, sleep, heart, monthMeals, exercises] = await Promise.all([
       r.workouts.allSetRows(), r.workouts.getDay(selected), r.settings.get(), r.meals.summaries(selected, selected),
       r.body.listDaily(), r.health.sleepDay(selected), r.health.heartRateDay(selected),
       r.meals.summaries(cells[0].key, cells[cells.length - 1].key),
+      // BIG3 の割り当て（筋トレの推移のグラフと同じく、非表示の種目も）
+      r.catalog.listExercises({ includeHidden: true }),
     ]);
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     const mealDates = new Set(monthMeals.days.filter((d) => d.meals.length > 0).map((d) => d.date));
-    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected, mealDates };
+    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected, mealDates, big3: big3Assignments(exercises) };
   }, `${selected}|${today}`);
   // 日を選び直した直後は、読み終わるまで前の日の記録を出さない
   const dayEntries = data?.day === selected ? data.todays : null;
@@ -60,9 +64,7 @@ export default function HomeScreen() {
   const rows = data?.rows ?? [];
   const unit = data?.settings.weightUnit ?? 'kg';
   const dates = trainingDates(rows);
-  const totals = periodTotals(rows, today);
-  const weekly = weeklyVolumes(rows, today, 6);
-  const maxWeek = Math.max(1, ...weekly);
+  const weekVolume = thisWeekVolume(rows, today);
   const condition = data?.day === selected ? data : null;
   // 寝不足の日のひとこと（今日だけ。今日の体調と同じ、その日に起きた睡眠）
   const sleepy = isToday ? sleepNote(condition?.sleep?.asleepMin) : null;
@@ -104,23 +106,9 @@ export default function HomeScreen() {
         </View>
 
         <View style={{ flex: 1, gap: 8, justifyContent: 'space-between' }}>
-          <VolumeCard testID="volume-7d" title="合計負荷量／7日間" kg={totals.last7} vehicle="car" unit={unit} ready={data != null}>
-            <View style={{ gap: 3, marginTop: 6 }}>
-              {weekly.map((v, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 12 }}>
-                  <T variant="labelS" bold={i === 0} color={i === 0 ? colors.text : colors.sub} style={{ width: 34, lineHeight: 12 }}>{WEEK_LABELS[i]}</T>
-                  <View style={{ flex: 1, height: 6 }}>
-                    <View testID={`week-bar-${i}`} style={{ width: `${(v / maxWeek) * 100}%`, height: 6, borderRadius: 3, backgroundColor: i === 0 ? colors.accent : colors.accentMuted }} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          </VolumeCard>
-          {/* 28日間と総合計は1つのカードに1行ずつ（乗り物の倍率は出さない） */}
-          <View style={[s.volume, { gap: 4 }]}>
-            <VolumeRow testID="volume-28d" title="28日間" kg={totals.last28} unit={unit} ready={data != null} />
-            <VolumeRow testID="volume-total" title="総合計" kg={totals.total} unit={unit} ready={data != null} />
-          </View>
+          {/* 今週は月曜始まり（lib/date.ts の weekStart） */}
+          <VolumeCard testID="volume-week" title="合計負荷量／今週" kg={weekVolume} vehicle="car" unit={unit} ready={data != null} />
+          <Big3Card rows={rows} assignments={data?.big3 ?? null} today={today} unit={unit} />
           <WeeklyGoalCard today={today} />
         </View>
       </View>
@@ -221,22 +209,59 @@ function SummaryCard({ testID, icon, title, badge, body, sub, note, onPress }: {
   );
 }
 
-/** 28日間・総合計の1行（ラベルと値） */
-function VolumeRow({ testID, title, kg, unit, ready }: { testID: string; title: string; kg: number; unit: 'kg' | 'lb'; ready: boolean }) {
+/**
+ * BIG3 推定1RM 合計（筋トレの推移の「BIG3 の推定1RM（合計）」と同じ計算）。大きな数字、3か月の折れ線、先月との差。
+ * 押すと筋トレの推移。3種目がそろうまでは「—」と、記録がまだないこと
+ */
+function Big3Card({ rows, assignments, today, unit }: {
+  rows: TrainingSetRow[]; assignments: Parameters<typeof homeBig3>[1] | null; today: DateKey; unit: 'kg' | 'lb';
+}) {
+  const big3 = assignments ? homeBig3(rows, assignments, today) : null;
+  const total = big3 ? fmt1(kgToUnit(big3.totalKg, unit)) : null;
+  const change = big3?.diffKg != null ? signedChange(kgToUnit(big3.diffKg, unit)) : null;
+  const changeColor = change?.dir === 'down' ? colors.danger : colors.accent;
+  const label = assignments == null ? 'BIG3 推定1RM 合計'
+    : total == null ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
+    : `BIG3 推定1RM 合計 ${total}${unit}。${change ? `先月より ${change.text}${unit}` : '先月の記録なし'}`;
   return (
-    <View testID={testID} accessible accessibilityLabel={`合計負荷量 ${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}
-      style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}>
-      <T variant="labelS" color={colors.sub}>{title}</T>
+    <PressableScale
+      testID="home-big3" accessibilityRole="button" accessibilityLabel={`${label}。筋トレの推移を開く`} scaleTo={0.98}
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })} style={[s.volume, { flexGrow: 1 }]}
+    >
+      <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>BIG3 推定1RM 合計</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-        <RollNumber num bold size={18} value={tonnes(kg, unit)} ready={ready} />
-        <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
+        {total != null ? (
+          <>
+            <RollNumber num bold size={22} value={total} ready={assignments != null} />
+            <T variant="labelS" color={colors.sub}>{unit}</T>
+          </>
+        ) : <T num bold size={22}>—</T>}
       </View>
-    </View>
+      {big3 ? (
+        <>
+          {/* 列の高さの余りはこのカードが受け、折れ線と差は下に寄せる */}
+          <View style={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+            <Sparkline points={datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today)} animKey="home-big3" />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, flexWrap: 'wrap' }} testID="home-big3-change">
+            {change ? (
+              <>
+                <Icon name={change.dir === 'up' ? 'arrowUp' : change.dir === 'down' ? 'arrowDown' : 'arrowFlat'} size={14} color={changeColor} />
+                <T variant="labelS" bold color={changeColor}>{change.text} {unit}</T>
+                <T variant="labelS" bold={false} color={colors.sub}>先月より</T>
+              </>
+            ) : <T variant="labelS" bold={false} color={colors.sub}>先月の記録なし</T>}
+          </View>
+        </>
+      ) : assignments != null && (
+        <T variant="labelS" bold={false} color={colors.sub}>BIG3 の記録がまだありません</T>
+      )}
+    </PressableScale>
   );
 }
 
-function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
-  testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; ready: boolean; children?: React.ReactNode;
+function VolumeCard({ testID, title, kg, vehicle, unit, ready }: {
+  testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; ready: boolean;
 }) {
   return (
     <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
@@ -250,7 +275,6 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready, children }: {
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
         <RollNumber num bold size={13} color={colors.accent} prefix="× " value={vehicleRatio(kg, vehicle).toFixed(1)} ready={ready} />
       </View>
-      {children}
     </View>
   );
 }

@@ -33,7 +33,7 @@ test('推定1RM と割合の表、不正な値は「—」。単位は設定に�
   await button(page, '戻る').click();
   // 単位の保存が終わってから開き直す（ホームの負荷量が lb になる）
   await goTab(page, 'ホーム');
-  await expect(page.getByTestId('volume-7d').filter({ visible: true })).toContainText('k lb');
+  await expect(page.getByTestId('volume-week').filter({ visible: true })).toContainText('k lb');
   await openRm(page);
   await expect(page.getByRole('textbox', { name: '重量（lb）' })).toBeVisible();
   await input(page, '225', '5');

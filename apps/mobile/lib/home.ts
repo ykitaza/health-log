@@ -1,11 +1,13 @@
 // ホームの画面に出す言葉と、カードを出すかどうかの決まり（app/(tabs)/index.tsx と components/home.tsx が使う）
 import { goalProgress } from './body';
-import { addDays, DateKey } from './date';
+import { addDays, addMonths, DateKey, weekStart } from './date';
+import type { Big3Role } from './exercises';
 import type { GoalProgress } from './goals';
 import { weekOf } from './goals';
 import { formatMinutes } from './health';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
 import type { Report } from './reports';
+import { big3Trend, TrainingSetRow, volumeBetween } from './training';
 import { fmt1, kgToUnit, WeightUnit } from './units';
 
 /** 今日の体調のカードの2行目。目標体重とその日の体重があるときだけ（からだの画面と同じ lib/body.ts の goalProgress） */
@@ -76,4 +78,34 @@ export function mealRecordTarget(date: DateKey, today: DateKey, hour: number): {
   if (date !== today) return { slot: null, text: '区分を選んで記録します' };
   const slot = slotAt(hour);
   return { slot, text: `${SLOT_LABELS[slot]}として記録します（時刻から）` };
+}
+
+/** 合計負荷量／今週：月曜始まりの週の、月曜から今日までの負荷量（kg） */
+export function thisWeekVolume(rows: TrainingSetRow[], today: DateKey): number {
+  return volumeBetween(rows, weekStart(today), today);
+}
+
+/** ホームの BIG3 のカードの折れ線の期間（筋トレの推移の「BIG3 の推定1RM（合計）」と同じ3か月） */
+export const HOME_BIG3_MONTHS = 3;
+
+/**
+ * ホームの「BIG3 推定1RM 合計」。筋トレの推移のグラフと同じ big3Trend で、今の合計・先月との差・3か月の折れ線の点を出す。
+ * 3種目がそろわない（割り当てがない・記録がない）あいだは null
+ */
+export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey) {
+  const from = addMonths(today, -HOME_BIG3_MONTHS);
+  const trend = big3Trend(rows, assignments, today, from);
+  if (trend.total == null) return null;
+  return {
+    totalKg: trend.total,
+    diffKg: trend.totalMonthAgo == null ? null : trend.total - trend.totalMonthAgo,
+    points: trend.points,
+    from,
+  };
+}
+
+/** 先月との差の向きと文字（「+7.5」「−2.5」「±0」）。0.05 未満の差は ±0 とする（筋トレの推移のカードと同じ） */
+export function signedChange(v: number): { dir: 'up' | 'down' | 'flat'; text: string } {
+  if (Math.abs(v) < 0.05) return { dir: 'flat', text: '±0' };
+  return v > 0 ? { dir: 'up', text: `+${fmt1(v)}` } : { dir: 'down', text: `−${fmt1(-v)}` };
 }

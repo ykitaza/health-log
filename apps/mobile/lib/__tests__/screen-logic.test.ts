@@ -10,9 +10,10 @@ import { searchExercises } from '../exercises';
 import { formatSetLong, formatSigned, tonnes } from '../format';
 import { copyOf, draftFromSet, prepareSave, SetDraft, toSetInputs } from '../sets';
 import {
-  changeOver, exerciseDailySeries, filterSince, periodStart, periodTotals, personalBests, rmFromInput, rmTable,
-  TrainingSetRow, trainingDates, daysInMonth, vehicleRatio, weeklySummary, weeklyVolumeByBodyPart, weeklyVolumes,
+  changeOver, exerciseDailySeries, filterSince, periodStart, personalBests, rmFromInput, rmTable,
+  TrainingSetRow, trainingDates, daysInMonth, vehicleRatio, weeklySummary, weeklyVolumeByBodyPart,
 } from '../training';
+import { thisWeekVolume } from '../home';
 import { fmt1, kgToUnit } from '../units';
 
 const TODAY = '2026-11-08'; // E2E と同じ「今日」（日曜）
@@ -156,19 +157,16 @@ describe('ホームの数字（home.spec.ts から）', () => {
     row(TODAY, 'chin', 'back', null, 10),
   ];
 
-  test('総負荷量（7日・28日・総合計）と乗り物のたとえ', () => {
-    const t = periodTotals(rows, TODAY);
-    expect(t).toEqual({ last7: 3480, last28: 4680, total: 5280 });
-    expect([tonnes(t.last7), tonnes(t.last28), tonnes(t.total)]).toEqual(['3.48', '4.68', '5.28']);
-    expect(fmt1(vehicleRatio(t.last7, 'car'))).toBe('2.3');
-    expect(fmt1(vehicleRatio(t.last28, 'bus'))).toBe('0.3');
-    expect(fmt1(vehicleRatio(t.total, 'jumbo'))).toBe('0.0');
+  test('合計負荷量／今週（月曜始まり）と乗り物のたとえ', () => {
+    // 11/3（火）と今日（11/8・日曜）は同じ週。10/20 と 10/1 は前の週なので入らない
+    const week = thisWeekVolume(rows, TODAY);
+    expect(week).toBe(3480);
+    expect(tonnes(week)).toBe('3.48');
+    expect(fmt1(vehicleRatio(week, 'car'))).toBe('2.3');
     expect(tonnes(640, 'lb')).toBe('1.41'); // 80kg × 8 を lb で：1.41k lb
   });
 
-  test('週ごとの棒（今週から）と、トレーニングした日数', () => {
-    // 週は月曜始まり：11/3 は今日（11/8・日曜）と同じ週
-    expect(weeklyVolumes(rows, TODAY, 5)).toEqual([3480, 0, 1200, 0, 0]);
+  test('トレーニングした日数', () => {
     const dates = trainingDates(rows);
     expect(dates).toHaveLength(4);
     expect(daysInMonth(dates, 2026, 11)).toBe(2);

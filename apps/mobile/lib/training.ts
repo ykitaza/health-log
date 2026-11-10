@@ -84,27 +84,6 @@ export function volumeBetween(rows: TrainingSetRow[], from: DateKey, to: DateKey
   return rows.reduce((a, r) => (r.date >= from && r.date <= to ? a + setVolume(r) : a), 0);
 }
 
-/** 7日間（今日を含む）、28日間、総合計の負荷量（kg） */
-export function periodTotals(rows: TrainingSetRow[], today: DateKey) {
-  return {
-    last7: volumeBetween(rows, addDays(today, -6), today),
-    last28: volumeBetween(rows, addDays(today, -27), today),
-    total: rows.reduce((a, r) => (r.date <= today ? a + setVolume(r) : a), 0),
-  };
-}
-
-/** 週ごと（月曜始まり）の負荷量。[0] が今週、[1] が1週前… */
-export function weeklyVolumes(rows: TrainingSetRow[], today: DateKey, weeks = 6): number[] {
-  const thisWeek = weekStart(today);
-  const out = new Array<number>(weeks).fill(0);
-  for (const r of rows) {
-    if (r.date > today) continue;
-    const idx = Math.floor(daysBetween(weekStart(r.date), thisWeek) / 7);
-    if (idx >= 0 && idx < weeks) out[idx] += setVolume(r);
-  }
-  return out;
-}
-
 /** たとえに使う乗り物の重さ（t） */
 export const VEHICLES = {
   car: { label: '車', tonnes: 1.5 },

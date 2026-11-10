@@ -8,7 +8,7 @@ test('360 の幅でも、ホームのカレンダーが負荷量のカードに�
   await openApp(page);
   const calendar = page.getByTestId('home-calendar');
   const saturday = calendar.getByTestId('day-2026-11-07');
-  const volume = page.getByTestId('volume-7d');
+  const volume = page.getByTestId('volume-week');
   const sat = (await saturday.boundingBox())!;
   const vol = (await volume.boundingBox())!;
   expect(sat.x + sat.width).toBeLessThanOrEqual(vol.x);

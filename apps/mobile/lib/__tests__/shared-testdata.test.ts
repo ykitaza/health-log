@@ -7,8 +7,8 @@ import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bo
 import { big3Assignments, Big3Role } from '../exercises';
 import type { RecordType } from '../sets';
 import {
-  bestSet, estimated1RM, exerciseDailySeries, periodTotals, personalBests, rmTable, setVolume, topSet,
-  totalVolume, TrainingSetRow, trainingDates, weeklyVolumeByBodyPart, weeklyVolumes,
+  bestSet, estimated1RM, exerciseDailySeries, personalBests, rmTable, setVolume, topSet,
+  totalVolume, TrainingSetRow, trainingDates, weeklyVolumeByBodyPart,
 } from '../training';
 
 const load = (name: string) =>
@@ -40,13 +40,8 @@ describe('aggregates.json', () => {
   const rows: TrainingSetRow[] = data.rows.map(toRow);
   const e = data.expected;
 
-  test('総負荷量・期間の合計', () => {
+  test('総負荷量', () => {
     expect(totalVolume(rows)).toEqual(e.total_volume);
-    expect(periodTotals(rows, data.today)).toEqual(e.period_totals);
-  });
-
-  test('週ごとの負荷量', () => {
-    expect(weeklyVolumes(rows, data.today, e.weekly_volumes.weeks)).toEqual(e.weekly_volumes.result);
   });
 
   test('部位ごとの、週ごとの負荷量', () => {
@@ -100,8 +95,6 @@ describe('bodyweight.json：自重の種目の負荷量（体重 × 割合 × �
     expect(rows.map((r) => r.bodyweightLoadKg ?? null)).toEqual(e.bodyweight_load_kg);
     expect(rows.map((r) => setVolume(r))).toEqual(e.volumes);
     expect(totalVolume(rows)).toEqual(e.total_volume);
-    expect(periodTotals(rows, data.today)).toEqual(e.period_totals);
-    expect(weeklyVolumes(rows, data.today, e.weekly_volumes.weeks)).toEqual(e.weekly_volumes.result);
     const byPart = e.weekly_volume_by_body_part.result.map(
       (w: { week_start: string; by_part: Record<string, number>; total: number }) => ({ weekStart: w.week_start, byPart: w.by_part, total: w.total }));
     expect(weeklyVolumeByBodyPart(rows, data.today, e.weekly_volume_by_body_part.weeks)).toEqual(byPart);

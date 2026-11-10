@@ -160,6 +160,38 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
 }
 
 /**
+ * 目盛りのない小さな折れ線（ホームのカード）。points の x は 0〜1。最後の点に丸。
+ * 描き方は LineChart と同じ（左から描かれ、線が通ったあとに丸が出る。動きを減らす設定なら描き終わった形）
+ */
+export function Sparkline({ points, height = 44, animKey }: { points: Point[]; height?: number; animKey?: string }) {
+  const { progress, reduced } = useDrawProgress(animKey, duration.draw);
+  const [width, setWidth] = useState(120);
+  const pad = 4;
+  const ys = points.map((p) => p.y);
+  const lo = Math.min(...ys), hi = Math.max(...ys);
+  const px = (x: number) => pad + x * (width - pad * 2);
+  // 値がすべて同じなら、まん中の高さに引く
+  const py = (y: number) => (hi === lo ? height / 2 : pad + (1 - (y - lo) / (hi - lo)) * (height - pad * 2));
+  const xy = points.map((p) => ({ x: px(p.x), y: py(p.y) }));
+  let length = 0;
+  for (let i = 1; i < xy.length; i++) length += Math.hypot(xy[i].x - xy[i - 1].x, xy[i].y - xy[i - 1].y);
+  const last = xy[xy.length - 1];
+  const line = xy.map((p) => `${p.x},${p.y}`).join(' ');
+  return (
+    <View onLayout={(e) => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
+      <Svg width={width} height={height}>
+        {xy.length > 1 && (reduced
+          ? <Polyline points={line} fill="none" stroke={colors.accent} strokeWidth={1.5} strokeLinejoin="round" />
+          : <DrawnLine points={line} length={length || 1} progress={progress} strokeWidth={1.5} />)}
+        {last && (reduced
+          ? <Circle cx={last.x} cy={last.y} r={3} fill={colors.accent} />
+          : <Dot x={last.x} y={last.y} r={3} at={1} progress={progress} />)}
+      </Svg>
+    </View>
+  );
+}
+
+/**
  * 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大）。
  * peak を渡すと、その棒の上に値を出す（棒が伸びきったら出る）。accessibilityLabel は読み上げのグラフの要約
  */

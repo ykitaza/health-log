@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, homeCard, openApp, recordFromHome, recordOn, moveToDate, setBodyInfo, TODAY, see, tab } from './helpers';
+import { button, goTab, homeCard, openApp, recordFromHome, recordOn, recordToday, moveToDate, setBodyInfo, TODAY, see, tab } from './helpers';
 
-// 総負荷量・週ごとの棒・日数の計算は jest（lib/__tests__/screen-logic.test.ts の「ホームの数字」）。ここは画面に出ること
+// 今週の負荷量・日数の計算は jest（lib/__tests__/screen-logic.test.ts の「ホームの数字」）、BIG3 の合計は lib/__tests__/home.test.ts。ここは画面に出ること
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
 const day = (page: Page, date: string) => page.getByTestId('home-calendar').getByTestId(`day-${date}`);
@@ -13,11 +13,10 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(day(page, TODAY)).toHaveAttribute('aria-label', '11月8日（日） 今日');
   await expect(visible(page, 'archive')).toContainText('0days');
   await expect(visible(page, 'archive')).toContainText('TOTAL0 days');
-  for (const id of ['volume-7d', 'volume-28d', 'volume-total']) await expect(visible(page, id)).toContainText('0.00t');
-  // 乗り物の倍率は7日間だけ
-  await expect(visible(page, 'volume-7d')).toContainText('× 0.0');
-  await expect(visible(page, 'volume-28d')).toHaveText('28日間0.00t');
-  await expect(visible(page, 'volume-total')).toHaveText('総合計0.00t');
+  await expect(visible(page, 'volume-week')).toContainText('合計負荷量／今週0.00t');
+  await expect(visible(page, 'volume-week')).toContainText('× 0.0');
+  // BIG3 の記録がまだないときは「—」
+  await expect(visible(page, 'home-big3')).toHaveText('BIG3 推定1RM 合計—BIG3 の記録がまだありません');
   // 今週の目標（設定の初期値：筋トレ 3回、食事の記録 5日）
   await expect(visible(page, 'goal-training')).toContainText('0／3 回');
   await expect(visible(page, 'goal-meals')).toContainText('0／5 日');
@@ -42,7 +41,7 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
 });
 
-test('記録したあとの総負荷量のカード、週ごとの棒、カレンダーの印、今日の記録', async ({ page }) => {
+test('記録したあとの今週の負荷量のカード、カレンダーの印、今日の記録', async ({ page }) => {
   // 今週（月曜始まり、11/2〜）：スクワット 100×5×3 = 1500kg
   await recordOn(page, '2026-11-03', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }, { weight: '100', reps: '5' }, { weight: '100', reps: '5' }] }]);
   // 今日：ベンチ 80×8、80×8、70×10 = 1980kg と、回数だけの懸垂（負荷量は 0）
@@ -52,16 +51,12 @@ test('記録したあとの総負荷量のカード、週ごとの棒、カレ�
   ]);
   await moveToDate(page, TODAY);
 
-  // 7日間（11/2〜11/8）：1980 + 1500 = 3480kg → 3.48t、車 1.5t の 2.32 台
-  await expect(visible(page, 'volume-7d')).toContainText('3.48t');
-  await expect(visible(page, 'volume-7d')).toContainText('× 2.3');
-  await expect(visible(page, 'volume-28d')).toContainText('3.48t');
-  await expect(visible(page, 'volume-total')).toContainText('3.48t');
-
-  // 週ごとの棒（週は月曜始まり）：今週 1980 + 1500 = 3480、1週前 0（いちばん長い今週を 100% とする）
-  const width = (i: number) => page.getByTestId(`week-bar-${i}`).evaluate((el) => el.style.width);
-  expect(await width(0)).toBe('100%');
-  expect(parseFloat(await width(1))).toBe(0);
+  // 今週（月曜始まり、11/2〜11/8）：1980 + 1500 = 3480kg → 3.48t、車 1.5t の 2.32 台。週ごとの棒は出さない
+  await expect(visible(page, 'volume-week')).toContainText('3.48t');
+  await expect(visible(page, 'volume-week')).toContainText('× 2.3');
+  await expect(page.getByTestId('week-bar-0')).toHaveCount(0);
+  // デッドリフトの記録がないので、BIG3 の合計はまだ出ない
+  await expect(visible(page, 'home-big3')).toContainText('BIG3 の記録がまだありません');
 
   // カレンダーの印は 11 月の 3 日と 8 日
   await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '11月3日（火） 記録あり');
@@ -82,6 +77,25 @@ test('記録したあとの総負荷量のカード、週ごとの棒、カレ�
   await expect(see(page, '最後きつい')).toBeVisible();
   await expect(see(page, '懸垂', { exact: true })).toBeVisible();
   await expect(see(page, '10 回', { exact: true })).toBeVisible();
+});
+
+test('BIG3 推定1RM 合計：先月との差と折れ線。押すと筋トレの推移', async ({ page }) => {
+  // 1か月前（10/8）より前：3種目とも 100×5（推定1RM 116.67）→ 合計 350.0
+  await recordOn(page, '2026-10-01', ['ベンチプレス', 'スクワット', 'デッドリフト'].map((exercise) => ({ exercise, sets: [{ weight: '100', reps: '5' }] })));
+  await moveToDate(page, TODAY);
+  await expect(visible(page, 'home-big3')).toContainText('350.0kg');
+  await expect(visible(page, 'home-big3')).toContainText('±0 kg先月より');
+  // 今日：スクワット 110×5（128.33）→ 合計 361.7、先月より +11.7
+  await recordToday(page, [{ exercise: 'スクワット', sets: [{ weight: '110', reps: '5' }] }]);
+  await expect(visible(page, 'home-big3')).toContainText('361.7kg');
+  await expect(visible(page, 'home-big3-change')).toHaveText('+11.7 kg先月より');
+  await expect(visible(page, 'home-big3')).toHaveAttribute('aria-label', 'BIG3 推定1RM 合計 361.7kg。先月より +11.7kg。筋トレの推移を開く');
+  await expect(visible(page, 'home-big3').locator('svg polyline')).toHaveCount(1);
+
+  // 押すと筋トレのタブの「推移」
+  await visible(page, 'home-big3').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('「記録する」のシート：食事は時刻から区分を決め、体重はからだのタブで計測のシートを開く。食事の点・目標体重まで・今週の目標', async ({ page }) => {

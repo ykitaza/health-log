@@ -64,7 +64,7 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('68.4');
   await goTab(page, 'ホーム');
   await expect(homeCard(page, 'training')).toContainText('1種目 ・ 1セット ・ 0.64 t');
-  await expect(page.getByTestId('volume-total')).toContainText('0.64t');
+  await expect(page.getByTestId('volume-week')).toContainText('0.64t');
   await goTab(page, '筋トレ');
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
   await expect(see(page, '残る？')).toBeVisible();

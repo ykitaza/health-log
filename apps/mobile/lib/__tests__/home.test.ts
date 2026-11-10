@@ -1,4 +1,68 @@
-import { goalA11yLabel, goalLine, goalRatio, mealRecordTarget, readTodoChecks, sleepNote, toggleTodo, weeklyTodo } from '../home';
+import {
+  goalA11yLabel, goalLine, goalRatio, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, readTodoChecks, signedChange, sleepNote, thisWeekVolume, toggleTodo, weeklyTodo,
+} from '../home';
+import { big3Trend, TrainingSetRow } from '../training';
+
+const setRow = (date: string, exerciseId: string, weightKg: number | null, reps: number): TrainingSetRow =>
+  ({ date, exerciseId, bodyPartId: 'p', weightKg, reps });
+
+describe('合計負荷量／今週（月曜始まり）', () => {
+  const rows = [
+    setRow('2026-11-08', 'bench', 100, 10), // 1000（今日・日曜）
+    setRow('2026-11-02', 'bench', 100, 5), //  500（今週の月曜）
+    setRow('2026-11-01', 'bench', 100, 3), //  300（前の週の日曜。7日間には入るが今週ではない）
+    setRow('2026-11-09', 'bench', 100, 100), // 未来は数えない
+    setRow('2026-11-05', 'chin', null, 10), // 回数だけ（体重がなければ 0）
+  ];
+  test('月曜から今日まで', () => {
+    expect(thisWeekVolume(rows, '2026-11-08')).toBe(1500);
+  });
+  test('今日が月曜なら、その日だけ', () => {
+    expect(thisWeekVolume(rows, '2026-11-02')).toBe(500);
+    expect(thisWeekVolume([], '2026-11-02')).toBe(0);
+  });
+});
+
+describe('ホームの BIG3 推定1RM 合計', () => {
+  const today = '2026-11-08';
+  const assigned = { bench: 'bench', squat: 'squat', deadlift: 'dl' };
+  const rows = [
+    setRow('2026-07-01', 'dl', 120, 5), // 140
+    setRow('2026-09-01', 'bench', 80, 8), // 101.33…
+    setRow('2026-09-10', 'squat', 100, 5), // 116.67…
+    setRow('2026-11-06', 'squat', 110, 5), // 128.33…（1か月前より伸びた）
+  ];
+
+  test('筋トレの推移のグラフと同じ計算（big3Trend の3か月）', () => {
+    const b = homeBig3(rows, assigned, today)!;
+    const t = big3Trend(rows, assigned, today, '2026-08-08');
+    expect(HOME_BIG3_MONTHS).toBe(3);
+    expect(b.from).toBe('2026-08-08');
+    expect(b.totalKg).toBe(t.total);
+    expect(b.diffKg).toBeCloseTo(t.total! - t.totalMonthAgo!, 6);
+    expect(b.diffKg).toBeCloseTo(10 * (1 + 5 / 30), 6);
+    expect(b.points).toEqual(t.points);
+  });
+
+  test('1か月前にそろっていなければ、差は null', () => {
+    const b = homeBig3(rows.filter((r) => r.date !== '2026-09-10'), assigned, today)!;
+    expect(b.totalKg).toBeCloseTo(140 + 80 * (1 + 8 / 30) + 110 * (1 + 5 / 30), 6);
+    expect(b.diffKg).toBeNull();
+  });
+
+  test('割り当てがない・記録がそろわないときは null（「—」を出す）', () => {
+    expect(homeBig3(rows, {}, today)).toBeNull();
+    expect(homeBig3(rows.filter((r) => r.exerciseId !== 'dl'), assigned, today)).toBeNull();
+    expect(homeBig3([], assigned, today)).toBeNull();
+  });
+
+  test('先月との差の向きと文字', () => {
+    expect(signedChange(7.5)).toEqual({ dir: 'up', text: '+7.5' });
+    expect(signedChange(-2.46)).toEqual({ dir: 'down', text: '−2.5' });
+    expect(signedChange(0.04)).toEqual({ dir: 'flat', text: '±0' });
+    expect(signedChange(-0.04)).toEqual({ dir: 'flat', text: '±0' });
+  });
+});
 
 describe('今日の体調の2行目（目標体重まで）', () => {
   test('目標と体重があるときだけ。届いていれば届いたと出す。lb の表示', () => {

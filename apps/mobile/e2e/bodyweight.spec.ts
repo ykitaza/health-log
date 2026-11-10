@@ -39,14 +39,14 @@ test('回数だけの種目を割合つきで足して記録すると、体重 �
   await expect(page.getByRole('button', { name: `${NAME}を直す` })).toBeVisible();
   await expect(see(page, NOTE)).toBeVisible();
   await button(page, '戻る').click();
-  await expect(visible(page, 'volume-7d')).toContainText('0.00t');
+  await expect(visible(page, 'volume-week')).toContainText('0.00t');
   await expect(see(page, NOTE)).toBeVisible();
 
   // 体重を記録すると入る：70 × 90% ×（10 ＋ 8）= 1134kg
   await openBody(page);
   await enterBody(page, { weight: '70' });
   await goTab(page, 'ホーム');
-  await expect(visible(page, 'volume-7d')).toContainText('1.13t');
+  await expect(visible(page, 'volume-week')).toContainText('1.13t');
   await expect(homeCard(page, 'training')).toContainText('1種目 ・ 2セット ・ 1.13 t');
   await expect(see(page, NOTE)).toBeHidden();
 
@@ -61,7 +61,7 @@ test('回数だけの種目を割合つきで足して記録すると、体重 �
   await expect(see(page, '種目と部位の管理', { exact: true })).toBeVisible();
   await button(page, '戻る').click();
   await button(page, '戻る').click();
-  await expect(visible(page, 'volume-7d')).toContainText('0.63t');
+  await expect(visible(page, 'volume-week')).toContainText('0.63t');
 });
 
 test('初期の自重の種目は名前から決めた割合で、重量 × 回数の種目の編集には割合の欄がない', async ({ page }) => {
