@@ -13,7 +13,8 @@ async function input(page: Page, weight: string, reps: string) {
 
 test('推定1RM と割合の表、不正な値は「—」。単位は設定に従う', async ({ page }) => {
   await openApp(page);
-  await button(page, 'RM計算機').click();
+  // 入口はホームから外した（筋トレのタブへ移す）。ここは URL で開く
+  await page.goto('/rm');
   await expect(see(page, '計算式：重量 ×（1 ＋ 回数 ÷ 30）。1回なら重量そのもの')).toBeVisible();
   await expect(page.getByRole('tablist')).toBeHidden();
   await expect(see(page, '—', { exact: true })).toHaveCount(7); // 大きな数字と表の6行
@@ -26,14 +27,16 @@ test('推定1RM と割合の表、不正な値は「—」。単位は設定に�
   await input(page, '100', '2.5');
   await expect(oneRm(page)).toContainText('—');
 
-  await button(page, '戻る').click();
+  await page.goBack();
   await openSettings(page);
   await chooseUnit(page, 'lb');
   await button(page, '戻る').click();
-  await button(page, 'RM計算機').click();
+  // 単位の保存が終わってから開き直す（ホームの負荷量が lb になる）
+  await expect(page.getByTestId('volume-7d').filter({ visible: true })).toContainText('k lb');
+  await page.goto('/rm');
   await expect(page.getByRole('textbox', { name: '重量（lb）' })).toBeVisible();
   await input(page, '225', '5');
   await expect(oneRm(page)).toContainText('262.5lb');
-  await button(page, '戻る').click();
+  await page.goBack();
   await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 });

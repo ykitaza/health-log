@@ -38,9 +38,11 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await expect(homeCard(page, 'training')).toBeVisible();
   await expect(page.getByRole('tablist')).toBeVisible();
 
-  await button(page, 'RM計算機').click();
+  // RM計算機の入口はホームから外した（筋トレのタブへ移す）。ここは URL で開いて、タブバーが出ないことだけを見る
+  await page.goto('/rm');
+  await expect(see(page, 'RM計算機', { exact: true })).toBeVisible();
   await expect(page.getByRole('tablist')).toBeHidden();
-  await button(page, '戻る').click();
+  await page.goBack();
   await expect(page.getByRole('tablist')).toBeVisible();
 
   // 知らない道は「画面が見つかりません」からホームへ戻れる
