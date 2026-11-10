@@ -9,15 +9,11 @@ import { T } from '@/components/Text';
 import { ConfirmDialog, Header, IconButton } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
+import { big3Assignments, completeBig3 } from '@/lib/exercises';
 import { achievementScope, Big3Lifts, Highlight, Metric, NEXT_TITLES, ReportKind } from '@/lib/reports';
 import { colors } from '@/theme';
 
 const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先週より', monthly: '先月より', other: '前より' };
-
-/**
- * BIG3 に割り当てた種目。筋トレの担当が「種目の BIG3 の割り当て」を足したら、ここで読む（それまでは null で、BIG3 のタイルを出さない）
- */
-const BIG3_LIFTS: Big3Lifts | null = null;
 
 /**
  * レポートの中身。種類ごとに並びを変える（Figma の report-daily・report-weekly・report-monthly）。
@@ -30,7 +26,12 @@ const BIG3_LIFTS: Big3Lifts | null = null;
 export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   // 読み込み中（null）と、ないレポート（report が null）を分ける
-  const { data, error, reload, repos } = useFocusData(async (r) => ({ report: await r.reports.get(id) }), id);
+  // BIG3 に割り当てた種目（種目の BIG3 の役。割り当てる前は名前で決めたもの）。3つそろわなければ BIG3 のタイルを出さない
+  const { data, error, reload, repos } = useFocusData(async (r) => {
+    const [report, exercises] = await Promise.all([r.reports.get(id), r.catalog.listExercises({ includeHidden: true })]);
+    const lifts: Big3Lifts | null = completeBig3(big3Assignments(exercises));
+    return { report, lifts };
+  }, id);
   const [confirm, setConfirm] = useState(false);
   const { busy, run } = useBusy();
 
@@ -45,7 +46,7 @@ export default function ReportScreen() {
   const daily = report.kind === 'daily';
   const scope = achievementScope(report);
   const tiles = daily ? [] : report.highlights.filter((h): h is Highlight & { metric: Metric } => h.metric != null);
-  const big3 = scope?.type === 'month' && BIG3_LIFTS != null;
+  const big3 = scope?.type === 'month' && data.lifts != null;
   const remove = () => run(async (stayBusy) => {
     setConfirm(false);
     await repos.reports.remove(report.id);
@@ -71,7 +72,7 @@ export default function ReportScreen() {
         {(tiles.length > 0 || big3) && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="report-tiles">
             {tiles.map((h, i) => <MetricTile key={i} highlight={h} index={next()} vs={VS[report.kind]} animKey={report.id} />)}
-            {big3 && scope?.type === 'month' && <Big3Tile lifts={BIG3_LIFTS} start={scope.start} end={scope.end} index={next()} animKey={report.id} />}
+            {big3 && scope?.type === 'month' && <Big3Tile lifts={data.lifts} start={scope.start} end={scope.end} index={next()} animKey={report.id} />}
           </View>
         )}
         {report.links.length > 0 && (

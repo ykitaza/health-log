@@ -63,7 +63,7 @@ test('前回の表示と「前回をコピー」、自己ベスト', async ({ pa
   await openToday(page);
   await button(page, '種目を追加').click();
   // 選択の一覧に、前回のいちばん重いセットと何日前か
-  await expect(page.getByRole('button', { name: 'ベンチプレス 前回 82.5kg × 6 ・ 3日前' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ベンチプレス BIG3 前回 82.5kg × 6 ・ 3日前' })).toBeVisible();
   await chooseExercise(page, 'ベンチプレス');
 
   await expect(see(page, '前回 11月5日（木）')).toBeVisible();

@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { BodyweightRatioField } from '@/components/BodyweightRatio';
+import { Big3Field, FormVideoUrlField } from '@/components/ExerciseFields';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -11,6 +12,8 @@ import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { defaultRatio, parseRatioPct, ratioToPct } from '@/lib/bodyweight';
+import { big3Assignments, Big3Role } from '@/lib/exercises';
+import { parseFormVideoUrl } from '@/lib/limits';
 import type { RecordType } from '@/lib/sets';
 import { colors, fonts } from '@/theme';
 
@@ -19,7 +22,7 @@ const TYPES: { key: RecordType; title: string; body: string }[] = [
   { key: 'reps_only', title: '回数だけ', body: '腕立て伏せ、懸垂など自重の種目' },
 ];
 
-/** 種目の追加（名前、部位、記録のしかた。回数だけの種目は体重に対する割合も） */
+/** 種目の追加（名前、部位、BIG3 の役、フォームの動画のリンク、記録のしかた。回数だけの種目は体重に対する割合も） */
 export default function NewExerciseScreen() {
   const params = useLocalSearchParams<{ bodyPartId?: string }>();
   const repos = useRepos();
@@ -33,13 +36,21 @@ export default function NewExerciseScreen() {
   const ratio = ratioText ?? ratioToPct(defaultRatio(name));
   const [error, setError] = useState<string | null>(null);
   const [hiddenDup, setHiddenDup] = useState<HiddenDuplicateError | null>(null);
-  const { dialog, allowLeave } = useConfirmDiscard(name.trim() !== '', '入力した種目は追加されません。');
+  const [big3, setBig3] = useState<Big3Role | null>(null);
+  const [holders, setHolders] = useState<Partial<Record<Big3Role, string>>>({});
+  const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const { dialog, allowLeave } = useConfirmDiscard(name.trim() !== '' || url.trim() !== '', '入力した種目は追加されません。');
 
   useEffect(() => {
     repos.catalog.listBodyParts().then((ps) => {
       setParts(ps);
       setPartId((cur) => cur ?? ps[0]?.id ?? null);
     });
+    repos.catalog.listExercises({ includeHidden: true }).then((all) => {
+      const roles = big3Assignments(all);
+      setHolders(Object.fromEntries(Object.entries(roles).map(([r, eid]) => [r, all.find((e) => e.id === eid)?.name ?? ''])));
+    }).catch(() => {});
   }, [repos]);
 
   // 続けて押しても、同じ種目を2つ足さない
@@ -49,8 +60,12 @@ export default function NewExerciseScreen() {
     if (!partId) { setError('部位を選んでください'); return; }
     const pct = parseRatioPct(ratio);
     if (type === 'reps_only' && pct == null) { setRatioInvalid(true); setError('体重に対する割合を 0〜100 で入れてください'); return; }
+    const link = parseFormVideoUrl(url);
+    if ('error' in link) { setUrlError(link.error); setError(link.error); return; }
     try {
-      await repos.catalog.createExercise({ name, bodyPartId: partId, recordType: type, ...(type === 'reps_only' ? { bodyweightRatio: pct! / 100 } : {}) });
+      await repos.catalog.createExercise({
+        name, bodyPartId: partId, recordType: type, big3, formVideoUrl: link.value, ...(type === 'reps_only' ? { bodyweightRatio: pct! / 100 } : {}),
+      });
       stayBusy();
       allowLeave();
       router.back();
@@ -97,6 +112,8 @@ export default function NewExerciseScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {parts.map((p) => <Chip key={p.id} label={p.name} active={partId === p.id} onPress={() => setPartId(p.id)} />)}
       </View>
+      <Big3Field value={big3} onChange={setBig3} holders={holders} />
+      <FormVideoUrlField value={url} error={urlError} onChange={(t) => { setUrl(t); setUrlError(null); setError(null); }} />
       <T size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 6 }}>記録のしかた</T>
       <Card style={{ padding: 0 }}>
         {TYPES.map((t, i) => (

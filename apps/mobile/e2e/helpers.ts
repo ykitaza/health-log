@@ -158,17 +158,27 @@ export async function controlDb(page: Page) {
 /** ホームの小さなカード（今日のトレーニング・食事・体調） */
 export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
-/** タブの中の切り替え（筋トレの「今日」「履歴」、食事の「記録」「推移」、からだの「今日」「推移」） */
-export async function goPane(page: Page, name: '今日' | '履歴' | '記録' | '推移') {
+/** タブの中の切り替え（筋トレの「今日」「推移」、食事の「記録」「推移」、からだの「今日」「推移」） */
+export async function goPane(page: Page, name: '今日' | '記録' | '推移') {
   const t = page.getByRole('tab', { name, exact: true }).filter({ visible: true });
   await t.click();
   await expect(t).toHaveAttribute('aria-selected', 'true');
 }
 
-/** 筋トレのタブの「履歴」を開く（前の履歴／分析のタブの筋トレ） */
-export async function openTrainingHistory(page: Page) {
+/** 筋トレのタブの「推移」を開く（記録のカードとカレンダー、グラフ） */
+export async function openTrainingTrend(page: Page) {
   await goTab(page, '筋トレ');
-  await goPane(page, '履歴');
+  await goPane(page, '推移');
+}
+
+/** 推移の記録の、その日のカード */
+export const trendDay = (page: Page, date: string) => page.getByTestId(`trend-day-${date}`).filter({ visible: true });
+
+/** 筋トレのタブの右上の入口から RM計算機を開く */
+export async function openRm(page: Page) {
+  await goTab(page, '筋トレ');
+  await button(page, 'RM計算機').click();
+  await expect(see(page, 'RM計算機', { exact: true })).toBeVisible();
 }
 
 /** 食事のタブの「推移」（週のまとめ）を開く（前の履歴／分析のタブの食事） */

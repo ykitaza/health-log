@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { button, enterBody, goPane, goTab, homeCard, openApp, openBody, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
+import { button, enterBody, goPane, goTab, homeCard, openApp, openBody, openRm, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
 
 test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
   await openApp(page);
-  // タブはホーム・筋トレ・食事・からだの4つ（履歴は筋トレと食事のタブの中）
+  // タブはホーム・筋トレ・食事・からだの4つ（推移は筋トレ・食事・からだのタブの中）
   await expect(page.getByRole('tab')).toHaveCount(4);
   await expect(page.getByRole('tab')).toHaveText(['ホーム', '筋トレ', '食事', 'からだ']);
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
@@ -14,7 +14,7 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
 
   await goTab(page, '筋トレ');
   await expect(see(page, 'まだ種目がありません')).toBeVisible();
-  await goPane(page, '履歴');
+  await goPane(page, '推移');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
 
   // からだの歯車から設定へ行き、戻るとからだ
@@ -38,12 +38,11 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await expect(homeCard(page, 'training')).toBeVisible();
   await expect(page.getByRole('tablist')).toBeVisible();
 
-  // RM計算機の入口はホームから外した（筋トレのタブへ移す）。ここは URL で開いて、タブバーが出ないことだけを見る
-  await page.goto('/rm');
-  await expect(see(page, 'RM計算機', { exact: true })).toBeVisible();
+  // RM計算機は筋トレのタブの右上から開く。タブバーは出ず、戻ると筋トレ
+  await openRm(page);
   await expect(page.getByRole('tablist')).toBeHidden();
-  await page.goBack();
-  await expect(page.getByRole('tablist')).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
 
   // 知らない道は「画面が見つかりません」からホームへ戻れる
   await page.goto('/no-such-page');

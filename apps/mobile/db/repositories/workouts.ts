@@ -1,7 +1,7 @@
 import { ratioOf, weightOn, withBodyweight } from '@/lib/bodyweight';
 import type { DateKey } from '@/lib/date';
 import type { RecordType, SetInput } from '@/lib/sets';
-import type { TrainingSetRow } from '@/lib/training';
+import { menuFromDay, TrainingSetRow } from '@/lib/training';
 import { serializeWrites } from '../serial';
 import { bodyRepository } from './body';
 import type { Db, Deps } from '../types';
@@ -73,12 +73,14 @@ export function workoutRepository(db: Db, deps: Deps) {
     });
   }
 
+  async function getDay(date: DateKey): Promise<Entry[]> {
+    const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.date = ? ORDER BY w.sort_order, w.id`, [date]);
+    return withSets(rows);
+  }
+
   return serializeWrites(db, {
     /** その日の記録（実施した順） */
-    async getDay(date: DateKey): Promise<Entry[]> {
-      const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.date = ? ORDER BY w.sort_order, w.id`, [date]);
-      return withSets(rows);
-    },
+    getDay,
 
     async getEntry(id: string): Promise<Entry | null> {
       const rows = await db.getAllAsync<EntryRow>(`${ENTRY_SELECT} AND w.id = ?`, [id]);
@@ -96,6 +98,58 @@ export function workoutRepository(db: Db, deps: Deps) {
         `${ENTRY_SELECT} AND w.exercise_id = ? AND w.date < ? ORDER BY w.date DESC, w.sort_order DESC, w.id DESC LIMIT 1`, [exerciseId, beforeDate],
       );
       return (await withSets(rows))[0] ?? null;
+    },
+
+    /** いくつかの日の記録（日付の新しい順、その日の中は実施した順）。推移の記録のカードに使う */
+    async getDays(dates: DateKey[]): Promise<Entry[]> {
+      if (dates.length === 0) return [];
+      const rows = await db.getAllAsync<EntryRow>(
+        `${ENTRY_SELECT} AND w.date IN (${dates.map(() => '?').join(',')}) ORDER BY w.date DESC, w.sort_order, w.id`, dates,
+      );
+      return withSets(rows);
+    },
+
+    /** その日より前で、いちばん新しくトレーニングした日と、その日の記録（「前回のメニュー」）。なければ null */
+    async previousDay(beforeDate: DateKey): Promise<{ date: DateKey; entries: Entry[] } | null> {
+      const last = await db.getFirstAsync<{ date: string }>(
+        `SELECT w.date FROM workout_entries w
+         WHERE w.deleted_at IS NULL AND w.date < ?
+           AND EXISTS (SELECT 1 FROM workout_sets s WHERE s.entry_id = w.id AND s.deleted_at IS NULL)
+         ORDER BY w.date DESC LIMIT 1`, [beforeDate],
+      );
+      if (!last) return null;
+      const entries = (await getDay(last.date)).filter((e) => e.sets.length > 0);
+      return { date: last.date, entries };
+    },
+
+    /**
+     * 前回のメニューを写す（「同じメニューで始める」）。種目ごとに、重さと回数だけを未完了のセットとして入れる（menuFromDay）。
+     * 写す先の日に記録があれば断る（2回押しても二重にしない）
+     */
+    async copyDay(fromDate: DateKey, toDate: DateKey): Promise<void> {
+      const menu = menuFromDay(await getDay(fromDate));
+      if (menu.length === 0) throw new Error('写す記録がありません');
+      const now = deps.now().toISOString();
+      await db.withTransactionAsync(async () => {
+        const has = await db.getFirstAsync<{ n: number }>(
+          'SELECT COUNT(*) AS n FROM workout_entries WHERE date = ? AND deleted_at IS NULL', [toDate],
+        );
+        if ((has?.n ?? 0) > 0) throw new Error('この日にはもう種目があります');
+        for (const [order, e] of menu.entries()) {
+          const entryId = deps.newId();
+          await db.runAsync(
+            'INSERT INTO workout_entries (id, date, exercise_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [entryId, toDate, e.exerciseId, order, now, now],
+          );
+          for (const [i, st] of e.sets.entries()) {
+            await db.runAsync(
+              `INSERT INTO workout_sets (id, entry_id, set_index, weight_kg, reps, memo, done, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [deps.newId(), entryId, i, st.weightKg, st.reps, st.memo, st.done ? 1 : 0, now, now],
+            );
+          }
+        }
+      });
     },
 
     /**
@@ -213,5 +267,5 @@ export function workoutRepository(db: Db, deps: Deps) {
          ORDER BY w.date, w.sort_order, w.id, s.set_index, s.id`, [],
       );
     },
-  }, ['saveEntry', 'deleteEntry', 'moveEntry']);
+  }, ['saveEntry', 'deleteEntry', 'moveEntry', 'copyDay']);
 }
