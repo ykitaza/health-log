@@ -1,10 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 import {
-  addEntry, button, expectTrainingDay, goTab, moveToDate, openApp, openMealWeek, recordOn, see, swipe, tab, TODAY,
+  addEntry, button, expectTrainingDay, goPane, goTab, moveToDate, openApp, openMealWeek, recordOn, see, swipe, tab, TODAY,
 } from './helpers';
 
 // 筋トレの記録と食事の、日付の切り替え（前の日・次の日、「日を選ぶ」のシート、左右のスワイプ）。
-// スワイプの判定（横の動きの大きさと向き）は jest（lib/__tests__/swipe.test.ts）。ここは画面の流れ
+// スワイプの判定（横の動きの大きさと向き）、ゴムの抵抗の計算、ヒントを出すかは jest（lib/__tests__/swipe.test.ts）。ここは画面の流れ
 
 const picker = (page: Page) => page.getByTestId('day-picker');
 const pickDay = (page: Page, date: string) => picker(page).getByTestId(`day-${date}`);
@@ -131,4 +131,93 @@ test('食事の記録：日を選ぶシート（食事を記録した日に点�
   await pickDay(page, '2026-11-03').click();
   await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
   await expect(page.getByTestId('weekly-average-kcal').filter({ visible: true })).toContainText('300');
+});
+
+const hint = (page: Page) => see(page, '左右にスワイプで日を移れます');
+
+test('スワイプのヒント：開いたときに日付の下に出る（推移は週）。スワイプで日を動かしたら、どの画面でももう出さない', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, '筋トレ');
+  await expect(hint(page)).toBeVisible();
+  await goTab(page, '食事');
+  await expect(hint(page)).toBeVisible();
+  await goPane(page, '推移');
+  await expect(see(page, '左右にスワイプで週を移れます')).toBeVisible();
+  await goPane(page, '記録');
+
+  // 前・次のボタンで動かしても消えない（スワイプを知ったことにはしない）
+  await button(page, '前の日').click();
+  await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
+  await expect(hint(page)).toBeVisible();
+  // スワイプで動かすと消え、開き直しても出ない
+  await swipe(mealsArea(page), 'prev');
+  await expect(see(page, '11月6日（金）', { exact: true })).toBeVisible();
+  await expect(hint(page)).toHaveCount(0);
+
+  await moveToDate(page, TODAY);
+  await goTab(page, '筋トレ');
+  await expectTrainingDay(page, '11月8日（日）');
+  await goTab(page, '食事');
+  await goPane(page, '推移');
+  await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('swipe-hint')).toHaveCount(0);
+});
+
+test('スワイプのヒントは、スワイプしなくても1つの画面で3回まで', async ({ page }) => {
+  await openApp(page);
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) await moveToDate(page, TODAY);
+    await goTab(page, '筋トレ');
+    await expect(hint(page)).toBeVisible();
+  }
+  await moveToDate(page, TODAY);
+  await goTab(page, '筋トレ');
+  await expectTrainingDay(page, '11月8日（日）');
+  await expect(page.getByTestId('swipe-hint')).toHaveCount(0);
+  // ほかの画面は、まだ出す
+  await goTab(page, '食事');
+  await expect(hint(page)).toBeVisible();
+});
+
+test.describe('動きを減らす設定がオフ', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  /** 中身の横の位置（transform の translateX） */
+  const offsetX = (page: Page) => page.getByTestId('training-day-content').filter({ visible: true })
+    .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
+
+  // 指についてくる位置の計算は jest（dragOffset）。web のマウスでは途中の動きが間引かれることがあるので、ここは向きと大きさの範囲だけ見る
+  test('今日より先へはゴムのように小さく動いて戻り、日は変わらない。前へはボタンでもスワイプでも横にすべって変わる', async ({ page }) => {
+    await openApp(page);
+    await goTab(page, '筋トレ');
+    await expectTrainingDay(page, '11月8日（日）');
+    // 開いたときのヒントのずれ（左へずれて戻る）が終わるのを待つ
+    await expect(hint(page)).toBeVisible();
+    await expect.poll(() => offsetX(page)).toBe(0);
+    await page.addStyleTag({ content: '* { user-select: none !important; -webkit-user-select: none !important; }' });
+    const box = await trainingArea(page).boundingBox();
+    if (!box) throw new Error('スワイプする範囲が見えていません');
+    const x = box.x + box.width / 2, y = box.y + Math.min(box.height / 2, 200);
+
+    // 今日から左（次の日）へ 160 引く：指より小さく、上限より小さく動く（抵抗）
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - 160, y, { steps: 8 });
+    await expect.poll(() => offsetX(page)).toBeLessThan(-10);
+    const rubber = await offsetX(page);
+    expect(rubber).toBeGreaterThan(-72);
+    await page.mouse.up();
+    await expect.poll(() => offsetX(page)).toBe(0);
+    await expectTrainingDay(page, '11月8日（日）');
+
+    // 前の日のボタンでも、スワイプと同じ向きに横にすべって変わる（右へ出ていき、左から入る）
+    await button(page, '前の日').click();
+    await expect.poll(() => offsetX(page)).not.toBe(0);
+    await expectTrainingDay(page, '11月7日（土）');
+    await expect.poll(() => offsetX(page)).toBe(0);
+    await swipe(trainingArea(page), 'prev');
+    await expectTrainingDay(page, '11月6日（金）');
+    await expect.poll(() => offsetX(page)).toBe(0);
+    await expect(hint(page)).toHaveCount(0);
+  });
 });

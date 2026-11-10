@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_RECORD_LABEL, AiRecordButton, useChatChooser } from '@/components/ChatSheet';
-import { DateSwitcher, DayPickerSheet, SwipeArea } from '@/components/DayPicker';
+import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/components/DayPicker';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
@@ -19,9 +19,10 @@ import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { addDays, formatJpDate, todayKey } from '@/lib/date';
+import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, slotAt } from '@/lib/meals';
 import { TAB_AREAS } from '@/lib/reports';
+import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
 
@@ -38,13 +39,16 @@ export default function MealsScreen() {
   useEffect(() => { if (asked && asked <= todayKey()) { setDate(asked); setPane('day'); } }, [asked]);
   const { status } = useAuth();
   const [picking, setPicking] = useState(false);
-  // 前の日・次の日（ボタンとスワイプ）。未来の日へは進めない
-  const move = (d: 'prev' | 'next') => {
-    if (d === 'prev') setDate(addDays(date, -1));
-    else if (date < today) setDate(addDays(date, 1));
+  // 日を変えるときは、向きに合わせて中身を横へすべらせる（スワイプ・前後のボタン・日を選ぶ・Android の戻る）
+  const slide = usePageSlide();
+  // 前の日・次の日（ボタンとスワイプ）。未来の日へは進めない。すべり終わる前に続けて動かしても数を落とさないよう、最新の日から計算する
+  const move = (d: SwipeDirection) => setDate((cur) => (d === 'prev' ? addDays(cur, -1) : cur < today ? addDays(cur, 1) : cur));
+  const goTo = (to: DateKey) => {
+    const d = pageDirection(date, to);
+    if (d) slide.go(d, () => setDate(to));
   };
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
-  useBackToToday(date === today, () => setDate(today));
+  useBackToToday(date === today, () => goTo(today));
   const { data, error, reload, repos } = useFocusData(async (r) => {
     const [{ days, goal }, templates, yesterday] = await Promise.all([
       r.meals.summaries(date, date), r.meals.listTemplates(), r.meals.listDay(addDays(date, -1)),
@@ -82,11 +86,16 @@ export default function MealsScreen() {
         value={pane}
         onChange={setPane}
       />
-      {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<SwipeArea onSwipe={move} testID="meals-day">
-      <DateSwitcher
-        label={formatJpDate(date)} prevLabel="前の日" nextLabel="次の日" canNext={date < today}
-        onPrev={() => move('prev')} onNext={() => move('next')} onPick={() => setPicking(true)} style={{ marginTop: space.l }}
-      />
+      {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<SwipeArea
+        slide={slide} onSwipe={move} canNext={date < today} hint="meal-day" testID="meals-day"
+        header={(
+          <DateSwitcher
+            label={formatJpDate(date)} prevLabel="前の日" nextLabel="次の日" canNext={date < today}
+            onPrev={() => slide.go('prev', () => move('prev'))} onNext={() => slide.go('next', () => move('next'))}
+            onPick={() => setPicking(true)} style={{ marginTop: space.l }}
+          />
+        )}
+      >
 
       {day && (
         <Card style={{ marginTop: space.m }}>
@@ -155,7 +164,7 @@ export default function MealsScreen() {
         </T>
       )}
       </SwipeArea>)}
-      <DayPickerSheet visible={picking} kind="meal" value={date} today={today} onClose={() => setPicking(false)} onPick={setDate} />
+      <DayPickerSheet visible={picking} kind="meal" value={date} today={today} onClose={() => setPicking(false)} onPick={goTo} />
 
       <AddSheet
         slot={adding}

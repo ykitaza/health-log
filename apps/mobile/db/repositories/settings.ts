@@ -1,6 +1,7 @@
 import { Activity, isActivity, isSex, Sex } from '@/lib/autoGoal';
 import { ChatApp, isChatApp } from '@/lib/chat';
 import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS, WeeklyGoals } from '@/lib/goals';
+import type { SwipeHintKind, SwipeHintState } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -60,6 +61,13 @@ const LAST_CHAT_APP = 'chat.last_app';
 export type VolumeRange = 'week' | 'day';
 const VOLUME_RANGE = 'history.volume_range';
 
+/**
+ * 左右のスワイプのヒント（lib/swipe.ts）。出した回数は画面ごと、スワイプで日を動かしたかは全体で1つ。
+ * 端末だけに覚える（同期しない sync_meta に置く）
+ */
+const SWIPE_HINT_USED = 'swipe_hint.used';
+const swipeHintShownKey = (kind: SwipeHintKind) => `swipe_hint.shown.${kind}`;
+
 const KEYS: Record<keyof Settings, string> = {
   weightUnit: 'weight_unit',
   defaultSetCount: 'default_set_count',
@@ -110,6 +118,11 @@ export function settingsRepository(db: Db, deps: Deps) {
     if (value == null) await db.runAsync('DELETE FROM sync_meta WHERE key = ?', [key]);
     else await db.runAsync('INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [key, value]);
   };
+  /** 左右のスワイプのヒントの状態。覚えていない・壊れた回数は 0 */
+  const swipeHint = async (kind: SwipeHintKind): Promise<SwipeHintState> => {
+    const shown = num(await meta(swipeHintShownKey(kind)));
+    return { shown: shown != null && shown > 0 ? Math.floor(shown) : 0, used: (await meta(SWIPE_HINT_USED)) === '1' };
+  };
 
   return serializeWrites(db, {
     get,
@@ -135,6 +148,15 @@ export function settingsRepository(db: Db, deps: Deps) {
     volumeRange: async (): Promise<VolumeRange> => ((await meta(VOLUME_RANGE)) === 'day' ? 'day' : 'week'),
     /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
     setVolumeRange: (range: VolumeRange): Promise<void> => putMeta(VOLUME_RANGE, range),
+
+    swipeHint,
+    /** ヒントを1回出したことを数える。同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
+    async markSwipeHintShown(kind: SwipeHintKind): Promise<void> {
+      const { shown } = await swipeHint(kind);
+      await putMeta(swipeHintShownKey(kind), String(shown + 1));
+    },
+    /** スワイプで日（週）を動かした。もうヒントを出さない */
+    setSwipeHintUsed: (): Promise<void> => putMeta(SWIPE_HINT_USED, '1'),
 
     autoGoalWeight: async (): Promise<number | null> => num(await meta(AUTO_GOAL_WEIGHT)),
     setAutoGoalWeight: (kg: number | null): Promise<void> => putMeta(AUTO_GOAL_WEIGHT, kg == null ? null : String(kg)),
