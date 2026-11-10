@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { button, enter, goPane, goTab, homeCard, openApp, openBody, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
+import { button, enterBody, goPane, goTab, homeCard, openApp, openBody, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
 
 test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
   await openApp(page);
@@ -23,7 +23,7 @@ test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await openSettings(page);
   await expect(page.getByRole('tablist')).toBeHidden();
   await button(page, '戻る').click();
-  await expect(see(page, '自動で計算', { exact: true })).toBeVisible();
+  await expect(see(page, '計測を入れる', { exact: true })).toBeVisible();
   await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
 
   // ホームの歯車から設定へ行き、戻るとホーム
@@ -55,12 +55,12 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   await recordToday(page, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8', memo: '残る？' }] }]);
   await setBodyInfo(page, { height: '170' });
   await openBody(page);
-  await enter(page, '体重', '68.4');
+  await enterBody(page, { weight: '68.4' });
   await expect(see(page, '23.7', { exact: true })).toBeVisible();
 
   // からだのタブのまま再読み込みする
   await page.reload();
-  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toHaveValue('68.4');
+  await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('68.4');
   await goTab(page, 'ホーム');
   await expect(homeCard(page, 'training')).toContainText('1種目 ・ 1セット ・ 0.64 t');
   await expect(page.getByTestId('volume-total')).toContainText('0.64t');
@@ -68,8 +68,7 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
   await expect(see(page, '残る？')).toBeVisible();
   await openBody(page);
-  await expect(page.getByRole('textbox', { name: '体重', exact: true })).toHaveValue('68.4');
-  await expect(see(page, '自動で計算（身長 170cm）')).toBeVisible();
+  await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('68.4');
   await expect(see(page, '23.7', { exact: true })).toBeVisible();
 
   // 深い画面の URL を直接開いても動く
@@ -104,12 +103,12 @@ test('今のタブをもう一度押すと、いちばん上へ戻る（中で�
   await tab(page, 'ホーム').click();
   await expect(page.getByTestId('pull-notice')).toHaveCount(0);
 
-  // 食事の「週のまとめ」（タブの中の切り替え）
+  // 食事の「推移」（タブの中の切り替え）
   await goTab(page, '食事');
-  await goPane(page, '週のまとめ');
+  await goPane(page, '推移');
   await page.mouse.wheel(0, 2000);
   await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
   await tab(page, '食事').click();
   await expect.poll(() => scrollTop(page)).toBe(0);
-  await expect(page.getByRole('tab', { name: '週のまとめ', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
 });

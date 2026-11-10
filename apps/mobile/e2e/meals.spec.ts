@@ -1,10 +1,10 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, controlDb, enter, goTab, openApp, openBody, openMealWeek, see, setBodyInfo, TODAY } from './helpers';
+import { button, controlDb, enterBody, goTab, openApp, openBody, openMealWeek, see, setBodyInfo, TODAY } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
-const bmi = (page: Page) => page.getByRole('button', { name: 'BMIの推移' }).filter({ visible: true }).last();
+const bmi = (page: Page) => page.getByRole('button', { name: /^BMI .*BMIの推移を見る$/ }).filter({ visible: true });
 const totalKcal = (page: Page) => page.getByTestId('total-kcal').filter({ visible: true });
 
 /** 食事タブで、区分の「＋」から品目を入れて記録する */
@@ -143,7 +143,7 @@ test('目標の自動で計算：足りない項目を入れる → 値が入る
   await openApp(page);
   await setBodyInfo(page, { height: '170', goal: '65' });
   await openBody(page);
-  await enter(page, '体重', '68');
+  await enterBody(page, { weight: '68' });
   await expect(bmi(page)).toContainText('BMI23.5'); // 保存を待つ
   await goTab(page, '食事');
   await button(page, '食事の目標を見る・決める').click();
@@ -181,7 +181,7 @@ test('目標の自動で計算：足りない項目を入れる → 値が入る
 
   // 体重が 2% 以上変わると、計算し直すかを聞く（勝手に書き換えない）
   await openBody(page);
-  await enter(page, '体重', '70');
+  await enterBody(page, { weight: '70' });
   await expect(bmi(page)).toContainText('BMI24.2');
   await goTab(page, '食事');
   await button(page, '食事の目標を見る・決める').click();

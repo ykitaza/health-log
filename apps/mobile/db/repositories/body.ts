@@ -41,7 +41,16 @@ export function bodyRepository(db: Db, deps: Deps) {
     },
 
     /**
-     * 手入力の値を保存する（null を渡すと、その項目を消す）。今の値と同じ項目は書かない。
+     * その日の取り込み（Health Connect）だけから選んだ値（手入力があっても、取り込みの値）。計測を入れるシートの「取り込み 68.4 kg」。
+     * 取り込みがなければ null
+     */
+    async getImportedDay(date: DateKey): Promise<DailyBody | null> {
+      const rows = await db.getAllAsync<Row>(`${SELECT} AND date = ? AND source = 'health_connect'`, [date]);
+      return dailyBodyValues(rows.map(toLike))[0] ?? null;
+    },
+
+    /**
+     * 手入力の値を保存する（null を渡すと、その項目の手入力の値を消す。取り込みの値があれば、画面にはそれが出る）。今の値と同じ項目は書かない。
      * その日に手入力の行がなく、値がすべて空（null か空のメモ）なら、行を作らない
      */
     async saveManual(date: DateKey, patch: BodyPatch): Promise<void> {
@@ -79,19 +88,6 @@ export function bodyRepository(db: Db, deps: Deps) {
       );
     },
 
-    /**
-     * その日の項目を消す（画面の ×）。手入力の値を消し、その項目を持つ取り込みの行（1件に1つの値）も消す。
-     * 消した取り込みの行は、取り込み直しても戻らない（同じ external_id の行が消えたまま残るため）
-     */
-    async clearField(date: DateKey, field: keyof BodyValues): Promise<void> {
-      await repo.saveManual(date, { [field]: null });
-      const nowIso = deps.now().toISOString();
-      await db.runAsync(
-        `UPDATE body_records SET deleted_at = ?, updated_at = ?
-         WHERE deleted_at IS NULL AND source = 'health_connect' AND date = ? AND ${COLUMNS[field]} IS NOT NULL`,
-        [nowIso, nowIso, date],
-      );
-    },
   };
-  return serializeWrites(db, repo, ['saveManual', 'clearField']);
+  return serializeWrites(db, repo, ['saveManual']);
 }

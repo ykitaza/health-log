@@ -78,8 +78,12 @@ function useWidth(initial = 300) {
 
 type Point = { x: number; y: number };
 
-/** 折れ線グラフ。points の x は 0〜1 に正規化した位置 */
-export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey }: {
+/**
+ * 折れ線グラフ。points の x は 0〜1 に正規化した位置。
+ * avg を渡すと、灰色の細い線（7日の平均など。点は打たない）を記録の線の下に重ねる。
+ * goal を渡すと、目標の値が縦の範囲の中なら破線の横線と文字、範囲の外なら右下（下にあるとき）か右上（上にあるとき）に、向きの矢印を付けた文字を出す
+ */
+export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey, avg, goal }: {
   points: Point[];
   xLabels: { x: number; label: string }[];
   height?: number;
@@ -87,12 +91,14 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
   formatY?: (v: number) => string;
   /** これが変わったら描き直す（期間・項目など） */
   animKey?: string;
+  avg?: Point[];
+  goal?: { y: number; label: string };
 }) {
   const { progress, reduced } = useDrawProgress(animKey, duration.draw);
   const [width, onLayout] = useWidth();
   const left = showYAxis ? 40 : 4;
   const right = 8, top = 8, bottom = 22;
-  const ys = points.map((p) => p.y);
+  const ys = [...points, ...(avg ?? [])].map((p) => p.y);
   const ticks = niceTicks(Math.min(...ys), Math.max(...ys));
   const lo = ticks[0] ?? 0, hi = ticks[ticks.length - 1] ?? 1;
   const px = (x: number) => left + x * (width - left - right);
@@ -104,6 +110,15 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
   for (let i = 1; i < xy.length; i++) along.push(along[i - 1] + Math.hypot(xy[i].x - xy[i - 1].x, xy[i].y - xy[i - 1].y));
   const length = along[along.length - 1] || 1;
   const at = (i: number) => (xy.length > 1 ? along[i] / length : 1);
+  const avgXy = (avg ?? []).map((p) => ({ x: px(p.x), y: py(p.y) }));
+  let avgLength = 0;
+  for (let i = 1; i < avgXy.length; i++) avgLength += Math.hypot(avgXy[i].x - avgXy[i - 1].x, avgXy[i].y - avgXy[i - 1].y);
+  const goalIn = goal != null && goal.y >= lo && goal.y <= hi;
+  const goalText = goal && {
+    x: width - right,
+    y: goalIn ? py(goal.y) - 6 : goal.y < lo ? top + (height - top - bottom) - 6 : top + 12,
+    label: goalIn ? goal.label : `${goal.label} ${goal.y < lo ? '↓' : '↑'}`,
+  };
   return (
     <View onLayout={onLayout}>
       <Svg width={width} height={height}>
@@ -112,6 +127,17 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
         ))}
         {showYAxis && ticks.map((t) => (
           <SvgText key={`t${t}`} x={left - 6} y={py(t) + 4} fill={colors.sub} fontSize={11} fontFamily={fonts.num} textAnchor="end">{formatY(t)}</SvgText>
+        ))}
+        {goal && goalIn && (
+          <Line x1={left} x2={width - right} y1={py(goal.y)} y2={py(goal.y)} stroke={colors.sub} strokeWidth={1.5} strokeDasharray={[4, 4]} />
+        )}
+        {goalText && (
+          <SvgText x={goalText.x} y={goalText.y} fill={colors.sub} fontSize={12} fontFamily={fonts.regular} textAnchor="end">{goalText.label}</SvgText>
+        )}
+        {avgXy.length > 1 && (reduced ? (
+          <Polyline points={avgXy.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={colors.sub} strokeWidth={1.5} strokeLinejoin="round" />
+        ) : (
+          <DrawnLine points={avgXy.map((p) => `${p.x},${p.y}`).join(' ')} length={avgLength || 1} progress={progress} color={colors.sub} strokeWidth={1.5} />
         ))}
         {points.length > 1 && (reduced ? (
           <Polyline points={xy.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={colors.accent} strokeWidth={2.5} strokeLinejoin="round" />
@@ -217,10 +243,12 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
 }
 
 /** 左から右へ描かれていく線（線の長さだけの破線を、ずらしを減らして見せていく） */
-function DrawnLine({ points, length, progress }: { points: string; length: number; progress: SharedValue<number> }) {
+function DrawnLine({ points, length, progress, color = colors.accent, strokeWidth = 2.5 }: {
+  points: string; length: number; progress: SharedValue<number>; color?: string; strokeWidth?: number;
+}) {
   const props = useAnimatedProps(() => ({ strokeDashoffset: length * (1 - progress.get()) }));
   return (
-    <AnimatedPolyline points={points} fill="none" stroke={colors.accent} strokeWidth={2.5} strokeLinejoin="round"
+    <AnimatedPolyline points={points} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round"
       strokeDasharray={[length, length]} animatedProps={props} />
   );
 }

@@ -122,17 +122,18 @@ describe('差分', () => {
     expect(bodyRows(d).find((r) => r.external_id === 'w2')!.deleted_at).not.toBeNull();
   });
 
-  test('アプリで消した取り込みの記録は、Health Connect で直されても戻らない', async () => {
+  test('端末で消えている取り込みの記録（同期で消されたものなど）は、Health Connect で直されても戻らない', async () => {
+    // アプリの画面からは取り込みの記録を消さない（からだの欄を空にして保存しても、消えるのは手入力の値だけ）
     const d = await device();
     hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
     await runImport(d);
-    await d.r.body.clearField('2026-11-07', 'weightKg'); // 体組成の画面の ×
+    d.db.raw.prepare(`UPDATE body_records SET deleted_at = ? WHERE external_id = 'w1'`).run('2026-11-08T00:00:00.000Z');
     expect(await d.r.body.getDay('2026-11-07')).toBeNull();
     hc.put(weight('w1', '2026-11-06T22:00:00Z', 70.5));
     await runImport(d);
     expect(bodyRows(d)).toMatchObject([{ external_id: 'w1', weight_kg: 70, deleted_at: expect.any(String) }]);
-    // 消したのは本人の操作なので origin = app
-    expect(outbox(d).map((c) => [c.op, c.origin])).toEqual([['create', 'import'], ['delete', 'app']]);
+    // 直された取り込みを、送る変更に積まない（消した行の削除だけ）
+    expect(outbox(d).filter((c) => c.origin === 'import').map((c) => c.op)).toEqual(['create']);
   });
 
   test('トークンが切れていたら、最後に読んだ時刻から読み直す', async () => {
@@ -178,9 +179,12 @@ describe('手入力が先', () => {
     hc.put(bodyFat('f1', '2026-11-07T10:30:00Z', 17.2));
     await runImport(d);
     expect(await d.r.body.getDay('2026-11-07')).toMatchObject({ weightKg: 69, bodyFatPct: 17.2, imported: ['bodyFatPct'] });
-    // × で消すと、手入力の値と、その項目の取り込みの行の両方が消える
-    await d.r.body.clearField('2026-11-07', 'weightKg');
-    expect(await d.r.body.getDay('2026-11-07')).toMatchObject({ weightKg: null, bodyFatPct: 17.2 });
+    // 計測を入れるシートの「取り込み 68.5 kg」：手入力があっても、取り込みだけの値
+    expect(await d.r.body.getImportedDay('2026-11-07')).toMatchObject({ weightKg: 68.5, bodyFatPct: 17.2 });
+    // 体重の欄を空にして保存すると、手入力の値だけが消え、取り込みの値に戻る（取り込みの行は消さない）
+    await d.r.body.saveManual('2026-11-07', { weightKg: null });
+    expect(await d.r.body.getDay('2026-11-07')).toMatchObject({ weightKg: 68.5, bodyFatPct: 17.2, imported: ['weightKg', 'bodyFatPct'] });
+    expect(bodyRows(d).filter((r) => r.source === 'health_connect').every((r) => r.deleted_at == null)).toBe(true);
   });
 
   test('取り込んだ記録を手（MCP）で直した値は、次の取り込みで負けない（同期のあとも手の値）', async () => {

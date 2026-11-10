@@ -24,13 +24,13 @@ import { TAB_AREAS } from '@/lib/reports';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
 
-/** 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「週のまとめ」は週のふり返り */
+/** 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「推移」は週のふり返り（週のまとめ） */
 export default function MealsScreen() {
   const [date, setDate] = useState(todayKey);
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
   const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   const [adding, setAdding] = useState<Slot | null>(null);
-  // 上の切り替え：その日の「記録」と「週のまとめ」（前の履歴／分析のタブの食事）
+  // 上の切り替え：その日の「記録」と「推移」（週のまとめ。前の履歴／分析のタブの食事）
   const [pane, setPane] = useState<'day' | 'week'>('day');
   // ホームの食事のカードから、その日を指定して開いたとき
   const { date: asked } = useLocalSearchParams<{ date?: string }>();
@@ -71,7 +71,7 @@ export default function MealsScreen() {
     <Screen tab footer={footer}>
       <TabHeader title="食事" />
       <PrimaryTabs<'day' | 'week'>
-        options={[{ key: 'day', label: '記録', icon: 'meal' }, { key: 'week', label: '週のまとめ', icon: 'chart' }]}
+        options={[{ key: 'day', label: '記録', icon: 'meal' }, { key: 'week', label: '推移', icon: 'chart' }]}
         value={pane}
         onChange={setPane}
       />

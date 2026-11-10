@@ -81,7 +81,7 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   await expect(see(page, '11月7日（土） 懸垂')).toBeVisible();
   await goTab(page, 'からだ');
   await button(page, '前の日').click();
-  await expect(page.getByRole('textbox', { name: '体重', exact: true }).filter({ visible: true })).toHaveValue('71.3');
+  await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('71.3');
 
   // アプリで記録すると、少し待ってサーバーへ送る
   await goTab(page, 'ホーム');

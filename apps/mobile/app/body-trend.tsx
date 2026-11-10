@@ -1,13 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { LineSwatch } from '@/components/BodyTrend';
 import { CountUpText, LineChart } from '@/components/charts';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { BODY_METRICS, BodyMetric, metricValue } from '@/lib/body';
+import { BODY_METRICS, BodyMetric, goalProgress, metricValue, movingAverage } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { filterSince, Period, PERIOD_LABELS, periodStart } from '@/lib/training';
@@ -15,7 +16,7 @@ import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
 
 const METRICS = Object.keys(BODY_METRICS) as BodyMetric[];
-const WEIGHT_METRICS = new Set<BodyMetric>(['weight', 'fatMass', 'leanMass', 'muscleMass']);
+const WEIGHT_METRICS = new Set<BodyMetric>(['weight', 'fatMass', 'leanMass']);
 const PERIODS: Period[] = ['1m', '3m', '6m', '1y'];
 
 /** 体組成の項目の推移 */
@@ -42,6 +43,11 @@ export default function BodyTrendScreen() {
   const inRange = filterSince(points, from);
   const last = inRange[inRange.length - 1];
   const change = inRange.length >= 2 ? inRange[inRange.length - 1].value - inRange[0].value : null;
+  // 体重だけ：7日の平均の線（範囲より前の記録も入れて出す）と、目標までの残り（いちばん新しい記録から）
+  const weight = metric === 'weight';
+  const avg = weight ? filterSince(movingAverage(points), from) : [];
+  const goal = data?.settings.goalWeightKg ?? null;
+  const progress = weight && last && goal != null ? goalProgress(last.value, goal, null) : null;
 
   if (error) return <Screen><Header title={BODY_METRICS[metric].trendTitle} onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
@@ -74,9 +80,26 @@ export default function BodyTrendScreen() {
             )}
             <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)} 時点</T>
           </View>
+          {progress && (
+            <T variant="bodyM" color={colors.sub} testID="trend-goal">
+              {progress.direction === 'reached' ? '目標に届きました' : `目標まで あと ${fmt1(conv(progress.remaining))} ${unitLabel}`}
+            </T>
+          )}
           <Card style={{ marginTop: space.l }}>
             {inRange.length >= 2 ? (
-              <LineChart points={datePoints(inRange, (p) => conv(p.value), from, today)} xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`} />
+              <>
+                {weight && (
+                  <View style={s.legend}>
+                    <View style={s.legendItem}><LineSwatch color={colors.accent} dot /><T variant="bodyS" color={colors.sub}>記録</T></View>
+                    <View style={s.legendItem}><LineSwatch color={colors.sub} /><T variant="bodyS" color={colors.sub}>7日の平均</T></View>
+                  </View>
+                )}
+                <LineChart
+                  points={datePoints(inRange, (p) => conv(p.value), from, today)}
+                  avg={weight ? datePoints(avg, (p) => conv(p.value), from, today) : undefined}
+                  xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`}
+                />
+              </>
             ) : (
               <T variant="bodyM" color={colors.sub}>記録が2日以上になると、グラフが出ます</T>
             )}
@@ -99,3 +122,8 @@ export default function BodyTrendScreen() {
     </Screen>
   );
 }
+
+const s = StyleSheet.create({
+  legend: { flexDirection: 'row', gap: space.l, marginBottom: space.s },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+});
