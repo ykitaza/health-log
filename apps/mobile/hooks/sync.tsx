@@ -6,6 +6,7 @@ import { onLocalWrite } from '@/db/serial';
 import { createAppSync } from '@/lib/sync/app';
 import type { SyncErrorCode } from '@/lib/sync/engine';
 import { notifyRemoteChange } from '@/lib/sync/events';
+import type { Received } from '@/lib/sync/received';
 import { PULL_DONE, PULL_SYNCING, startPull, SYNC_FAILED } from '@/lib/sync/status';
 import { useAuth } from './auth';
 
@@ -25,6 +26,11 @@ export type SyncStatus = {
   error: SyncErrorCode | null;
   /** 続けて失敗した回数（成功したら 0）。ホームの知らせを出すかに使う */
   failures: number;
+  /**
+   * 最後に、ほかから食事か筋トレを受け取った同期の件数（ホームの「食事を2件、筋トレを1件取り込みました」）。
+   * 受け取るたびに id が増える。0件の同期では変えない
+   */
+  received: { id: number; counts: Received } | null;
   syncNow: () => void;
   /** 前と違うアカウントでログインしたとき、端末の記録をどうするかを決めて、同期を始める */
   switchAccount: (mode: AccountSwitch) => Promise<void>;
@@ -41,6 +47,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [counts, setCounts] = useState({ pending: 0, rejected: 0 });
   const [error, setError] = useState<SyncErrorCode | null>(null);
   const [failures, setFailures] = useState(0);
+  const [received, setReceived] = useState<SyncStatus['received']>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -60,6 +67,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setSyncing(false);
       setError(outcome.ok ? null : outcome.error);
       setFailures((n) => (outcome.ok ? 0 : n + 1));
+      if (outcome.ok && (outcome.received.meals > 0 || outcome.received.training > 0)) {
+        setReceived((prev) => ({ id: (prev?.id ?? 0) + 1, counts: outcome.received }));
+      }
       void refresh();
     },
   }), [store, api, refresh]);
@@ -101,8 +111,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [api, store, status, scheduler, refresh]);
 
   const value = useMemo(
-    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, failures, syncNow, switchAccount }),
-    [syncing, lastSyncedAt, counts, error, failures, syncNow, switchAccount],
+    () => ({ syncing, lastSyncedAt, pending: counts.pending, rejected: counts.rejected, error, failures, received, syncNow, switchAccount }),
+    [syncing, lastSyncedAt, counts, error, failures, received, syncNow, switchAccount],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }
@@ -114,7 +124,7 @@ export function useSync(): SyncStatus {
 }
 
 /** 知らせ（スナックバー）を出しておく長さ */
-const NOTICE_MS = 4_000;
+export const NOTICE_MS = 4_000;
 
 /** 引っぱったあとの知らせ（スナックバー）。retry なら「やり直す」を添える */
 export type PullNotice = { message: string; retry: boolean };

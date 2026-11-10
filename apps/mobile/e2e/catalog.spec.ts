@@ -1,9 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, goPane, goTab, openApp, openSettings, recordToday, see, tab } from './helpers';
+import { button, chooseExercise, goPane, goTab, openApp, openSettings, recordToday, see, tab, recordFromHome } from './helpers';
 
 /** ホーム → 今日のトレーニング → 種目の選択 */
 async function openSelect(page: Page) {
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await button(page, '種目を追加').click();
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
 }

@@ -1,9 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
-import { addEntry, button, chooseExercise, controlDb, fillSets, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see } from './helpers';
+import { addEntry, button, chooseExercise, controlDb, fillSets, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see, recordFromHome } from './helpers';
 
 /** ホームから今日のトレーニングを開く */
 async function openToday(page: Page) {
-  await button(page, '今日のトレーニングを追加').click();
+  await recordFromHome(page, 'training');
   await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
 }
 
