@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, homeCard, openApp, recordFromHome, recordOn, recordToday, moveToDate, setBodyInfo, TODAY, see, tab } from './helpers';
+import { button, expectTrainingDay, goTab, homeCard, openApp, recordFromHome, recordOn, recordToday, moveToDate, setBodyInfo, TODAY, see, tab } from './helpers';
 
 // 今週の負荷量・日数の計算は jest（lib/__tests__/screen-logic.test.ts の「ホームの数字」）、BIG3 の合計は lib/__tests__/home.test.ts。ここは画面に出ること
 
@@ -68,9 +68,9 @@ test('記録したあとの今週の負荷量のカード、カレンダーの�
   // 今日のトレーニングのカード：2種目・4セット・1980kg
   await expect(homeCard(page, 'training')).toContainText('2種目 ・ 4セット ・ 1.98 t');
 
-  // カードを押すと、今日のトレーニングが開く。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
+  // カードを押すと、筋トレのタブの記録の今日が開く。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
   await homeCard(page, 'training').click();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, '11月8日（日）');
   await expect(see(page, '推定1RM 101.3kg')).toBeVisible();
   await expect(see(page, '80.0 kg × 8 回')).toHaveCount(2);
   await expect(see(page, '70.0 kg × 10 回')).toBeVisible();

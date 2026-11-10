@@ -197,6 +197,9 @@ export async function swipe(scope: Locator, direction: 'prev' | 'next', dy = 0) 
   const box = await scope.boundingBox();
   if (!box) throw new Error('スワイプする範囲が見えていません');
   const page = scope.page();
+  // web ではマウスで引くと文字が選ばれ、react-native-web は選ばれた時点で指の操作を打ち切る（Android の指では起きない）。
+  // スワイプを使うページでは、文字を選べなくする
+  await page.addStyleTag({ content: '* { user-select: none !important; -webkit-user-select: none !important; }' });
   const x = box.x + box.width / 2, y = box.y + Math.min(box.height / 2, 200);
   const dx = direction === 'prev' ? 160 : -160;
   await page.mouse.move(x, y);
