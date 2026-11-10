@@ -31,6 +31,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `setting` | 設定（値は文字列。サーバーは中身を確かめず、知らない名前も受け付ける。読むのは目標の計算の `height_cm`・`goal_weight_kg`・`activity_level` と、`period_overview` の今週の目標 `weekly_goal_training_days`・`weekly_goal_meal_days`・`weekly_goal_sleep_days`） | 設定の名前（`weight_unit` など） | `training.*` |
 | `sleep_session` | 睡眠（Health Connect の取り込みだけ。起きた日・寝た時刻・起きた時刻・眠っていた分・起きていた分） | 取り込みの ID（下の「Health Connect の取り込み」） | `training.*` |
 | `heart_rate_day` | 心拍の1日のまとめ（Health Connect の取り込みだけ。安静時・平均・最低・最高・サンプルの数） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
+| `step_day` | 歩数の1日の合計（Health Connect の取り込みだけ。`date`・`steps`。1〜1,000,000） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
 | `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩・つながり・目標の見直し） | UUID | `training.*` |
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です

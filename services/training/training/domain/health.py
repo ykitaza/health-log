@@ -1,11 +1,11 @@
-"""睡眠と心拍のまとめ（アプリが Health Connect から取り込んだものを読むだけ）。アプリの体組成のタブと同じ選び方にする
+"""睡眠・心拍・歩数のまとめ（アプリが Health Connect から取り込んだものを読むだけ）。アプリの体組成のタブと同じ選び方にする
 （apps/mobile/db/repositories/health.ts）：睡眠は起きた日ごとに足し、寝た時刻・起きた時刻はいちばん長い睡眠のもの。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from training.domain.model import HeartRateDay, SleepSession
+from training.domain.model import HeartRateDay, SleepSession, StepDay
 
 
 @dataclass(frozen=True)
@@ -36,5 +36,10 @@ def average(values: list[float]) -> float | None:
 
 
 def heart_rate_days_between(days: list[HeartRateDay], start: str, end: str) -> list[HeartRateDay]:
+    """期間（両端を含む）の日（古い順）。"""
+    return sorted((d for d in days if start <= d.date <= end), key=lambda d: d.date)
+
+
+def step_days_between(days: list[StepDay], start: str, end: str) -> list[StepDay]:
     """期間（両端を含む）の日（古い順）。"""
     return sorted((d for d in days if start <= d.date <= end), key=lambda d: d.date)

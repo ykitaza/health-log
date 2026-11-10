@@ -126,7 +126,8 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
 
 def test_筋トレの種類は_training_の_scope():
     assert REGISTRY.types_in({"training"}) == {
-        "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session", "heart_rate_day"}
+        "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session", "heart_rate_day",
+        "step_day"}
     assert REGISTRY.types_in({"meals"}) == set()
 
 
@@ -171,3 +172,23 @@ def test_心拍の日のまとめ_受け付ける範囲():
     # サンプルそのものは受け取らない
     rejection = REGISTRY.parse_change(raw({**day, "samples_list": [60, 61]}), set(REGISTRY.specs), "pixel")
     assert isinstance(rejection, Rejection) and rejection.code == "invalid_fields"
+
+
+def test_歩数の日の合計_受け付ける範囲():
+    def raw(fields, op="create"):
+        return {"change_id": str(uuid.uuid4()), "entity_type": "step_day", "entity_id": "x", "op": op,
+                "fields": fields, "changed_at": "2026-11-08T09:00:00Z", "origin": "import"}
+
+    day = {"date": "2026-11-07", "steps": 8240}
+    assert isinstance(REGISTRY.parse_change(raw(day), set(REGISTRY.specs), "pixel"), Change)
+    assert isinstance(REGISTRY.parse_change(raw({**day, "steps": 1000000}), set(REGISTRY.specs), "pixel"), Change)
+    for bad in ({"steps": 0}, {"steps": 1000001}, {"steps": 1.5}, {"steps": None}, {"date": "11/07"}):
+        assert isinstance(REGISTRY.parse_change(raw({**day, **bad}), set(REGISTRY.specs), "pixel"), Rejection), bad
+    rejection = REGISTRY.parse_change(raw({"date": "2026-11-07"}), set(REGISTRY.specs), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "missing_fields"
+    # 1件ごとの記録は受け取らない
+    rejection = REGISTRY.parse_change(raw({**day, "records": [{"count": 100}]}), set(REGISTRY.specs), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "invalid_fields"
+    # meals の scope だけでは書けない
+    rejection = REGISTRY.parse_change(raw(day), REGISTRY.types_in({"meals"}), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"

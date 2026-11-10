@@ -88,10 +88,10 @@ def test_食事と筋トレとレポートとログアウトのツールが1つ�
     names = run(server, ALL_SCOPES, body)
     assert {"record_meal", "today_status", "set_day_type", "weekly_review", "record_weight"} <= names
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
-            "sleep_summary", "heart_rate_summary"} <= names
+            "sleep_summary", "heart_rate_summary", "step_summary"} <= names
     assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
     assert {"logout", "period_overview", "meal_summary"} <= names
-    assert len(names) == 17 + 14 + 4 + 1 + 1
+    assert len(names) == 17 + 15 + 4 + 1 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):
@@ -208,7 +208,7 @@ def app_change(engine, entity_type, entity_id, fields):
                                    "2026-11-08T09:00:00.000Z", "app", "pixel")])
 
 
-def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_心拍_目標(server):
+def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_心拍_歩数_目標(server):
     engine = server["engine"]
     for key, value in [("goal_weight_kg", "65"), ("weekly_goal_training_days", "3"), ("weeklyGoalMealDays", "5"),
                        ("weekly_goal_sleep_days", "0"), ("rest_timer_seconds", "90")]:
@@ -218,6 +218,9 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
         "asleep_min": 440, "awake_min": 10, "source": "health_connect"})
     app_change(engine, "heart_rate_day", "h1", {"date": "2026-11-03", "resting_bpm": 55, "samples": 10})
     app_change(engine, "heart_rate_day", "h2", {"date": "2026-11-04", "resting_bpm": None, "samples": 0})
+    app_change(engine, "step_day", "st1", {"date": "2026-11-03", "steps": 8240})
+    app_change(engine, "step_day", "st2", {"date": "2026-11-05", "steps": 5001})
+    app_change(engine, "step_day", "st-out", {"date": "2026-11-01", "steps": 20000})  # 期間の外
 
     async def body(client):
         data(await client.call_tool("set_goals", GOALS))
@@ -258,6 +261,9 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
         {"date": "2026-11-03", "asleep_min": 440, "bedtime": "2026-11-02T23:00+09:00", "wake_time": "2026-11-03T06:30+09:00"}]}
     assert week["heart_rate"] == {"days_recorded": 1, "average_resting_bpm": 55, "days": [
         {"date": "2026-11-03", "resting_bpm": 55}]}
+    assert week["steps"] == {"days_recorded": 2, "average_steps": 6621, "days": [
+        {"date": "2026-11-03", "steps": 8240}, {"date": "2026-11-05", "steps": 5001}]}
+    assert today["steps"] == {"days_recorded": 0, "average_steps": None, "days": []}
     goals = week["goals"]
     assert goals["meals"]["policy"] == "bulk" and goals["goal_weight_kg"] == 65
     assert goals["weekly"] == {"training_days": 3, "meal_days": 5, "sleep_days": 0}

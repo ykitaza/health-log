@@ -765,6 +765,21 @@ components:
           maximum: 1000000
           description: その日のサンプルの数。サンプルそのものは送らない
       description: '心拍の1日のまとめ（Health Connect の HeartRate・RestingHeartRate をその日について集計したもの。アプリの取り込みだけが作る。origin: import）。サンプルがない日は avg_bpm・min_bpm・max_bpm が null。create では date, samples が要る。update では変えた項目だけを送る'
+    StepDayFields:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-08'
+          description: 端末の暦の日付。entity_id は日付から決める（uuid5(取り込みの名前空間, "hc-steps-day:" + 日付)）
+        steps:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: その日の歩数の合計（Health Connect の集計。複数のアプリが同じ時間を書いた重なりは除かれている）。1件ごとの記録は送らない
+      description: '歩数の1日の合計（Health Connect の Steps をその日について集計したもの。アプリの取り込みだけが作る。origin: import）。create では date, steps が要る。update では変えた項目だけを送る'
     ReportTone:
       type: string
       enum:
@@ -950,6 +965,7 @@ components:
       - setting
       - sleep_session
       - heart_rate_day
+      - step_day
       - report
       description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外（report も）は training.* の scope で扱う
     MealChange:
@@ -1642,6 +1658,59 @@ components:
         fields:
           $ref: '#/components/schemas/HeartRateDayFields'
           description: create・update のとき。delete・restore では送らない
+    StepDayChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: step_day
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/StepDayFields'
+          description: create・update のとき。delete・restore では送らない
     ReportChange:
       type: object
       additionalProperties: false
@@ -1708,6 +1777,7 @@ components:
       - $ref: '#/components/schemas/SettingChange'
       - $ref: '#/components/schemas/SleepSessionChange'
       - $ref: '#/components/schemas/HeartRateDayChange'
+      - $ref: '#/components/schemas/StepDayChange'
       - $ref: '#/components/schemas/ReportChange'
       discriminator:
         propertyName: entity_type
@@ -1725,6 +1795,7 @@ components:
           setting: '#/components/schemas/SettingChange'
           sleep_session: '#/components/schemas/SleepSessionChange'
           heart_rate_day: '#/components/schemas/HeartRateDayChange'
+          step_day: '#/components/schemas/StepDayChange'
           report: '#/components/schemas/ReportChange'
     PushRequest:
       type: object

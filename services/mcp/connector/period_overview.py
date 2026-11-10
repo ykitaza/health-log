@@ -1,6 +1,6 @@
 """期間の材料を1回で読むツール（period_overview）。レポート（日・週・月のまとめ）を書くチャットが、何度もツールを呼ばずに済むようにする。
 
-筋トレ・食事・体組成・睡眠・心拍と目標をまとめるので、どのコンテキストにも属さない。中身は各コンテキストのユースケースと出力の形を使い、
+筋トレ・食事・体組成・睡眠・心拍・歩数と目標をまとめるので、どのコンテキストにも属さない。中身は各コンテキストのユースケースと出力の形を使い、
 ここでは期間を確かめて並べるだけにする（つなぐのは services/mcp/main.py）。
 返す量が大きくなりすぎないよう、期間は31日まで、種目は推定1RM の大きい順に20件まで、体組成は体重と体脂肪率だけにする。
 """
@@ -56,6 +56,7 @@ def register_overview_tools(
         - meals：日ごとの kcal・PFC と記録の有無、筋トレの日か、その日の目標 kcal、記録した日の平均と目標との差
         - body：体重・体脂肪率の日ごとの値と期間の平均、end までの28日の体重の週あたりの変化
         - sleep：起きた日ごとの眠っていた時間と寝た・起きた時刻、平均。heart_rate：安静時心拍の日ごとの値と平均
+        - steps：日ごとの歩数の合計と、記録がある日の平均（Health Connect の取り込み。記録がない日は含めない）
         - goals：食事の目標（meals）、目標体重（goal_weight_kg）、今週の目標（weekly。筋トレの回数・食事を記録する日数・
           7時間以上寝る日数。週の日数で、0 は目標を切っている、null は未設定）
         数字はこの結果の値だけを使い、推測で作らない。達成の数字（目標に対する回数など）はアプリが記録から計算して見せるので、
@@ -91,6 +92,7 @@ def register_overview_tools(
             "body": training_views.period_body(await training.body_progress(sub, s, e)),
             "sleep": training_views.period_sleep(await training.sleep_summary(sub, s, e)),
             "heart_rate": training_views.period_heart_rate(await training.heart_rate_summary(sub, s, e)),
+            "steps": training_views.period_steps(await training.step_summary(sub, s, e)),
             "goals": {
                 "meals": nutrition_goal,
                 # アプリの設定の目標体重。なければ食事の目標の目標体重（suggest_goals と同じ順）

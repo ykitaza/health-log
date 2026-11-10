@@ -20,7 +20,7 @@ from sync.store import BY_DAY_INDEX, InMemorySyncStore
 APP_CLIENT = "app-client"
 MEALS = {"meal", "meal_item", "meal_template", "nutrition_goal", "day_type"}
 TRAINING = {"body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session",
-            "heart_rate_day", "report"}  # レポートは筋トレの scope で扱う（reports/infrastructure/sync_entities.py）
+            "heart_rate_day", "step_day", "report"}  # レポートは筋トレの scope で扱う（reports/infrastructure/sync_entities.py）
 
 
 def event(method, path, sub="cognito-sub-1", scope="torelog-api/meals.read torelog-api/meals.write "

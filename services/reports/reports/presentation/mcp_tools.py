@@ -50,7 +50,7 @@ READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
 INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
-「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary など）を足して読む。
+「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 
@@ -80,7 +80,7 @@ AreaName = Literal["training", "meals", "body", "sleep"]
 
 class HighlightInput(BaseModel):
     area: AreaName = Field(
-        description="分野：training（筋トレ）、meals（食事）、body（体組成）、sleep（睡眠・心拍）")
+        description="分野：training（筋トレ）、meals（食事）、body（体組成・歩数）、sleep（睡眠・心拍）")
     tone: ToneName = Field(description="その分野の調子。good（良い）、steady（変わらない）、caution（気をつけたい）")
     text: str = Field(min_length=1, max_length=MAX_HIGHLIGHT_TEXT, description="一文で。例：脚の日が2回に増えた")
     metric: MetricInput | None = Field(None, description="その分野の主な数字（あれば1つ）")
@@ -141,7 +141,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
 
         「今日のまとめを作って」「今週のまとめを作って」「月のふり返りをレポートにして」「この分析を残して」と頼まれたときに呼ぶ。
         先に period_overview で期間の材料を読み、それにもとづいて書く（くわしくは get_workout、today_status、weekly_training_review、
-        body_progress、sleep_summary、heart_rate_summary など）。数字（metric の value・delta）は記録のツールが返したものだけを使い、推測で作らない。
+        body_progress、sleep_summary、heart_rate_summary、step_summary など）。数字（metric の value・delta）は記録のツールが返したものだけを使い、推測で作らない。
         達成の数字（今日の達成、今週の目標の達成、体の変化のグラフ）はアプリが記録から計算して見せるので、書くのは見出し・分野ごとの一言・
         つながり・次の一歩・目標の見直しにする。
         種類ごとに書くこと：

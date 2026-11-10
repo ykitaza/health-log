@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from training.domain import body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
-from training.domain.model import HeartRateDay, SetRow, TraineeId, Workout
+from training.domain.model import HeartRateDay, SetRow, StepDay, TraineeId, Workout
 from training.domain.ports import TrainingRepository
 
 
@@ -59,6 +59,12 @@ class SleepSummary:
 class HeartRateSummary:
     days: list[HeartRateDay]  # 期間の中の、日ごとのまとめ（古い順。記録がない日は含めない）
     average_resting_bpm: float | None  # 安静時心拍がある日の平均
+
+
+@dataclass(frozen=True)
+class StepSummary:
+    days: list[StepDay]  # 期間の中の、日ごとの合計（古い順。記録がない日は含めない）
+    average_steps: float | None  # 記録がある日の平均
 
 
 class TrainingQueries:
@@ -138,3 +144,7 @@ class TrainingQueries:
     async def heart_rate_summary(self, subject: str, start: str, end: str) -> HeartRateSummary:
         days = health.heart_rate_days_between(await self.repository.heart_rate_days(TraineeId(subject)), start, end)
         return HeartRateSummary(days, health.average([d.resting_bpm for d in days if d.resting_bpm is not None]))
+
+    async def step_summary(self, subject: str, start: str, end: str) -> StepSummary:
+        days = health.step_days_between(await self.repository.step_days(TraineeId(subject)), start, end)
+        return StepSummary(days, health.average([d.steps for d in days]))
