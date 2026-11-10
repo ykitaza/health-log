@@ -1,4 +1,4 @@
-import { averageWeight, bmi, fatMass, goalProgress, leanMass, metricValue, muscleMass, weeklyPace, weightMovingAverage } from '../body';
+import { averageBetween, bmi, fatMass, goalProgress, leanMass, metricValue, movingAverage, muscleMass, weeklyPace } from '../body';
 
 test('体組成の計算（68.4kg・16.2%・筋肉率33.5%・身長170cm）', () => {
   expect(bmi(68.4, 170)).toBeCloseTo(23.67, 2);
@@ -33,24 +33,24 @@ test('目標体重まで', () => {
 
 test('体重の7日の移動平均：その日までの7日（その日を含む）にある記録の平均。記録のない日は出さない', () => {
   const pts = [
-    { date: '2026-11-08', weightKg: 68 }, // 並びが崩れていても古い順にする
-    { date: '2026-11-01', weightKg: 70 },
-    { date: '2026-11-02', weightKg: 69 },
-    { date: '2026-11-07', weightKg: 68.5 },
+    { date: '2026-11-08', value: 68 }, // 並びが崩れていても古い順にする
+    { date: '2026-11-01', value: 70 },
+    { date: '2026-11-02', value: 69 },
+    { date: '2026-11-07', value: 68.5 },
   ];
-  expect(weightMovingAverage(pts)).toEqual([
-    { date: '2026-11-01', avgKg: 70 },
-    { date: '2026-11-02', avgKg: 69.5 },
-    { date: '2026-11-07', avgKg: expect.closeTo((70 + 69 + 68.5) / 3, 10) },
+  expect(movingAverage(pts)).toEqual([
+    { date: '2026-11-01', value: 70 },
+    { date: '2026-11-02', value: 69.5 },
+    { date: '2026-11-07', value: expect.closeTo((70 + 69 + 68.5) / 3, 10) },
     // 11/1 は7日の外（11/2〜11/8）
-    { date: '2026-11-08', avgKg: expect.closeTo((69 + 68.5 + 68) / 3, 10) },
+    { date: '2026-11-08', value: expect.closeTo((69 + 68.5 + 68) / 3, 10) },
   ]);
-  expect(weightMovingAverage(pts, 2).at(-1)).toEqual({ date: '2026-11-08', avgKg: 68.25 });
-  expect(weightMovingAverage([])).toEqual([]);
+  expect(movingAverage(pts, 2).at(-1)).toEqual({ date: '2026-11-08', value: 68.25 });
+  expect(movingAverage([])).toEqual([]);
 });
 
 test('期間の体重の平均：両端を含み、記録のある日だけで出す。なければ null', () => {
-  const pts = [{ date: '2026-11-01', weightKg: 70 }, { date: '2026-11-03', weightKg: 69 }, { date: '2026-11-10', weightKg: 60 }];
-  expect(averageWeight(pts, '2026-11-01', '2026-11-03')).toBe(69.5);
-  expect(averageWeight(pts, '2026-11-04', '2026-11-09')).toBeNull();
+  const pts = [{ date: '2026-11-01', value: 70 }, { date: '2026-11-03', value: 69 }, { date: '2026-11-10', value: 60 }];
+  expect(averageBetween(pts, '2026-11-01', '2026-11-03')).toBe(69.5);
+  expect(averageBetween(pts, '2026-11-04', '2026-11-09')).toBeNull();
 });

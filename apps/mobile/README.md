@@ -112,7 +112,7 @@ EAS Build で APK を作って Pixel に入れ、JS の変更は EAS Update で�
 | `components/` | 画面で使う部品（文字、カード、アイコン、カレンダー、グラフ） |
 | `hooks/` | 画面から DB を読む処理（`data.ts`。週・日の達成と、まだ作っていないまとめも）、入力の途中で戻るときの確認（`confirmDiscard.tsx`）、ログインの状態（`auth.tsx`）、同期（`sync.tsx`）、Health Connect の連携（`healthConnect.tsx`） |
 | `db/` | SQLite。表の定義（`migrations.ts`）、初期の部位と種目（`seed.ts`）、読み書き（`repositories/`）、同期する種類と outbox のトリガー（`syncSpec.ts`）。書き込みは1つずつ順に行う（`serial.ts`） |
-| `lib/` | 計算と変換（負荷量、推定1RM、体組成と体重の移動平均、週・日の達成（`goals.ts`）、まだ作っていないまとめ（`reports.ts`）、単位、日付、入力の範囲、CSV）、ログインのトークンの扱い（`auth/`）、アプリ用の API のクライアント（`api.ts`）、同期の流れといつ動かすか（`sync/`）、Health Connect の取り込み（`healthConnect/`） |
+| `lib/` | 計算と変換（負荷量、推定1RM、体組成と移動平均、週・日の達成（`goals.ts`）、まだ作っていないまとめ（`reports.ts`）、単位、日付、入力の範囲、CSV）、ログインのトークンの扱い（`auth/`）、アプリ用の API のクライアント（`api.ts`）、同期の流れといつ動かすか（`sync/`）、Health Connect の取り込み（`healthConnect/`） |
 | `plugins/` | 自分の config plugin（Health Connect の権限の説明の intent を `torelog://health-privacy` に変える） |
 | `theme/` | 色と文字 |
 | `e2e/` | 画面の E2E テスト（Playwright） |

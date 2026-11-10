@@ -150,20 +150,20 @@ export function weightOverview(daily: { date: DateKey; weightKg: number | null }
 }
 
 /**
- * 体重の移動平均（既定は7日）。記録のある日ごとに、その日までの days 日（その日を含む）にある記録の平均を出す。
- * 記録のない日は出さない（グラフでは記録のある日をつなぐ）。古い順
+ * 7日の移動平均（からだの推移の「7日の平均」の線）。記録のある日ごとに、その日を含む前の days 日の記録の平均を出す。
+ * 記録のない日は点を作らない。points は古い順でなくてもよい（返す点は古い順）
  */
-export function weightMovingAverage(points: { date: DateKey; weightKg: number }[], days = 7): { date: DateKey; avgKg: number }[] {
+export function movingAverage(points: { date: DateKey; value: number }[], days = 7): { date: DateKey; value: number }[] {
   const sorted = [...points].sort((a, b) => (a.date < b.date ? -1 : 1));
   return sorted.map((p) => {
     const from = addDays(p.date, -(days - 1));
-    const window = sorted.filter((q) => q.date >= from && q.date <= p.date);
-    return { date: p.date, avgKg: window.reduce((a, q) => a + q.weightKg, 0) / window.length };
+    const win = sorted.filter((q) => q.date >= from && q.date <= p.date);
+    return { date: p.date, value: win.reduce((n, q) => n + q.value, 0) / win.length };
   });
 }
 
-/** from〜to（両端を含む）の体重の平均（記録のある日だけで出す）。記録がなければ null */
-export function averageWeight(points: { date: DateKey; weightKg: number }[], from: DateKey, to: DateKey): number | null {
+/** from〜to（両端を含む）の記録の平均。記録がなければ null */
+export function averageBetween(points: { date: DateKey; value: number }[], from: DateKey, to: DateKey): number | null {
   const inRange = points.filter((p) => p.date >= from && p.date <= to);
-  return inRange.length === 0 ? null : inRange.reduce((a, p) => a + p.weightKg, 0) / inRange.length;
+  return inRange.length === 0 ? null : inRange.reduce((n, p) => n + p.value, 0) / inRange.length;
 }
