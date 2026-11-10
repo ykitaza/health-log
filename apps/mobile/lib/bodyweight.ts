@@ -87,7 +87,7 @@ export function entriesMissingBodyweight(entries: { bodyweightRatio: number | nu
 /** 体重がないことの知らせ（ホームとその日の画面に小さく出す） */
 export const MISSING_BODYWEIGHT_NOTE = '体重の記録がないので自重の種目は入っていません';
 
-/** ホームの知らせを出すか：今日までの28日間（合計負荷量／28日間）に、体重がなくて入らなかった自重のセットがある */
+/** ホームの知らせを出すか：今日までの28日間に、体重がなくて入らなかった自重のセットがある */
 export function recentMissingBodyweight(rows: TrainingSetRow[], today: DateKey): boolean {
   const from = addDays(today, -27);
   return missingBodyweight(rows.filter((r) => r.date >= from && r.date <= today)) > 0;

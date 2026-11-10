@@ -1,7 +1,7 @@
 import {
-  bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart, periodTotals,
+  bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
-  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, weeklyVolumes, dailyVolumeByBodyPart, dailySummary,
+  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary,
 } from '../training';
 
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
@@ -47,8 +47,7 @@ describe('負荷量', () => {
   });
 });
 
-describe('期間の合計と、週ごとの棒', () => {
-  const today = '2026-11-08'; // 日曜
+describe('乗り物のたとえと、トレーニングした日数', () => {
   const rows = [
     row('2026-11-08', 100, 10), // 1000（今日）
     row('2026-11-02', 100, 5), //  500（6日前、今週の月曜）
@@ -57,12 +56,6 @@ describe('期間の合計と、週ごとの棒', () => {
     row('2026-10-11', 100, 1), //  100（28日前）
     row('2026-11-09', 100, 100), // 未来は数えない
   ];
-  test('7日間・28日間・総合計', () => {
-    expect(periodTotals(rows, today)).toEqual({ last7: 1500, last28: 2000, total: 2100 });
-  });
-  test('今週から5週前まで', () => {
-    expect(weeklyVolumes(rows, today, 6)).toEqual([1500, 300, 0, 200, 100, 0]);
-  });
   test('乗り物のたとえ', () => {
     expect(vehicleRatio(12450, 'car')).toBeCloseTo(8.3, 1);
     expect(vehicleRatio(48300, 'bus')).toBeCloseTo(3.22, 2);

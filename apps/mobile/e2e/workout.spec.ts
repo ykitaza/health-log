@@ -236,7 +236,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   // 途中で再読み込みしたので、画面のスタックはこの画面から始まっている。ホームを開き直す
   await page.goto('/');
   await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
-  await expect(page.getByTestId('volume-total')).toContainText('0.00t');
+  await expect(page.getByTestId('volume-week')).toContainText('0.00t');
 });
 
 test('保存のボタンを2回押しても、記録は1つだけ', async ({ page }) => {
