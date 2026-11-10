@@ -454,3 +454,32 @@ def test_心拍のまとめ_日ごとの値と安静時心拍の平均(call, eng
 def test_睡眠と心拍の期間は7日から90日(call, tool, days):
     with pytest.raises(ToolError):
         call(tool, days=days)
+
+
+def test_まとめは_start_と_end_で前の期間も読める(call, engine):
+    imported(engine, "sleep_session", "s1", sleep_fields("2026-11-03", "2026-11-02T14:00:00.000Z", "2026-11-02T21:00:00.000Z", 420))
+    imported(engine, "sleep_session", "s2", sleep_fields("2026-11-05", "2026-11-04T14:00:00.000Z", "2026-11-04T21:00:00.000Z", 360))
+    imported(engine, "heart_rate_day", "h1", {"date": "2026-11-03", "resting_bpm": 56, "avg_bpm": None, "min_bpm": None,
+                                              "max_bpm": None, "samples": 0})
+    call("record_body", day="2026-11-03", weight_kg=70)
+    call("record_body", day="2026-11-05", weight_kg=69.5)
+    day = {"start": "2026-11-03", "end": "2026-11-03"}  # 前の日のまとめ（1日だけ）
+    sleep = call("sleep_summary", **day)
+    assert (sleep["from"], sleep["to"], [n["date"] for n in sleep["nights"]]) == ("2026-11-03", "2026-11-03", ["2026-11-03"])
+    assert [d["date"] for d in call("heart_rate_summary", **day)["days"]] == ["2026-11-03"]
+    body = call("body_progress", **day)
+    assert (body["from"], body["to"], [d["weight_kg"] for d in body["days"]]) == ("2026-11-03", "2026-11-03", [70])
+    # end だけなら、end までの days 日
+    assert (call("sleep_summary", end="2026-11-05")["from"]) == "2026-10-30"
+    assert call("body_progress", end="2026-11-05", days=7)["latest"]["date"] == "2026-11-05"
+
+
+@pytest.mark.parametrize("tool, start, end, message", [
+    ("sleep_summary", "2026-11-05", "2026-11-04", "end は start"),
+    ("sleep_summary", "2026-08-01", "2026-11-08", "90日"),
+    ("heart_rate_summary", "2026-08-01", "2026-11-08", "90日"),
+    ("body_progress", "2025-01-01", "2026-11-08", "366日"),
+])
+def test_まとめの期間を確かめる(call, tool, start, end, message):
+    with pytest.raises(ToolError, match=message):
+        call(tool, start=start, end=end)

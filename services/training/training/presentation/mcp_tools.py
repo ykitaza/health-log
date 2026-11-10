@@ -26,6 +26,9 @@ from training.presentation import views
 
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 MAX_RANGE_DAYS = 366
+MAX_HEALTH_DAYS = 90  # 睡眠と心拍のまとめで一度に読める日数
+PERIOD_START = "期間の初日（YYYY-MM-DD）。前の日・週・月のまとめを書くときに渡す。省くと end の days−1 日前"
+PERIOD_END = "期間の最後の日（YYYY-MM-DD。両端を含む）。省くと今日"
 
 INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回数を記録し、総負荷量・推定1RM・自己ベスト・週のふり返り・体組成の推移を返す。
 記録は、利用者が言った種目・重量・回数をそのまま record_workout に渡す（確認なしでよい）。数字を推測で埋めない。
@@ -104,11 +107,18 @@ def register_training_tools(
     def day_of(day: date | None) -> str:
         return (day or today()).isoformat()
 
-    def check_range(start: date, end: date) -> None:
+    def check_range(start: date, end: date, max_days: int = MAX_RANGE_DAYS) -> None:
         if end < start:
             raise ToolError("end は start と同じか後の日にしてください")
-        if (end - start).days >= MAX_RANGE_DAYS:
-            raise ToolError(f"期間は{MAX_RANGE_DAYS}日までにしてください")
+        if (end - start).days >= max_days:
+            raise ToolError(f"期間は{max_days}日までにしてください")
+
+    def period(days: int, start: date | None, end: date | None, max_days: int) -> tuple[date, date]:
+        """まとめの期間。省くと end は今日、start は end の days−1 日前（exercise_history と同じ決め方）。"""
+        end = end or today()
+        start = start or end - timedelta(days=days - 1)
+        check_range(start, end, max_days)
+        return start, end
 
     async def workout_view(sub: str, day: str) -> dict:
         workout = await queries.workout(sub, day)
@@ -307,44 +317,59 @@ def register_training_tools(
                                   "progress": views.body_progress(progress, start, end)})
 
     @mcp.tool(annotations=READ)
-    async def body_progress(days: Annotated[int, Field(ge=7, le=366, description="今日までの何日分か")] = 90) -> dict:
-        """体組成の推移：日ごとの体重・体脂肪率・筋肉率・ウエストと、体脂肪量・除脂肪量、直近28日の体重の週あたりの変化。
+    async def body_progress(
+        days: Annotated[int, Field(ge=7, le=366, description="end までの何日分か（start を渡したときは使わない）")] = 90,
+        start: Annotated[date | None, Field(description=PERIOD_START)] = None,
+        end: Annotated[date | None, Field(description=PERIOD_END)] = None,
+    ) -> dict:
+        """体組成の推移：日ごとの体重・体脂肪率・筋肉率・ウエストと、体脂肪量・除脂肪量、end までの28日の体重の週あたりの変化。
 
+        期間は start〜end（両端を含む。366日まで）。省くと end は今日、start は end の days−1 日前。
+        前の日・前の週のまとめを書くときは、その期間を start と end で渡す。
         1日の値は、項目ごとに手入力（アプリ・record_body）を先にし、手入力がなければ Health Connect の取り込み（体重計など）を使う。
         推移はグラフで見せる。増減を責めない。
         """
         sub = subject(READ_SCOPE)
-        end = today()
-        start = end - timedelta(days=days - 1)
+        start, end = period(days, start, end, MAX_RANGE_DAYS)
         progress = await queries.body_progress(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.body_progress(progress, start.isoformat(), end.isoformat()))
 
     # --- 睡眠と心拍（アプリが Health Connect から取り込んだもの。読むだけ） ---
 
     @mcp.tool(annotations=READ)
-    async def sleep_summary(days: Annotated[int, Field(ge=7, le=90, description="今日までの何日分か")] = 7) -> dict:
+    async def sleep_summary(
+        days: Annotated[int, Field(ge=7, le=MAX_HEALTH_DAYS, description="end までの何日分か（start を渡したときは使わない）")] = 7,
+        start: Annotated[date | None, Field(description=PERIOD_START)] = None,
+        end: Annotated[date | None, Field(description=PERIOD_END)] = None,
+    ) -> dict:
         """睡眠のまとめ：起きた日ごとの眠っていた時間（分）・起きていた時間・寝た時刻と起きた時刻（日本時間）と、期間の平均。
+
+        期間は start〜end（両端を含む。90日まで。日は起きた日）。省くと end は今日、start は end の days−1 日前。
 
         アプリ（hlog）が Health Connect（ウォッチなど）から取り込んだもの。記録がない日は含めない。
         1日に複数の睡眠（昼寝など）があれば足し、寝た時刻・起きた時刻はいちばん長い睡眠のもの。
         推移は描けるならグラフで見せる。睡眠の短さを責めない。病気の診断はしない。
         """
         sub = subject(READ_SCOPE)
-        end = today()
-        start = end - timedelta(days=days - 1)
+        start, end = period(days, start, end, MAX_HEALTH_DAYS)
         summary = await queries.sleep_summary(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.sleep_summary(summary, start.isoformat(), end.isoformat()))
 
     @mcp.tool(annotations=READ)
-    async def heart_rate_summary(days: Annotated[int, Field(ge=7, le=90, description="今日までの何日分か")] = 7) -> dict:
+    async def heart_rate_summary(
+        days: Annotated[int, Field(ge=7, le=MAX_HEALTH_DAYS, description="end までの何日分か（start を渡したときは使わない）")] = 7,
+        start: Annotated[date | None, Field(description=PERIOD_START)] = None,
+        end: Annotated[date | None, Field(description=PERIOD_END)] = None,
+    ) -> dict:
         """心拍のまとめ：日ごとの安静時心拍・平均・最低・最高（拍/分）と測った回数、期間の安静時心拍の平均。
+
+        期間は start〜end（両端を含む。90日まで）。省くと end は今日、start は end の days−1 日前。
 
         アプリ（hlog）が Health Connect（ウォッチなど）から取り込んだ1日のまとめ（1回ごとの値は持たない）。記録がない日は含めない。
         安静時心拍の推移は、トレーニングの疲れや回復の目安として、描けるならグラフで見せる。病気の診断はしない。
         """
         sub = subject(READ_SCOPE)
-        end = today()
-        start = end - timedelta(days=days - 1)
+        start, end = period(days, start, end, MAX_HEALTH_DAYS)
         summary = await queries.heart_rate_summary(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.heart_rate_summary(summary, start.isoformat(), end.isoformat()))
 

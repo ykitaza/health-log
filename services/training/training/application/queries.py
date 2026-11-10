@@ -28,6 +28,21 @@ class ExerciseHistory:
 
 
 @dataclass(frozen=True)
+class TrainingDay:
+    date: str
+    volume: float  # その日の総負荷量（自重の種目を含む）
+    sets: int
+
+
+@dataclass(frozen=True)
+class PeriodTraining:
+    days: list[TrainingDay]  # 期間の中の、セットの記録がある日（古い順）
+    total_volume: float
+    bests: list[calculations.PersonalBest]  # 期間の中の、種目ごとの推定1RM が最大のセット（大きい順）
+    missing_bodyweight_sets: int = 0  # 体重の記録がないため、総負荷量に入らなかった自重のセット
+
+
+@dataclass(frozen=True)
 class BodyProgress:
     days: list[body.DailyBody]  # 期間の中の、日ごとの値（古い順）
     latest: body.DailyBody | None  # 期間の中でいちばん新しい日
@@ -88,6 +103,18 @@ class TrainingQueries:
             [d for d in calculations.training_dates(rows) if d <= today],
             bodyweight.missing_bodyweight([r for r in rows if start <= r.date <= today]),
         )
+
+    async def period_training(self, subject: str, start: str, end: str) -> PeriodTraining:
+        """start から end まで（両端を含む）の筋トレ：日ごとの総負荷量とセット数、期間の合計、種目ごとの最高の推定1RM。"""
+        rows = [r for r in await self.set_rows(subject) if start <= r.date <= end]
+        by_day: dict[str, list[float]] = {}
+        for r in rows:
+            day = by_day.setdefault(r.date, [0, 0])
+            day[0] += calculations.row_volume(r)
+            day[1] += 1
+        bests = sorted(calculations.personal_bests(rows).values(), key=lambda b: (-b.e1rm, b.exercise_id))
+        return PeriodTraining([TrainingDay(d, v, int(n)) for d, (v, n) in sorted(by_day.items())],
+                              calculations.total_volume(rows), bests, bodyweight.missing_bodyweight(rows))
 
     async def exercise_history(self, subject: str, exercise_id: str) -> ExerciseHistory:
         rows = await self.set_rows(subject)
