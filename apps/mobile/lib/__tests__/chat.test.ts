@@ -1,5 +1,5 @@
 import { addDays } from '../date';
-import { ChatPrompt, chatUrl, openChat, openFailedMessage, orderedApps, pendingPrompt, promptSummary, promptText } from '../chat';
+import { ChatPrompt, chatUrl, MAX_URL_LENGTH, openChat, openFailedMessage, orderedApps, pendingPrompt, promptSummary, promptText, REPORT_SCHEDULES } from '../chat';
 import type { PendingReport } from '../reports';
 
 const TODAY = '2026-11-09';
@@ -85,6 +85,34 @@ describe('まだのまとめを、まとめて作る文', () => {
   });
 });
 
+describe('自動で作る（ChatGPT のスケジュール）の文', () => {
+  const schedule = { kind: 'schedule' } as const;
+
+  test('3つの予定を入れてもらう。すでに hlog のまとめのタスクがあれば作らずに教えてもらう。各回は list_reports → period_overview → save_report', () => {
+    expect(promptText(schedule)).toBe(
+      `${C}で、まとめのスケジュールを3つ入れてください。`
+      + 'hlog のまとめのタスクがもうあれば、作らず教えてください。'
+      + '1.毎日22:00 その日(daily) 2.毎週月曜8:00 先週の月〜日(weekly) 3.毎月1日8:00 先月(monthly)。'
+      + '各回：list_reports(kind)に同じ期間があれば作らない。'
+      + 'なければ period_overview(start, end)を読み、記録の値だけで書いて save_report(kind, period_start, period_end)で保存。'
+      + '記録がなければ作らない。'
+      + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで、月は links・review と来月の一歩を3つまで。'
+      + 'ほかは save_report の説明どおり。');
+  });
+
+  test('URL は 2,000 文字まで（ChatGPT で開く。全角は URL で1文字が9文字になる）', () => {
+    expect(chatUrl('chatgpt', schedule).length).toBeLessThanOrEqual(MAX_URL_LENGTH);
+    expect(chatUrl('claude', schedule).length).toBeLessThanOrEqual(MAX_URL_LENGTH);
+  });
+
+  test('シートの予定の一覧（日・週・月）と説明', () => {
+    expect(REPORT_SCHEDULES.map((s) => `${s.title} ${s.when}（${s.period}）`)).toEqual([
+      '日のまとめ 毎日 22:00（その日の分）', '週のまとめ 毎週月曜 8:00（先週の分）', '月のまとめ 毎月1日 8:00（先月の分）',
+    ]);
+    expect(promptSummary(schedule)).toBe('まとめを自動で作る予定を入れる');
+  });
+});
+
 describe('筋トレの文', () => {
   test('今日は「今日（11月9日）」、種目の一覧と記録のツールの名前を入れる', () => {
     expect(promptText({ kind: 'training', date: TODAY, today: TODAY })).toBe(
@@ -137,6 +165,7 @@ const ALL: ChatPrompt[] = [
   { kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'breakfast' },
   { kind: 'training', date: '2026-11-06', today: TODAY },
   { kind: 'pending', items: [{ kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08', key: 'weekly:2026-11-02' }] },
+  { kind: 'schedule' },
 ];
 
 describe('どの文も', () => {

@@ -1,6 +1,7 @@
 import {
   dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, NEXT_TITLES,
-  formatMetricValue, formatPeriod, Metric, metricLabel, parseInline, parseMarkdown, parseReport, pendingReports, primaryMetrics, ReportRow, reportCardLabel, TAB_AREAS,
+  formatMetricValue, formatPeriod, formatReportDate, Metric, metricLabel, newReportsSummary, orderToggleLabel, parseInline, parseMarkdown, parseReport, pendingReports,
+  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, sortReports, TAB_AREAS,
 } from '../reports';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
@@ -74,19 +75,23 @@ describe('見せ方', () => {
     expect(metricLabel(metric())).toBe('体重 70.4 kg、前より 0.3 減った、良い変化');
     expect(metricLabel(metric({ delta: 0.2, deltaGood: false }))).toBe('体重 70.4 kg、前より 0.2 増えた、気をつけたい変化');
     expect(metricLabel(metric({ delta: null }))).toBe('体重 70.4 kg');
-    expect(reportCardLabel(parseReport(row()))).toMatch(/^良い調子、今週のまとめ、脚の日が増えた、週のまとめ、\d+月\d+日に作成$/);
+    expect(reportCardLabel(parseReport(row()))).toBe('良い調子、今週のまとめ、脚の日が増えた、週のまとめ、期間 11月2日（月）〜11月8日（日）');
+    // まだ開いていないものは「新着」から。期間のないものは作った日
+    expect(reportCardLabel(parseReport(row({ period_start: null, period_end: null })), true)).toMatch(/^新着、良い調子、今週のまとめ、脚の日が増えた、週のまとめ、\d+月\d+日に作成$/);
   });
 });
 
-describe('一覧の絞り込みと月の見出し', () => {
+describe('一覧の絞り込み・並び・月の見出し', () => {
   // 作った時刻は、どの時間帯でも同じ日になる時刻（UTC の 3時）
   const at = (d: string) => `${d}T03:00:00.000Z`;
+  const rep = (id: string, kind: string, start: string | null, end: string | null, created: string) =>
+    parseReport(row({ id, kind, period_start: start, period_end: end, created_at: at(created) }));
   const list = [
-    parseReport(row({ id: 'w', kind: 'weekly', created_at: at('2026-11-09') })),
-    parseReport(row({ id: 'd2', kind: 'daily', created_at: at('2026-11-08') })),
-    parseReport(row({ id: 'o', kind: 'other', created_at: at('2026-11-05') })),
-    parseReport(row({ id: 'd1', kind: 'daily', created_at: at('2026-10-31') })),
-    parseReport(row({ id: 'm', kind: 'monthly', created_at: at('2025-12-01') })),
+    rep('w', 'weekly', '2026-11-02', '2026-11-08', '2026-11-09'),
+    rep('d2', 'daily', '2026-11-08', '2026-11-08', '2026-11-08'),
+    rep('o', 'other', null, null, '2026-11-05'),
+    rep('d1', 'daily', '2026-10-31', '2026-10-31', '2026-11-01'),
+    rep('m', 'monthly', '2025-12-01', '2025-12-31', '2026-01-01'),
   ];
   const ids = (l: { id: string }[]) => l.map((r) => r.id);
 
@@ -97,18 +102,82 @@ describe('一覧の絞り込みと月の見出し', () => {
     expect(filterReports(list.slice(0, 4), 'monthly')).toEqual([]);
   });
 
-  test('作った月ごとに区切る。今年は「11月」、年が違えば「2025年12月」', () => {
-    expect(groupByMonth(list, '2026-11-09').map((g) => [g.title, ids(g.reports)])).toEqual([
+  test('並べる日付は期間の最後の日、なければ初日、それもなければ作った日。カードにも同じ日付', () => {
+    expect(reportDate(list[0])).toBe('2026-11-08');
+    expect(reportDate({ periodStart: '2026-11-03', periodEnd: null, createdAt: at('2026-11-09') })).toBe('2026-11-03');
+    expect(reportDate(list[2])).toBe('2026-11-05');
+    expect(reportDate({ periodStart: null, periodEnd: 'x', createdAt: 'x' })).toBe('');
+    expect(formatReportDate(list[0])).toBe('11月8日');
+  });
+
+  test('期間の日付の新しい順。作った日が新しくても、期間が古ければ後ろ。古い順は逆。日付の読めないものはどちらでも最後', () => {
+    // 10月31日の日のまとめを、あとから（11月10日に）作った
+    const late = rep('late', 'daily', '2026-10-31', '2026-10-31', '2026-11-10');
+    const broken = parseReport(row({ id: 'x', period_start: null, period_end: null, created_at: 'x' }));
+    expect(ids(sortReports([broken, late, ...list]))).toEqual(['w', 'd2', 'o', 'late', 'd1', 'm', 'x']);
+    expect(ids(sortReports([broken, late, ...list], 'oldest'))).toEqual(['m', 'late', 'd1', 'o', 'w', 'd2', 'x']); // w と d2 は同じ 11月8日
+  });
+
+  test('同じ日付なら、期間の長いもの（月→週→日）が先、その次に作った日の新しいもの。古い順でも同じ', () => {
+    const same = [
+      rep('d', 'daily', '2026-11-30', '2026-11-30', '2026-12-01'),
+      rep('d-new', 'daily', '2026-11-30', '2026-11-30', '2026-12-02'),
+      rep('w', 'weekly', '2026-11-24', '2026-11-30', '2026-12-01'),
+      rep('m', 'monthly', '2026-11-01', '2026-11-30', '2026-12-01'),
+      // 月曜だけの週のまとめ（1日）も、日のまとめより先
+      rep('w1', 'weekly', '2026-11-30', '2026-11-30', '2026-11-30'),
+    ];
+    expect(ids(sortReports(same))).toEqual(['m', 'w', 'w1', 'd-new', 'd']);
+    expect(ids(sortReports(same, 'oldest'))).toEqual(['m', 'w', 'w1', 'd-new', 'd']);
+  });
+
+  test('並べる日付の月ごとに区切る。今年は「11月」、年が違えば「2025年12月」', () => {
+    expect(groupByMonth(sortReports(list), '2026-11-09').map((g) => [g.title, ids(g.reports)])).toEqual([
       ['11月', ['w', 'd2', 'o']], ['10月', ['d1']], ['2025年12月', ['m']],
     ]);
+    expect(groupByMonth(sortReports(list, 'oldest'), '2026-11-09').map((g) => g.title)).toEqual(['2025年12月', '10月', '11月']);
     expect(groupByMonth(filterReports(list, 'daily'), '2026-11-09').map((g) => g.title)).toEqual(['11月', '10月']);
     expect(groupByMonth([], '2026-11-09')).toEqual([]);
+  });
+
+  test('並べ替えの読み上げに今の順と、押したらどうなるか', () => {
+    expect(orderToggleLabel('newest')).toBe('並び順、新しい順。押すと古い順にします');
+    expect(orderToggleLabel('oldest')).toBe('並び順、古い順。押すと新しい順にします');
   });
 
   test('絞り込んで0件のときの題と頼み方。種類のラベル', () => {
     expect(emptyFilterText('daily')).toEqual({ title: '日のまとめはまだありません', body: 'チャット（Claude・ChatGPT）で「今日のまとめを作って」と頼むと、ここに出ます。' });
     expect(emptyFilterText('monthly').title).toBe('月のまとめはまだありません');
     expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' });
+  });
+});
+
+describe('新しいレポートのお知らせ', () => {
+  const TODAY = '2026-11-11'; // 水曜
+  const rep = (kind: string, start: string | null, end: string | null, title = 't') =>
+    parseReport(row({ id: `${kind}${start}`, kind, period_start: start, period_end: end, title }));
+
+  test('1件の呼び名：日・週・月は期間から（今日・今週・先週・今月・先月）、その他と期間のないものは題', () => {
+    expect(reportShortName(rep('daily', '2026-11-10', '2026-11-10'), TODAY)).toBe('11月10日のまとめ');
+    expect(reportShortName(rep('daily', TODAY, TODAY), TODAY)).toBe('今日のまとめ');
+    expect(reportShortName(rep('weekly', '2026-11-02', '2026-11-08'), TODAY)).toBe('先週のまとめ');
+    expect(reportShortName(rep('weekly', '2026-11-09', '2026-11-11'), TODAY)).toBe('今週のまとめ');
+    expect(reportShortName(rep('weekly', '2026-10-26', '2026-11-01'), TODAY)).toBe('10月26日からの週のまとめ');
+    expect(reportShortName(rep('monthly', '2026-10-01', '2026-10-31'), TODAY)).toBe('先月のまとめ');
+    expect(reportShortName(rep('monthly', '2026-11-01', '2026-11-11'), TODAY)).toBe('今月のまとめ');
+    expect(reportShortName(rep('monthly', '2026-09-01', '2026-09-30'), TODAY)).toBe('9月のまとめ');
+    expect(reportShortName(rep('monthly', '2025-12-01', '2025-12-31'), TODAY)).toBe('2025年12月のまとめ');
+    expect(reportShortName(rep('other', null, null, 'ベンチプレスの分析'), TODAY)).toBe('ベンチプレスの分析');
+    expect(reportShortName(rep('weekly', null, null, '今週のまとめ'), TODAY)).toBe('今週のまとめ');
+  });
+
+  test('補足は新しい順に2件まで、3件以上は「ほか n 件」', () => {
+    const week = rep('weekly', '2026-11-02', '2026-11-08');
+    const day = rep('daily', '2026-11-10', '2026-11-10');
+    expect(newReportsSummary([week, day], TODAY)).toBe('11月10日のまとめ・先週のまとめ');
+    expect(newReportsSummary([week], TODAY)).toBe('先週のまとめ');
+    expect(newReportsSummary([week, day, rep('daily', '2026-11-09', '2026-11-09'), rep('daily', '2026-11-07', '2026-11-07')], TODAY))
+      .toBe('11月10日のまとめ・11月9日のまとめ ほか 2 件');
   });
 });
 

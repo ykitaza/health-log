@@ -76,8 +76,9 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect(card).toBeVisible();
   await expect(card).toHaveAccessibleName(/睡眠（平均） 5\.8 時間、前より 0\.6 減った、気をつけたい変化/);
   await button(page, 'すべてのレポート').click();
-  await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。新しい順に、作った月ごとに並びます。')).toBeVisible();
-  await page.getByRole('button', { name: /^気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
+  await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。期間の日付の新しい順に、月ごとに並びます。')).toBeVisible();
+  // 同期で届いた、まだ開いていないものには「新着」
+  await page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
 
   // 中身：帯・指標・分野ごと・次の一歩・本文（リンクは文字のまま）
   const band = page.getByTestId('report-band').filter({ visible: true });
@@ -190,7 +191,8 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   await goTab(page, 'ホーム');
   await button(page, 'すべてのレポート').click();
   await expect(page.getByRole('heading', { name: '11月', exact: true }).filter({ visible: true })).toBeVisible();
-  const weekly = page.getByRole('button', { name: /^気をつけたい、今週のまとめ、睡眠が短い日が多かった、週のまとめ、/ }).filter({ visible: true });
+  // 週のまとめはまだ開いていない（新着）。日のまとめは筋トレのタブから開いた
+  const weekly = page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ、睡眠が短い日が多かった、週のまとめ、/ }).filter({ visible: true });
   const day = page.getByRole('button', { name: /^良い調子、11月8日のまとめ、ベンチプレスが伸びた日、日のまとめ、/ }).filter({ visible: true });
   await expect(weekly).toBeVisible();
   await expect(day).toBeVisible();
@@ -198,7 +200,7 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
   await expect(weekly).toHaveCount(0);
   await expect(day).toBeVisible();
-  await expect(see(page, '日のまとめだけを出しています。新しい順に、作った月ごとに並びます。')).toBeVisible();
+  await expect(see(page, '日のまとめだけを出しています。期間の日付の新しい順に、月ごとに並びます。')).toBeVisible();
   await button(page, '月').click();
   await expect(see(page, '月のまとめはまだありません')).toBeVisible();
   await expect(button(page, 'チャットで作る。ChatGPT か Claude を開きます')).toBeVisible();
@@ -243,4 +245,70 @@ test('月のまとめ：つながりのカードと、目標の見直しの「�
   await expect(see(page, '来月の一歩', { exact: true })).toBeVisible();
   await button(review, '食事の目標を開く').click();
   await expect(page).toHaveURL(/\/meals\/goal$/);
+});
+
+test('新しいレポートのお知らせ：届いた件数と中身。「見る」で一覧（2件）・そのレポート（1件）。開いたら新着が消える。並び順は端末に覚える', async ({ page, context }) => {
+  const server = serverWithReport(); // 今週のまとめ（11月2日〜8日）
+  const at = '2026-11-08T12:00:00.000Z';
+  server.setClock(() => at);
+  // 10月31日の日のまとめを、あとから作った（作った日は新しいが、期間の日付で後ろに並ぶ）
+  server.append([{
+    parent_id: null, changed_at: at, origin: 'mcp', device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: DAILY, op: 'create', fields: {
+      title: '10月31日のまとめ', kind: 'daily', period_start: '2026-10-31', period_end: '2026-10-31', overall_tone: 'good',
+      headline: '', highlights: [], next_steps: [], body: '',
+    },
+  }]);
+  await connect(page, context, server);
+  await openApp(page);
+  await signInAndSync(page);
+
+  const banner = page.getByTestId('new-report-banner').filter({ visible: true });
+  await expect(see(banner, '新しいレポートが 2 件', { exact: true })).toBeVisible();
+  await expect(see(banner, '今週のまとめ・10月31日のまとめ', { exact: true })).toBeVisible();
+  await button(banner, '新しいレポートを一覧で見る').click();
+
+  // 一覧：期間の日付の新しい順。月の見出しも期間の日付。どちらも新着
+  const cards = page.getByTestId(/^report-[0-9a-f]{8}-/).filter({ visible: true });
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toHaveAccessibleName(/^新着、気をつけたい、今週のまとめ、/);
+  await expect(cards.nth(1)).toHaveAccessibleName(/^新着、良い調子、10月31日のまとめ、日のまとめ、期間 10月31日（土）/);
+  await expect(page.getByRole('heading', { name: '10月', exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(button(page, '自動で作る。ChatGPT のスケジュールに、まとめを作る予定を入れます')).toBeVisible();
+  // 要約と指標のない日のまとめも、カードの高さは同じ
+  const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+  expect(Math.round(b!.height)).toBe(Math.round(a!.height));
+
+  // 並べ替え：古い順に変えると逆に並ぶ。開き直しても覚えている
+  await button(page, '並び順、新しい順。押すと古い順にします').click();
+  await expect(cards.nth(0)).toHaveAccessibleName(/10月31日のまとめ/);
+  await cards.nth(0).click();
+  await expect(page.getByTestId('report-band').filter({ visible: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(button(page, '並び順、古い順。押すと新しい順にします')).toBeVisible();
+  await expect(cards.nth(0)).toHaveAccessibleName(/^良い調子、10月31日のまとめ/); // 開いたので新着が消えた
+  // 「新着」の札がなくても、高さは同じ
+  const [c, d] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+  expect(Math.round(c!.height)).toBe(Math.round(d!.height));
+  await button(page, '戻る').click();
+
+  // ホーム：残りの1件。「見る」でそのレポートを開き、戻るとお知らせは消える
+  await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
+  await button(banner, '新しいレポートを見る').click();
+  await expect(see(page.getByTestId('report-band').filter({ visible: true }), '気をつけたい', { exact: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('new-report-banner').filter({ visible: true })).toHaveCount(0);
+});
+
+test('新しいレポートのお知らせの「×」：今の分を全部見たことにする', async ({ page, context }) => {
+  await connect(page, context, serverWithReport());
+  await openApp(page);
+  await signInAndSync(page);
+  const banner = page.getByTestId('new-report-banner').filter({ visible: true });
+  await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
+  await button(banner, 'お知らせを閉じる。今出ている分は、見たことにします').click();
+  await expect(page.getByTestId('new-report-banner').filter({ visible: true })).toHaveCount(0);
+  await button(page, 'すべてのレポート').click();
+  await expect(page.getByRole('button', { name: /^気をつけたい、今週のまとめ/ }).filter({ visible: true })).toBeVisible();
 });
