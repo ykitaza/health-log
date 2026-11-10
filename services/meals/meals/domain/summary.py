@@ -32,7 +32,7 @@ class DailySummary:
 
 @dataclass(frozen=True)
 class WeeklyReview:
-    """週のふり返り。平均は記録した日だけで出す。記録しなかった日を責めない。"""
+    """期間（週・月）のふり返り。平均は記録した日だけで出す。記録しなかった日を責めない。"""
 
     days: tuple[DailySummary, ...]  # 期間のすべての日（記録がない日も含む）
 

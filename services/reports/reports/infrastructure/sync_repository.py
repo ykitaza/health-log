@@ -14,7 +14,7 @@ from functools import partial
 import anyio
 
 from reports.domain.errors import ReportError
-from reports.domain.report import Area, Highlight, Kind, Metric, Report, Tone
+from reports.domain.report import Area, Highlight, Kind, Link, Metric, Report, Review, ReviewTarget, Tone
 from reports.infrastructure.sync_entities import ENTITY
 from sync.engine import SyncEngine
 from sync.model import Change, EntityState
@@ -39,6 +39,11 @@ def report_fields(r: Report) -> dict:
         fields["highlights"] = [_highlight_fields(h) for h in r.highlights]
     if r.next_steps:
         fields["next_steps"] = list(r.next_steps)
+    if r.links:
+        fields["links"] = [{"from_area": link.from_area.value, "to_area": link.to_area.value, "text": link.text,
+                            "basis": link.basis} for link in r.links]
+    if r.review is not None:
+        fields["review"] = {"text": r.review.text, "target": r.review.target.value if r.review.target else None}
     return fields
 
 
@@ -59,12 +64,16 @@ def report_from_state(state: EntityState) -> Report | None:
             Highlight(Area(h["area"]), Tone(h["tone"]), h["text"],
                       Metric(**h["metric"]) if h.get("metric") else None)
             for h in v.get("highlights") or [])
+        links = tuple(Link(Area(link["from_area"]), Area(link["to_area"]), link["text"], link.get("basis"))
+                      for link in v.get("links") or [])
+        review = v.get("review")
         return Report(
             state.entity_id, v["title"], v["body"], Kind(v["kind"]),
             date.fromisoformat(v["period_start"]) if v.get("period_start") else None,
             date.fromisoformat(v["period_end"]) if v.get("period_end") else None,
             Tone(v["overall_tone"]) if v.get("overall_tone") else None,
-            v.get("headline") or "", highlights, tuple(v.get("next_steps") or ()), state.created_at)
+            v.get("headline") or "", highlights, tuple(v.get("next_steps") or ()), state.created_at, links,
+            Review(review["text"], ReviewTarget(review["target"]) if review.get("target") else None) if review else None)
     except (ReportError, ValueError, KeyError, TypeError) as e:
         logger.warning("読めない report を飛ばしました（id=%s）: %s", state.entity_id, e)
         return None

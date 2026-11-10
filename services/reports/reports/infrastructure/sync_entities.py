@@ -20,10 +20,14 @@ from reports.domain.report import (
     MAX_HIGHLIGHT_TEXT,
     MAX_HIGHLIGHTS,
     MAX_LABEL,
+    MAX_LINK_BASIS,
+    MAX_LINK_TEXT,
+    MAX_LINKS,
     MAX_METRIC_VALUE,
     MAX_NEXT_STEP_TEXT,
     MAX_NEXT_STEPS,
     MAX_PERIOD_DAYS,
+    MAX_REVIEW_TEXT,
     MAX_TITLE,
     MAX_UNIT,
     encoded_size,
@@ -60,6 +64,21 @@ class HighlightFields(FieldsModel):
     metric: MetricFields | None = None
 
 
+AreaName = Literal["training", "meals", "body", "sleep"]
+
+
+class LinkFields(FieldsModel):
+    from_area: AreaName
+    to_area: AreaName
+    text: Annotated[str, Field(min_length=1, max_length=MAX_LINK_TEXT), AfterValidator(_not_blank)]
+    basis: Annotated[str, Field(min_length=1, max_length=MAX_LINK_BASIS), AfterValidator(_not_blank)] | None = None
+
+
+class ReviewFields(FieldsModel):
+    text: Annotated[str, Field(min_length=1, max_length=MAX_REVIEW_TEXT), AfterValidator(_not_blank)]
+    target: Literal["meals_goal"] | None = None
+
+
 class ReportFields(FieldsModel):
     title: Annotated[str, Field(min_length=1, max_length=MAX_TITLE), AfterValidator(_not_blank)] = None
     body: Annotated[str, Field(max_length=MAX_BODY)] = None  # Markdown。アプリは文字として表示するだけ
@@ -71,6 +90,8 @@ class ReportFields(FieldsModel):
     highlights: Annotated[list[HighlightFields], Field(max_length=MAX_HIGHLIGHTS)] = None
     next_steps: Annotated[list[Annotated[str, Field(min_length=1, max_length=MAX_NEXT_STEP_TEXT),
                                           AfterValidator(_not_blank)]], Field(max_length=MAX_NEXT_STEPS)] = None
+    links: Annotated[list[LinkFields], Field(max_length=MAX_LINKS)] = None  # 分野をまたぐ気づき（つながり）
+    review: ReviewFields | None = None  # 目標の見直し
 
 
 def _check(entity_id: str, fields: dict) -> Rejection | None:

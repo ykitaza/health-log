@@ -8,6 +8,7 @@
 - コンテキストをまたぐもの（食事の目標の「筋トレの日」、食事の目標体重までの進み具合に使う体重、目標の自動計算に使う体組成と設定、
   アプリの最後の同期の時刻）を、
   各コンテキストのポートにつなぐ
+- 期間の材料を1回で読むツール（period_overview。connector/period_overview.py）に、筋トレ・食事の読み取りと設定をつなぐ
 食事と筋トレは互いを import しない。すべてを知っているのはこのファイルだけ（アプリ用の API の services/app_api/main.py と同じ）。
 """
 
@@ -25,6 +26,7 @@ from composition.registry import create_registry
 from connector.access_token_verifier import AuthzApiTokenVerifier
 from connector.authz_session import AuthzApiSession
 from connector.icons import IconMiddleware, server_icons
+from connector.period_overview import register_overview_tools
 from connector.request_log import JsonRpcLogMiddleware
 from connector.settings import load_settings
 from connector.tools import Session, register_connector_tools
@@ -155,16 +157,20 @@ def create_server(
     eaters = SubjectAsEaterId()
     meals, templates = synced.SyncMealRepository(engine), synced.SyncMealTemplateRepository(engine)
     goals, day_types = synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine)
+    body_data = SyncedBodyData(engine, training_queries)
+    summaries = SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries))
     meal_tools.register_meal_tools(mcp, meal_tools.Services(
         meals=MealService(eaters, meals),
         templates=TemplateService(eaters, meals, templates),
-        goals=GoalService(eaters, goals, day_types, SyncedBodyData(engine, training_queries)),
-        summaries=SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries)),
+        goals=GoalService(eaters, goals, day_types, body_data),
+        summaries=summaries,
         weights=WeightService(eaters, BodyRecordWeights(training_commands, training_queries), goals),
     ), today=today, sync_status=sync_status)
 
     training_tools.register_training_tools(
         mcp, training_commands, training_queries, today=today, sync_status=sync_status)
+    # 期間の材料（レポートを書くため）。筋トレ・食事・からだ・目標をまたぐので、ここでつなぐ
+    register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today)
     report_tools.register_report_tools(mcp, create_report_service(engine))
     register_connector_tools(mcp, session)
     return mcp

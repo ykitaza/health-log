@@ -28,10 +28,10 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `workout_entry` | トレーニングの中の種目（1日の1種目ぶん） | UUID | `training.*` |
 | `workout_set` | セット | UUID | `training.*` |
 | `body_record` | 体組成 | UUID | `training.*` |
-| `setting` | 設定 | 設定の名前（`weight_unit` など） | `training.*` |
+| `setting` | 設定（値は文字列。サーバーは中身を確かめず、知らない名前も受け付ける。読むのは目標の計算の `height_cm`・`goal_weight_kg`・`activity_level` と、`period_overview` の今週の目標 `weekly_goal_training_days`・`weekly_goal_meal_days`・`weekly_goal_sleep_days`） | 設定の名前（`weight_unit` など） | `training.*` |
 | `sleep_session` | 睡眠（Health Connect の取り込みだけ。起きた日・寝た時刻・起きた時刻・眠っていた分・起きていた分） | 取り込みの ID（下の「Health Connect の取り込み」） | `training.*` |
 | `heart_rate_day` | 心拍の1日のまとめ（Health Connect の取り込みだけ。安静時・平均・最低・最高・サンプルの数） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
-| `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩） | UUID | `training.*` |
+| `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩・つながり・目標の見直し） | UUID | `training.*` |
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
@@ -230,7 +230,7 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 
 ### レポート
 
-- 端末の表は `reports`（版7）。列は同期の項目と同じで、`highlights`・`next_steps` は SQLite では JSON の文字列です。受け取って当てはめるだけで、アプリからは `deleted_at` を入れる（消す）ことしかしません。トリガーは同じ作り方なので、消すと `delete` だけが outbox に積まれます
+- 端末の表は `reports`（版7）。列は同期の項目と同じで、`highlights`・`next_steps` は SQLite では JSON の文字列です。つながり（`links`）と目標の見直し（`review`）はあとから足した項目で、ない前の形のレポートもあります。知らない項目は端末が捨てるので、列を足す版のアプリは、受け取りの位置を消してスナップショットを取り直さないと、それまでに受け取ったレポートの `links`・`review` が入りません（版7と同じ）。受け取って当てはめるだけで、アプリからは `deleted_at` を入れる（消す）ことしかしません。トリガーは同じ作り方なので、消すと `delete` だけが outbox に積まれます
 - アカウントを変えて「この端末の記録を新しいアカウントに送る」ときも、レポートは積みません（`EntitySpec.readOnly`。サーバーで断られるため）。前のアカウントのレポートは端末に残り、新しいアカウントのものと一緒に見えます。混ぜたくないときは「端末の記録を消して受け取り直す」を選びます
 - 版6までの端末は、知らない種類（`report`）を飛ばして受け取りの位置だけ進めていたので、版7のマイグレーションで受け取りの位置を消し、次の同期でスナップショットを1回取り直します（版3と同じ）
 - 食事の推定の根拠は `meals.basis`（版7で列を足し、食事のトリガーを作り直した）。アプリで記録した食事は null を送ります

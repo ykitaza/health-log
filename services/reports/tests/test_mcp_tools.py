@@ -89,6 +89,32 @@ def test_保存すると_一覧と1件で読める(call):
     assert [r["report_id"] for r in listed] == [saved["report_id"]] and "body" not in listed[0]
 
 
+LINKS = [{"from_area": "sleep", "to_area": "training", "text": "7時間以上寝た日の次の日は、総負荷量が多い", "basis": "3日"},
+         {"from_area": "meals", "to_area": "body", "text": "たんぱく質が目標に届いた週は、体脂肪率が下がった"}]
+REVIEW = {"text": "体重が目標のペースより速く減っているので、kcal を少し上げる", "target": "meals_goal"}
+
+
+def test_つながりと目標の見直しを保存すると_1件で読め_同期でアプリに届く(call, engine):
+    saved = call("save_report", **{**WEEKLY, "kind": "monthly", "links": LINKS, "review": REVIEW})["report"]
+    full = call("get_report", report_id=saved["report_id"])
+    assert full["links"] == [LINKS[0], {**LINKS[1], "basis": None}]
+    assert full["review"] == REVIEW
+    entries, _, _ = engine.pull("alice", 0, 100, {"report"})
+    fields = entries[0].state["fields"]
+    assert fields["links"] == [LINKS[0], {**LINKS[1], "basis": None}] and fields["review"] == REVIEW
+    # 見直す目標は省ける
+    other = call("save_report", **{**WEEKLY, "review": {"text": "睡眠の目標を見直す"}})["report"]
+    assert call("get_report", report_id=other["report_id"])["review"] == {"text": "睡眠の目標を見直す", "target": None}
+
+
+def test_つながりと目標の見直しのない前の形も読める(call, engine):
+    saved = call("save_report", **WEEKLY)["report"]
+    full = call("get_report", report_id=saved["report_id"])
+    assert (full["links"], full["review"]) == ([], None)
+    entries, _, _ = engine.pull("alice", 0, 100, {"report"})
+    assert "links" not in entries[0].state["fields"] and "review" not in entries[0].state["fields"]
+
+
 def test_一覧は新しい順で_種類と件数で絞れる(call):
     first = call("save_report", **WEEKLY)["report"]["report_id"]
     second = call("save_report", **{**WEEKLY, "title": "10月のまとめ", "kind": "monthly"})["report"]["report_id"]
@@ -159,6 +185,15 @@ def test_筋トレの_scope_がなければ断る(call):
     ({"next_steps": ["a"] * (limits.MAX_NEXT_STEPS + 1)}, "next_steps"),
     ({"next_steps": ["あ" * (limits.MAX_NEXT_STEP_TEXT + 1)]}, "next_steps"),
     ({"body": "", "headline": "", "highlights": []}, "本文か"),
+    ({"links": LINKS + LINKS}, "links"),
+    ({"links": [{**LINKS[0], "to_area": "sleep"}]}, "違う分野"),
+    ({"links": [{**LINKS[0], "from_area": "mood"}]}, "from_area"),
+    ({"links": [{**LINKS[0], "text": "あ" * (limits.MAX_LINK_TEXT + 1)}]}, "text"),
+    ({"links": [{**LINKS[0], "basis": "あ" * (limits.MAX_LINK_BASIS + 1)}]}, "basis"),
+    ({"links": [{**LINKS[0], "basis": " "}]}, "basis"),
+    ({"review": {"text": ""}}, "review"),
+    ({"review": {"text": "あ" * (limits.MAX_REVIEW_TEXT + 1)}}, "review"),
+    ({"review": {**REVIEW, "target": "sleep_goal"}}, "target"),
 ])
 def test_入力を確かめる(call, change, message):
     with pytest.raises(ToolError, match=message):

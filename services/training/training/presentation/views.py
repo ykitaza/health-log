@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from training.application.queries import BodyProgress, ExerciseHistory, HeartRateSummary, SleepSummary, WeeklyTrainingReview
-from training.domain import body, bodyweight, calculations
+from training.application.queries import (
+    BodyProgress,
+    ExerciseHistory,
+    HeartRateSummary,
+    PeriodTraining,
+    SleepSummary,
+    WeeklyTrainingReview,
+)
+from training.domain import body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
 from training.domain.model import Exercise, SetRow, Workout
 
@@ -206,4 +213,55 @@ def heart_rate_summary(s: HeartRateSummary, start: str, end: str) -> dict:
         "average_resting_bpm": r1(s.average_resting_bpm),
         "days": [{"date": d.date, "resting_bpm": r1(d.resting_bpm), "avg_bpm": r1(d.avg_bpm), "min_bpm": r1(d.min_bpm),
                   "max_bpm": r1(d.max_bpm), "samples": d.samples} for d in s.days],
+    }
+
+
+# --- 期間の材料（レポートを書くための period_overview）。大きくなりすぎないよう、項目を絞る ---
+
+
+def period_training(p: PeriodTraining, catalog: Catalog, max_exercises: int) -> dict:
+    """日ごとの総負荷量と、種目ごとの最高の推定1RM（大きい順に max_exercises 件まで。自重の種目は出さない）。"""
+    exercises = []
+    for b in p.bests[:max_exercises]:
+        found = catalog.exercise(b.exercise_id)
+        part = catalog.body_part(found.body_part_id) if found else None
+        exercises.append({"exercise": found.name if found else "（消した種目）", "body_part": part.name if part else None,
+                          "max_estimated_1rm": r1(b.e1rm), "weight_kg": b.weight_kg, "reps": b.reps, "date": b.date})
+    return {
+        "sessions": len(p.days),
+        "total_volume": r1(p.total_volume),
+        "days": [{"date": d.date, "volume": r1(d.volume), "sets": d.sets} for d in p.days],
+        "exercises": exercises,
+        "exercises_omitted": max(0, len(p.bests) - max_exercises),
+        **({"note": MISSING_BODYWEIGHT.format(n=p.missing_bodyweight_sets)} if p.missing_bodyweight_sets else {}),
+    }
+
+
+def period_body(p: BodyProgress) -> dict:
+    """体重と体脂肪率だけ（ウエストと筋肉率は入れない）。平均は記録がある日だけで出す。"""
+    days = [d for d in p.days if d.weight_kg is not None or d.body_fat_pct is not None]
+    return {
+        "days_recorded": len(days),
+        "average_weight_kg": r1(health.average([d.weight_kg for d in days if d.weight_kg is not None])),
+        "average_body_fat_pct": r1(health.average([d.body_fat_pct for d in days if d.body_fat_pct is not None])),
+        "weekly_weight_change_kg": None if p.weekly_pace is None else round(p.weekly_pace, 2),
+        "days": [{"date": d.date, "weight_kg": d.weight_kg, "body_fat_pct": d.body_fat_pct} for d in days],
+    }
+
+
+def period_sleep(s: SleepSummary) -> dict:
+    return {
+        "nights_recorded": len(s.nights),
+        "average_asleep_min": r1(s.average_asleep_min),
+        "nights": [{"date": n.date, "asleep_min": n.asleep_min, "bedtime": jst(n.start_at), "wake_time": jst(n.end_at)}
+                   for n in s.nights],
+    }
+
+
+def period_heart_rate(s: HeartRateSummary) -> dict:
+    """安静時心拍だけ（ある日だけ）。"""
+    return {
+        "days_recorded": len([d for d in s.days if d.resting_bpm is not None]),
+        "average_resting_bpm": r1(s.average_resting_bpm),
+        "days": [{"date": d.date, "resting_bpm": r1(d.resting_bpm)} for d in s.days if d.resting_bpm is not None],
     }
