@@ -206,6 +206,8 @@ def register_training_tools(
         """部位と種目の一覧（アプリと同じもの）。記録の前に種目の正しい名前を確かめるときに呼ぶ。
 
         隠した種目は、include_hidden を true にすると出る（隠した種目も記録には使える）。
+        BIG3 に割り当てた種目には big3（bench・squat・deadlift）、フォームの動画のリンクがある種目には form_video_url が付く。
+        どちらもアプリの種目の編集で決める（ここからは変えられない）。
         名前・部位を変える、隠す・表示に戻すときは update_exercise。
         """
         sub = subject(READ_SCOPE)

@@ -126,7 +126,10 @@ async function appPushes() {
     sets: [{ weightKg: 80, reps: 8, memo: '', done: true }, { weightKg: 82.5, reps: 6, memo: '最後は補助あり', done: false }],
   });
   await d.r.workouts.saveEntry({ date: '2026-11-08', exerciseId: PULLUP, sets: [{ weightKg: null, reps: 10, memo: '', done: true }] });
-  const custom = await d.r.catalog.createExercise({ name: 'ブルガリアンスクワット', bodyPartId: LEGS, recordType: 'weight_reps' });
+  // スクワットの代わりに BIG3 のスクワットにする（名前で決めていたベンチプレス・デッドリフトの役も保存して送る）。フォームの動画のリンクも
+  const custom = await d.r.catalog.createExercise({
+    name: 'ブルガリアンスクワット', bodyPartId: LEGS, recordType: 'weight_reps', big3: 'squat', formVideoUrl: 'https://youtu.be/bss',
+  });
   await d.r.workouts.saveEntry({ date: '2026-11-08', exerciseId: custom, sets: [{ weightKg: 20, reps: 12, memo: '', done: false }] });
   await d.r.catalog.setExerciseHidden(SQUAT, true);
   await d.r.body.saveManual('2026-11-08', { weightKg: 70.4, bodyFatPct: 18.2, waistCm: 80 });

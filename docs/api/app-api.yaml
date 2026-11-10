@@ -552,6 +552,23 @@ components:
           minimum: 0
           maximum: 1
           description: 回数だけ（reps_only）の種目の、体重に対する割合。自重の負荷量 ＝ その日の体重 × 割合 × 回数。null・なしは名前から決める（services/training/training/domain/bodyweight.py）
+        big3:
+          type:
+          - string
+          - 'null'
+          enum:
+          - bench
+          - squat
+          - deadlift
+          - null
+          description: BIG3 の役。1つの役は1つの種目だけ（アプリが前の種目から外して送る。重なったら ID の小さいほう）。どの種目にもなければ名前で決める（services/training/training/domain/big3.py）
+        form_video_url:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          pattern: ^https://\S+$
+          description: フォームの動画のリンク（https:// で始まり、空白を含まない）。アプリの記録の入力の画面から開く
       description: 種目。create では body_part_id, name, record_type, sort_order, hidden が要る。update では変えた項目だけを送る
     WorkoutEntryFields:
       type: object

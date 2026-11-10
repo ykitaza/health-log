@@ -1,6 +1,7 @@
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { HiddenDuplicateError } from '../repositories/catalog';
 import { SEED_BODY_PARTS, SEED_EXERCISES } from '../seed';
+import { big3Assignments } from '@/lib/exercises';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
 
 async function setup() {
@@ -255,6 +256,61 @@ describe('種目と部位', () => {
     await expect(r.catalog.createBodyPart('胸')).rejects.toThrow('同じ名前の部位があります');
     expect((await r.catalog.listBodyParts({ includeHidden: true })).filter((p) => p.name === '腹筋')).toHaveLength(1);
     expect((await r.catalog.listExercises({ includeHidden: true })).filter((e) => e.name === 'ベンチプレス')).toHaveLength(1);
+  });
+});
+
+describe('BIG3 の役とフォームの動画', () => {
+  const roles = async (r: Awaited<ReturnType<typeof setup>>['r']) => {
+    const all = await r.catalog.listExercises({ includeHidden: true });
+    const m = big3Assignments(all);
+    const name = (id?: string) => all.find((e) => e.id === id)?.name;
+    return { bench: name(m.bench), squat: name(m.squat), deadlift: name(m.deadlift) };
+  };
+  const outbox = (db: Awaited<ReturnType<typeof setup>>['db']) =>
+    db.raw.prepare("SELECT entity_id, fields FROM sync_outbox WHERE entity_type = 'exercise' AND op = 'update' ORDER BY rowid").all()
+      .map((x) => { const row = x as { entity_id: string; fields: string }; return [row.entity_id, JSON.parse(row.fields)]; });
+
+  test('割り当てる前は名前で決め、何も保存しない。同じ役を選び直しても書かない', async () => {
+    const { db, r } = await setup();
+    expect(await roles(r)).toEqual({ bench: 'ベンチプレス', squat: 'スクワット', deadlift: 'デッドリフト' });
+    expect((await r.catalog.getExercise(BENCH))?.big3).toBeNull();
+    await r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, big3: 'bench' });
+    await r.catalog.updateExercise(SEED_EXERCISES[1].id, { name: 'インクラインダンベルプレス', bodyPartId: CHEST, big3: null });
+    expect(outbox(db)).toEqual([]);
+  });
+
+  test('ほかの種目に付けると前の種目から外し、名前で決めていたほかの役は保存する', async () => {
+    const { db, r } = await setup();
+    const narrow = await r.catalog.createExercise({ name: 'ナローベンチ', bodyPartId: CHEST, recordType: 'weight_reps', big3: 'bench' });
+    expect(await roles(r)).toEqual({ bench: 'ナローベンチ', squat: 'スクワット', deadlift: 'デッドリフト' });
+    expect(outbox(db)).toEqual([[SQUAT, { big3: 'squat' }], [DEADLIFT, { big3: 'deadlift' }], [narrow, { big3: 'bench' }]]);
+    // 保存した役を別の種目へ：前の種目から外す
+    await r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, big3: 'bench' });
+    expect(await roles(r)).toEqual({ bench: 'ベンチプレス', squat: 'スクワット', deadlift: 'デッドリフト' });
+    expect((await r.catalog.getExercise(narrow))?.big3).toBeNull();
+    // 外す
+    await r.catalog.updateExercise(DEADLIFT, { name: 'デッドリフト', bodyPartId: SEED_EXERCISES.find((e) => e.id === DEADLIFT)!.bodyPartId, big3: null });
+    expect(await roles(r)).toEqual({ bench: 'ベンチプレス', squat: 'スクワット', deadlift: undefined });
+  });
+
+  test('割り当てる前に名前の役を外すと、ほかの役は残る', async () => {
+    const { r } = await setup();
+    await r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, big3: null });
+    expect(await roles(r)).toEqual({ bench: undefined, squat: 'スクワット', deadlift: 'デッドリフト' });
+  });
+
+  test('フォームの動画のリンク：https:// だけ。空にすると消す。省くと変えない', async () => {
+    const { r } = await setup();
+    await r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, formVideoUrl: ' https://youtu.be/abc ' });
+    expect((await r.catalog.getExercise(BENCH))?.formVideoUrl).toBe('https://youtu.be/abc');
+    await r.catalog.updateExercise(BENCH, { name: 'バーベルベンチプレス', bodyPartId: CHEST });
+    expect((await r.catalog.getExercise(BENCH))?.formVideoUrl).toBe('https://youtu.be/abc');
+    await expect(r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, formVideoUrl: 'http://youtu.be/abc' }))
+      .rejects.toThrow('https:// で始まる');
+    await expect(r.catalog.createExercise({ name: 'x', bodyPartId: CHEST, recordType: 'weight_reps', formVideoUrl: 'youtu.be/abc' }))
+      .rejects.toThrow('https:// で始まる');
+    await r.catalog.updateExercise(BENCH, { name: 'ベンチプレス', bodyPartId: CHEST, formVideoUrl: '' });
+    expect((await r.catalog.getExercise(BENCH))?.formVideoUrl).toBeNull();
   });
 });
 

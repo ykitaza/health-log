@@ -91,7 +91,7 @@ export function periodTotals(rows: TrainingSetRow[], today: DateKey) {
   };
 }
 
-/** 週ごと（日曜始まり）の負荷量。[0] が今週、[1] が1週前… */
+/** 週ごと（月曜始まり）の負荷量。[0] が今週、[1] が1週前… */
 export function weeklyVolumes(rows: TrainingSetRow[], today: DateKey, weeks = 6): number[] {
   const thisWeek = weekStart(today);
   const out = new Array<number>(weeks).fill(0);
@@ -195,7 +195,7 @@ export function weeklyVolumeByBodyPart(rows: TrainingSetRow[], today: DateKey, w
 export type DailyByPart = { date: DateKey; byPart: Record<string, number>; total: number };
 
 /**
- * 部位ごとの、日ごとの総負荷量（古い順）。週ごと（weeklyVolumeByBodyPart）と同じ weeks 週（日曜始まり）の
+ * 部位ごとの、日ごとの総負荷量（古い順）。週ごと（weeklyVolumeByBodyPart）と同じ weeks 週（月曜始まり）の
  * 7 × weeks 日で、今週の土曜まで並べる。今日より後の日と、トレーニングしなかった日は 0。
  * 同じ weeks なら、日ごとの合計は週ごとの合計と同じになる
  */

@@ -1,4 +1,6 @@
-import { LIMITS, MEMO_MAX_LENGTH, memoLengthError, NAME_MAX_LENGTH, nameLengthError, parseInRange, rangeMessage, REPS_MAX } from '../limits';
+import {
+  FORM_VIDEO_URL_MAX_LENGTH, LIMITS, MEMO_MAX_LENGTH, memoLengthError, NAME_MAX_LENGTH, nameLengthError, parseFormVideoUrl, parseInRange, rangeMessage, REPS_MAX,
+} from '../limits';
 import { SetDraft, validateSets } from '../sets';
 import { kgToUnit, trimNumber } from '../units';
 
@@ -87,5 +89,21 @@ describe('名前の長さはコードポイントで数える（書記素では�
     expect(nameLengthError('種目', '💪'.repeat(NAME_MAX_LENGTH))).toBeNull();
     // 👨‍👩‍👧 は 👨・ZWJ・👩・ZWJ・👧 の5つと数える。見た目は9文字でも45
     expect(nameLengthError('種目', '👨‍👩‍👧'.repeat(9))).toBe('種目の名前は40文字以内で入れてください（今は45文字）');
+  });
+});
+
+describe('フォームの動画のリンク', () => {
+  test('https:// で始まるものだけ。前後の空白は取り、空はリンクなし', () => {
+    expect(parseFormVideoUrl(' https://youtu.be/abc ')).toEqual({ value: 'https://youtu.be/abc' });
+    expect(parseFormVideoUrl('  ')).toEqual({ value: null });
+    for (const bad of ['http://youtu.be/abc', 'youtu.be/abc', 'https://', 'https://youtu.be/a b', 'javascript:alert(1)', 'HTTPS://youtu.be/abc']) {
+      expect(parseFormVideoUrl(bad)).toEqual({ error: 'リンクは https:// で始まるものを入れてください（空白は入れられません）' });
+    }
+  });
+  test('長さはサーバーと同じ上限まで', () => {
+    const head = 'https://youtu.be/';
+    expect(parseFormVideoUrl(head + 'a'.repeat(FORM_VIDEO_URL_MAX_LENGTH - head.length))).toHaveProperty('value');
+    expect(parseFormVideoUrl(head + 'a'.repeat(FORM_VIDEO_URL_MAX_LENGTH - head.length + 1)))
+      .toEqual({ error: `リンクは ${FORM_VIDEO_URL_MAX_LENGTH} 文字以内で入れてください（今は${FORM_VIDEO_URL_MAX_LENGTH + 1}文字）` });
   });
 });

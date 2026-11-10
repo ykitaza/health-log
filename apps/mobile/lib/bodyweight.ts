@@ -36,7 +36,7 @@ export const NAME_RATIOS: readonly (readonly [string, number])[] = [
 export const RATIO_CHIPS = [100, 95, 70, 65, 50, 30] as const;
 
 /** 名前を比べる形（サーバーの catalog.normalize と同じ）：全角と半角をそろえ（NFKC）、小文字にし、空白を除く */
-function normalize(name: string): string {
+export function normalize(name: string): string {
   let s = name;
   try { s = s.normalize('NFKC'); } catch { /* normalize がない環境では、そのまま比べる */ }
   return s.toLowerCase().replace(/\s+/g, '');

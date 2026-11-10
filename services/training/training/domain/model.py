@@ -43,6 +43,10 @@ class Exercise:
     hidden: bool
     # 回数だけの種目の、体重に対する割合（0〜1）。None は名前から決める（training.domain.bodyweight）
     bodyweight_ratio: float | None = None
+    # BIG3 の役（bench・squat・deadlift）。None は割り当てなし（どの種目にもなければ名前から決める。training.domain.big3）
+    big3: str | None = None
+    # フォームの動画のリンク（https:// で始まるもの）
+    form_video_url: str | None = None
 
 
 @dataclass(frozen=True)

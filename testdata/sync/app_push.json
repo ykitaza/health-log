@@ -91,7 +91,42 @@
             "record_type": "weight_reps",
             "sort_order": 18,
             "hidden": false,
-            "bodyweight_ratio": null
+            "bodyweight_ratio": null,
+            "big3": null,
+            "form_video_url": "https://youtu.be/bss"
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "exercise",
+          "entity_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+          "op": "update",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "big3": "bench"
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "exercise",
+          "entity_id": "2b2e0dc4-c98d-4656-95f6-e9a21cf03004",
+          "op": "update",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "big3": "deadlift"
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "exercise",
+          "entity_id": "id-6",
+          "op": "update",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "big3": "squat"
           }
         },
         {

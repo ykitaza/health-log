@@ -149,7 +149,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## アプリの同期（apps/mobile）
 
-アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。
+アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版9で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。
 種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）

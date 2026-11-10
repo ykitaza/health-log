@@ -52,12 +52,14 @@ def _seed_values(item: BodyPart | Exercise) -> dict:
     if isinstance(item, Exercise):
         values["record_type"] = item.record_type.value
         values.pop("bodyweight_ratio")  # 初期の種目は割合を持たない（名前から決める）。同期の値があればそれを使う
+        values.pop("big3")  # BIG3 の役とフォームの動画も、初期の種目は持たない
+        values.pop("form_video_url")
     return values
 
 
 def _exercise(entity_id: str, v: dict) -> Exercise:
     return Exercise(entity_id, v["body_part_id"], v["name"], RecordType(v["record_type"]), v["sort_order"], v["hidden"],
-                    v.get("bodyweight_ratio"))
+                    v.get("bodyweight_ratio"), v.get("big3"), v.get("form_video_url"))
 
 
 class SyncTrainingRepository:
@@ -214,6 +216,10 @@ class SyncTrainingRepository:
                    "hidden": exercise.hidden}
         if exercise.bodyweight_ratio is not None:  # 持っていない割合を null で書くと、アプリがまだ送っていない値に勝ってしまう
             desired["bodyweight_ratio"] = exercise.bodyweight_ratio
+        # BIG3 の役とフォームの動画は MCP では変えない。読んだ値をそのまま戻すだけなので、持っていなければ書かない（割合と同じ）
+        for key in ("big3", "form_video_url"):
+            if getattr(exercise, key) is not None:
+                desired[key] = getattr(exercise, key)
         seed = next((s for s in SEED_EXERCISES if s.id == exercise.id), None)
         if seed is None:
             self._write(user, self._upsert("exercise", exercise.id, state, desired))

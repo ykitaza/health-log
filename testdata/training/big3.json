@@ -1,0 +1,60 @@
+{
+  "description": "BIG3 の役（bench・squat・deadlift）と種目の対応。割り当て（big3）があればそれ（重なったら ID の小さいほう）。どの種目にもなければ名前で決める（ベンチプレス・スクワット・デッドリフトを含み、インクライン・ダンベルなどを含まない、表示中の重量×回数の種目。名前がちょうど同じもの、短いもの、ID の小さいものの順）。アプリ（lib/exercises.ts）とサーバー（training.domain.big3）で確かめる",
+  "cases": [
+    {
+      "name": "初期の種目：名前で3つとも決まる（インクラインダンベルプレス・ルーマニアンデッドリフト・ブルガリアンスクワットは入らない）",
+      "exercises": [
+        { "id": "a-bench", "name": "ベンチプレス" },
+        { "id": "a-incline", "name": "インクラインダンベルプレス" },
+        { "id": "a-dl", "name": "デッドリフト" },
+        { "id": "a-rdl", "name": "ルーマニアンデッドリフト" },
+        { "id": "a-squat", "name": "スクワット" },
+        { "id": "a-bss", "name": "ブルガリアンスクワット" }
+      ],
+      "expected": { "bench": "a-bench", "squat": "a-squat", "deadlift": "a-dl" }
+    },
+    {
+      "name": "名前で決めるとき：ちょうど同じ名前が先、次に短い名前。全角・半角と空白はそろえて比べる",
+      "exercises": [
+        { "id": "b-1", "name": "バーベルベンチプレス" },
+        { "id": "b-2", "name": "ベンチ プレス" },
+        { "id": "b-3", "name": "バーベルスクワット" },
+        { "id": "b-4", "name": "スクワット（ハイバー）" },
+        { "id": "b-5", "name": "スモウデッドリフト" }
+      ],
+      "expected": { "bench": "b-2", "squat": "b-3", "deadlift": "b-5" }
+    },
+    {
+      "name": "名前で決めるとき：非表示と回数だけの種目は入れない",
+      "exercises": [
+        { "id": "c-1", "name": "ベンチプレス", "hidden": true },
+        { "id": "c-2", "name": "スクワット", "record_type": "reps_only" },
+        { "id": "c-3", "name": "デッドリフト" }
+      ],
+      "expected": { "deadlift": "c-3" }
+    },
+    {
+      "name": "どれかに割り当てがあれば、名前では決めない（割り当てのない役は出ない）",
+      "exercises": [
+        { "id": "d-1", "name": "ベンチプレス" },
+        { "id": "d-2", "name": "スクワット" },
+        { "id": "d-3", "name": "ナローベンチ", "big3": "bench" }
+      ],
+      "expected": { "bench": "d-3" }
+    },
+    {
+      "name": "同じ役が2つの種目にあれば（端末どうしの同期で重なったとき）、ID の小さいほう。非表示でも割り当ては使う",
+      "exercises": [
+        { "id": "e-2", "name": "ベンチプレスB", "big3": "bench" },
+        { "id": "e-1", "name": "ベンチプレスA", "big3": "bench", "hidden": true },
+        { "id": "e-3", "name": "デッドリフト", "big3": "deadlift" }
+      ],
+      "expected": { "bench": "e-1", "deadlift": "e-3" }
+    },
+    {
+      "name": "種目がない",
+      "exercises": [],
+      "expected": {}
+    }
+  ]
+}

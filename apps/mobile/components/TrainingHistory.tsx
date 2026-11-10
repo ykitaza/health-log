@@ -250,7 +250,7 @@ function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod,
   );
 }
 
-/** 日ごとの総負荷量に出す週の数（週ごとと同じ日曜始まりの 28 日） */
+/** 日ごとの総負荷量に出す週の数（週ごとと同じ月曜始まりの 28 日） */
 const DAILY_WEEKS = 4;
 const WEEKLY_WEEKS = 8;
 
@@ -320,7 +320,7 @@ function AllGraph({ data, today, unit, onPick }: {
             }))}
           />
         ) : (
-          // 棒が 28 本と細いので、日付は週の始まり（日曜）だけ、棒の左から書く。値はいちばん多い日だけ棒の上に出す
+          // 棒が 28 本と細いので、日付は週の始まり（月曜）だけ、棒の左から書く。値はいちばん多い日だけ棒の上に出す
           <StackedBarChart
             animKey={range}
             testID="volume-chart-day"

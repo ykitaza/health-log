@@ -18,6 +18,8 @@ from sync.registry import EntitySpec, Registry
 
 AREA = "training"
 Name = Annotated[str, Field(min_length=1, max_length=200)]
+# フォームの動画のリンク。https:// で始まり、空白を含まないもの（アプリの lib/limits.ts の FORM_VIDEO_URL_MAX_LENGTH・formVideoUrlError と同じ）
+FormVideoUrl = Annotated[str, Field(max_length=2000, pattern=r"^https://\S+$")]
 
 
 class BodyPartFields(FieldsModel):
@@ -34,6 +36,9 @@ class ExerciseFields(FieldsModel):
     hidden: bool = None
     # 回数だけの種目の、体重に対する割合（0〜1。自重の負荷量 ＝ 体重 × 割合 × 回数）。null・なしは名前から決める
     bodyweight_ratio: Annotated[float, Field(ge=0, le=1)] | None = None
+    # BIG3 の役。1つの役は1つの種目だけ（アプリが前の種目から外して送る。重なったら ID の小さいほう。training.domain.big3）
+    big3: Literal["bench", "squat", "deadlift"] | None = None
+    form_video_url: FormVideoUrl | None = None  # フォームの動画のリンク。記録の入力の画面から開く
 
 
 class WorkoutEntryFields(FieldsModel):

@@ -132,7 +132,7 @@ test('「すべて」の総負荷量：週 → 日の切り替えで棒が日ご
   await expect(page.getByTestId('volume-chart-week')).toBeVisible();
   await expect(page.getByTestId('volume-chart-day')).toHaveCount(0);
 
-  // 日ごと：4週（10/18〜11/14）の 28 日。10/20 の 500、11/5 の 1280、11/8 の 425（懸垂は体重がないので 0）
+  // 日ごと：4週（週は月曜始まり。10/12〜11/8）の 28 日。10/20 の 500、11/5 の 1280、11/8 の 425（懸垂は体重がないので 0）
   await button(page, '日').click();
   await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
   const chart = page.getByTestId('volume-chart-day');
@@ -141,13 +141,13 @@ test('「すべて」の総負荷量：週 → 日の切り替えで棒が日ご
   await expect(see(page, '日ごとの総負荷量', { exact: true })).toBeVisible();
   await expect(see(page, '2.2', { exact: true })).toBeVisible(); // 2205kg
   await expect(see(page, 'いちばん多い日 11/5 1.3t ・ 3日')).toBeVisible();
-  // 棒は記録のあった3日だけ。日付の軸は週の始まり（日曜）
+  // 棒は記録のあった3日だけ。日付の軸は週の始まり（月曜）
   await expect(chart.locator('rect')).toHaveCount(3);
-  for (const d of ['10/18', '10/25', '11/1', '11/8']) await expect(chart.getByText(d, { exact: true })).toBeVisible();
+  for (const d of ['10/12', '10/19', '10/26', '11/2']) await expect(chart.getByText(d, { exact: true })).toBeVisible();
   // いちばん多い日だけ、棒の上に値
   await expect(chart.getByText('1.3t', { exact: true })).toBeVisible();
   // 読み上げの要約（期間の合計と、いちばん多い日）
-  await expect(chart).toHaveAttribute('aria-label', '日ごとの総負荷量のグラフ。10月18日から今日までの合計 2.2トン、3日。いちばん多い日は11月5日で 1.3トン');
+  await expect(chart).toHaveAttribute('aria-label', '日ごとの総負荷量のグラフ。10月12日から今日までの合計 2.2トン、3日。いちばん多い日は11月5日で 1.3トン');
 
   // 開き直しても「日」のまま
   await moveToDate(page, TODAY);
@@ -159,7 +159,7 @@ test('「すべて」の総負荷量：週 → 日の切り替えで棒が日ご
   // 週に戻す
   await button(page, '週').click();
   await expect(page.getByTestId('volume-chart-week')).toBeVisible();
-  await expect(see(page, '週の平均 0.3t ・ 先週より −0.9t')).toBeVisible();
+  await expect(see(page, '週の平均 0.4t ・ 先週より +1.7t')).toBeVisible();
 });
 
 test('グラフ：期間の切り替え、記録が1件以下、回数だけの種目。「すべて」：週ごとの総負荷量と自己ベスト', async ({ page }) => {
@@ -201,9 +201,10 @@ test('グラフ：期間の切り替え、記録が1件以下、回数だけの�
   // 「すべて」の種目：週ごとの総負荷量と自己ベスト
   await button(page, 'すべて').first().click();
   await expect(see(page, '週ごとの総負荷量', { exact: true })).toBeVisible();
-  // 今週 425kg → 0.4t。8週（9/20〜）の合計 500+1280+425 = 2205 → 平均 275.6kg → 0.3t。先週 1280 との差 −855 → −0.9t
-  await expect(see(page, '0.4', { exact: true })).toBeVisible();
-  await expect(see(page, '週の平均 0.3t ・ 先週より −0.9t')).toBeVisible();
+  // 週は月曜始まり。今週（11/2〜）1280+425 = 1705kg → 1.7t。8週（9/14〜）の合計 600+500+1705 = 2805 → 平均 350.6kg → 0.4t。
+  // 先週 0 との差 +1.7t
+  await expect(see(page, '1.7', { exact: true })).toBeVisible();
+  await expect(see(page, '週の平均 0.4t ・ 先週より +1.7t')).toBeVisible();
   // 凡例は記録のある部位だけ
   await expect(see(page, '胸', { exact: true })).toHaveCount(3); // 部位のチップ、凡例、自己ベストの部位
   await expect(see(page, '背中', { exact: true })).toHaveCount(1); // チップだけ（凡例に出ない）

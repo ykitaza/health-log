@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from training.domain import body, bodyweight
+from training.domain import big3, body, bodyweight
 from training.domain import calculations as c
-from training.domain.model import BodyRecord, SetRow
+from training.domain.model import BodyRecord, Exercise, RecordType, SetRow
 
 TESTDATA = Path(__file__).parents[3] / "testdata" / "training"
 
@@ -68,6 +68,13 @@ def test_自重の負荷量():
         assert [asdict(p) for p in c.exercise_daily_series(rows, exercise_id)] == points
     assert {k: asdict(v) for k, v in c.personal_bests(rows).items()} == e["personal_bests"]  # 自重の種目は推定1RM を出さない
     assert bodyweight.missing_bodyweight(rows) == e["missing_bodyweight"]
+
+
+@pytest.mark.parametrize("case", load("big3.json")["cases"], ids=lambda c: c["name"])
+def test_BIG3_の割り当て(case):
+    exercises = [Exercise(e["id"], "part", e["name"], RecordType(e.get("record_type", "weight_reps")), 0,
+                          e.get("hidden", False), big3=e.get("big3")) for e in case["exercises"]]
+    assert big3.assignments(exercises) == case["expected"]
 
 
 def test_体組成():

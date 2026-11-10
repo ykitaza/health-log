@@ -319,6 +319,30 @@ def test_アプリが同期で送った種目の変更と_MCP_の変更は項目
     assert found == [{"exercise_id": exercise_id, "name": "バーベルベンチプレス", "record_type": "weight_reps", "hidden": True}]
 
 
+def test_種目の一覧に_BIG3_の役とフォームの動画を付ける_MCP_の変更では消さない(call, engine):
+    def listed():
+        return {e["name"]: e for p in call("list_exercises")["body_parts"] for e in p["exercises"]}
+
+    # 割り当てる前は、名前で決めた役（インクラインダンベルプレス・ルーマニアンデッドリフトは入らない）
+    roles = {name: e["big3"] for name, e in listed().items() if "big3" in e}
+    assert roles == {"ベンチプレス": "bench", "スクワット": "squat", "デッドリフト": "deadlift"}
+    assert all("form_video_url" not in e for e in listed().values())
+    # アプリでベンチプレスの役をほかの種目に移し、フォームの動画を入れた
+    narrow = call("add_exercise", name="ナローベンチ", body_part="胸")["exercise_id"]
+    engine.append("alice", [
+        Change(str(uuid.uuid4()), "exercise", narrow, None, "update",
+               {"big3": "bench", "form_video_url": "https://youtu.be/abc"}, "2026-11-08T10:00:00.000Z", "app"),
+    ])
+    found = listed()
+    assert {name: e["big3"] for name, e in found.items() if "big3" in e} == {"ナローベンチ": "bench"}  # 名前では決めない
+    assert found["ナローベンチ"]["form_video_url"] == "https://youtu.be/abc"
+    # MCP で名前を変えても、役とリンクは残り、送るのは名前だけ
+    call("update_exercise", exercise=narrow, name="ナローグリップベンチ")
+    entries, _, _ = engine.pull("alice", 0, 100, {"exercise"})
+    assert entries[-1].change.fields == {"name": "ナローグリップベンチ"}
+    assert listed()["ナローグリップベンチ"]["big3"] == "bench"
+
+
 def test_体組成を記録し_同じ日は渡した項目だけ書き換える(call):
     first = call("record_body", weight_kg=70.2, body_fat_pct=15)
     assert first["recorded"]["weight_kg"] == 70.2 and first["recorded"]["fat_mass_kg"] == 10.5

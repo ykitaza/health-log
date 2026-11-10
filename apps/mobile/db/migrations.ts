@@ -6,7 +6,7 @@
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
   ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, SQL_UUID, TRAINING_ENTITIES,
-  TRAINING_ENTITIES_V2, triggerSql,
+  TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
 
@@ -289,6 +289,22 @@ ALTER TABLE exercises ADD COLUMN bodyweight_ratio REAL;
 DROP TRIGGER sync_exercises_insert;
 DROP TRIGGER sync_exercises_update;
 `);
+      for (const spec of TRAINING_ENTITIES_V8.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // 種目の BIG3 の役（big3：bench・squat・deadlift。NULL は割り当てなし）と、フォームの動画のリンク（form_video_url）。
+    // 列を足して種目のトリガーを作り直す。今までの種目は NULL のまま（版8と同じく、ここで値を書くと初期の種目の変更を送ることになる）。
+    // どの種目にも役がないあいだは、読むときに名前で決める（lib/exercises.ts の big3Assignments。サーバーも同じ決まり）。
+    // 値の確かめ（役の3つ、https:// のリンク）はサーバーと画面で行い、表には CHECK を付けない（受け取った値の当てはめを止めないため）
+    version: 9,
+    up: async (db) => {
+      await db.execAsync(`
+ALTER TABLE exercises ADD COLUMN big3 TEXT;
+ALTER TABLE exercises ADD COLUMN form_video_url TEXT;
+DROP TRIGGER sync_exercises_insert;
+DROP TRIGGER sync_exercises_update;
+`);
       for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
     },
   },
@@ -329,6 +345,8 @@ export async function backfillOutbox(db: Db, specs: EntitySpec[] = ENTITIES, wit
       body_part_id: e.bodyPartId, name: e.name, record_type: e.recordType, sort_order: i, hidden: 0,
       // 割合（版8）は、初期の値を持たない（NULL は名前から決める）。画面で決めた割合は、変えた項目として送る
       bodyweight_ratio: null,
+      // BIG3 の役とフォームの動画（版9）も、初期の値を持たない（役は、どれにもなければ名前で決める）
+      big3: null, form_video_url: null,
     }])),
   };
   const add = (type: string, id: string, op: string, fields: Record<string, Bind> | null, at: string, parentId: string | null = null,
