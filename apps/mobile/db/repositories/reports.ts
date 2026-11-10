@@ -1,4 +1,5 @@
-import { parseReport, Report, ReportRow } from '@/lib/reports';
+import { DateKey } from '@/lib/date';
+import { isReportOrder, parseReport, Report, ReportOrder, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
@@ -8,29 +9,99 @@ const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, 
 const DISMISSED_PENDING = 'reports.dismissed_pending';
 /** 覚えておく数。出す範囲は日7＋週4＋月1（と今日）なので、古いものは捨ててよい */
 const DISMISSED_MAX = 50;
+/** 開いた（見た）レポートの ID。新しいレポートのお知らせと、一覧の「新着」の印に使う。端末だけに覚える（同期しない） */
+const SEEN = 'reports.seen';
+/** 一覧の並び順（lib/reports.ts の ReportOrder）。端末だけ */
+const LIST_ORDER = 'reports.list_order';
+/** 「自動で作る」で、ChatGPT にスケジュールを頼んだ日（'YYYY-MM-DD'）。端末だけ */
+const SCHEDULE_REQUESTED = 'reports.schedule_requested_on';
 
 /**
  * レポート（同期で受け取った、MCP の save_report のまとめ）。アプリからは読むのと消すのだけ（書き換えない）。
  * 消すと、トリガーが delete を outbox に積み、次の同期でサーバーに届く
  */
 export function reportRepository(db: Db, deps: Deps) {
-  async function dismissedPending(): Promise<string[]> {
-    const raw = (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [DISMISSED_PENDING]))?.value;
+  const meta = async (key: string) => (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [key]))?.value ?? null;
+  const setMeta = (key: string, value: string) => db.runAsync(
+    'INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [key, value],
+  );
+  /** 文字の並びとして覚えた値。まだなければ null、壊れていれば [] */
+  async function stringList(key: string): Promise<string[] | null> {
+    const raw = await meta(key);
+    if (raw == null) return null;
     try {
-      const list: unknown = raw ? JSON.parse(raw) : [];
+      const list: unknown = JSON.parse(raw);
       return Array.isArray(list) ? list.filter((k): k is string => typeof k === 'string') : [];
     } catch {
       return [];
     }
   }
+  const dismissedPending = async () => (await stringList(DISMISSED_PENDING)) ?? [];
+  const liveIds = async () => (await db.getAllAsync<{ id: string }>('SELECT id FROM reports WHERE deleted_at IS NULL', [])).map((r) => r.id);
+
+  async function list(): Promise<Report[]> {
+    const rows = await db.getAllAsync<ReportRow>(
+      `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [],
+    );
+    return rows.map(parseReport);
+  }
+
+  /**
+   * 見たレポートの ID。まだ覚えていなければ（この機能が入って初めて動いたとき）、今あるレポートを全部見たことにする
+   * （古いレポートが全部お知らせにならないように）
+   */
+  async function seenIds(): Promise<Set<string>> {
+    const seen = await stringList(SEEN);
+    if (seen != null) return new Set(seen);
+    const ids = await liveIds();
+    await setMeta(SEEN, JSON.stringify(ids));
+    return new Set(ids);
+  }
 
   return serializeWrites(db, {
-    /** 消していないレポート（作った時刻の新しい順、同じなら ID の順） */
-    async list(): Promise<Report[]> {
-      const rows = await db.getAllAsync<ReportRow>(
-        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [],
-      );
-      return rows.map(parseReport);
+    /** 消していないレポート（作った時刻の新しい順、同じなら ID の順。一覧の並びは lib/reports.ts の sortReports） */
+    list,
+
+    /** 見たレポートの ID（初めて呼んだときは、今あるものを全部見たことにする） */
+    seenIds,
+
+    /** まだ開いていないレポート（作った時刻の新しい順） */
+    async unread(): Promise<Report[]> {
+      const seen = await seenIds();
+      return (await list()).filter((r) => !seen.has(r.id));
+    },
+
+    /**
+     * 見たことにする（中身の画面を開いたとき、お知らせを閉じたとき）。同期の対象ではないので、書き込みの列には並べない。
+     * 消えたレポートの ID は捨てる（覚える数が増え続けないように）
+     */
+    async markSeen(ids: string[]): Promise<void> {
+      const seen = await seenIds();
+      const before = seen.size;
+      for (const id of ids) seen.add(id);
+      if (seen.size === before) return;
+      const live = new Set(await liveIds());
+      await setMeta(SEEN, JSON.stringify([...seen].filter((id) => live.has(id))));
+    },
+
+    /** 一覧の並び順。覚えていなければ新しい順 */
+    async listOrder(): Promise<ReportOrder> {
+      const v = await meta(LIST_ORDER);
+      return isReportOrder(v) ? v : 'newest';
+    },
+
+    async setListOrder(order: ReportOrder): Promise<void> {
+      await setMeta(LIST_ORDER, order);
+    },
+
+    /** 「自動で作る」でスケジュールを頼んだ日。まだなら null */
+    async scheduleRequestedOn(): Promise<DateKey | null> {
+      const v = await meta(SCHEDULE_REQUESTED);
+      return v != null && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    },
+
+    async setScheduleRequestedOn(date: DateKey): Promise<void> {
+      await setMeta(SCHEDULE_REQUESTED, date);
     },
 
     async latest(): Promise<Report | null> {
@@ -61,10 +132,7 @@ export function reportRepository(db: Db, deps: Deps) {
     async dismissPending(key: string): Promise<void> {
       const list = (await dismissedPending()).filter((k) => k !== key);
       list.push(key);
-      await db.runAsync(
-        'INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
-        [DISMISSED_PENDING, JSON.stringify(list.slice(-DISMISSED_MAX))],
-      );
+      await setMeta(DISMISSED_PENDING, JSON.stringify(list.slice(-DISMISSED_MAX)));
     },
 
     async remove(id: string): Promise<void> {

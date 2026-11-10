@@ -2,13 +2,13 @@
 // コンポーネント（改善案）の ReportCard・LatestReportCard。調子は色だけでなく、アイコンとラベルでも伝える（WCAG 1.4.1）。
 // 本文はモデルが書いた文なので、すべて文字として表示する（リンクや HTML を開く処理は入れない）
 import { router } from 'expo-router';
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { useFocusData } from '@/hooks/data';
 import { todayKey } from '@/lib/date';
 import {
-  Area, AREA_LABELS, Block, dailyHighlightLabel, dailySectionTitle, deltaLook, formatCreated, formatDelta, formatMetricValue, formatPeriod,
+  Area, AREA_LABELS, Block, dailyHighlightLabel, dailySectionTitle, deltaLook, formatCreated, formatDelta, formatMetricValue, formatPeriod, formatReportDate,
   Highlight, highlightsFor, KIND_LABELS, Metric, metricLabel, parseMarkdown, primaryMetrics, Report, reportCardLabel, ReportKind, Span, Tone,
   TONE_LABELS, TONE_SHORT,
 } from '@/lib/reports';
@@ -19,7 +19,7 @@ import { CountUpText } from './charts';
 import { Icon, IconName } from './Icon';
 import { easeOut, PressableScale } from './motion';
 import { T } from './Text';
-import { Button } from './ui';
+import { Badge, Button } from './ui';
 
 const TONE_ICON: Record<Tone, IconName> = { good: 'trendUp', steady: 'trendFlat', caution: 'caution' };
 export const AREA_ICON: Record<Area, IconName> = { training: 'dumbbell', meals: 'meal', body: 'scale', sleep: 'moon' };
@@ -71,10 +71,48 @@ export function Delta({ metric, size = 13, suffix }: { metric: Metric; size?: nu
 function MetricChip({ metric }: { metric: Metric }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: colors.input, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-      <T size={11} color={colors.sub}>{metric.label}</T>
-      <T num bold size={17}>{formatMetricValue(metric.value)}</T>
-      {metric.unit !== '' && <T size={11} color={colors.sub}>{metric.unit}</T>}
+      <T size={11} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{metric.label}</T>
+      <T num bold size={17} numberOfLines={1}>{formatMetricValue(metric.value)}</T>
+      {metric.unit !== '' && <T size={11} color={colors.sub} numberOfLines={1}>{metric.unit}</T>}
       <Delta metric={metric} size={12} />
+    </View>
+  );
+}
+
+/** 指標のないカードで、指標の段の高さだけを取るための見えない札 */
+const PLACEHOLDER_METRIC: Metric = { label: '\u00A0', value: 0, unit: '', delta: 0, deltaGood: null };
+
+/**
+ * カードの指標の段。1段に収め、入らない札は出さない（並べて幅を測り、はみ出す2つ目からを消す）。先頭の札はいつも出し、
+ * 1つだけになったときは縮めて（名前を「…」で）収める。指標がなくても、見えない札で同じ高さを取る（カードの高さをそろえる）。
+ * 高さは文字の行で決まるので、文字の大きさの設定に合わせて伸びる
+ */
+function MetricRow({ metrics }: { metrics: Metric[] }) {
+  const [width, setWidth] = useState(0);
+  const [ends, setEnds] = useState<Record<number, number>>({});
+  if (metrics.length === 0) {
+    return (
+      <View style={{ flexDirection: 'row', opacity: 0 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="report-metrics-empty">
+        <MetricChip metric={PLACEHOLDER_METRIC} />
+      </View>
+    );
+  }
+  const fits = metrics.map((_, i) => i === 0 || width === 0 || ends[i] == null || ends[i] <= width + 0.5);
+  const alone = fits.every((f, i) => i === 0 || !f);
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, overflow: 'hidden' }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {metrics.map((m, i) => (
+        <View
+          key={i}
+          // 2つ目からが並んでいるあいだは、先頭を縮めない（縮めると、はみ出す札も入って見えてしまう）
+          // 2つ目からは、幅を測り終えるまで見せない（はみ出す札が一瞬見えないように）
+          style={{ flexShrink: i === 0 && alone ? 1 : 0, display: fits[i] ? 'flex' : 'none', opacity: i > 0 && (width === 0 || ends[i] == null) ? 0 : 1 }}
+          onLayout={(e) => { const x = e.nativeEvent.layout.x + e.nativeEvent.layout.width; setEnds((prev) => (prev[i] === x ? prev : { ...prev, [i]: x })); }}
+          testID="report-metric"
+        >
+          <MetricChip metric={m} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -88,14 +126,19 @@ export function KindBadge({ kind }: { kind: ReportKind }) {
   );
 }
 
-/** 一覧とホームのカード：左に調子の色の帯、調子のアイコンとラベル、種類、作った日、題、要約、主な指標を2つまで */
-export function ReportCard({ report, onPress }: { report: Report; onPress: () => void }) {
+/**
+ * 一覧とホームのカード：左に調子の色の帯、調子のアイコンとラベル、種類、日付（一覧の並びと同じ、期間の日付）、題、要約、主な指標を2つまで。
+ * 高さをそろえるため、題と要約は1行ずつ（長ければ「…」）、指標は1段（入らない分は出さない。指標がなくても同じ高さ）。
+ * 高さは固定の数字ではなく行の数で決める（文字の大きさの設定を大きくしても、文字が切れて読めなくならない）。
+ * unread（まだ開いていない）なら、題の横に「新着」の札（読み上げにも入れる）
+ */
+export function ReportCard({ report, onPress, unread = false }: { report: Report; onPress: () => void; unread?: boolean }) {
   const tone = toneColors[report.tone];
   const metrics = primaryMetrics(report);
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={[reportCardLabel(report), ...metrics.map(metricLabel)].join('、')}
+      accessibilityLabel={[reportCardLabel(report, unread), ...metrics.map(metricLabel)].join('、')}
       accessibilityHint="レポートを開く"
       scaleTo={0.98}
       onPress={onPress}
@@ -106,17 +149,18 @@ export function ReportCard({ report, onPress }: { report: Report; onPress: () =>
       <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 14, paddingRight: 8, gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon name={TONE_ICON[report.tone]} size={18} color={tone.accent} />
-          <T bold size={14} color={tone.accent} style={{ flex: 1 }}>{TONE_LABELS[report.tone]}</T>
+          <T bold size={14} color={tone.accent} style={{ flex: 1 }} numberOfLines={1}>{TONE_LABELS[report.tone]}</T>
           <KindBadge kind={report.kind} />
-          <T size={12} color={colors.sub}>{formatCreated(report.createdAt)}</T>
+          <T size={12} color={colors.sub} numberOfLines={1}>{formatReportDate(report)}</T>
         </View>
-        <T bold size={16}>{report.title}</T>
-        {report.headline !== '' && <T size={14} color={colors.sub}>{report.headline}</T>}
-        {metrics.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {metrics.map((m, i) => <MetricChip key={i} metric={m} />)}
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* 行の高さは「新着」の札（24）と同じにする（札のあるカードとないカードで高さを変えない） */}
+          <T bold size={16} numberOfLines={1} style={{ flexShrink: 1, lineHeight: 24 }}>{report.title}</T>
+          {unread && <Badge label="新着" tone="solid" />}
+        </View>
+        {/* 要約がなくても1行ぶんを取る（ふつうの空白だと web で高さがなくなるので、詰めない空白） */}
+        <T size={14} color={colors.sub} numberOfLines={1}>{report.headline || '\u00A0'}</T>
+        <MetricRow metrics={metrics} />
       </View>
       <View style={{ justifyContent: 'center', paddingRight: 12 }}>
         <Icon name="chevron" size={20} color={colors.sub} />

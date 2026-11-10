@@ -24,7 +24,9 @@ export type ChatPrompt =
   | { kind: 'training'; date: string; today: string }
   | { kind: 'report'; span: ReportSpan; today: string }
   /** まだ作っていないまとめを、まとめて作る（lib/reports.ts の pendingReports の結果） */
-  | { kind: 'pending'; items: PendingReport[] };
+  | { kind: 'pending'; items: PendingReport[] }
+  /** まとめを自動で作るスケジュール（ChatGPT のタスク）を入れてもらう（REPORT_SCHEDULES の3つ） */
+  | { kind: 'schedule' };
 
 /** 決まった形の日付（'YYYY-MM-DD'）ならそのまま、でなければ null（文に入れない） */
 function validDate(date: string): string | null {
@@ -139,9 +141,36 @@ export function pendingPrompt(items: PendingReport[]): { text: string; included:
   return { text: pendingText(sorted.slice(0, 1), sorted.length - 1), included: sorted.slice(0, 1) };
 }
 
+/**
+ * 「自動で作る」で入れてもらう予定（ChatGPT のスケジュール）。シートの一覧と頼みの文の両方に使う。
+ * 日は寝る前にその日の分、週と月は区切りの次の朝に前の期間の分
+ */
+export const REPORT_SCHEDULES: { kind: ReportKind; title: string; when: string; period: string; prompt: string }[] = [
+  { kind: 'daily', title: '日のまとめ', when: '毎日 22:00', period: 'その日の分', prompt: '毎日22:00 その日' },
+  { kind: 'weekly', title: '週のまとめ', when: '毎週月曜 8:00', period: '先週の分', prompt: '毎週月曜8:00 先週の月〜日' },
+  { kind: 'monthly', title: '月のまとめ', when: '毎月1日 8:00', period: '先月の分', prompt: '毎月1日8:00 先月' },
+];
+
+/**
+ * 「自動で作る」の文。3つの予定を入れてもらい、すでに hlog のまとめの予定があれば作らずに教えてもらう。
+ * 各回は list_reports で同じ種類・期間のまとめを探し、なければ period_overview で読んで save_report で保存する。
+ * URL の上限（2,000 文字）に収めるため、種類ごとの書き方は今の頼みの文の要点だけにし、くわしくは save_report の説明に任せる
+ */
+function scheduleText(): string {
+  const plans = REPORT_SCHEDULES.map((s, i) => `${i + 1}.${s.prompt}(${s.kind})`).join(' ');
+  return `${CONNECTOR}で、まとめのスケジュールを3つ入れてください。`
+    + 'hlog のまとめのタスクがもうあれば、作らず教えてください。'
+    + `${plans}。`
+    + '各回：list_reports(kind)に同じ期間があれば作らない。'
+    + 'なければ period_overview(start, end)を読み、記録の値だけで書いて save_report(kind, period_start, period_end)で保存。'
+    + '記録がなければ作らない。'
+    + `${BATCH_WRITE.daily}、${BATCH_WRITE.weekly}、${BATCH_WRITE.monthly}。ほかは save_report の説明どおり。`;
+}
+
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
 export function promptText(p: ChatPrompt): string {
   if (p.kind === 'report') return reportText(p.span, p.today);
+  if (p.kind === 'schedule') return scheduleText();
   if (p.kind === 'pending') return pendingPrompt(p.items).text;
   // 決まった形でない日付は、今日として扱う
   const today = validDate(p.today);
@@ -165,6 +194,7 @@ export function promptText(p: ChatPrompt): string {
 export function promptSummary(p: ChatPrompt): string {
   if (p.kind === 'report') return `${REPORT_SPAN_LABELS[p.span]}のまとめを作る`;
   if (p.kind === 'pending') return `まだのまとめ ${pendingPrompt(p.items).included.length} 件を作る`;
+  if (p.kind === 'schedule') return 'まとめを自動で作る予定を入れる';
   const day = p.date === p.today || !validDate(p.date) ? '今日' : dayText(p.date);
   if (p.kind === 'training') return `${day}の筋トレを記録する`;
   const slot = p.slot && SLOTS.includes(p.slot) ? SLOT_LABELS[p.slot] : '食事';

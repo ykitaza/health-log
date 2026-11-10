@@ -160,3 +160,25 @@ test('設定の「チャットとの連携」：つなぎ方と、アプリを�
   await button(page, 'ChatGPT を開く').click();
   expect(await opened(page)).toEqual(['https://claude.ai/new', 'https://chatgpt.com/']);
 });
+
+test('自動で作る：設定の「チャットとの連携」からシートを開き、ChatGPT にスケジュールを頼む文で開く。頼んだ日を次に出す', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: /^チャットとの連携/ }).filter({ visible: true }).click();
+  const SCHEDULE = '自動で作る。ChatGPT のスケジュールに、まとめを作る予定を入れます';
+  await button(page, SCHEDULE).click();
+  const schedule = page.getByTestId('schedule-sheet').filter({ visible: true });
+  await expect(see(schedule, 'ChatGPT のスケジュール（タスク）に、まとめを作る予定を入れます。すでに入っていれば、作り直しません。')).toBeVisible();
+  await expect(schedule.getByLabel('週のまとめ、毎週月曜 8:00、先週の分', { exact: true })).toBeVisible();
+  await expect(see(schedule, 'Claude のスケジュールは、いまは hlog のコネクタを使えないため、ChatGPT だけです。')).toBeVisible();
+  await expect(see(schedule, /^前回/)).toHaveCount(0); // まだ頼んでいない
+  await button(schedule, 'ChatGPT で設定する（外のアプリ）').click();
+  await expect(schedule).toBeHidden();
+  const [{ app, q }] = (await opened(page)).map(parse);
+  expect(app).toBe(CHATGPT);
+  expect(q).toContain(`${C}で、まとめのスケジュールを3つ入れてください。hlog のまとめのタスクがもうあれば、作らず教えてください。`);
+  expect(q).toContain('各回：list_reports(kind)に同じ期間があれば作らない。');
+
+  await button(page, SCHEDULE).click();
+  await expect(see(page.getByTestId('schedule-sheet').filter({ visible: true }), '前回 11月8日に設定を頼みました', { exact: true })).toBeVisible();
+});

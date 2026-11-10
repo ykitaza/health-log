@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { SCHEDULE_LABEL, useScheduleSheet } from '@/components/ChatSheet';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, Header, SectionTitle } from '@/components/ui';
@@ -14,9 +15,10 @@ const STEPS = [
   'ログインの画面で「パスキーでサインイン」を選び、同意の画面で「許可する」を押します。',
 ];
 
-/** 設定の「チャットとの連携」：コネクタのつなぎ方と、ChatGPT・Claude を開くボタン */
+/** 設定の「チャットとの連携」：コネクタのつなぎ方と、ChatGPT・Claude を開くボタン、まとめを自動で作るシートの入口 */
 export default function ChatScreen() {
   const [failed, setFailed] = useState<ChatApp | null>(null);
+  const schedule = useScheduleSheet();
   const open = async (app: ChatApp) => { setFailed(null); if (!(await openChat(app))) setFailed(app); };
 
   return (
@@ -59,6 +61,13 @@ export default function ChatScreen() {
           {openFailedMessage(failed)}
         </T>
       )}
+
+      <SectionTitle title="まとめを自動で作る" />
+      <Card style={{ gap: space.m }}>
+        <T variant="bodyM" color={colors.sub}>ChatGPT のスケジュール（タスク）に、日・週・月のまとめを作る予定を入れます。</T>
+        <Button label="自動で作る" icon="calendar" variant="outline" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open} testID="chat-schedule" />
+      </Card>
+      {schedule.sheet}
     </Screen>
   );
 }

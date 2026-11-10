@@ -201,10 +201,104 @@ export function primaryMetrics(r: Report, n = 2): Metric[] {
   return r.highlights.flatMap((h) => (h.metric ? [h.metric] : [])).slice(0, n);
 }
 
-/** 一覧のカードの読み上げの名前 */
-export function reportCardLabel(r: Report): string {
-  return [TONE_LABELS[r.tone], r.title, r.headline, KIND_LABELS[r.kind], formatCreated(r.createdAt) && `${formatCreated(r.createdAt)}に作成`]
-    .filter(Boolean).join('、');
+/**
+ * 一覧とホームのカードの読み上げの名前。unread（まだ開いていない）なら先頭に「新着」。
+ * 日付は一覧の並びと同じ日付（reportDate）：期間があれば「期間 11月2日（月）〜11月8日（日）」、なければ作った日
+ */
+export function reportCardLabel(r: Report, unread = false): string {
+  const period = formatPeriod(r);
+  const when = period ? `期間 ${period}` : formatCreated(r.createdAt) && `${formatCreated(r.createdAt)}に作成`;
+  return [unread && '新着', TONE_LABELS[r.tone], r.title, r.headline, KIND_LABELS[r.kind], when].filter(Boolean).join('、');
+}
+
+// --- 一覧の並び ---
+
+const isDateKey = (v: string | null): v is DateKey => v != null && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/**
+ * 一覧で並べる日付：期間の最後の日（period_end）。なければ期間の初日、それもなければ作った日（端末の暦の日付）。
+ * どれも読めなければ ''（一覧の最後に、見出しなしで出す）
+ */
+export function reportDate(r: Pick<Report, 'periodStart' | 'periodEnd' | 'createdAt'>): DateKey | '' {
+  if (isDateKey(r.periodEnd)) return r.periodEnd;
+  if (isDateKey(r.periodStart)) return r.periodStart;
+  const d = new Date(r.createdAt);
+  return Number.isNaN(d.getTime()) ? '' : toDateKey(d);
+}
+
+/** カードに出す日付（reportDate の「11月8日」）。読めなければ '' */
+export function formatReportDate(r: Pick<Report, 'periodStart' | 'periodEnd' | 'createdAt'>): string {
+  const d = reportDate(r);
+  return d === '' ? '' : formatMonthDay(d);
+}
+
+/** 期間の日数（両端を含む）。期間がなければ 0 */
+function periodDays(r: Pick<Report, 'periodStart' | 'periodEnd'>): number {
+  return isDateKey(r.periodStart) && isDateKey(r.periodEnd) && r.periodStart <= r.periodEnd ? daysBetween(r.periodStart, r.periodEnd) + 1 : 0;
+}
+
+/** 同じ日付のときの種類の順（期間の長いもの：月→週→日。その他は週と日のあいだ） */
+const KIND_RANK: Record<ReportKind, number> = { monthly: 0, weekly: 1, other: 2, daily: 3 };
+
+/** 一覧の並び順。端末だけに覚える（db/repositories/reports.ts） */
+export type ReportOrder = 'newest' | 'oldest';
+export const REPORT_ORDER_LABELS: Record<ReportOrder, string> = { newest: '新しい順', oldest: '古い順' };
+export const isReportOrder = (v: unknown): v is ReportOrder => v === 'newest' || v === 'oldest';
+export const otherOrder = (o: ReportOrder): ReportOrder => (o === 'newest' ? 'oldest' : 'newest');
+
+/** 並べ替えの切り替えの読み上げ（「並び順、新しい順。押すと古い順にします」） */
+export function orderToggleLabel(o: ReportOrder): string {
+  return `並び順、${REPORT_ORDER_LABELS[o]}。押すと${REPORT_ORDER_LABELS[otherOrder(o)]}にします`;
+}
+
+/**
+ * 一覧の並び。reportDate の新しい順（oldest なら古い順）。同じ日付なら、どちらの順でも、期間の長いもの（月→週→日）を先、
+ * その次に作った時刻の新しいもの、最後に ID。日付の読めないものは、どちらの順でも最後
+ */
+export function sortReports<R extends Pick<Report, 'id' | 'kind' | 'periodStart' | 'periodEnd' | 'createdAt'>>(list: R[], order: ReportOrder = 'newest'): R[] {
+  const keyed = list.map((r) => ({ r, date: reportDate(r), days: periodDays(r) }));
+  keyed.sort((a, b) => {
+    if (a.date !== b.date) {
+      if (a.date === '') return 1;
+      if (b.date === '') return -1;
+      return order === 'newest' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+    }
+    if (a.days !== b.days) return b.days - a.days;
+    if (a.r.kind !== b.r.kind) return KIND_RANK[a.r.kind] - KIND_RANK[b.r.kind];
+    if (a.r.createdAt !== b.r.createdAt) return b.r.createdAt.localeCompare(a.r.createdAt);
+    return b.r.id.localeCompare(a.r.id);
+  });
+  return keyed.map((k) => k.r);
+}
+
+// --- 新しいレポートのお知らせ（まだ開いていないもの） ---
+
+/**
+ * お知らせの補足に出す、1件の呼び名。日は「今日のまとめ」「11月10日のまとめ」、週は「今週のまとめ」「先週のまとめ」「11月2日からの週のまとめ」、
+ * 月は「今月のまとめ」「先月のまとめ」「10月のまとめ」（年が違えば「2025年12月のまとめ」）。その他と期間のないものは題
+ */
+export function reportShortName(r: Pick<Report, 'kind' | 'periodStart' | 'periodEnd' | 'title'>, today: DateKey): string {
+  const start = isDateKey(r.periodStart) ? r.periodStart : null;
+  if (!start || r.kind === 'other') return r.title;
+  if (r.kind === 'daily') return `${start === today ? '今日' : formatMonthDay(start)}のまとめ`;
+  if (r.kind === 'weekly') {
+    const thisWeek = weekOf(today).start;
+    const week = weekOf(start).start;
+    if (week === thisWeek) return '今週のまとめ';
+    if (week === addDays(thisWeek, -7)) return '先週のまとめ';
+    return `${formatMonthDay(start)}からの週のまとめ`;
+  }
+  const month = start.slice(0, 7);
+  if (month === today.slice(0, 7)) return '今月のまとめ';
+  if (`${month}-01` === addMonths(`${today.slice(0, 7)}-01`, -1)) return '先月のまとめ';
+  return `${month.slice(0, 4) === today.slice(0, 4) ? '' : `${month.slice(0, 4)}年`}${Number(month.slice(5, 7))}月のまとめ`;
+}
+
+/** ホームのお知らせの補足（「11月10日のまとめ・先週のまとめ」）。新しい順に2件まで、3件以上なら「ほか n 件」 */
+export function newReportsSummary(list: Report[], today: DateKey): string {
+  const sorted = sortReports(list);
+  const names = sorted.slice(0, 2).map((r) => reportShortName(r, today));
+  return names.join('・') + (sorted.length > 2 ? ` ほか ${sorted.length - 2} 件` : '');
 }
 
 // --- 一覧の絞り込みと月の見出し ---
@@ -220,15 +314,14 @@ export function filterReports(list: Report[], filter: ReportFilter): Report[] {
 }
 
 /**
- * 作った月ごとに分ける（並びはそのまま。一覧は新しい順）。見出しは「11月」、今年でなければ「2025年12月」。
- * 作った時刻が読めないものは、最後に見出しなしでまとめる
+ * 並べる日付（reportDate）の月ごとに分ける（並びはそのまま。sortReports で並べたものを渡す）。見出しは「11月」、今年でなければ「2025年12月」。
+ * 日付の読めないものは、最後に見出しなしでまとめる
  */
 export function groupByMonth(list: Report[], today: DateKey): { key: string; title: string; reports: Report[] }[] {
   const year = today.slice(0, 4);
   const groups: { key: string; title: string; reports: Report[] }[] = [];
   for (const r of list) {
-    const d = new Date(r.createdAt);
-    const key = Number.isNaN(d.getTime()) ? '' : toDateKey(d).slice(0, 7);
+    const key = reportDate(r).slice(0, 7);
     const title = key === '' ? '' : `${key.slice(0, 4) === year ? '' : `${key.slice(0, 4)}年`}${Number(key.slice(5, 7))}月`;
     const last = groups[groups.length - 1];
     if (last?.key === key) last.reports.push(r);

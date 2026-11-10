@@ -235,4 +235,46 @@ describe('版9のマイグレーション', () => {
     await d.r.reports.remove(WEEK);
     expect(d.outbox().map((r) => [r.entity_type, r.op, r.fields])).toEqual([['report', 'delete', null]]);
   });
+
+  test('見た・新着：初めて読んだときは、今あるレポートを全部見たことにする。そのあと届いたものが新着。開くと見たになり、同期しない', async () => {
+    const d = await device();
+    saveReport(d, MONTH, '2026-11-01T01:00:00.000Z', { title: '10月のまとめ', kind: 'monthly' });
+    await d.engine.run();
+    expect(await d.r.reports.unread()).toEqual([]); // 更新して初めて動いた：前からあるものは新着にしない
+    expect([...(await d.r.reports.seenIds())]).toEqual([MONTH]);
+
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', WEEKLY);
+    await d.engine.run();
+    expect((await d.r.reports.unread()).map((r) => r.id)).toEqual([WEEK]);
+    await d.r.reports.markSeen([WEEK]);
+    expect(await d.r.reports.unread()).toEqual([]);
+    expect(d.outbox()).toEqual([]);
+
+    // 消えたレポートの ID は、次に見たことにするときに捨てる
+    await d.r.reports.remove(MONTH);
+    const DAY = 'aaaaaaaa-0000-4000-8000-000000000003';
+    saveReport(d, DAY, '2026-11-10T01:00:00.000Z', { title: '11月10日のまとめ', kind: 'daily', period_start: '2026-11-10', period_end: '2026-11-10' });
+    await d.engine.run();
+    await d.r.reports.markSeen([DAY]);
+    expect([...(await d.r.reports.seenIds())].sort()).toEqual([DAY, WEEK].sort());
+  });
+
+  test('レポートがまだ1件もない端末：あとから届いたものは新着', async () => {
+    const d = await device();
+    expect(await d.r.reports.unread()).toEqual([]);
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', WEEKLY);
+    await d.engine.run();
+    expect((await d.r.reports.unread()).map((r) => r.id)).toEqual([WEEK]);
+  });
+
+  test('一覧の並び順（初めは新しい順）と、自動で作るを頼んだ日を端末に覚える。同期しない', async () => {
+    const d = await device();
+    expect(await d.r.reports.listOrder()).toBe('newest');
+    await d.r.reports.setListOrder('oldest');
+    expect(await d.r.reports.listOrder()).toBe('oldest');
+    expect(await d.r.reports.scheduleRequestedOn()).toBeNull();
+    await d.r.reports.setScheduleRequestedOn('2026-11-11');
+    expect(await d.r.reports.scheduleRequestedOn()).toBe('2026-11-11');
+    expect(d.outbox()).toEqual([]);
+  });
 });

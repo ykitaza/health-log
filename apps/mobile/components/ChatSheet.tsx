@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRepos } from '@/hooks/data';
-import { CHAT_APP_NAMES, ChatApp, ChatPrompt, openChat, openFailedMessage, orderedApps, promptSummary, REPORT_SPAN_LABELS, ReportSpan } from '@/lib/chat';
-import { todayKey } from '@/lib/date';
+import { CHAT_APP_NAMES, ChatApp, ChatPrompt, openChat, openFailedMessage, orderedApps, promptSummary, REPORT_SCHEDULES, REPORT_SPAN_LABELS, ReportSpan } from '@/lib/chat';
+import { DateKey, formatMonthDay, todayKey } from '@/lib/date';
 import type { PendingReport } from '@/lib/reports';
 import { colors, radius, space } from '@/theme';
+import { Icon } from './Icon';
 import { Sheet } from './motion';
 import { T } from './Text';
 import { Button, ListRow, Segmented } from './ui';
@@ -13,9 +14,10 @@ import { Button, ListRow, Segmented } from './ui';
 /** 押すと、ChatGPT か Claude を選ぶシートを出すボタンの読み上げの名前（外のアプリを開くことを伝える） */
 export const AI_RECORD_LABEL = 'AI で記録。ChatGPT か Claude を開きます';
 export const REPORT_CHAT_LABEL = 'チャットで作る。ChatGPT か Claude を開きます';
+export const SCHEDULE_LABEL = '自動で作る。ChatGPT のスケジュールに、まとめを作る予定を入れます';
 
 /** 記録（筋トレ・食事）とまだのまとめなら決まった文、レポートなら期間をシートの中で選ぶ */
-type Request = { prompt: Exclude<ChatPrompt, { kind: 'report' }> } | { report: true };
+type Request = { prompt: Exclude<ChatPrompt, { kind: 'report' | 'schedule' }> } | { report: true };
 
 /**
  * チャットのアプリを選んで開くシート。open で出し、sheet を画面のどこかに置く。
@@ -54,7 +56,7 @@ export function useChatChooser() {
   );
   return {
     /** 記録（筋トレ・食事）の文で開く */
-    record: (prompt: Exclude<ChatPrompt, { kind: 'report' }>) => show({ prompt }),
+    record: (prompt: Exclude<ChatPrompt, { kind: 'report' | 'schedule' }>) => show({ prompt }),
     /** レポートを頼む（期間はシートで選ぶ） */
     report: () => show({ report: true }),
     /** まだ作っていないまとめを、まとめて頼む（ホームのおすすめ） */
@@ -106,8 +108,70 @@ function ChatSheetBody({ req, last, failed, span, onSpan, onChoose }: {
   );
 }
 
+/**
+ * 「自動で作る」のシート（Figma の report-schedule-sheet）。ChatGPT のスケジュール（タスク）に、日・週・月のまとめを作る予定を
+ * 入れてもらう文で ChatGPT を開く。Claude のスケジュールは、いまは自作のコネクタを使えないため ChatGPT だけ。
+ * 頼んだ日を端末に覚えて「前回 11月11日に設定を頼みました」と出す（まだなら出さない）。open で出し、sheet を画面のどこかに置く
+ */
+export function useScheduleSheet() {
+  const repos = useRepos();
+  const [visible, setVisible] = useState(false);
+  const [requested, setRequested] = useState<DateKey | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const open = async () => {
+    setFailed(false);
+    setRequested(await repos.reports.scheduleRequestedOn().catch(() => null));
+    setVisible(true);
+  };
+  const close = () => setVisible(false);
+  const request = async () => {
+    if (!(await openChat('chatgpt', { kind: 'schedule' }))) { setFailed(true); return; }
+    setVisible(false);
+    await repos.reports.setScheduleRequestedOn(todayKey()).catch(() => {});
+  };
+
+  const sheet = (
+    <Sheet visible={visible} onClose={close}>
+      <ScheduleSheetBody requested={requested} failed={failed} onRequest={request} />
+    </Sheet>
+  );
+  return { open, sheet };
+}
+
+function ScheduleSheetBody({ requested, failed, onRequest }: { requested: DateKey | null; failed: boolean; onRequest: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <ScrollView contentContainerStyle={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="schedule-sheet">
+      <View style={{ gap: space.s }}>
+        <T variant="titleL" accessibilityRole="header">自動で作る</T>
+        <T variant="bodyM" color={colors.sub}>ChatGPT のスケジュール（タスク）に、まとめを作る予定を入れます。すでに入っていれば、作り直しません。</T>
+      </View>
+      <View style={[s.group, { paddingVertical: space.s }]}>
+        {REPORT_SCHEDULES.map((p) => (
+          <View key={p.kind} style={s.plan} accessible accessibilityLabel={`${p.title}、${p.when}、${p.period}`}>
+            <Icon name="calendar" size={24} color={colors.sub} />
+            <View style={{ flex: 1 }}>
+              <T variant="titleM">{p.title}</T>
+              <T variant="bodyM" color={colors.sub}>{p.when}（{p.period}）</T>
+            </View>
+          </View>
+        ))}
+      </View>
+      <Button label="ChatGPT で設定する" icon="external" accessibilityLabel="ChatGPT で設定する（外のアプリ）" onPress={onRequest} testID="schedule-open" />
+      {failed && (
+        <View style={s.snack} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <T variant="bodyM" color={colors.card}>{openFailedMessage('chatgpt')}</T>
+        </View>
+      )}
+      {requested && <T variant="bodyS" color={colors.sub}>前回 {formatMonthDay(requested)}に設定を頼みました</T>}
+      <T variant="bodyS" color={colors.sub}>Claude のスケジュールは、いまは hlog のコネクタを使えないため、ChatGPT だけです。</T>
+    </ScrollView>
+  );
+}
+
 /** 「AI で記録」のボタン（筋トレの画面の下）。押すとアプリを選ぶシート */
-export function AiRecordButton({ prompt, disabled, style }: { prompt: Exclude<ChatPrompt, { kind: 'report' }>; disabled?: boolean; style?: StyleProp<ViewStyle> }) {
+export function AiRecordButton({ prompt, disabled, style }: { prompt: Exclude<ChatPrompt, { kind: 'report' | 'schedule' }>; disabled?: boolean; style?: StyleProp<ViewStyle> }) {
   const chat = useChatChooser();
   return (
     <>
@@ -119,5 +183,6 @@ export function AiRecordButton({ prompt, disabled, style }: { prompt: Exclude<Ch
 
 const s = StyleSheet.create({
   group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
+  plan: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.s, minHeight: 56 },
   snack: { minHeight: 48, justifyContent: 'center', backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.m },
 });
