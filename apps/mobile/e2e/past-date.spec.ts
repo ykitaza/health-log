@@ -1,10 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, fillSets, homeCard, openApp, openTrainingHistory, saveButton, see, TODAY } from './helpers';
+import { button, chooseExercise, fillSets, homeCard, openApp, openTrainingTrend, saveButton, see, TODAY, trendDay } from './helpers';
 
 // ホームのカレンダーで過去の日を選んで記録する流れ。日付の計算（前回・自己ベスト・選べる日）は jest で確かめる
 const day = (page: Page, date: string) => page.getByTestId('home-calendar').getByTestId(`day-${date}`);
 
-test('過去の日を選んで記録すると、その日に出て、今日には出ず、履歴に出る', async ({ page }) => {
+test('過去の日を選んで記録すると、その日に出て、今日には出ず、推移に出る', async ({ page }) => {
   await openApp(page);
   await day(page, '2026-11-03').click();
   await expect(day(page, '2026-11-03')).toHaveAttribute('aria-selected', 'true');
@@ -43,10 +43,12 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
   await expect(day(page, TODAY)).toHaveAttribute('aria-selected', 'true');
 
-  // 筋トレの履歴：その日の記録が出て、そこから同じ日に足せる
-  await openTrainingHistory(page);
-  await expect(see(page, '11月3日（火） ベンチプレス')).toBeVisible();
-  await button(page, '11月3日に種目を追加').click();
+  // 筋トレの推移：その日のカードが出て、押すとその日のトレーニング。そこから同じ日に足せる
+  await openTrainingTrend(page);
+  await expect(trendDay(page, '2026-11-03')).toContainText('ベンチプレス');
+  await trendDay(page, '2026-11-03').click();
+  await expect(see(page, '11月3日（火）', { exact: true })).toBeVisible();
+  await button(page, '種目を追加').click();
   await expect(see(page, '11月3日（火）に記録', { exact: true })).toBeVisible();
 });
 

@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseUnit, openApp, openSettings, see } from './helpers';
+import { button, chooseUnit, goTab, openApp, openRm, openSettings, see, tab } from './helpers';
 
 // 推定1RM と割合の表の計算は jest（lib/__tests__/screen-logic.test.ts の「RM計算機」）。ここは画面に出ることと単位
 
@@ -13,8 +13,8 @@ async function input(page: Page, weight: string, reps: string) {
 
 test('推定1RM と割合の表、不正な値は「—」。単位は設定に従う', async ({ page }) => {
   await openApp(page);
-  // 入口はホームから外した（筋トレのタブへ移す）。ここは URL で開く
-  await page.goto('/rm');
+  // 入口は筋トレのタブの右上
+  await openRm(page);
   await expect(see(page, '計算式：重量 ×（1 ＋ 回数 ÷ 30）。1回なら重量そのもの')).toBeVisible();
   await expect(page.getByRole('tablist')).toBeHidden();
   await expect(see(page, '—', { exact: true })).toHaveCount(7); // 大きな数字と表の6行
@@ -27,16 +27,17 @@ test('推定1RM と割合の表、不正な値は「—」。単位は設定に�
   await input(page, '100', '2.5');
   await expect(oneRm(page)).toContainText('—');
 
-  await page.goBack();
+  await button(page, '戻る').click();
   await openSettings(page);
   await chooseUnit(page, 'lb');
   await button(page, '戻る').click();
   // 単位の保存が終わってから開き直す（ホームの負荷量が lb になる）
+  await goTab(page, 'ホーム');
   await expect(page.getByTestId('volume-7d').filter({ visible: true })).toContainText('k lb');
-  await page.goto('/rm');
+  await openRm(page);
   await expect(page.getByRole('textbox', { name: '重量（lb）' })).toBeVisible();
   await input(page, '225', '5');
   await expect(oneRm(page)).toContainText('262.5lb');
-  await page.goBack();
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
 });

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, homeCard, openApp, openSettings, openTrainingHistory, recordToday, see } from './helpers';
+import { button, goTab, homeCard, openApp, openSettings, openTrainingTrend, recordToday, see, trendDay } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -73,12 +73,12 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   await expect(status(page, 'sync-pending')).toHaveText('0件');
   await expect(status(page, 'sync-rejected')).toHaveCount(0);
 
-  // MCP の記録（2026-11-07）が、履歴と体組成に出る
+  // MCP の記録（2026-11-07）が、筋トレの推移と体組成に出る
   await button(page, '戻る').click();
   await button(page, '戻る').click();
-  await openTrainingHistory(page);
-  await expect(see(page, '11月7日（土） ベンチプレス')).toBeVisible();
-  await expect(see(page, '11月7日（土） 懸垂')).toBeVisible();
+  await openTrainingTrend(page);
+  await expect(trendDay(page, '2026-11-07')).toContainText('ベンチプレス');
+  await expect(trendDay(page, '2026-11-07')).toContainText('懸垂');
   await goTab(page, 'からだ');
   await button(page, '前の日').click();
   await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('71.3');
