@@ -329,6 +329,24 @@ DROP TRIGGER sync_exercises_update;
       for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
     },
   },
+  {
+    // 歩数の1日の合計（Health Connect の Steps を、その日について集計したもの。版6の心拍の日のまとめと同じ作り）。1件ごとの記録は持たない。
+    // id は日付から決める（lib/healthConnect/importer.ts の stepDayId）。date は端末の暦の日付。記録がない日は行を作らない（消す）。
+    // 新しい種類だが、受け取りの位置は消さない（版7・版9と違う）：歩数はこの版の端末の取り込みだけが作り、前の版の端末が
+    // 飛ばした step_day はサーバーにないため
+    version: 11,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE step_days (
+  id TEXT PRIMARY KEY NOT NULL,
+  date TEXT NOT NULL,
+  steps INTEGER NOT NULL,${SYNC_COLUMNS}
+);
+CREATE INDEX step_days_date ON step_days (date);
+`);
+      for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'step_days')) await db.execAsync(triggerSql(spec));
+    },
+  },
 ];
 
 /** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */

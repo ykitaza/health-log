@@ -18,6 +18,7 @@ test('Health Connect の画面：web では「Android だけ」と出て、連�
   await page.getByRole('button', { name: /^読むもの・送る先・見られる人/ }).click();
   await expect(see(page, 'Health Connect の使い方')).toBeVisible();
   await expect(see(page, /心拍数は、1日ごとのまとめ/)).toBeVisible();
+  await expect(see(page, /歩数は、1日の合計だけを送ります/)).toBeVisible();
   await expect(see(page, /Claude・ChatGPT の MCP/)).toBeVisible();
   await button(page, '戻る').click();
   await expect(see(page, '連携していません')).toBeVisible();
@@ -28,7 +29,7 @@ test('Health Connect の画面：web では「Android だけ」と出て、連�
   expect(errors).toEqual([]);
 });
 
-test('からだの睡眠・心拍の行から推移を開く。記録がなければ「Health Connect をつなぐ」が出て、つなぐ画面へ行ける', async ({ page }) => {
+test('からだの睡眠・心拍・歩数の行から推移を開く。記録がなければ「Health Connect をつなぐ」が出て、つなぐ画面へ行ける', async ({ page }) => {
   // 推移の数字（平均・寝た時刻の平均）と期間の読み出しは jest（lib/__tests__/healthTrend.test.ts、db/__tests__/healthConnect.test.ts）
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -48,6 +49,15 @@ test('からだの睡眠・心拍の行から推移を開く。記録がなけ�
 
   await page.getByRole('button', { name: '安静時心拍の推移を見る' }).click();
   await expect(see(page, '安静時心拍の推移', { exact: true })).toBeVisible();
+  await expect(button(page, 'Health Connect をつなぐ')).toBeVisible();
+  await button(page, '戻る').click();
+
+  // 歩数（連携していないので「この日の記録はありません」と「—」）
+  await expect(page.getByTestId('steps-day').filter({ visible: true })).toContainText('この日の記録はありません');
+  await expect(page.getByTestId('steps-day').filter({ visible: true })).toContainText('—');
+  await page.getByRole('button', { name: /歩数の推移を見る/ }).click();
+  await expect(see(page, '歩数の推移', { exact: true })).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
   await expect(button(page, 'Health Connect をつなぐ')).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -111,7 +111,7 @@ export default function SettingsScreen() {
           right={authStatus === 'signedIn' ? <Badge label="ログイン中" /> : undefined}
           onPress={() => router.push('/account')}
         />
-        <ListRow title="Health Connect" subtitle="体重計・睡眠・心拍の取り込み（Android）" onPress={() => router.push('/health-connect')} />
+        <ListRow title="Health Connect" subtitle="体重・体脂肪率・睡眠・心拍・歩数の取り込み（Android）" onPress={() => router.push('/health-connect')} />
         <ListRow title="チャットとの連携" subtitle="Claude・ChatGPT のつなぎ方と、開くボタン" onPress={() => router.push('/chat')} />
       </Card>
 

@@ -6,7 +6,7 @@ export type IconName =
   | 'star' | 'copy' | 'search' | 'up' | 'down' | 'close' | 'trash' | 'car' | 'bus' | 'plane'
   | 'calc' | 'dumbbell' | 'eyeOff' | 'prev' | 'next' | 'calendar'
   | 'trendUp' | 'trendFlat' | 'caution' | 'arrowUp' | 'arrowDown' | 'arrowFlat' | 'moon' | 'info' | 'heart' | 'swap' | 'sync'
-  | 'chat' | 'external';
+  | 'chat' | 'external' | 'steps';
 
 /** 線で描く簡単なアイコン（24 の格子） */
 export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: { name: IconName; size?: number; color?: string; strokeWidth?: number }) {
@@ -48,6 +48,8 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: 
       case 'swap': return <Path {...p} d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />;
       case 'chat': return <Path {...p} d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />;
       case 'external': return <Path {...p} d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />;
+      // 足あと（歩数）：左右の足の裏とかかと
+      case 'steps': return <Path {...p} d="M6.5 3c1.9 0 3 2 3 4.8S8.4 12.5 6.5 12.5 3.5 10.6 3.5 7.8 4.6 3 6.5 3zM4.5 15.5h4v1.5a2 2 0 0 1-4 0zM17.5 6.5c1.9 0 3 2 3 4.8s-1.1 4.7-3 4.7-3-1.9-3-4.7 1.1-4.8 3-4.8zM15.5 19h4v.5a2 2 0 0 1-4 0z" />;
       case 'heart': return <Path {...p} d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />;
       case 'eyeOff': return <Path {...p} d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.2M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6a8.6 8.6 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" />;
     }

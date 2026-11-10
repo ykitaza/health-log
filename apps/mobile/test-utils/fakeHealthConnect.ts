@@ -8,12 +8,17 @@ type Change = { kind: 'upsert'; record: Rec } | { kind: 'delete'; id: string };
 
 const PAGE = 2;
 
+/** 偽物が最初に許す型（新しい APK で、全部を許可したとき） */
+const ALL_TYPES = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate', 'Steps'];
+
 export function createFakeHealthConnect() {
   const records = new Map<string, Rec>();
   const changes = new Map<string, Change[]>();
   const expired = new Set<string>();
-  let granted = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate'];
+  let granted = [...ALL_TYPES];
   const calls: { fn: string; args: unknown[] }[] = [];
+  // AndroidManifest にある型（null は全部）。ない型を求めると、本物と同じく失敗させる（前の APK を真似る）
+  let manifest: string[] | null = null;
 
   const log = (type: string) => { if (!changes.has(type)) changes.set(type, []); return changes.get(type)!; };
   const timeOf = (r: Rec) => r.time ?? r.startTime ?? '';
@@ -23,7 +28,11 @@ export function createFakeHealthConnect() {
     getSdkStatus: async () => 3,
     initialize: async () => true,
     openHealthConnectSettings: () => undefined,
-    requestPermission: async (perms: { accessType: string; recordType: string }[]) => perms.filter((p) => granted.includes(p.recordType)),
+    async requestPermission(perms: { accessType: string; recordType: string }[]) {
+      calls.push({ fn: 'requestPermission', args: [perms] });
+      if (manifest && perms.some((p) => !manifest!.includes(p.recordType))) throw new Error('permission not declared in manifest');
+      return perms.filter((p) => granted.includes(p.recordType));
+    },
     getGrantedPermissions: async () => granted.map((recordType) => ({ accessType: 'read', recordType })),
     revokeAllPermissions: async () => { calls.push({ fn: 'revokeAllPermissions', args: [] }); },
     async getChanges(req: { changesToken?: string; recordTypes?: string[] }) {
@@ -56,12 +65,16 @@ export function createFakeHealthConnect() {
       const page = all.slice(start, start + PAGE);
       return { records: page, pageToken: start + PAGE < all.length ? String(start + PAGE) : undefined };
     },
-    /** 心拍の集計（本物と同じく、記録がなければ 0 を返す） */
+    /** 心拍・歩数の集計（本物と同じく、記録がなければ 0 を返す）。歩数は、始まりが範囲にある記録の合計（重なりの除き方は真似ない） */
     async aggregateRecord(req: { recordType: string; timeRangeFilter: { startTime: string; endTime: string } }) {
       calls.push({ fn: 'aggregateRecord', args: [req] });
       const { startTime, endTime } = req.timeRangeFilter;
       const inRange = (t: string) => t >= startTime && t < endTime;
       const all = [...records.values()].filter((r) => r.recordType === req.recordType);
+      if (req.recordType === 'Steps') {
+        const counts = all.filter((r) => inRange(r.startTime!)).map((r) => r.count as number);
+        return { COUNT_TOTAL: counts.reduce((a, b) => a + b, 0), dataOrigins: counts.length ? ['com.example.phone'] : [] };
+      }
       const values = req.recordType === 'HeartRate'
         ? all.flatMap((r) => (r.samples as { time: string; beatsPerMinute: number }[]).filter((s) => inRange(s.time)).map((s) => s.beatsPerMinute))
         : all.filter((r) => inRange(r.time!)).map((r) => r.beatsPerMinute as number);
@@ -93,9 +106,12 @@ export function createFakeHealthConnect() {
       for (let i = 0; i <= log(type).length; i++) expired.add(`${type}:${i}`);
     },
     grant(types: string[]) { granted = types; },
+    /** AndroidManifest にある型を決める（前の APK を真似る。null は全部） */
+    declare(types: string[] | null) { manifest = types; },
     reset() {
       records.clear(); changes.clear(); expired.clear(); calls.length = 0;
-      granted = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate'];
+      granted = [...ALL_TYPES];
+      manifest = null;
     },
   };
 }
@@ -137,4 +153,9 @@ export const heartRate = (id: string, samples: [string, number][]): Rec => ({
 
 export const restingHeartRate = (id: string, time: string, beatsPerMinute: number): Rec => ({
   recordType: 'RestingHeartRate', time, zoneOffset: JST, beatsPerMinute, metadata: { id, dataOrigin: 'com.example.watch' },
+});
+
+/** 歩数の記録（StepsRecord。始まりと終わりのある区間） */
+export const steps = (id: string, startTime: string, endTime: string, count: number, origin = 'com.example.phone'): Rec => ({
+  recordType: 'Steps', startTime, endTime, startZoneOffset: JST, endZoneOffset: JST, count, metadata: { id, dataOrigin: origin },
 });

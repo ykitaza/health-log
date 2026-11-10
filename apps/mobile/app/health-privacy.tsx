@@ -20,6 +20,7 @@ export default function HealthPrivacyScreen() {
         <Item text="体重・体脂肪率・除脂肪体重（体重計の記録など）" />
         <Item text="睡眠（寝た時刻・起きた時刻・眠っていた時間）" />
         <Item text="心拍数と安静時心拍数" />
+        <Item text="歩数（スマホ・ウォッチが数えたもの）" />
         <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
           読むだけで、Health Connect に書き込むことはありません。アプリを開いたときと、前面に戻ったときだけ読みます（バックグラウンドでは読みません）。
         </T>
@@ -33,12 +34,15 @@ export default function HealthPrivacyScreen() {
         <T size={14} style={{ lineHeight: 21 }}>
           心拍数は、1日ごとのまとめ（安静時・平均・最低・最高と、測った回数）だけを送ります。1回ごとの測った値（サンプル）は送りません。
         </T>
+        <T size={14} style={{ lineHeight: 21 }}>
+          歩数は、1日の合計だけを送ります。いつ何歩歩いたかの1件ごとの記録は、端末にも保存せず、送りません。
+        </T>
       </Card>
 
       <SectionTitle title="見られる人" />
       <Card style={{ gap: 8 }}>
         <T size={14} style={{ lineHeight: 21 }}>
-          サーバーに送った記録は、本人がつないだチャット（Claude・ChatGPT の MCP のコネクタ）から読めます。チャットに体組成・睡眠・心拍を聞くと、その記録をもとに答えます。
+          サーバーに送った記録は、本人がつないだチャット（Claude・ChatGPT の MCP のコネクタ）から読めます。チャットに体組成・睡眠・心拍・歩数を聞くと、その記録をもとに答えます。
         </T>
       </Card>
 

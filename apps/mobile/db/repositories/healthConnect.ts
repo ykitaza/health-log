@@ -56,11 +56,19 @@ export type HeartRateDayImport = {
   samples: number;
 };
 
-/** 1回の書き込み。upserts は作るか直す。deletes は消えた記録の external_id（心拍は、記録がなくなった日付） */
+/** 歩数の1日の合計（step_days の1行。id は日付から決める） */
+export type StepDayImport = {
+  id: string;
+  date: string;
+  steps: number;
+};
+
+/** 1回の書き込み。upserts は作るか直す。deletes は消えた記録の external_id（心拍と歩数は、記録がなくなった日付） */
 export type ImportBatch = {
   body?: { upserts: BodyImport[]; deletes: string[] };
   sleep?: { upserts: SleepImport[]; deletes: string[] };
   heartRate?: { upserts: HeartRateDayImport[]; deletes: string[] };
+  steps?: { upserts: StepDayImport[]; deletes: string[] };
 };
 
 type BodyRow = { id: string; deleted_at: string | null; date: string; measured_at: string; origin_package: string | null } & Record<string, unknown>;
@@ -186,6 +194,35 @@ export function healthConnectStore(db: Db, deps: Deps) {
     return written;
   }
 
+  /** 歩数の日の合計：心拍の日のまとめと同じ（集計し直した値で置き換え、記録がなくなった日は消す。また記録があれば戻す） */
+  async function writeSteps(steps: NonNullable<ImportBatch['steps']>, nowIso: string): Promise<number> {
+    let written = 0;
+    for (const r of steps.upserts) {
+      const row = await db.getFirstAsync<{ id: string; deleted_at: string | null; steps: number }>(
+        'SELECT id, deleted_at, steps FROM step_days WHERE id = ?', [r.id],
+      );
+      if (row) {
+        if (row.steps === r.steps && row.deleted_at == null) continue;
+        await db.runAsync(
+          `UPDATE step_days SET ${row.steps === r.steps ? '' : 'steps = ?, '}deleted_at = NULL, updated_at = ? WHERE id = ?`,
+          [...(row.steps === r.steps ? [] : [r.steps]), nowIso, row.id],
+        );
+      } else {
+        await db.runAsync(
+          'INSERT INTO step_days (id, date, steps, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [r.id, r.date, r.steps, nowIso, nowIso],
+        );
+      }
+      written++;
+    }
+    for (const date of steps.deletes) {
+      const res = await db.runAsync(
+        'UPDATE step_days SET deleted_at = ?, updated_at = ? WHERE date = ? AND deleted_at IS NULL', [nowIso, nowIso, date],
+      ) as { changes?: number };
+      written += res?.changes ?? 0;
+    }
+    return written;
+  }
+
   return {
     getMeta: meta,
 
@@ -203,6 +240,7 @@ export function healthConnectStore(db: Db, deps: Deps) {
             if (batch.body) n += await writeBody(batch.body, nowIso);
             if (batch.sleep) n += await writeSleep(batch.sleep, nowIso);
             if (batch.heartRate) n += await writeHeartRate(batch.heartRate, nowIso);
+            if (batch.steps) n += await writeSteps(batch.steps, nowIso);
             for (const [k, v] of Object.entries(metaUpdates)) await putMeta(k, v);
           } finally {
             await db.runAsync(`DELETE FROM sync_meta WHERE key = 'importing'`, []);

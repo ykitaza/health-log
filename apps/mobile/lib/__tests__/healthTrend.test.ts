@@ -1,4 +1,4 @@
-import { average, averageClock, formatHM, sleepWeek } from '../health';
+import { average, averageClock, formatHM, formatSteps, sleepWeek, stepWeek } from '../health';
 
 // 睡眠・心拍の推移の画面の数字。時刻は端末の時刻で作る（どの時間帯で動かしても同じ結果）
 const at = (h: number, m: number, day = 8) => new Date(2026, 10, day, h, m).toISOString();
@@ -47,5 +47,40 @@ describe('からだの推移の睡眠のカード（直近7日）', () => {
     const w = sleepWeek([], '2026-11-08');
     expect(w.average).toBeNull();
     expect(w.longDays).toEqual([]);
+  });
+});
+
+describe('歩数', () => {
+  test('3桁ごとのカンマ', () => {
+    expect(formatSteps(8240)).toBe('8,240');
+    expect(formatSteps(10320)).toBe('10,320');
+    expect(formatSteps(999)).toBe('999');
+    expect(formatSteps(1000000)).toBe('1,000,000');
+    expect(formatSteps(7859.6)).toBe('7,860');
+  });
+
+  test('直近7日：記録のない日は null、平均は記録のある日だけ、いちばん多い日（同じなら新しい日）', () => {
+    // 2026-11-08 は日曜。11-02（月）〜11-08（日）
+    const days = [
+      { date: '2026-11-01', steps: 99999 }, // 7日より前
+      { date: '2026-11-02', steps: 6000 },
+      { date: '2026-11-04', steps: 9000 },
+      { date: '2026-11-07', steps: 10320 },
+      { date: '2026-11-08', steps: 6120 },
+    ];
+    const week = stepWeek(days, '2026-11-08');
+    expect(week.days.map((d) => [d.weekday, d.steps])).toEqual([
+      ['月', 6000], ['火', null], ['水', 9000], ['木', null], ['金', null], ['土', 10320], ['日', 6120],
+    ]);
+    expect(week.average).toBe((6000 + 9000 + 10320 + 6120) / 4);
+    expect(week.best).toMatchObject({ weekday: '土', steps: 10320 });
+    expect(stepWeek([{ date: '2026-11-03', steps: 5000 }, { date: '2026-11-05', steps: 5000 }], '2026-11-08').best?.date).toBe('2026-11-05');
+  });
+
+  test('7日に記録がなければ、平均もいちばん多い日もない', () => {
+    const week = stepWeek([], '2026-11-08');
+    expect(week.average).toBeNull();
+    expect(week.best).toBeNull();
+    expect(week.days.every((d) => d.steps == null)).toBe(true);
   });
 });

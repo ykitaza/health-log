@@ -3,7 +3,7 @@
 // 値はサーバーのソースから読む（docs/api/app-api.yaml は手で直すことがあり、サーバーと食い違いうるため）
 import * as fs from 'fs';
 import * as path from 'path';
-import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN } from '../healthConnect/importer';
+import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN, STEPS_MAX, STEPS_MIN } from '../healthConnect/importer';
 import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
@@ -66,6 +66,11 @@ describe('同期のサーバーの決まりと合っている', () => {
     for (const f of ['resting_bpm', 'avg_bpm', 'min_bpm', 'max_bpm']) {
       expect(entities).toMatch(new RegExp(`^class HeartRateDayFields[\\s\\S]*?^\\s+${f}: Bpm \\| None = None`, 'm'));
     }
+  });
+
+  test('歩数の日の合計の範囲は、サーバーと同じ', () => {
+    expect(fieldArgs(entities, null, 'StepCount')).toEqual({ ge: STEPS_MIN, le: STEPS_MAX });
+    expect(entities).toMatch(/^class StepDayFields[\s\S]*?^\s+steps: StepCount = None/m);
   });
 
   test('種目と部位の名前は、サーバーの上限（コードポイント）の内側', () => {

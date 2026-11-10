@@ -1,5 +1,5 @@
 {
-  "description": "アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめを送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。",
+  "description": "アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。",
   "pushes": [
     {
       "device_id": "<device_id>",
@@ -286,6 +286,18 @@
             "min_bpm": 62,
             "max_bpm": 131,
             "samples": 3
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "step_day",
+          "entity_id": "2fd2eb9a-e135-5e75-b4aa-825d8252d3bb",
+          "op": "create",
+          "changed_at": "2026-11-08T04:00:00.000Z",
+          "origin": "import",
+          "fields": {
+            "date": "2026-11-07",
+            "steps": 8240
           }
         }
       ]

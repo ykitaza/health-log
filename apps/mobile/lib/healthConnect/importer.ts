@@ -3,12 +3,12 @@
  * アプリを開いたとき・前面に戻ったとき・「今すぐ取り込む」で、型ごとに差分（getChanges）を読み、端末の表に書く。
  * - 初めての型は、先にトークンを取ってから、過去30日を readRecords で全ページ読む（読んでいるあいだの変更は、次の差分で届く）
  * - トークンが切れていたら、最後に読んだ時刻（なければ30日前）から読み直す
- * - 心拍は、サンプルを持たず、日ごとのまとめ（Health Connect の集計）だけを持つ
+ * - 心拍は、サンプルを持たず、日ごとのまとめ（Health Connect の集計）だけを持つ。歩数も、日ごとの合計（集計）だけを持つ
  * - 書くのは db/repositories/healthConnect.ts の write だけ（origin = 'import' で outbox に積まれる）
  * ID は Health Connect の記録の ID から決める（uuid5）。同じ記録を別の端末で取り込んでも、同じ行になる
  */
 import type { HealthConnectRecordResult, Permission, RecordType } from 'react-native-health-connect';
-import { BodyImport, HC_META, HealthConnectStore, HeartRateDayImport, ImportBatch, SleepImport } from '@/db/repositories/healthConnect';
+import { BodyImport, HC_META, HealthConnectStore, HeartRateDayImport, ImportBatch, SleepImport, StepDayImport } from '@/db/repositories/healthConnect';
 import { addDays, toDateKey } from '@/lib/date';
 import { inRange, Limit, LIMITS } from '@/lib/limits';
 import { uuid5 } from '@/lib/uuid5';
@@ -24,8 +24,28 @@ export const importedId = (healthConnectId: string) => uuid5(HC_NAMESPACE, `hc:$
 export const INITIAL_DAYS = 30;
 
 /** 求める権限（読み取りだけ）。AndroidManifest にも同じものを書く（app.json の android.permissions） */
-export const READ_TYPES = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate'] as const satisfies RecordType[];
+export const READ_TYPES = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate', 'Steps'] as const satisfies RecordType[];
 export const PERMISSIONS: Permission[] = READ_TYPES.map((recordType) => ({ accessType: 'read', recordType }));
+
+/** あとから足した型（歩数）。前の APK の AndroidManifest にはないので、求めて断られたら、これを外して求め直す */
+export const LATER_TYPES: readonly RecordType[] = ['Steps'];
+
+/**
+ * 権限を求める。前の APK（READ_STEPS がない）で、歩数を含めて求めたせいで失敗したときは、歩数を外してもう一度求める
+ * （ほかの型の連携と取り込みを止めないため）。もらえた権限を返す
+ */
+export async function requestReadPermissions<T>(request: (perms: Permission[]) => Promise<T[]>): Promise<T[]> {
+  try {
+    return await request(PERMISSIONS);
+  } catch (e) {
+    const base = PERMISSIONS.filter((p) => !LATER_TYPES.includes(p.recordType));
+    try {
+      return await request(base);
+    } catch {
+      throw e;
+    }
+  }
+}
 
 type Upsert = { kind: 'upsert'; record: HealthConnectRecordResult };
 type Removal = { kind: 'delete'; id: string };
@@ -167,6 +187,35 @@ export async function heartRateDay(date: string, granted: Set<string>): Promise<
   return { id: heartRateDayId(date), date, restingBpm: resting, avgBpm: hr.avg, minBpm: hr.min, maxBpm: hr.max, samples: hr.samples };
 }
 
+/** 歩数の日の合計の行の ID（日付から決める。どの端末で集計しても同じ行になる） */
+export const stepDayId = (date: string) => uuid5(HC_NAMESPACE, `hc-steps-day:${date}`);
+
+/** 1日の歩数の範囲（Health Connect の StepsRecord の1件の範囲。サーバーの step_day も同じ） */
+export const STEPS_MIN = 1;
+export const STEPS_MAX = 1_000_000;
+
+/**
+ * その日の歩数を、Health Connect の集計（aggregateRecord の COUNT_TOTAL）で出し直す。1件ごとの記録は持たない。
+ * 集計は、同じ時間を複数のアプリ（スマホとウォッチなど）が書いたときの重なりを、Health Connect が除いた合計になる。
+ * 記録がない日（0 が返る）・範囲の外は null（その日の行を消す）
+ */
+export async function stepsDay(date: string): Promise<StepDayImport | null> {
+  const r = await hc.aggregateRecord({ recordType: 'Steps', timeRangeFilter: dayRange(date) });
+  const steps = Math.round(r.COUNT_TOTAL ?? 0);
+  if (!(steps >= STEPS_MIN && steps <= STEPS_MAX)) return null;
+  return { id: stepDayId(date), date, steps };
+}
+
+async function stepsBatch(dates: Iterable<string>): Promise<ImportBatch> {
+  const upserts: StepDayImport[] = [];
+  const deletes: string[] = [];
+  for (const date of [...new Set(dates)].sort()) {
+    const day = await stepsDay(date);
+    if (day) upserts.push(day); else deletes.push(date);
+  }
+  return { steps: { upserts, deletes } };
+}
+
 /** 日付の一覧の日を、集計し直して書き込みにする */
 async function heartRateBatch(dates: Iterable<string>, granted: Set<string>): Promise<ImportBatch> {
   const upserts: HeartRateDayImport[] = [];
@@ -186,10 +235,10 @@ function datesBetween(from: Date, to: Date): string[] {
 }
 
 /**
- * 心拍（HeartRate・RestingHeartRate）：変わった記録の日を集め、その日を集計し直す。
+ * 日ごとに集計する型（心拍の HeartRate・RestingHeartRate、歩数の Steps）：変わった記録の日を集め、その日を集計し直す。
  * 消えた記録は、どの日のものか分からない（ID しか届かない）ので、過去30日を集計し直す
  */
-function heartRateHandler(recordType: 'HeartRate' | 'RestingHeartRate'): Handler {
+function dailyHandler(recordType: 'HeartRate' | 'RestingHeartRate' | 'Steps', batch: (dates: Iterable<string>, ctx: Context) => Promise<ImportBatch>): Handler {
   return {
     recordType,
     async toBatch(events, ctx) {
@@ -202,11 +251,14 @@ function heartRateHandler(recordType: 'HeartRate' | 'RestingHeartRate'): Handler
         const r = e.record as { time?: string; startTime?: string; endTime?: string };
         for (const t of [r.time, r.startTime, r.endTime]) if (t) dates.add(toDateKey(new Date(t)));
       }
-      return heartRateBatch(dates, ctx.granted);
+      return batch(dates, ctx);
     },
-    readRange: (from, to, ctx) => heartRateBatch(datesBetween(from, to), ctx.granted),
+    readRange: (from, to, ctx) => batch(datesBetween(from, to), ctx),
   };
 }
+
+const heartRateHandler = (recordType: 'HeartRate' | 'RestingHeartRate') =>
+  dailyHandler(recordType, (dates, ctx) => heartRateBatch(dates, ctx.granted));
 
 export const HANDLERS: Handler[] = [
   bodyHandler('Weight', {
@@ -224,6 +276,7 @@ export const HANDLERS: Handler[] = [
   sleepHandler,
   heartRateHandler('HeartRate'),
   heartRateHandler('RestingHeartRate'),
+  dailyHandler('Steps', (dates) => stepsBatch(dates)),
 ];
 
 /** 型の記録を、from から今まで全ページ読む */

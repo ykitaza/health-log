@@ -144,7 +144,7 @@ test('日付の移動。先の日には進めない。記録のない日は前�
   await expect(see(page, '前回 69.0 kg（11月5日）')).toBeVisible();
 });
 
-test('推移のタブ：体重の推移（1か月、7日の平均）から項目の推移へ。睡眠・心拍は記録なし', async ({ page }) => {
+test('推移のタブ：体重の推移（1か月、7日の平均）から項目の推移へ。睡眠・心拍・歩数は記録なし', async ({ page }) => {
   await openApp(page);
   await setBodyInfo(page, { height: '170' });
   await openBody(page);
@@ -162,9 +162,10 @@ test('推移のタブ：体重の推移（1か月、7日の平均）から項目
   await goPane(page, '推移');
   await expect(see(page, '1か月で −1.6 kg')).toBeVisible();
   await expect(see(page, '7日の平均', { exact: true }).first()).toBeVisible();
-  // Health Connect をつないでいないので、睡眠・心拍は記録なし
+  // Health Connect をつないでいないので、睡眠・心拍・歩数は記録なし
   await expect(page.getByTestId('sleep-week').filter({ visible: true })).toContainText('この7日の記録はありません');
   await expect(page.getByTestId('heart-week').filter({ visible: true })).toContainText('この7日の記録はありません');
+  await expect(page.getByTestId('steps-week').filter({ visible: true })).toContainText('この7日の記録はありません');
 
   await see(page, '体重の推移', { exact: true }).click();
   await expect(see(page, '体重の推移', { exact: true })).toBeVisible();

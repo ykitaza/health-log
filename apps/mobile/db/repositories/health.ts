@@ -22,7 +22,10 @@ export type HeartRateDay = {
   samples: number;
 };
 
-/** Health Connect から取り込んだ睡眠・心拍を読む（書くのは取り込みだけ：db/repositories/healthConnect.ts） */
+/** その日の歩数の合計 */
+export type StepDay = { date: DateKey; steps: number };
+
+/** Health Connect から取り込んだ睡眠・心拍・歩数を読む（書くのは取り込みだけ：db/repositories/healthConnect.ts） */
 export function healthRepository(db: Db) {
   /** from〜to（両端を含む）の日ごとの睡眠。日付の古い順。記録のない日は入らない */
   async function sleepDays(from: DateKey, to: DateKey): Promise<SleepDay[]> {
@@ -54,14 +57,25 @@ export function healthRepository(db: Db) {
     return rows.map((r) => ({ date: r.date, restingBpm: r.resting_bpm, avgBpm: r.avg_bpm, minBpm: r.min_bpm, maxBpm: r.max_bpm, samples: r.samples }));
   }
 
+  /** from〜to（両端を含む）の日ごとの歩数の合計。日付の古い順。記録のない日は入らない */
+  async function stepDays(from: DateKey, to: DateKey): Promise<StepDay[]> {
+    return db.getAllAsync<StepDay>(
+      'SELECT date, steps FROM step_days WHERE deleted_at IS NULL AND date >= ? AND date <= ? ORDER BY date', [from, to],
+    );
+  }
+
   return {
     sleepDays,
     heartRateDays,
+    stepDays,
     async sleepDay(date: DateKey): Promise<SleepDay | null> {
       return (await sleepDays(date, date))[0] ?? null;
     },
     async heartRateDay(date: DateKey): Promise<HeartRateDay | null> {
       return (await heartRateDays(date, date))[0] ?? null;
+    },
+    async stepDay(date: DateKey): Promise<StepDay | null> {
+      return (await stepDays(date, date))[0] ?? null;
     },
   };
 }

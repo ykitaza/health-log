@@ -127,6 +127,11 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
         ("2026-11-08", 420, "2026-11-07T23:40+09:00", "2026-11-08T06:55+09:00")]
     hearts = tool("heart_rate_summary")
     assert [(d["date"], d["resting_bpm"], d["avg_bpm"], d["samples"]) for d in hearts["days"]] == [("2026-11-07", 54, 94, 3)]
+    # 歩数の日の合計（1件ごとの記録は送らない）
+    steps = [c for p in pushes for c in p["changes"] if c["entity_type"] == "step_day"]
+    assert [(c["origin"], c["fields"]) for c in steps] == [("import", {"date": "2026-11-07", "steps": 8240})]
+    summary = tool("step_summary")
+    assert (summary["days"], summary["average_steps"]) == ([{"date": "2026-11-07", "steps": 8240}], 8240)
 
 
 def normalize(value, ids: dict):
