@@ -1,6 +1,7 @@
 // 週・日の達成と、まだ作っていないまとめ：DB から集めて lib/goals.ts・lib/reports.ts に渡す
 import { migrate } from '../migrations';
 import { SEED_EXERCISES } from '../seed';
+import { addDays } from '@/lib/date';
 import type { ItemInput } from '@/lib/meals';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
 
@@ -39,6 +40,37 @@ test('週の達成：設定の目標で、筋トレ・食事・たんぱく質�
     protein: { days: 1, goal: 5, reached: false },
     sleep: { days: 1, goal: 3, reached: false },
   });
+});
+
+test('すべて達成した週の連続：設定の今の目標で、今週から過去の週を数える（消した食事は数えない）', async () => {
+  const { r, sleep } = await setup();
+  await r.settings.update({ weeklyGoalTrainingDays: 2, weeklyGoalMealDays: 3, weeklyGoalSleepDays: 0 });
+  const train = (date: string) => r.workouts.saveEntry({ date, exerciseId: BENCH, sets: [{ weightKg: 60, reps: 10, memo: '', done: true }] });
+  const eat = (date: string) => r.meals.record({ date, slot: 'lunch', source: 'text', items: [egg] });
+  // 先週（11/2〜）と先々週（10/26〜）は達成。今週（11/9〜）は筋トレ1日だけ
+  for (const monday of ['2026-11-02', '2026-10-26']) {
+    const [d0, d1, d2] = [0, 1, 2].map((i) => addDays(monday, i));
+    await train(d0); await train(d2);
+    await eat(d0); await eat(d1); await eat(d2);
+  }
+  await train('2026-11-09');
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 2, thisWeek: false });
+
+  // 今週も届くと、今週を含めて 3
+  await train('2026-11-10');
+  for (const d of ['2026-11-09', '2026-11-10', '2026-11-11']) await eat(d);
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 3, thisWeek: true });
+
+  // 先週の食事を1つ消すと、先週で途切れて今週の 1 だけ
+  const last = (await r.meals.listDay('2026-11-03'))[0];
+  await r.meals.remove(last.id);
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 1, thisWeek: true });
+
+  // 睡眠の目標を入れると、睡眠も数える
+  await r.settings.update({ weeklyGoalSleepDays: 3 });
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 0, thisWeek: false });
+  sleep('2026-11-09', 420, 1); sleep('2026-11-10', 430, 2); sleep('2026-11-11', 500, 3);
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 1, thisWeek: true });
 });
 
 test('日の達成：負荷量・種目数・自己ベスト、食事の合計と目標、その日に起きた睡眠', async () => {

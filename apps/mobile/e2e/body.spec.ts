@@ -21,8 +21,8 @@ test('記録がない日 → シートで入れて保存 → 体重・週の平�
   await openBody(page);
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
   await expect(see(page, 'この日の記録はありません').first()).toBeVisible();
-  // 前回の記録がなければ、前回の行は出さない
-  await expect(see(page, /^前回 /)).toHaveCount(0);
+  // 前回の記録がなければ、前回の値も札も出さない
+  await expect(see(page, /^前回/)).toHaveCount(0);
 
   await openBodySheet(page);
   await expect(see(page, '手入力した値が取り込みより先に出ます。欄を空にして保存すると、取り込みの値に戻ります（取り込みがなければ消えます）')).toBeVisible();
@@ -131,17 +131,30 @@ test('日付の移動。先の日には進めない。記録のない日は前�
   // 11/5（木）69.0、11/8（日）68.4。11/2〜11/8 が同じ週
   await goBackDays(page, 3);
   await expect(see(page, '11月5日（木）', { exact: true })).toBeVisible();
-  await enterBody(page, { weight: '69' });
+  await enterBody(page, { weight: '69', bodyFat: '16' });
   await button(page, '次の日').click();
   await expect(see(page, '11月6日（金）', { exact: true })).toBeVisible();
-  await expect(see(page, '前回 69.0 kg（11月5日）')).toBeVisible();
+  // 記録がない日は、前回の値を補足の色で（札「前回・11月5日」、「この日はまだ計測していません」、右上は「計測を入れる」）
+  await expect(page.getByTestId('body-previous').filter({ visible: true })).toHaveText('前回・11月5日');
+  await expect(weight(page)).toContainText('69.0');
+  await expect(weight(page)).toHaveAttribute('aria-label', 'この日の記録はありません。前回は 11月5日の 69.0 キログラム');
+  await expect(summary(page)).toHaveText('この日はまだ計測していません');
+  await expect(button(page, '計測を入れる')).toBeVisible();
+  await expect(button(page, '入力・編集')).toHaveCount(0);
+  await expect(button(page, '体脂肪率 前回 16.0%。体脂肪率の推移を見る')).toBeVisible();
   await button(page, '次の日').click();
   await button(page, '次の日').click();
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
   await enterBody(page, { weight: '68.4' });
   await expect(summary(page)).toHaveText('週の平均 68.7 kg');
   await button(page, '前の日').click();
-  await expect(see(page, '前回 69.0 kg（11月5日）')).toBeVisible();
+  await expect(page.getByTestId('body-previous').filter({ visible: true })).toHaveText('前回・11月5日');
+  await expect(weight(page)).toContainText('69.0');
+  // 前回の値を出している日に入れると、その日の値になる（札は消え、「入力・編集」に戻る）
+  await enterBody(page, { weight: '68.8' });
+  await expect(weight(page)).toContainText('68.8');
+  await expect(page.getByTestId('body-previous')).toHaveCount(0);
+  await expect(button(page, '入力・編集')).toBeVisible();
 });
 
 test('推移のタブ：体重の推移（1か月、7日の平均）から項目の推移へ。睡眠・心拍・歩数は記録なし', async ({ page }) => {

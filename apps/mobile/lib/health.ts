@@ -1,6 +1,12 @@
+import { averageBetween } from './body';
 import { addDays, DateKey, weekday } from './date';
 
 // 睡眠・心拍・歩数の表示（からだのタブ、ホームの体調のカード）
+
+/** その日までの7日（その日を含む）の、記録のある日の平均（からだの今日で、その日の記録がない行に薄く出す）。記録がなければ null */
+export function sevenDayAverage(points: { date: DateKey; value: number }[], date: DateKey): number | null {
+  return averageBetween(points, addDays(date, -6), date);
+}
 
 /** 分を「7時間12分」に（1時間未満は「45分」） */
 export function formatMinutes(min: number): string {

@@ -1,5 +1,7 @@
-import { addDays, DateKey, toDateKey } from '@/lib/date';
-import { DailyAchievement, dailyAchievement, weekOf, WeeklyAchievement, weeklyAchievement } from '@/lib/goals';
+import { addDays, DateKey, toDateKey, weekStart } from '@/lib/date';
+import {
+  DailyAchievement, dailyAchievement, GoalStreak, goalStreak, STREAK_MAX_WEEKS, weekOf, WeeklyAchievement, weeklyAchievement,
+} from '@/lib/goals';
 import { pendingReports, PendingReport } from '@/lib/reports';
 import type { Db, Deps } from '../types';
 import { healthRepository } from './health';
@@ -13,7 +15,7 @@ const PENDING_LOOKBACK_DAYS = 62;
 
 /**
  * 週・日の達成と、まだ作っていないまとめ（読むだけ）。計算は lib/goals.ts・lib/reports.ts の純粋な関数で、ここは DB から集めて渡す。
- * 画面からは hooks/data.ts の useWeeklyAchievement・useDailyAchievement・usePendingReports で使う
+ * 画面からは hooks/data.ts の useWeeklyAchievement・useGoalStreak・useDailyAchievement・usePendingReports で使う
  */
 export function achievementRepository(db: Db, deps: Deps) {
   const settings = settingsRepository(db, deps);
@@ -44,6 +46,18 @@ export function achievementRepository(db: Db, deps: Deps) {
         settings.get(), meals.summaries(start, end), meals.trainingDays(start, end), health.sleepDays(start, end),
       ]);
       return weeklyAchievement({ date, goals: weeklyGoalsOf(s), trainingDates: trained, meals: summaries.days, sleep });
+    },
+
+    /** すべての目標を達成した週の連続（今週から STREAK_MAX_WEEKS 週前まで）。目標は設定の今の値 */
+    async streak(date: DateKey): Promise<GoalStreak> {
+      const from = addDays(weekStart(date), -7 * (STREAK_MAX_WEEKS - 1));
+      const { end } = weekOf(date);
+      const [s, trained, mealDates, sleep] = await Promise.all([
+        settings.get(), meals.trainingDays(from, end),
+        db.getAllAsync<{ date: string }>('SELECT DISTINCT date FROM meals WHERE deleted_at IS NULL AND date BETWEEN ? AND ?', [from, end]),
+        health.sleepDays(from, end),
+      ]);
+      return goalStreak({ date, goals: weeklyGoalsOf(s), trainingDates: trained, mealDates: mealDates.map((r) => r.date), sleep });
     },
 
     /** その日の達成（自己ベストを見るため、セットはすべて読む） */

@@ -52,9 +52,11 @@ test('からだの睡眠・心拍・歩数の行から推移を開く。記録�
   await expect(button(page, 'Health Connect をつなぐ')).toBeVisible();
   await button(page, '戻る').click();
 
-  // 歩数（連携していないので「この日の記録はありません」と「—」）
+  // 歩数（連携していないので「この日の記録はありません」。7日の平均も出せないので、右は空で「—」も出さない）
   await expect(page.getByTestId('steps-day').filter({ visible: true })).toContainText('この日の記録はありません');
-  await expect(page.getByTestId('steps-day').filter({ visible: true })).toContainText('—');
+  await expect(page.getByTestId('steps-day').filter({ visible: true })).not.toContainText('—');
+  await expect(page.getByTestId('steps-day').filter({ visible: true })).not.toContainText('7日の平均');
+  await expect(page.getByTestId('sleep-day').filter({ visible: true })).not.toContainText('—');
   await page.getByRole('button', { name: /歩数の推移を見る/ }).click();
   await expect(see(page, '歩数の推移', { exact: true })).toBeVisible();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
