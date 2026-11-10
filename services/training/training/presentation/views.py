@@ -10,6 +10,7 @@ from training.application.queries import (
     HeartRateSummary,
     PeriodTraining,
     SleepSummary,
+    StepSummary,
     WeeklyTrainingReview,
 )
 from training.domain import big3, body, bodyweight, calculations, health
@@ -220,6 +221,21 @@ def heart_rate_summary(s: HeartRateSummary, start: str, end: str) -> dict:
     }
 
 
+def whole(value: float | None) -> int | None:
+    """整数に丸める（.5 は上げる。アプリの Math.round と同じ。歩数は正なので）。"""
+    return None if value is None else int(value + 0.5)
+
+
+def step_summary(s: StepSummary, start: str, end: str) -> dict:
+    return {
+        "from": start,
+        "to": end,
+        "days_recorded": len(s.days),
+        "average_steps": whole(s.average_steps),
+        "days": [{"date": d.date, "steps": d.steps} for d in s.days],
+    }
+
+
 # --- 期間の材料（レポートを書くための period_overview）。大きくなりすぎないよう、項目を絞る ---
 
 
@@ -268,4 +284,12 @@ def period_heart_rate(s: HeartRateSummary) -> dict:
         "days_recorded": len([d for d in s.days if d.resting_bpm is not None]),
         "average_resting_bpm": r1(s.average_resting_bpm),
         "days": [{"date": d.date, "resting_bpm": r1(d.resting_bpm)} for d in s.days if d.resting_bpm is not None],
+    }
+
+
+def period_steps(s: StepSummary) -> dict:
+    return {
+        "days_recorded": len(s.days),
+        "average_steps": whole(s.average_steps),
+        "days": [{"date": d.date, "steps": d.steps} for d in s.days],
     }

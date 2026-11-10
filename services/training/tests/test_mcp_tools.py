@@ -66,7 +66,7 @@ def test_ツールの一覧():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"record_workout", "get_workout", "list_workouts", "exercise_history", "weekly_training_review",
                      "list_exercises", "update_workout", "delete_workout", "add_exercise", "update_exercise",
-                     "record_body", "body_progress", "sleep_summary", "heart_rate_summary"}
+                     "record_body", "body_progress", "sleep_summary", "heart_rate_summary", "step_summary"}
 
 
 def test_記録すると_その日の記録と計算と最後の同期の時刻を返す(call):
@@ -367,6 +367,7 @@ def test_ほかの人の記録は見えず_直せない(call):
     assert call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"] == []
     assert call("body_progress")["days"] == []
     assert call("sleep_summary")["nights"] == [] and call("heart_rate_summary")["days"] == []
+    assert call("step_summary")["days"] == []
     assert call("weekly_training_review")["sessions"] == 0
     assert call("get_workout")["last_app_sync_at"] is None  # 同期の時刻も本人の分だけ
     with pytest.raises(ToolError, match="ありません"):
@@ -384,6 +385,7 @@ def test_ほかの人の記録は見えず_直せない(call):
     ("body_progress", {}, "training:read"),
     ("sleep_summary", {}, "training:read"),
     ("heart_rate_summary", {}, "training:read"),
+    ("step_summary", {}, "training:read"),
     ("record_workout", {"exercises": [bench((80, 8))]}, "training:write"),
     ("update_workout", {"day": "2026-11-08", "remove_set_ids": ["x"]}, "training:write"),
     ("delete_workout", {"day": "2026-11-08"}, "training:write"),
@@ -473,9 +475,24 @@ def test_心拍のまとめ_日ごとの値と安静時心拍の平均(call, eng
     assert result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
 
 
-@pytest.mark.parametrize("tool", ["sleep_summary", "heart_rate_summary"])
+def test_歩数のまとめ_日ごとの合計と平均(call, engine):
+    imported(engine, "step_day", "st1", {"date": "2026-11-06", "steps": 8240})
+    imported(engine, "step_day", "st2", {"date": "2026-11-08", "steps": 10321})
+    imported(engine, "step_day", "st-old", {"date": "2026-10-30", "steps": 3000})  # 7日より前
+    imported(engine, "step_day", "st-gone", {"date": "2026-11-07", "steps": 500})
+    imported(engine, "step_day", "st-gone", None, op="delete")
+    result = call("step_summary")
+    assert (result["from"], result["to"]) == ("2026-11-02", "2026-11-08")
+    assert result["days"] == [{"date": "2026-11-06", "steps": 8240}, {"date": "2026-11-08", "steps": 10321}]
+    assert (result["days_recorded"], result["average_steps"]) == (2, 9281)  # 9280.5 は上げる（アプリと同じ）
+    assert result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
+    assert len(call("step_summary", days=14)["days"]) == 3
+    assert [d["date"] for d in call("step_summary", start="2026-11-06", end="2026-11-06")["days"]] == ["2026-11-06"]
+
+
+@pytest.mark.parametrize("tool", ["sleep_summary", "heart_rate_summary", "step_summary"])
 @pytest.mark.parametrize("days", [6, 91])
-def test_睡眠と心拍の期間は7日から90日(call, tool, days):
+def test_睡眠と心拍と歩数の期間は7日から90日(call, tool, days):
     with pytest.raises(ToolError):
         call(tool, days=days)
 
@@ -502,6 +519,7 @@ def test_まとめは_start_と_end_で前の期間も読める(call, engine):
     ("sleep_summary", "2026-11-05", "2026-11-04", "end は start"),
     ("sleep_summary", "2026-08-01", "2026-11-08", "90日"),
     ("heart_rate_summary", "2026-08-01", "2026-11-08", "90日"),
+    ("step_summary", "2026-08-01", "2026-11-08", "90日"),
     ("body_progress", "2025-01-01", "2026-11-08", "366日"),
 ])
 def test_まとめの期間を確かめる(call, tool, start, end, message):

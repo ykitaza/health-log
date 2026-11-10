@@ -26,7 +26,7 @@ from training.presentation import views
 
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 MAX_RANGE_DAYS = 366
-MAX_HEALTH_DAYS = 90  # 睡眠と心拍のまとめで一度に読める日数
+MAX_HEALTH_DAYS = 90  # 睡眠・心拍・歩数のまとめで一度に読める日数
 PERIOD_START = "期間の初日（YYYY-MM-DD）。前の日・週・月のまとめを書くときに渡す。省くと end の days−1 日前"
 PERIOD_END = "期間の最後の日（YYYY-MM-DD。両端を含む）。省くと今日"
 
@@ -35,7 +35,7 @@ INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回�
 種目は名前の完全一致でだけ選ぶ。「ベンチ」のように略した名前で見つからないときは、返ってきた候補から利用者の意図がはっきりしていればその名前で呼び直し、迷うなら利用者に聞く。
 総負荷量（重量×回数の合計。回数だけの自重の種目は、体重×種目の割合×回数）・推定1RM（Epley 式。自重の種目は出さない）・自己ベストはサーバーが計算する。AI が計算し直さない。
 推移（総負荷量、推定1RM、体重）は、描けるならグラフで見せる。部位の偏りは割合で見せる。記録の少なさや休んだ日を責めない。
-睡眠と心拍は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary。読むだけ）。病気の診断はしない。"""
+睡眠・心拍・歩数は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary、step_summary。読むだけ）。病気の診断はしない。"""
 
 RATIO_DESCRIPTION = ("回数だけ（reps_only）の種目の、体重に対する割合（0〜1）。自重の負荷量 ＝ 体重×割合×回数。"
                      "目安：懸垂・チンニング 1、ディップス 0.95、自重スクワット 0.7、腕立て伏せ 0.65、膝つき腕立て 0.5、"
@@ -336,7 +336,7 @@ def register_training_tools(
         progress = await queries.body_progress(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.body_progress(progress, start.isoformat(), end.isoformat()))
 
-    # --- 睡眠と心拍（アプリが Health Connect から取り込んだもの。読むだけ） ---
+    # --- 睡眠・心拍・歩数（アプリが Health Connect から取り込んだもの。読むだけ） ---
 
     @mcp.tool(annotations=READ)
     async def sleep_summary(
@@ -374,6 +374,24 @@ def register_training_tools(
         start, end = period(days, start, end, MAX_HEALTH_DAYS)
         summary = await queries.heart_rate_summary(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.heart_rate_summary(summary, start.isoformat(), end.isoformat()))
+
+    @mcp.tool(annotations=READ)
+    async def step_summary(
+        days: Annotated[int, Field(ge=7, le=MAX_HEALTH_DAYS, description="end までの何日分か（start を渡したときは使わない）")] = 7,
+        start: Annotated[date | None, Field(description=PERIOD_START)] = None,
+        end: Annotated[date | None, Field(description=PERIOD_END)] = None,
+    ) -> dict:
+        """歩数のまとめ：日ごとの歩数の合計と、期間の平均（記録がある日の平均。整数に丸める）。
+
+        期間は start〜end（両端を含む。90日まで）。省くと end は今日、start は end の days−1 日前。
+
+        アプリ（hlog）が Health Connect（スマホ・ウォッチなど）から取り込んだ1日の合計（1件ごとの記録は持たない）。
+        記録がない日は含めない（0歩の日とは限らない）。推移は描けるならグラフで見せる。歩数の少なさを責めない。
+        """
+        sub = subject(READ_SCOPE)
+        start, end = period(days, start, end, MAX_HEALTH_DAYS)
+        summary = await queries.step_summary(sub, start.isoformat(), end.isoformat())
+        return await synced(sub, views.step_summary(summary, start.isoformat(), end.isoformat()))
 
 
 @contextmanager

@@ -28,6 +28,7 @@ from training.domain.model import (
     RecordType,
     SetRow,
     SleepSession,
+    StepDay,
     TraineeId,
     Workout,
     WorkoutEntry,
@@ -42,6 +43,7 @@ REQUIRED = {
     "body_record": {"date", "measured_at", "source"},
     "sleep_session": {"date", "start_at", "end_at", "asleep_min", "awake_min", "source"},
     "heart_rate_day": {"date", "samples"},
+    "step_day": {"date", "steps"},
 }
 _MISSING = object()
 
@@ -164,6 +166,10 @@ class SyncTrainingRepository:
         states = await self._run(self._alive, trainee.value, "heart_rate_day")
         return [HeartRateDay(s.values["date"], s.values.get("resting_bpm"), s.values.get("avg_bpm"),
                              s.values.get("min_bpm"), s.values.get("max_bpm"), s.values["samples"]) for s in states]
+
+    async def step_days(self, trainee: TraineeId) -> list[StepDay]:
+        states = await self._run(self._alive, trainee.value, "step_day")
+        return [StepDay(s.values["date"], s.values["steps"]) for s in states]
 
     # --- 書き込み ---
 

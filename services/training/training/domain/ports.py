@@ -12,6 +12,7 @@ from training.domain.model import (
     HeartRateDay,
     SetRow,
     SleepSession,
+    StepDay,
     TraineeId,
     Workout,
     WorkoutEntry,
@@ -47,6 +48,10 @@ class TrainingRepository(Protocol):
 
     async def heart_rate_days(self, trainee: TraineeId) -> list[HeartRateDay]:
         """消していない心拍の日のまとめ（Health Connect の取り込み）。"""
+        ...
+
+    async def step_days(self, trainee: TraineeId) -> list[StepDay]:
+        """消していない歩数の日の合計（Health Connect の取り込み）。"""
         ...
 
     # --- 書き込み（変更の記録を通す。アプリに同期で降りる） ---
