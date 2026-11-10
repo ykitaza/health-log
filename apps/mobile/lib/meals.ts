@@ -1,7 +1,7 @@
 // 食事の計算と決まり。サーバー（services/meals の domain と infrastructure/sync_entities.py）と同じ結果になるようにする。
 // 同じテストのデータ（testdata/meals/*.json）で、サーバー（pytest）とアプリ（jest）の両方から確かめている。
 // 小数の誤差までそろえるため、足す順番と計算の仕方（平均は 1/n を掛ける、など）もサーバーに合わせる。
-import { addDays, DateKey } from './date';
+import { addDays, DateKey, weekStart } from './date';
 import { parseNumber } from './units';
 import { uuid5 } from './uuid5';
 
@@ -165,6 +165,12 @@ export function floatSum(values: number[]): number {
     total = t;
   }
   return c !== 0 && Number.isFinite(c) ? total + c : total;
+}
+
+/** 日を選ぶシートで選んだ日を含む週の、最後の日（週は月〜日。今週は今日まで＝今日までの7日） */
+export function weekLastDayFor(date: DateKey, today: DateKey): DateKey {
+  const end = addDays(weekStart(date), 6);
+  return end > today ? today : end;
 }
 
 /** lastDay までの7日（古い順） */

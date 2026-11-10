@@ -1,5 +1,6 @@
 import {
   floatSum, GoalDraft, ItemDraft, mealTitle, parseGoal, parseItem, pfcRatio, slotAt, templateNameError, weekDates,
+  weekLastDayFor,
 } from '../meals';
 import { uuid5 } from '../uuid5';
 
@@ -88,6 +89,17 @@ test('7日（古い順）と、数の並びの合計（誤差を補う）', () =
   expect(weekDates('2026-11-08')).toEqual(['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
   expect(floatSum([0.1, 0.2, 0.3])).toBe(0.6);
   expect(floatSum([1e100, 1, -1e100])).toBe(1);
+});
+
+test('選んだ日を含む週（月〜日）の最後の日。今週は今日まで', () => {
+  const today = '2026-11-11'; // 水曜
+  expect(weekLastDayFor('2026-11-03', today)).toBe('2026-11-08'); // 火曜 → 11/2〜11/8
+  expect(weekLastDayFor('2026-11-02', today)).toBe('2026-11-08'); // 月曜
+  expect(weekLastDayFor('2026-11-08', today)).toBe('2026-11-08'); // 日曜
+  expect(weekLastDayFor('2026-10-31', today)).toBe('2026-11-01'); // 月をまたぐ週
+  expect(weekLastDayFor('2026-11-09', today)).toBe(today); // 今週は今日までの7日
+  expect(weekLastDayFor(today, today)).toBe(today);
+  for (const d of ['2026-11-03', '2026-11-09', '2026-10-31']) expect(weekDates(weekLastDayFor(d, today))).toContain(d);
 });
 
 test('UUID v5（RFC 9562 の例と同じ）', () => {

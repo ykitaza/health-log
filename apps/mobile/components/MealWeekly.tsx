@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
-import { SwipeArea } from '@/components/DayPicker';
+import { DateSwitcher, DayPickerSheet, SwipeArea } from '@/components/DayPicker';
 import { LoadError } from '@/components/LoadError';
 import { T } from '@/components/Text';
-import { Badge, Card, IconButton } from '@/components/ui';
+import { Badge, Card } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { niceTicks } from '@/lib/chart';
-import { addDays, formatShortDate, todayKey, weekday } from '@/lib/date';
-import { DaySummary, Gap, pfcRatio, weekDates, weeklyReview } from '@/lib/meals';
+import { addDays, formatMonthDay, todayKey, weekday } from '@/lib/date';
+import { DaySummary, Gap, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, fonts } from '@/theme';
 
@@ -19,6 +19,7 @@ const PFC_COLORS = { p: colors.accent, f: colors.star, c: '#6FA8FF' };
 export function MealWeekly() {
   const today = todayKey();
   const [lastDay, setLastDay] = useState(today);
+  const [picking, setPicking] = useState(false);
   const { data, error, reload } = useFocusData((r) => r.meals.summaries(addDays(lastDay, -6), lastDay), lastDay);
   const days = data?.days ?? [];
   const review = weeklyReview(days);
@@ -35,13 +36,13 @@ export function MealWeekly() {
   if (error) return <View style={{ marginTop: 14 }}><LoadError onRetry={reload} /></View>;
 
   return (
+    <>
     <SwipeArea onSwipe={move} testID="meals-week" style={{ gap: 12, marginTop: 14 }}>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の週" bg="transparent" onPress={() => move('prev')} />
-        <T bold size={16}>{formatShortDate(addDays(lastDay, -6))}〜{formatShortDate(lastDay)}</T>
-        <IconButton name="next" label="次の週" bg="transparent" disabled={lastDay >= today} color={lastDay >= today ? colors.line : colors.text}
-          onPress={() => move('next')} />
-      </Card>
+      {/* 日付を押すと「日を選ぶ」。選んだ日を含む週（月〜日。今週は今日まで）にする */}
+      <DateSwitcher
+        label={`${formatMonthDay(addDays(lastDay, -6))}〜${formatMonthDay(lastDay)}`} prevLabel="前の週" nextLabel="次の週" canNext={lastDay < today}
+        onPrev={() => move('prev')} onNext={() => move('next')} onPick={() => setPicking(true)}
+      />
 
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -97,6 +98,9 @@ export function MealWeekly() {
         {review.gap && <GapRow gap={review.gap} />}
       </Card>
     </SwipeArea>
+    <DayPickerSheet visible={picking} kind="meal" value={lastDay} today={today} onClose={() => setPicking(false)}
+      onPick={(d) => setLastDay(weekLastDayFor(d, today))} />
+    </>
   );
 }
 

@@ -69,7 +69,7 @@ test('筋トレの記録：日を選ぶシート（筋トレの日に点、未�
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
 });
 
-test('食事の記録：日を選ぶシート（食事を記録した日に点）とスワイプ。推移は前の週・次の週へスワイプ', async ({ page }) => {
+test('食事の記録：日を選ぶシート（食事を記録した日に点）とスワイプ。推移は前の週・次の週へスワイプと、日を選んでその週へ', async ({ page }) => {
   await openApp(page);
   await goTab(page, '食事');
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
@@ -104,11 +104,31 @@ test('食事の記録：日を選ぶシート（食事を記録した日に点�
   // 推移：スワイプで前の週・次の週（今日を最後の日にするところまで）
   await openMealWeek(page);
   const week = page.getByTestId('meals-week').filter({ visible: true });
-  await expect(see(page, '11/2〜11/8', { exact: true })).toBeVisible();
+  await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
   await swipe(week, 'prev');
-  await expect(see(page, '10/26〜11/1', { exact: true })).toBeVisible();
+  await expect(see(page, '10月26日〜11月1日', { exact: true })).toBeVisible();
   await swipe(week, 'next');
-  await expect(see(page, '11/2〜11/8', { exact: true })).toBeVisible();
+  await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
   await swipe(week, 'next');
-  await expect(see(page, '11/2〜11/8', { exact: true })).toBeVisible();
+  await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
+  await expect(button(page, '次の週')).toHaveAttribute('aria-disabled', 'true');
+
+  // 推移も日付を押すと「日を選ぶ」。食事を記録した日に点、未来は押せない。選んだ日を含む週（月曜始まり）になる
+  await button(page, '日を選ぶ（11月2日〜11月8日）').click();
+  await expect(see(picker(page), '点のある日に食事の記録があります')).toBeVisible();
+  await expect(pickDay(page, '2026-11-07')).toHaveAttribute('aria-label', '11月7日（土） 記録あり');
+  await expect(pickDay(page, '2026-11-09')).toHaveAttribute('aria-disabled', 'true');
+  await button(picker(page), '前の月').click();
+  await pickDay(page, '2026-10-21').click(); // 水曜
+  await expect(picker(page)).toHaveCount(0);
+  await expect(see(page, '10月19日〜10月25日', { exact: true })).toBeVisible();
+  await expect(see(page, 'この週はまだ記録がありません')).toBeVisible();
+  await button(page, '次の週').click();
+  await expect(see(page, '10月26日〜11月1日', { exact: true })).toBeVisible();
+  // 今週の日を選ぶと、今日を最後の日にした週に戻る
+  await button(page, '日を選ぶ（10月26日〜11月1日）').click();
+  await expect(see(picker(page), 'November 2026', { exact: true })).toBeVisible(); // 見ている週の最後の日（11/1）の月から
+  await pickDay(page, '2026-11-03').click();
+  await expect(see(page, '11月2日〜11月8日', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('weekly-average-kcal').filter({ visible: true })).toContainText('300');
 });
