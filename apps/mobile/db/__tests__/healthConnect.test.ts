@@ -68,7 +68,7 @@ describe('初めての取り込み', () => {
     expect(await meta(HC_META.lastImportAt)).toBe('2026-11-08T00:00:00.000Z');
     // 画面の1日の値：取り込みの印
     expect(await d.r.body.getDay('2026-11-07')).toEqual({
-      date: '2026-11-07', weightKg: 69.6, bodyFatPct: 18.4, musclePct: null, waistCm: null, memo: '', imported: ['weightKg', 'bodyFatPct'],
+      date: '2026-11-07', weightKg: 69.6, bodyFatPct: 18.4, memo: '', imported: ['weightKg', 'bodyFatPct'],
     });
   });
 

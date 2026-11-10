@@ -295,18 +295,16 @@ def register_training_tools(
         day: date | None = None,
         weight_kg: float | None = None,
         body_fat_pct: float | None = None,
-        muscle_pct: float | None = None,
-        waist_cm: float | None = None,
         memo: str | None = None,
     ) -> dict:
-        """体組成（体重・体脂肪率・筋肉率・ウエスト）を、その日（省略すると今日）の手入力の記録として残す（アプリの体組成と同じ）。
+        """体組成（体重・体脂肪率）を、その日（省略すると今日）の手入力の記録として残す（アプリの体組成と同じ）。
 
         利用者が言った数字だけを渡す。その日の手入力の記録があれば、渡した項目だけを書き換える。
         食事の目標体重までの進み具合（goal_progress）は、今は別の記録（record_weight）から出す。
         体重だけを言われ、どちらに記録するか分からなければ、利用者に聞く。
         """
         sub = subject(WRITE_SCOPE)
-        values = {"weight_kg": weight_kg, "body_fat_pct": body_fat_pct, "muscle_pct": muscle_pct, "waist_cm": waist_cm}
+        values = {"weight_kg": weight_kg, "body_fat_pct": body_fat_pct}
         with training_errors():
             await commands.record_body(sub, day_of(day), values, memo)
         end = today().isoformat()
@@ -324,7 +322,7 @@ def register_training_tools(
         start: Annotated[date | None, Field(description=PERIOD_START)] = None,
         end: Annotated[date | None, Field(description=PERIOD_END)] = None,
     ) -> dict:
-        """体組成の推移：日ごとの体重・体脂肪率・筋肉率・ウエストと、体脂肪量・除脂肪量、end までの28日の体重の週あたりの変化。
+        """体組成の推移：日ごとの体重・体脂肪率と、体脂肪量・除脂肪量、end までの28日の体重の週あたりの変化。
 
         期間は start〜end（両端を含む。366日まで）。省くと end は今日、start は end の days−1 日前。
         前の日・前の週のまとめを書くときは、その期間を start と end で渡す。

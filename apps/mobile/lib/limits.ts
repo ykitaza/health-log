@@ -10,8 +10,6 @@ export const LIMITS = {
   goalWeight: { label: '目標体重', min: 30, max: 300, unit: 'kg' },
   height: { label: '身長', min: 100, max: 250, unit: 'cm' },
   bodyFat: { label: '体脂肪率', min: 0, max: 100, unit: '%' },
-  muscle: { label: '筋肉率', min: 0, max: 100, unit: '%' },
-  waist: { label: 'ウエスト', min: 30, max: 200, unit: 'cm' },
   // 除脂肪体重は手では入れない（Health Connect の取り込みだけ）。同期のサーバーの body_record.lean_mass_kg と同じ
   leanMass: { label: '除脂肪体重', min: 0, max: 300, unit: 'kg' },
 } as const satisfies Record<string, Limit>;

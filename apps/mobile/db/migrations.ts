@@ -6,7 +6,7 @@
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
   ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, SQL_UUID, TRAINING_ENTITIES,
-  TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
+  TRAINING_ENTITIES_V10, TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
 
@@ -326,7 +326,32 @@ ALTER TABLE exercises ADD COLUMN form_video_url TEXT;
 DROP TRIGGER sync_exercises_insert;
 DROP TRIGGER sync_exercises_update;
 `);
-      for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
+      for (const spec of TRAINING_ENTITIES_V10.filter((s) => s.table === 'exercises')) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // 体組成から筋肉率（muscle_pct）とウエスト（waist_cm）を外す（画面からは先に外した。値も残さない）。
+    // 1. 手入力の行で、その2つのどちらかに値があり、ほかの値（体重・体脂肪率・除脂肪体重・メモ）がない行は、列を消すと空になるので消す
+    //    （saveManual が空の行を作らないのと同じ）。今のトリガーのうちに消すので、delete が積まれ、サーバーの記録も消える
+    // 2. まだ送っていない変更・当てはめを待つ状態から2つの項目を取り除く（項目がなくなった update は捨てる）
+    // 3. 列を参照するトリガーを消してから列を消し、トリガーを今の形で作り直す
+    version: 11,
+    up: async (db, now) => {
+      await db.runAsync(
+        `UPDATE body_records SET deleted_at = ?, updated_at = ?
+         WHERE deleted_at IS NULL AND source = 'manual' AND (muscle_pct IS NOT NULL OR waist_cm IS NOT NULL)
+           AND weight_kg IS NULL AND body_fat_pct IS NULL AND lean_mass_kg IS NULL AND memo = ''`, [now, now],
+      );
+      await db.execAsync(`
+UPDATE sync_outbox SET fields = json_remove(fields, '$.muscle_pct', '$.waist_cm') WHERE entity_type = 'body_record' AND fields IS NOT NULL;
+DELETE FROM sync_outbox WHERE entity_type = 'body_record' AND op = 'update' AND fields = '{}';
+UPDATE sync_held SET state = json_remove(state, '$.fields.muscle_pct', '$.fields.waist_cm') WHERE entity_type = 'body_record';
+DROP TRIGGER sync_body_records_insert;
+DROP TRIGGER sync_body_records_update;
+ALTER TABLE body_records DROP COLUMN muscle_pct;
+ALTER TABLE body_records DROP COLUMN waist_cm;
+`);
+      for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'body_records')) await db.execAsync(triggerSql(spec));
     },
   },
 ];

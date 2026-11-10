@@ -12,8 +12,6 @@ NAME_MAX = 40  # 種目と部位の名前（アプリは書記素で40。ここ�
 BODY_LIMITS = {  # 項目 → (下限, 上限, 名前)
     "weight_kg": (30, 300, "体重（kg）"),
     "body_fat_pct": (0, 100, "体脂肪率（%）"),
-    "muscle_pct": (0, 100, "筋肉率（%）"),
-    "waist_cm": (30, 200, "ウエスト（cm）"),
 }
 
 
@@ -43,7 +41,7 @@ def check_name(what: str, name: str) -> str:
 
 def check_body(values: dict[str, float | None], memo: str | None) -> None:
     if all(v is None for v in values.values()) and memo is None:
-        raise TrainingError("体重・体脂肪率・筋肉率・ウエスト・メモのどれかを入れてください")
+        raise TrainingError("体重・体脂肪率・メモのどれかを入れてください")
     for key, value in values.items():
         low, high, label = BODY_LIMITS[key]
         if value is not None and not low <= value <= high:

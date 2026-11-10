@@ -19,20 +19,12 @@ export function leanMass(weightKg: number | null, bodyFatPct: number | null): nu
   return f == null || weightKg == null ? null : weightKg - f;
 }
 
-/** 筋肉量 ＝ 体重 × 筋肉率 */
-export function muscleMass(weightKg: number | null, musclePct: number | null): number | null {
-  if (weightKg == null || musclePct == null) return null;
-  return (weightKg * musclePct) / 100;
-}
-
 export type BodyValues = {
   weightKg: number | null;
   bodyFatPct: number | null;
-  musclePct: number | null;
-  waistCm: number | null;
 };
 
-/** 画面に出す項目（筋肉率・ウエストと、筋肉率から出す筋肉量は画面から外した。データの列は残している） */
+/** 画面に出す項目 */
 export type BodyMetric = 'weight' | 'bodyFat' | 'bmi' | 'fatMass' | 'leanMass';
 
 export const BODY_METRICS: Record<BodyMetric, { label: string; unit: string; trendTitle: string }> = {
@@ -92,12 +84,12 @@ export type BodyRecordLike = BodyValues & {
   source?: 'manual' | 'health_connect'; // 省くと手入力
 };
 
-export type BodyField = 'weightKg' | 'bodyFatPct' | 'musclePct' | 'waistCm';
+export type BodyField = 'weightKg' | 'bodyFatPct';
 
 /** imported：取り込みの値を出している項目（手入力の値がない項目だけ。どれもなければ省く） */
 export type DailyBody = BodyValues & { date: DateKey; memo: string; imported?: BodyField[] };
 
-const FIELDS: BodyField[] = ['weightKg', 'bodyFatPct', 'musclePct', 'waistCm'];
+const FIELDS: BodyField[] = ['weightKg', 'bodyFatPct'];
 
 const isManual = (r: BodyRecordLike) => (r.source ?? 'manual') === 'manual';
 
@@ -116,7 +108,7 @@ export function dailyBodyValues(records: BodyRecordLike[]): DailyBody[] {
   for (const r of sorted) {
     let d = byDate.get(r.date);
     if (!d) {
-      d = { date: r.date, weightKg: null, bodyFatPct: null, musclePct: null, waistCm: null, memo: '' };
+      d = { date: r.date, weightKg: null, bodyFatPct: null, memo: '' };
       byDate.set(r.date, d);
     }
     for (const f of FIELDS) {

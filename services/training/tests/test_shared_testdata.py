@@ -81,7 +81,7 @@ def test_体組成():
     data = load("body.json")
     for case in data["bmi"]:
         assert body.bmi(case["weight_kg"], case["height_cm"]) == case["expected"]
-    for name, fn in (("fat_mass", body.fat_mass), ("lean_mass", body.lean_mass), ("muscle_mass", body.muscle_mass)):
+    for name, fn in (("fat_mass", body.fat_mass), ("lean_mass", body.lean_mass)):
         for case in data[name]:
             assert fn(case["weight_kg"], case["pct"]) == case["expected"]
     for case in data["weekly_pace"]:
@@ -89,8 +89,8 @@ def test_体組成():
         assert body.weekly_pace(points, case["today"], case["days"]) == case["expected"]
     for case in data["goal_progress"]:
         assert asdict(body.goal_progress(case["current_kg"], case["goal_kg"], case["pace_per_week"])) == case["expected"]
-    records = [BodyRecord(f"r{n}", r["date"], r["measured_at"], r["weight_kg"], r["body_fat_pct"], r["muscle_pct"],
-                          r["waist_cm"], r["memo"], r["source"], r["updated_at"])
+    records = [BodyRecord(f"r{n}", r["date"], r["measured_at"], r["weight_kg"], r["body_fat_pct"], r["memo"],
+                          r["source"], r["updated_at"])
                for n, r in enumerate(data["daily_body_values"]["records"])]
     assert [asdict(d) for d in body.daily_body_values(records)] == data["daily_body_values"]["expected"]
 
