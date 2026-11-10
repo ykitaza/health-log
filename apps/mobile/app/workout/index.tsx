@@ -1,19 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { Screen } from '@/components/Screen';
-import { DayNote, Header } from '@/components/ui';
-import { WorkoutDayContent, WorkoutFooter } from '@/components/WorkoutDay';
-import { formatJpDate, todayKey } from '@/lib/date';
 
-/** その日のトレーニング（ホームのカード・筋トレの履歴から開く）。今日なら筋トレのタブの「今日」と同じ中身 */
-export default function WorkoutDayScreen() {
-  const params = useLocalSearchParams<{ date?: string }>();
-  const today = todayKey();
-  const date = params.date ?? today;
-  return (
-    <Screen footer={<WorkoutFooter date={date} />}>
-      <Header overline={date === today ? '今日のトレーニング' : 'トレーニング'} title={formatJpDate(date)} onBack={() => router.back()} />
-      <DayNote date={date} today={today} />
-      <WorkoutDayContent date={date} />
-    </Screen>
-  );
+/**
+ * 前のその日のトレーニングの画面の道（/workout?date=）。同じことは筋トレのタブの「記録」でできるので、
+ * ホームのカードなどから開かれたら、筋トレのタブのその日へ移る（下のタブの画面まで戻ってから切り替える）
+ */
+export default function WorkoutDayRedirect() {
+  const { date } = useLocalSearchParams<{ date?: string }>();
+  useEffect(() => {
+    router.dismissTo({ pathname: '/training', params: date ? { view: 'record', date } : { view: 'record' } });
+  }, [date]);
+  return <Screen scroll={false}>{null}</Screen>;
 }

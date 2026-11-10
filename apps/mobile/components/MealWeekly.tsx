@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import { SwipeArea } from '@/components/DayPicker';
 import { LoadError } from '@/components/LoadError';
 import { T } from '@/components/Text';
 import { Badge, Card, IconButton } from '@/components/ui';
@@ -25,16 +26,21 @@ export function MealWeekly() {
   const ratio = avg ? pfcRatio(avg) : null;
   const targetRatio = review.averageTarget ? pfcRatio(review.averageTarget) : null;
   const includesToday = weekDates(lastDay).includes(today);
+  // 前の週・次の週（ボタンとスワイプ）。次の週は今日を最後の日にするところまで
+  const move = (d: 'prev' | 'next') => {
+    if (d === 'prev') setLastDay(addDays(lastDay, -7));
+    else if (lastDay < today) setLastDay(addDays(lastDay, 7) > today ? today : addDays(lastDay, 7));
+  };
 
   if (error) return <View style={{ marginTop: 14 }}><LoadError onRetry={reload} /></View>;
 
   return (
-    <View style={{ gap: 12, marginTop: 14 }}>
+    <SwipeArea onSwipe={move} testID="meals-week" style={{ gap: 12, marginTop: 14 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4 }}>
-        <IconButton name="prev" label="前の週" bg="transparent" onPress={() => setLastDay(addDays(lastDay, -7))} />
+        <IconButton name="prev" label="前の週" bg="transparent" onPress={() => move('prev')} />
         <T bold size={16}>{formatShortDate(addDays(lastDay, -6))}〜{formatShortDate(lastDay)}</T>
         <IconButton name="next" label="次の週" bg="transparent" disabled={lastDay >= today} color={lastDay >= today ? colors.line : colors.text}
-          onPress={() => lastDay < today && setLastDay(addDays(lastDay, 7) > today ? today : addDays(lastDay, 7))} />
+          onPress={() => move('next')} />
       </Card>
 
       <Card>
@@ -90,7 +96,7 @@ export function MealWeekly() {
         </View>
         {review.gap && <GapRow gap={review.gap} />}
       </Card>
-    </View>
+    </SwipeArea>
   );
 }
 

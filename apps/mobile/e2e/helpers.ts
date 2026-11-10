@@ -81,12 +81,20 @@ export async function recordFromHome(page: Page, row: 'training' | 'meal' | 'bod
   await page.getByTestId(`record-${row}`).click();
 }
 
-/** ホームから、今日の記録を足してホームに戻る */
+/** 筋トレのタブの「記録」が、その日（「11月8日（日）」など）を出すまで待つ */
+export async function expectTrainingDay(page: Page, label: string) {
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '記録', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, `日を選ぶ（${label}）`)).toBeVisible();
+}
+
+/** ホームから、今日の記録を足してホームに戻る（「記録する」の筋トレで、筋トレのタブの「記録」の今日が開く） */
 export async function recordToday(page: Page, entries: { exercise: string; sets: SetSpec[] }[]) {
   await recordFromHome(page, 'training');
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, '前の日')).toBeVisible();
   for (const e of entries) await addEntry(page, e.exercise, e.sets);
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
   await expect(homeCard(page, 'training')).toBeVisible();
 }
 
@@ -158,20 +166,20 @@ export async function controlDb(page: Page) {
 /** ホームの小さなカード（今日のトレーニング・食事・体調） */
 export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
-/** タブの中の切り替え（筋トレの「今日」「推移」、食事の「記録」「推移」、からだの「今日」「推移」） */
+/** タブの中の切り替え（筋トレの「記録」「推移」、食事の「記録」「推移」、からだの「今日」「推移」） */
 export async function goPane(page: Page, name: '今日' | '記録' | '推移') {
   const t = page.getByRole('tab', { name, exact: true }).filter({ visible: true });
   await t.click();
   await expect(t).toHaveAttribute('aria-selected', 'true');
 }
 
-/** 筋トレのタブの「推移」を開く（記録のカードとカレンダー、グラフ） */
+/** 筋トレのタブの「推移」を開く（グラフと、種目を選んだときの記録のカード） */
 export async function openTrainingTrend(page: Page) {
   await goTab(page, '筋トレ');
   await goPane(page, '推移');
 }
 
-/** 推移の記録の、その日のカード */
+/** 推移で種目を選んだときの、その日の記録のカード */
 export const trendDay = (page: Page, date: string) => page.getByTestId(`trend-day-${date}`).filter({ visible: true });
 
 /** 筋トレのタブの右上の入口から RM計算機を開く */
@@ -179,6 +187,25 @@ export async function openRm(page: Page) {
   await goTab(page, '筋トレ');
   await button(page, 'RM計算機').click();
   await expect(see(page, 'RM計算機', { exact: true })).toBeVisible();
+}
+
+/**
+ * 左右にスワイプする（指を右へ動かすと前、左へ動かすと次）。scope の中ほどから、横に 160 動かす。
+ * dy を渡すと縦にも動かす（縦のスクロールではスワイプにならないことを確かめる）
+ */
+export async function swipe(scope: Locator, direction: 'prev' | 'next', dy = 0) {
+  const box = await scope.boundingBox();
+  if (!box) throw new Error('スワイプする範囲が見えていません');
+  const page = scope.page();
+  // web ではマウスで引くと文字が選ばれ、react-native-web は選ばれた時点で指の操作を打ち切る（Android の指では起きない）。
+  // スワイプを使うページでは、文字を選べなくする
+  await page.addStyleTag({ content: '* { user-select: none !important; -webkit-user-select: none !important; }' });
+  const x = box.x + box.width / 2, y = box.y + Math.min(box.height / 2, 200);
+  const dx = direction === 'prev' ? 160 : -160;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y + dy, { steps: 8 });
+  await page.mouse.up();
 }
 
 /** 食事のタブの「推移」（週のまとめ）を開く（前の履歴／分析のタブの食事） */

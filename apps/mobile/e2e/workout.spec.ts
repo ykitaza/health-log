@@ -1,28 +1,32 @@
 import { expect, Page, test } from '@playwright/test';
-import { addEntry, button, chooseExercise, controlDb, fillSets, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see, recordFromHome } from './helpers';
+import {
+  addEntry, button, chooseExercise, controlDb, expectTrainingDay, fillSets, goTab, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see, recordFromHome, tab,
+} from './helpers';
 
-/** ホームから今日のトレーニングを開く */
+/** ホームから今日のトレーニング（筋トレのタブの「記録」の今日）を開く */
 async function openToday(page: Page) {
   await recordFromHome(page, 'training');
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, TODAY_LABEL);
 }
+
+const TODAY_LABEL = '11月8日（日）';
 
 /** その日のトレーニングの画面の、種目の並び */
 const entryOrder = (page: Page) =>
   page.getByRole('button', { name: /を直す$/ }).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')!.replace(/を直す$/, '')));
 
-test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画面（回数だけの種目も）。タブバーは出ない', async ({ page }) => {
+test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画面（回数だけの種目も）。選択と入力の画面にタブバーは出ない', async ({ page }) => {
   await openApp(page);
-  await expect(page.getByRole('tablist')).toBeVisible();
   await openToday(page);
-  await expect(page.getByRole('tablist')).toBeHidden();
-  await expect(see(page, '11月8日（日）')).toBeVisible();
   await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  // 今日なら「今日ではない日」の知らせは出ず、次の日へは進めない
+  await expect(see(page, '今日ではない日を見ています')).toHaveCount(0);
+  await expect(button(page, '次の日')).toHaveAttribute('aria-disabled', 'true');
 
   await button(page, '種目を追加').click();
-  await expect(page.getByRole('tablist')).toBeHidden();
+  await expect(tab(page, 'ホーム')).toBeHidden();
   await chooseExercise(page, 'ベンチプレス');
-  await expect(page.getByRole('tablist')).toBeHidden();
+  await expect(tab(page, 'ホーム')).toBeHidden();
   await expect(see(page, '胸 ・ 今日の1種目目')).toBeVisible();
   await expect(see(page, '前回の記録はありません')).toBeVisible();
   // 初期値は 3 セット
@@ -49,10 +53,9 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   await expect(see(page, '種目2セット3合計負荷量1.12 t')).toBeVisible();
   await expect(see(page, /推定1RM/)).toHaveCount(1);
 
-  // 戻るでホームへ。タブバーが戻る
-  await button(page, '戻る').click();
-  await expect(page.getByRole('tablist')).toBeVisible();
-  await expect(homeCard(page, 'training')).toBeVisible();
+  // 下のタブでホームへ
+  await goTab(page, 'ホーム');
+  await expect(homeCard(page, 'training')).toContainText('2種目 ・ 3セット ・ 1.12 t');
 });
 
 test('前回の表示と「前回をコピー」、自己ベスト', async ({ page }) => {
@@ -251,9 +254,9 @@ test('保存のボタンを2回押しても、記録は1つだけ', async ({ pag
   // 2回の押下を、画面が描き直す前に続けて届ける
   await saveButton(page).evaluate((el) => { (el as HTMLElement).click(); (el as HTMLElement).click(); });
   await db.release();
-  // 1つ前の画面（その日のトレーニング）に戻る。2回戻ってホームまで行かない
+  // 1つ前の画面（筋トレのタブの記録）に戻る。2回戻ってホームまで行かない
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, TODAY_LABEL);
   await page.goto('/');
   await openToday(page);
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toHaveCount(1);
@@ -318,7 +321,7 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   await button(page, '種目を追加').click();
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
   await button(page, '戻る').click();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, TODAY_LABEL);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => entryOrder(page)).toEqual(['ベンチプレス']);
 
@@ -332,6 +335,6 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   await expect(page.getByLabel('セット1の重量')).toHaveValue('100');
   await page.goBack();
   await button(page.getByRole('dialog'), '保存せずに戻る').click();
-  await expect(see(page, '今日のトレーニング', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, TODAY_LABEL);
   await expect.poll(() => entryOrder(page)).toEqual(['ベンチプレス']);
 });

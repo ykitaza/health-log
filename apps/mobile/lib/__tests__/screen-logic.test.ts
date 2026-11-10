@@ -10,7 +10,7 @@ import { searchExercises } from '../exercises';
 import { formatSetLong, formatSigned, tonnes } from '../format';
 import { copyOf, draftFromSet, prepareSave, SetDraft, toSetInputs } from '../sets';
 import {
-  changeOver, exerciseDailySeries, filterSince, periodStart, personalBests, rmFromInput, rmTable,
+  exerciseDailySeries, exerciseTrend, personalBests, rmFromInput, rmTable,
   TrainingSetRow, trainingDates, daysInMonth, vehicleRatio, weeklySummary, weeklyVolumeByBodyPart,
 } from '../training';
 import { thisWeekVolume } from '../home';
@@ -181,19 +181,14 @@ describe('履歴の数字（history.spec.ts から）', () => {
     row('2026-11-05', 'bench', 'chest', 80, 8), row('2026-11-05', 'bench', 'chest', 80, 8),
     row(TODAY, 'bench', 'chest', 85, 5), row(TODAY, 'chin', 'back', null, 10),
   ];
-  const series = exerciseDailySeries(rows, 'bench');
-  const change = (period: '1m' | '3m' | 'all', value: (p: (typeof series)[number]) => number) =>
-    changeOver(filterSince(series, periodStart(TODAY, period)), value);
-
-  test('グラフ：期間ごとの増減（総負荷量と最大RM）', () => {
-    expect(filterSince(series, periodStart(TODAY, '3m')).map((p) => p.date)).toEqual(['2026-09-15', '2026-11-05', TODAY]);
-    expect(change('3m', (p) => p.volume)).toBe(425 - 600);
-    expect(formatSigned(change('3m', (p) => p.max1RM)!)).toBe('+19.2'); // 99.17 − 80
-    expect(change('1m', (p) => p.volume)).toBe(425 - 1280);
-    expect(formatSigned(change('1m', (p) => p.max1RM)!)).toBe('−2.2'); // 99.17 − 101.33
-    expect(change('all', (p) => p.volume)).toBe(-175);
-    // 1日しかない種目は、グラフにしない（1 日）
-    expect(exerciseDailySeries(rows, 'squat')).toHaveLength(1);
+  test('グラフ：種目の推定1RM（3か月）の今の値と先月との差', () => {
+    const t = exerciseTrend(rows, 'bench', TODAY, '2026-08-08', (p) => p.max1RM);
+    expect(t.points.map((p) => p.date)).toEqual(['2026-09-15', '2026-11-05', TODAY]);
+    expect(fmt1(t.current!)).toBe('99.2'); // 85 × 5
+    expect(formatSigned(t.current! - t.monthAgo!)).toBe('+19.2'); // 99.17 − 80（10/8 までの最後は 9/15）
+    expect(exerciseTrend(rows, 'bench', TODAY, '2026-08-08', (p) => p.volume).current).toBe(425);
+    // 1日しかない種目は、折れ線にしない（1 日）
+    expect(exerciseTrend(rows, 'squat', TODAY, '2026-08-08', (p) => p.max1RM).points).toHaveLength(1);
     // 回数だけの種目は、推移の点に重さがない
     expect(exerciseDailySeries(rows, 'chin').every((p) => p.volume === 0 && p.max1RM === 0)).toBe(true);
   });

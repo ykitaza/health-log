@@ -96,7 +96,7 @@ test('休憩のタイマー：セットを完了にすると数え、+30秒・�
   await expect(time).toHaveText('2:00');
   await button(page, '休憩のタイマーを止める').click();
   await expect(page.getByTestId('rest-timer')).toHaveCount(0);
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   // 設定で「切」にすると動かさない
   await openSettings(page);

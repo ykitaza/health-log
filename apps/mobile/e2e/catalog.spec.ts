@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 import { button, chooseExercise, goPane, goTab, openApp, openSettings, recordToday, see, tab, recordFromHome, TODAY, trendDay } from './helpers';
 
-/** ホーム → 今日のトレーニング → 種目の選択 */
+/** ホーム → 筋トレのタブの今日の記録 → 種目の選択 */
 async function openSelect(page: Page) {
   await recordFromHome(page, 'training');
   await button(page, '種目を追加').click();
@@ -142,14 +142,15 @@ test('非表示にした種目と部位は選択から消え、過去の記録�
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 
-  // 筋トレの今日と推移には残る
+  // 筋トレの記録と推移には残る
   await goTab(page, '筋トレ');
-  await goPane(page, '今日');
+  await goPane(page, '記録');
   await expect(see(page, 'ベンチプレス', { exact: true })).toBeVisible();
   await expect(see(page, 'クランチ', { exact: true })).toBeVisible();
   await goPane(page, '推移');
   await expect(button(page, 'ベンチプレス')).toBeVisible();
   await expect(button(page, 'クランチ')).toBeVisible();
+  await button(page, 'ベンチプレス').click();
   await expect(trendDay(page, TODAY)).toContainText('ベンチプレス');
   await tab(page, 'ホーム').click();
 
@@ -169,7 +170,7 @@ test('非表示にした種目と部位は選択から消え、過去の記録�
   await button(page, 'ベンチプレスを外す').click();
   await button(page.getByRole('dialog'), '外す').click();
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toHaveCount(0);
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   // 表示に戻すと、選択にも戻る
   await openManage(page);
@@ -206,7 +207,7 @@ test('種目と部位の追加の途中で戻るときも確かめる。名前�
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
   await expect(row(page, '片手ケーブルクロス')).toHaveCount(0);
   await button(page, '戻る').click();
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   await openManage(page);
   await button(page, '部位を追加').click();
@@ -290,12 +291,13 @@ test('種目の名前を変えると、過去の記録・履歴・選択に新�
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 
-  // 筋トレの今日と推移に、新しい名前で出る
+  // 筋トレの記録と推移に、新しい名前で出る
   await goTab(page, '筋トレ');
-  await goPane(page, '今日');
+  await goPane(page, '記録');
   await expect(see(page, 'バーベルベンチプレス', { exact: true })).toBeVisible();
   await goPane(page, '推移');
   await expect(button(page, 'バーベルベンチプレス')).toBeVisible();
+  await button(page, 'バーベルベンチプレス').click();
   await expect(trendDay(page, TODAY)).toContainText('バーベルベンチプレス');
   await tab(page, 'ホーム').click();
 
@@ -304,7 +306,7 @@ test('種目の名前を変えると、過去の記録・履歴・選択に新�
   await chooseExercise(page, 'バーベルベンチプレス');
   await expect(page.getByLabel('セット1の重量')).toHaveValue('80');
   await button(page, '戻る').click();
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   // 編集の画面で表示を切り替えただけで戻るときも確かめる（保存していない）
   await openManage(page);

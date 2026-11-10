@@ -1,9 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 import {
-  button, goTab, moveToDate, openApp, openMealWeek, openTrainingTrend, recordOn, recordToday, saveButton, see, tab, TODAY, trendDay,
+  button, expectTrainingDay, goPane, goTab, moveToDate, openApp, openMealWeek, openTrainingTrend, recordOn, recordToday, saveButton, see, tab, TODAY,
+  trendDay,
 } from './helpers';
 
-// 総負荷量・推定1RM・増減・自己ベスト・BIG3 の合計・カードの要約の計算は jest（lib/__tests__/screen-logic.test.ts の「履歴の数字」、
+// 総負荷量・推定1RM・先月との差・自己ベスト・BIG3 の合計の計算は jest（lib/__tests__/screen-logic.test.ts の「履歴の数字」、
 // lib/__tests__/training-trend.test.ts）。ここは画面の切り替えと表示
 
 /**
@@ -25,7 +26,6 @@ async function seed(page: Page) {
   await openTrainingTrend(page);
 }
 
-const day = (page: Page, date: string) => page.getByTestId('history-calendar').getByTestId(`day-${date}`);
 const cards = (page: Page) => page.getByTestId(/^trend-day-/).filter({ visible: true });
 
 test('記録がないとき（筋トレと食事）。回数だけの記録しかないときの自己ベストと BIG3', async ({ page }) => {
@@ -40,95 +40,14 @@ test('記録がないとき（筋トレと食事）。回数だけの記録し�
   await tab(page, 'ホーム').click();
   await recordToday(page, [{ exercise: '懸垂', sets: [{ reps: '10' }] }]);
   await openTrainingTrend(page);
-  await button(page, 'グラフ').click();
   await expect(see(page, '重量のある種目の記録がまだありません')).toBeVisible();
   await expect(see(page, '週の平均 0.0t ・ 先週より +0.0t')).toBeVisible();
   // BIG3 は名前で決めた3種目。記録がないので合計は出ない
   await expect(page.getByTestId('big3-missing')).toContainText('ベンチプレス・スクワット・デッドリフトの記録（重量 × 回数）がそろうと合計が出ます');
 });
 
-test('記録：日ごとのカードを新しい順に。カレンダーの日で絞る・すべて表示。種目のチップで絞る。カードからその日を直す', async ({ page }) => {
-  await seed(page);
-  // 種目のチップは1列：すべて、記録のある種目（部位の順）。部位のチップの段はない
-  await expect(button(page, 'すべて')).toHaveAttribute('aria-selected', 'true');
-  for (const name of ['ベンチプレス', '懸垂', 'スクワット']) await expect(button(page, name)).toBeVisible();
-  await expect(button(page, '胸')).toHaveCount(0);
-  await expect(button(page, '記録')).toHaveAttribute('aria-selected', 'true');
-
-  await expect(see(page, 'November 2026', { exact: true })).toBeVisible();
-  await expect(see(page, '筋トレをした日：今月 2回')).toBeVisible();
-  // 全部を新しい順に（10日ずつ。4日なので全部）
-  await expect(cards(page)).toHaveCount(4);
-  await expect(cards(page).nth(0)).toHaveAttribute('data-testid', 'trend-day-2026-11-08');
-  await expect(cards(page).nth(3)).toHaveAttribute('data-testid', 'trend-day-2026-09-15');
-  await expect(page.getByRole('button', { name: /^もっと見る/ })).toHaveCount(0);
-  // カード：日付、部位、その日の合計負荷量、種目ごとの要約。BIG3 の印
-  const today = trendDay(page, TODAY);
-  await expect(today).toContainText('11月8日（日）');
-  await expect(today).toContainText('胸');
-  await expect(today).toContainText('背中');
-  await expect(today).toContainText('0.42 t'); // 425kg（懸垂は体重がないので 0）
-  await expect(today).toContainText('ベンチプレスBIG3');
-  await expect(today).toContainText('85.0 kg × 5');
-  await expect(today).toContainText('10 回');
-  await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 8・8');
-
-  // カレンダーの日を押すと、その日だけ。もう一度押すか「すべて表示」で戻る
-  await day(page, '2026-11-05').click();
-  await expect(see(page, '11月5日（木）だけを表示中')).toBeVisible();
-  await expect(cards(page)).toHaveCount(1);
-  await expect(day(page, '2026-11-05')).toHaveAttribute('aria-selected', 'true');
-  // 記録のない日を押しても変わらない
-  await day(page, '2026-11-06').click();
-  await expect(see(page, '11月5日（木）だけを表示中')).toBeVisible();
-  await button(page, 'すべて表示').click();
-  await expect(cards(page)).toHaveCount(4);
-  await day(page, '2026-11-05').click();
-  await day(page, '2026-11-05').click();
-  await expect(see(page, '11月5日（木）だけを表示中')).toHaveCount(0);
-
-  // 月の移動
-  await button(page, '前の月').click();
-  await expect(see(page, 'October 2026', { exact: true })).toBeVisible();
-  await expect(see(page, '筋トレをした日：今月 1回')).toBeVisible();
-  await button(page, '次の月').click();
-
-  // 種目のチップ：その種目をした日だけ。カードはその種目のセット
-  await button(page, 'ベンチプレス').click();
-  await expect(see(page, 'ベンチプレスをした日：今月 2回')).toBeVisible();
-  await expect(cards(page)).toHaveCount(3);
-  await expect(trendDay(page, TODAY)).toContainText('11月8日（日） ベンチプレス');
-  await expect(trendDay(page, TODAY)).not.toContainText('懸垂');
-  await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 8 回');
-  // スクワットに替えると、ベンチの日の絞りは外れる
-  await day(page, '2026-11-05').click();
-  await button(page, 'スクワット').click();
-  await expect(see(page, /だけを表示中/)).toHaveCount(0);
-  await expect(cards(page)).toHaveCount(1);
-
-  // カードを押すと、その日のトレーニングが開いて直せる
-  await button(page, 'すべて').click();
-  await trendDay(page, '2026-11-05').click();
-  await expect(see(page, 'トレーニング', { exact: true })).toBeVisible();
-  await expect(see(page, '11月5日（木）', { exact: true })).toBeVisible();
-  await expect(page.getByRole('tablist')).toBeHidden();
-  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
-  await expect(see(page, '胸 ・ 11月5日（木）の1種目目')).toBeVisible();
-  // 前回は 9/15、自己ベストはその日より前だけで見る（60×10 の 80kg）
-  await expect(see(page, '前回 9月15日（火）')).toBeVisible();
-  await expect(see(page, '自己ベスト 推定1RM 80kg（60kg × 10）')).toBeVisible();
-  await page.getByLabel('セット2の回数').fill('6');
-  await saveButton(page).click();
-  await expect(see(page, '80.0 kg × 6 回')).toBeVisible();
-  await button(page, '戻る').click();
-  // 推移に戻ると直した値が出る（80×8 + 80×6 = 1120）
-  await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 8・6');
-  await expect(trendDay(page, '2026-11-05')).toContainText('1.12 t');
-});
-
 test('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総負荷量の週 → 日の切り替え（開き直しても覚えている）、自己ベスト', async ({ page }) => {
   await seed(page);
-  await button(page, 'グラフ').click();
   // BIG3：ベンチ 101.3（1か月前の 10/8 までは 80 → +21.3）、スクワット 116.7（1か月前は記録なし）、デッドリフトは記録なし
   await expect(page.getByTestId('big3-missing')).toContainText('デッドリフトの記録（重量 × 回数）がそろうと合計が出ます');
   await expect(page.getByTestId('big3-total')).toHaveCount(0);
@@ -161,7 +80,6 @@ test('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総
   // 開き直しても「日」のまま
   await moveToDate(page, TODAY);
   await openTrainingTrend(page);
-  await button(page, 'グラフ').click();
   await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
   await button(page, '週').click();
   await expect(page.getByTestId('volume-chart-week')).toBeVisible();
@@ -176,30 +94,65 @@ test('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総
   await expect(pbs.nth(1)).toContainText('ベンチプレス胸101.3kg');
   await pbs.nth(1).click();
   await expect(button(page, 'ベンチプレス')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(page, '最大RM（推定）', { exact: true })).toBeVisible();
+  await expect(see(page, 'ベンチプレスの推定1RM', { exact: true })).toBeVisible();
 });
 
-test('グラフ：種目を選ぶと、その種目の推移（期間の切り替え、記録が1件以下、回数だけの種目）', async ({ page }) => {
+test('種目を選ぶと、推定1RM の折れ線とその種目の記録（新しい順）。カードを押すと記録のタブのその日で直せる', async ({ page }) => {
   await seed(page);
+  // 種目のチップは1列：すべて、記録のある種目（部位の順）。部位のチップと「記録／グラフ」の切り替えはない
+  await expect(button(page, 'すべて')).toHaveAttribute('aria-selected', 'true');
+  for (const name of ['ベンチプレス', '懸垂', 'スクワット']) await expect(button(page, name)).toBeVisible();
+  await expect(button(page, '胸')).toHaveCount(0);
+  await expect(button(page, 'グラフ')).toHaveCount(0);
+  // すべてのときは、日ごとのカードを出さない
+  await expect(cards(page)).toHaveCount(0);
+
+  // ベンチプレス：3か月（8/8〜）の推定1RM。今は今日の 85×5 の 99.2、1か月前（10/8）までは 9/15 の 80 → +19.2
   await button(page, 'ベンチプレス').click();
-  await button(page, 'グラフ').click();
+  await expect(see(page, 'ベンチプレスの推定1RM', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('exercise-trend-value').filter({ visible: true })).toContainText('99.2kg+19.2 kg先月より');
+  await expect(see(page, 'ベンチプレスの記録（新しい順）', { exact: true })).toBeVisible();
+  await expect(cards(page)).toHaveCount(3);
+  await expect(cards(page).nth(0)).toHaveAttribute('data-testid', `trend-day-${TODAY}`);
+  await expect(cards(page).nth(2)).toHaveAttribute('data-testid', 'trend-day-2026-09-15');
+  await expect(page.getByRole('button', { name: /^もっと見る/ })).toHaveCount(0);
+  // カード：日付と種目、セット、総負荷量と推定1RM（ほかの種目は出さない）
+  const today = trendDay(page, TODAY);
+  await expect(today).toContainText('11月8日（日） ベンチプレス');
+  await expect(today).toContainText('85.0 kg × 5 回');
+  await expect(today).toContainText('総負荷量425 kg');
+  await expect(today).toContainText('推定1RM99.2 kg');
+  await expect(today).not.toContainText('懸垂');
+  await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 8 回');
 
-  // 3か月（8/8〜）：9/15、11/5、11/8 の3日
-  await expect(see(page, '総負荷量', { exact: true })).toBeVisible();
-  await expect(see(page, '最大RM（推定）', { exact: true })).toBeVisible();
-  await expect(see(page, '425', { exact: true })).toBeVisible();
-  await expect(see(page, '3か月で −175kg')).toBeVisible(); // 425 − 600
-  await expect(see(page, '99.2', { exact: true })).toBeVisible();
-
-  await button(page, '1か月').click();
-  await expect(see(page, '1か月で −855kg')).toBeVisible(); // 425 − 1280
-  await button(page, 'すべて').last().click();
-  await expect(see(page, 'すべての期間で −175kg')).toBeVisible();
-
-  // 1日しかない種目（スクワット）は空の状態
+  // 1日しかない種目（スクワット）は、折れ線の代わりに説明
   await button(page, 'スクワット').click();
-  await expect(see(page, 'この期間の記録は 1 日です。2日以上になるとグラフが出ます')).toBeVisible();
-  // 回数だけの種目も、今は1日だけ
+  await expect(see(page, '3か月の記録が2日以上になると、折れ線が出ます')).toBeVisible();
+  await expect(cards(page)).toHaveCount(1);
+  // 回数だけの種目は総負荷量。体重の記録がないので値は出ず、推定1RM のタイルもない
   await button(page, '懸垂').click();
-  await expect(see(page, 'この期間の記録は 1 日です。2日以上になるとグラフが出ます')).toBeVisible();
+  await expect(see(page, '懸垂の総負荷量', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('exercise-trend-empty').filter({ visible: true })).toBeVisible();
+  await expect(trendDay(page, TODAY)).toContainText('10 回');
+  await expect(trendDay(page, TODAY)).not.toContainText('推定1RM');
+
+  // カードを押すと、記録のタブのその日が開いて直せる
+  await button(page, 'ベンチプレス').click();
+  await trendDay(page, '2026-11-05').click();
+  await expectTrainingDay(page, '11月5日（木）');
+  await expect(see(page, '今日ではない日を見ています')).toBeVisible();
+  await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
+  await expect(see(page, '胸 ・ 11月5日（木）の1種目目')).toBeVisible();
+  // 前回は 9/15、自己ベストはその日より前だけで見る（60×10 の 80kg）
+  await expect(see(page, '前回 9月15日（火）')).toBeVisible();
+  await expect(see(page, '自己ベスト 推定1RM 80kg（60kg × 10）')).toBeVisible();
+  await page.getByLabel('セット2の回数').fill('6');
+  await saveButton(page).click();
+  await expectTrainingDay(page, '11月5日（木）');
+  await expect(see(page, '80.0 kg × 6 回')).toBeVisible();
+  // 推移に戻ると直した値が出る（80×8 + 80×6 = 1120）
+  await goPane(page, '推移');
+  await button(page, 'ベンチプレス').click();
+  await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 6 回');
+  await expect(trendDay(page, '2026-11-05')).toContainText('総負荷量1,120 kg');
 });

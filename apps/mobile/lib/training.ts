@@ -145,11 +145,6 @@ export function filterSince<T extends { date: DateKey }>(items: T[], from: DateK
   return from == null ? items : items.filter((i) => i.date >= from);
 }
 
-/** 最初と最後の差（2点未満なら null） */
-export function changeOver<T>(items: T[], value: (t: T) => number): number | null {
-  if (items.length < 2) return null;
-  return value(items[items.length - 1]) - value(items[0]);
-}
 
 export type WeeklyByPart = { weekStart: DateKey; byPart: Record<string, number>; total: number };
 
@@ -251,29 +246,33 @@ export function rmFromInput(weight: string, reps: string): number {
 
 // ---- 筋トレの推移（記録のカードと BIG3 のグラフ）と、前回のメニュー ----
 
-/** その日の種目の、セットの要約（「80.0 kg × 8・8　75.0 kg × 10」。同じ重さが続くセットは回数を「・」でつなぐ。回数だけは「10・8 回」） */
-export function summarizeSets(sets: { weightKg: number | null; reps: number }[], unit: WeightUnit): string {
-  const groups: { weightKg: number | null; reps: number[] }[] = [];
-  for (const s of sets) {
-    const last = groups[groups.length - 1];
-    if (last && last.weightKg === s.weightKg) last.reps.push(s.reps);
-    else groups.push({ weightKg: s.weightKg, reps: [s.reps] });
-  }
-  return groups
-    .map((g) => (g.weightKg == null ? `${g.reps.join('・')} 回` : `${fmt1(kgToUnit(g.weightKg, unit))} ${unit} × ${g.reps.join('・')}`))
-    .join('　');
-}
-
-/** 推移の記録に出す日（新しい順）。exerciseId を渡すと、その種目をした日だけ */
+/** 推移の種目の記録に出す日（新しい順）。exerciseId を渡すと、その種目をした日だけ */
 export function trendDays(rows: { date: DateKey; exerciseId: string }[], exerciseId: string | null): DateKey[] {
   return trainingDates(exerciseId == null ? rows : rows.filter((r) => r.exerciseId === exerciseId)).reverse();
 }
 
-/** 推移の記録の日のカードの見出し：部位（出てきた順、重なりなし）と、その日の合計負荷量（kg） */
-export function dayCardSummary(entries: { bodyPartName: string; sets: SetValues[] }[]): { parts: string[]; volume: number } {
+export type ExerciseTrend = {
+  /** いちばん新しい記録の日の値（kg。今日まで。なければ null） */
+  current: number | null;
+  /** 1か月前の日までで、いちばん新しい記録の日の値（kg。なければ null） */
+  monthAgo: number | null;
+  /** from〜today の、記録のあった日の点（古い順） */
+  points: DailyPoint[];
+};
+
+/**
+ * 推移で種目を選んだときの折れ線（筋トレのタブの「推移」）。value で日ごとの値（推定1RM・総負荷量）を選ぶ。
+ * 値が 0 の日（回数だけの記録の推定1RM など）は点にしない
+ */
+export function exerciseTrend(rows: TrainingSetRow[], exerciseId: string, today: DateKey, from: DateKey, value: (p: DailyPoint) => number): ExerciseTrend {
+  const series = exerciseDailySeries(rows, exerciseId).filter((p) => p.date <= today && value(p) > 0);
+  const monthAgo = addMonths(today, -1);
+  const last = series[series.length - 1];
+  const before = series.filter((p) => p.date <= monthAgo).pop();
   return {
-    parts: [...new Set(entries.map((e) => e.bodyPartName))],
-    volume: entries.reduce((a, e) => a + totalVolume(e.sets), 0),
+    current: last ? value(last) : null,
+    monthAgo: before ? value(before) : null,
+    points: series.filter((p) => p.date >= from),
   };
 }
 

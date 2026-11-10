@@ -47,7 +47,7 @@ export function WorkoutFooter({ date }: { date: string }) {
 
 /**
  * その日のトレーニングの中身（まとめ、種目の一覧、並べ替え、外す確認）。種目は実施した順に並ぶ。
- * 記録の画面（/workout）と、筋トレのタブの「今日」で使う
+ * 筋トレのタブの「記録」で使う
  */
 export function WorkoutDayContent({ date }: { date: string }) {
   const today = todayKey();

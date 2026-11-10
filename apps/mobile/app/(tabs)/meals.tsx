@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_RECORD_LABEL, AiRecordButton, useChatChooser } from '@/components/ChatSheet';
+import { DateSwitcher, DayPickerSheet, SwipeArea } from '@/components/DayPicker';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
@@ -36,6 +37,12 @@ export default function MealsScreen() {
   const { date: asked } = useLocalSearchParams<{ date?: string }>();
   useEffect(() => { if (asked && asked <= todayKey()) { setDate(asked); setPane('day'); } }, [asked]);
   const { status } = useAuth();
+  const [picking, setPicking] = useState(false);
+  // 前の日・次の日（ボタンとスワイプ）。未来の日へは進めない
+  const move = (d: 'prev' | 'next') => {
+    if (d === 'prev') setDate(addDays(date, -1));
+    else if (date < today) setDate(addDays(date, 1));
+  };
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(date === today, () => setDate(today));
   const { data, error, reload, repos } = useFocusData(async (r) => {
@@ -75,12 +82,11 @@ export default function MealsScreen() {
         value={pane}
         onChange={setPane}
       />
-      {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs, marginTop: space.l }}>
-        <IconButton name="prev" label="前の日" onPress={() => setDate(addDays(date, -1))} />
-        <T variant="titleM">{formatJpDate(date)}</T>
-        <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && setDate(addDays(date, 1))} />
-      </Card>
+      {pane === 'week' ? <View style={{ marginTop: 8 }}><MealWeekly /></View> : (<SwipeArea onSwipe={move} testID="meals-day">
+      <DateSwitcher
+        label={formatJpDate(date)} prevLabel="前の日" nextLabel="次の日" canNext={date < today}
+        onPrev={() => move('prev')} onNext={() => move('next')} onPick={() => setPicking(true)} style={{ marginTop: space.l }}
+      />
 
       {day && (
         <Card style={{ marginTop: space.m }}>
@@ -148,7 +154,8 @@ export default function MealsScreen() {
           ログインして同期すると、MCP（Claude・ChatGPT）で記録した食事も出ます
         </T>
       )}
-      </>)}
+      </SwipeArea>)}
+      <DayPickerSheet visible={picking} kind="meal" value={date} today={today} onClose={() => setPicking(false)} onPick={setDate} />
 
       <AddSheet
         slot={adding}
