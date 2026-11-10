@@ -1,5 +1,5 @@
 {
-  "description": "集計。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。週は日曜始まり",
+  "description": "集計。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。週は月曜始まり",
   "today": "2026-11-11",
   "rows": [
     {
@@ -118,9 +118,9 @@
     "weekly_volumes": {
       "weeks": 6,
       "result": [
-        1530.0,
-        1153.4,
-        370,
+        1035,
+        1135.0,
+        883.4,
         500,
         1280.0,
         0
@@ -130,43 +130,42 @@
       "weeks": 5,
       "result": [
         {
-          "week_start": "2026-10-11",
+          "week_start": "2026-10-12",
           "by_part": {
             "chest": 1280.0
           },
           "total": 1280.0
         },
         {
-          "week_start": "2026-10-18",
+          "week_start": "2026-10-19",
           "by_part": {
             "legs": 500
           },
           "total": 500
         },
         {
-          "week_start": "2026-10-25",
+          "week_start": "2026-10-26",
           "by_part": {
-            "chest": 370
-          },
-          "total": 370
-        },
-        {
-          "week_start": "2026-11-01",
-          "by_part": {
+            "chest": 370,
             "legs": 512.5,
-            "back": 0.9000000000000001,
-            "chest": 640
+            "back": 0.9000000000000001
           },
-          "total": 1153.4
+          "total": 883.4
         },
         {
-          "week_start": "2026-11-08",
+          "week_start": "2026-11-02",
           "by_part": {
-            "chest": 495.0,
+            "chest": 1135.0
+          },
+          "total": 1135.0
+        },
+        {
+          "week_start": "2026-11-09",
+          "by_part": {
             "back": 720,
             "legs": 315
           },
-          "total": 1530.0
+          "total": 1035
         }
       ]
     },

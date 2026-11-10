@@ -190,7 +190,7 @@ def register_training_tools(
 
     @mcp.tool(annotations=READ)
     async def weekly_training_review(day: date | None = None) -> dict:
-        """その日（省略すると今日）を含む週（日曜始まり、アプリと同じ）の筋トレのふり返り。
+        """その日（省略すると今日）を含む週（月曜〜日曜、アプリと同じ）の筋トレのふり返り。
 
         回数（sessions）、総負荷量、部位ごとの総負荷量と割合（偏り）、この週にまだ鍛えていない部位、先週との比べ、
         前回の筋トレからの日数、直近8週の総負荷量の推移を返す。偏りや休みを責めず、次の一歩を1つだけ提案する。

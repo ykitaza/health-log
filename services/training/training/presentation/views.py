@@ -125,7 +125,7 @@ def history(h: ExerciseHistory, e: Exercise, catalog: Catalog, start: str, end: 
 
 
 def weekly(review: WeeklyTrainingReview, catalog: Catalog) -> dict:
-    """週は日曜始まり（アプリと同じ）。by_body_part は今週と先週、weeks は古い順の週ごとの総負荷量。"""
+    """週は月曜始まり（アプリと同じ）。by_body_part は今週と先週、weeks は古い順の週ごとの総負荷量。"""
     this_week, last_week = review.by_body_part[-1], review.by_body_part[-2]
     week_end = calculations.add_days(this_week.week_start, 6)
     sessions = [d for d in review.training_days if this_week.week_start <= d <= review.today]
