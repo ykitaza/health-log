@@ -69,7 +69,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   await expect(page.getByLabel('セット1の重量')).toHaveValue('176.37');
   await saveButton(page).click();
   await expect(see(page, '176.4 lb × 8 回')).toBeVisible();
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   // kg に戻すと元の値
   await openSettings(page);
@@ -112,7 +112,7 @@ test('セット数の初期値が、新しく足す種目に効く（既存の�
   await button(page, '戻る').click();
 
   // 1セットにして、再読み込みしても残る
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
   await openSettings(page);
   await button(page, '1セット').click();
   await expect(button(page, '1セット')).toHaveAttribute('aria-selected', 'true');

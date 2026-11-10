@@ -38,7 +38,7 @@ test('回数だけの種目を割合つきで足して記録すると、体重 �
   // 体重の記録がないので、その日の合計に入らず、知らせる
   await expect(page.getByRole('button', { name: `${NAME}を直す` })).toBeVisible();
   await expect(see(page, NOTE)).toBeVisible();
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
   await expect(visible(page, 'volume-week')).toContainText('0.00t');
   await expect(see(page, NOTE)).toBeVisible();
 

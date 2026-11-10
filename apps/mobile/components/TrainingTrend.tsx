@@ -1,48 +1,41 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { CountUpText, LineChart, StackedBarChart } from './charts';
-import { Big3Badge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { LoadError } from './LoadError';
-import { MonthCalendar } from './MonthCalendar';
+import { PressableScale } from './motion';
 import { T } from './Text';
-import { SlidingMark } from './motion';
-import { Badge, Button, Card, Chip, ChipRow, EmptyState, IconButton, ListRow, Segmented, SetNo, useLayouts } from './ui';
+import { Button, Card, Chip, ChipRow, EmptyState, ListRow, Segmented, SetNo } from './ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { VolumeRange } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { addMonths, formatJpDate, formatMonthDay, formatShortDate, MONTH_NAMES_EN, todayKey, yearMonth } from '@/lib/date';
-import { BIG3_LABELS, big3Assignments, big3RoleById, Big3Role } from '@/lib/exercises';
-import { formatSetLong, tonnes } from '@/lib/format';
+import { addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey } from '@/lib/date';
+import { BIG3_LABELS, big3Assignments, Big3Role } from '@/lib/exercises';
+import { formatSetLong } from '@/lib/format';
 import {
-  big3Trend, changeOver, dailySummary, dailyVolumeByBodyPart, dayCardSummary, exerciseDailySeries, filterSince, Period, PERIOD_LABELS, periodStart,
-  personalBests, summarizeSets, trainingDates, trendDays, weeklySummary, weeklyVolumeByBodyPart,
+  bestSet, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
+  weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { touchRoom } from '@/lib/touch';
 import { colors, partColor, space } from '@/theme';
 
 const ALL = 'all';
-const PERIODS: Period[] = ['1m', '3m', '6m', '1y', 'all'];
-/** 記録のカードを一度に出す日数（下の「もっと見る」で読み足す） */
+/** 種目の記録のカードを一度に出す日数（下の「もっと見る」で読み足す） */
 const PAGE_DAYS = 10;
+/** 種目を選んだときの折れ線の期間（BIG3 の合計と同じ） */
+const EXERCISE_MONTHS = 3;
 
 /**
- * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）と「記録／グラフ」。
- * 記録は、カレンダーと日ごとのカード（新しい順。カレンダーの日を押すと、その日だけに絞る）。
- * グラフは、すべてなら BIG3 の推定1RM の合計と総負荷量（週・日）、種目を選ぶとその種目の推移
+ * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
+ * すべてなら BIG3 の推定1RM の合計と総負荷量（週・日）、種目ごとの自己ベスト。
+ * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）
  */
-export function TrainingTrend() {
+export function TrainingTrend({ onOpenDay }: { onOpenDay: (date: string) => void }) {
   const today = todayKey();
   const [exerciseId, setExerciseId] = useState<string>(ALL);
-  const [view, setView] = useState<'records' | 'graph'>('records');
-  const [month, setMonth] = useState(today.slice(0, 7) + '-01');
-  const [day, setDay] = useState<string | null>(null);
-  const [pages, setPages] = useState(1);
-  const [period, setPeriod] = useState<Period>('3m');
 
   const { data, error, reload } = useFocusData(async (r) => {
     const [parts, exercises, rows, settings, volumeRange] = await Promise.all([
@@ -54,7 +47,6 @@ export function TrainingTrend() {
   const unit = data?.settings.weightUnit ?? 'kg';
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const exercises = useMemo(() => data?.exercises ?? [], [data]);
-  const roles = useMemo(() => big3RoleById(exercises), [exercises]);
 
   // チップに出す種目：記録のある種目（非表示の種目も）。並びは部位の順、その中は種目の順
   const chipExercises = useMemo(() => {
@@ -62,212 +54,160 @@ export function TrainingTrend() {
     return exercises.filter((e) => withRecords.has(e.id));
   }, [rows, exercises]);
   const exercise = exercises.find((e) => e.id === exerciseId);
-  const selectedId = exerciseId === ALL ? null : exerciseId;
 
-  const marked = useMemo(
-    () => new Set(trainingDates(rows.filter((r) => selectedId == null || r.exerciseId === selectedId))),
-    [rows, selectedId],
-  );
-  const { year, month: m } = yearMonth(month);
-  const monthCount = [...marked].filter((d) => d.startsWith(month.slice(0, 7))).length;
-
-  const chooseExercise = (id: string) => {
-    setExerciseId(id);
-    setPages(1);
-    // 選んだ種目をしていない日で絞っていたら、絞りを外す
-    if (day && id !== ALL && !rows.some((r) => r.date === day && r.exerciseId === id)) setDay(null);
-  };
-
-  const allDays = useMemo(() => trendDays(rows, selectedId), [rows, selectedId]);
-  const shownDays = day ? [day] : allDays.slice(0, PAGE_DAYS * pages);
-  const shownKey = shownDays.join(',');
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [daysFailed, setDaysFailed] = useState(false);
-  const repos = useRepos();
-  useEffect(() => {
-    let alive = true;
-    // 読めなかったときは、読み直し（reload で data が変わる）でもう一度読む
-    repos.workouts.getDays(shownKey === '' ? [] : shownKey.split(',')).then(
-      (es) => { if (alive) { setEntries(es); setDaysFailed(false); } },
-      () => { if (alive) setDaysFailed(true); },
-    );
-    return () => { alive = false; };
-  }, [repos, shownKey, data]);
-
-  const cards = shownDays.map((d) => ({
-    date: d,
-    entries: entries.filter((e) => e.date === d && (selectedId == null || e.exerciseId === selectedId)),
-  })).filter((c) => c.entries.length > 0);
-
-  if (error || daysFailed) return <LoadError onRetry={reload} />;
+  if (error) return <LoadError onRetry={reload} />;
   if (data && rows.length === 0) {
-    return <EmptyState title="まだ記録がありません" body={'「今日」の「種目を追加」から記録すると、\nここに記録とグラフが出ます'} />;
+    return <EmptyState title="まだ記録がありません" body={'「記録」の「種目を追加」から記録すると、\nここにグラフが出ます'} />;
   }
 
   return (
     <>
       <View style={{ marginTop: 14 }}>
         <ChipRow>
-          <Chip label="すべて" active={exerciseId === ALL} onPress={() => chooseExercise(ALL)} />
-          {chipExercises.map((e) => <Chip key={e.id} label={e.name} active={exerciseId === e.id} onPress={() => chooseExercise(e.id)} />)}
+          <Chip label="すべて" active={exerciseId === ALL} onPress={() => setExerciseId(ALL)} />
+          {chipExercises.map((e) => <Chip key={e.id} label={e.name} active={exerciseId === e.id} onPress={() => setExerciseId(e.id)} />)}
         </ChipRow>
       </View>
-      <View style={{ marginTop: 12 }}>
-        <Segmented options={[{ key: 'records', label: '記録' }, { key: 'graph', label: 'グラフ' }]} value={view} onChange={setView} />
-      </View>
-
-      {view === 'records' ? (
-        <>
-          <Card style={{ marginTop: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...touchRoom(6, { bottom: 10 }) }}>
-              <IconButton name="prev" label="前の月" bg="transparent" onPress={() => setMonth(addMonths(month, -1))} />
-              <T num bold size={24}>{MONTH_NAMES_EN[m - 1]} {year}</T>
-              <IconButton name="next" label="次の月" bg="transparent" onPress={() => setMonth(addMonths(month, 1))} />
-            </View>
-            <MonthCalendar
-              year={year} month={m} today={today} marked={marked} selected={day}
-              onPressDay={(d) => { if (marked.has(d)) setDay(d === day ? null : d); }}
-              cell={38} testID="history-calendar"
-            />
-            <T size={12} color={colors.sub} style={{ marginTop: 10 }}>
-              {exercise ? `${exercise.name}をした日` : '筋トレをした日'}：今月 {monthCount}回
-            </T>
-          </Card>
-          {day && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m }}>
-              <T variant="bodyM" color={colors.sub}>{formatJpDate(day)}だけを表示中</T>
-              <Button label="すべて表示" variant="text" small onPress={() => setDay(null)} style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }} />
-            </View>
-          )}
-          {cards.map((c) => (
-            <DayCard key={c.date} date={c.date} entries={c.entries} exercise={exercise ?? null} roles={roles} unit={unit} />
-          ))}
-          {!day && allDays.length > shownDays.length && (
-            <Button
-              label={`もっと見る（あと ${allDays.length - shownDays.length}日）`}
-              variant="outline" small style={{ marginTop: space.m }}
-              onPress={() => setPages((n) => n + 1)}
-            />
-          )}
-        </>
-      ) : exerciseId === ALL ? (
-        <AllGraph data={data!} today={today} unit={unit} onPick={chooseExercise} />
+      {!data ? null : exercise ? (
+        <ExerciseTrendView key={exercise.id} rows={rows} exercise={exercise} today={today} unit={unit} reloadKey={data} onOpenDay={onOpenDay} onError={reload} />
       ) : (
-        <ExerciseGraph rows={rows} exerciseId={exerciseId} recordType={exercise?.recordType ?? 'weight_reps'} today={today} period={period} setPeriod={setPeriod} unit={unit} />
+        <AllGraph data={data} today={today} unit={unit} onPick={setExerciseId} />
       )}
     </>
   );
 }
 
 /**
- * 推移の記録の、1日のカード（押すとその日のトレーニングの画面へ）。
- * すべてのときは、日付・部位・その日の合計負荷量と、種目ごとのセットの要約。種目を選んだときは、その種目のセット
+ * 種目を選んだときの推移：推定1RM の折れ線（3か月。回数だけの種目は総負荷量）と、その種目の記録の一覧（新しい順に10日ずつ）。
+ * カードを押すと、記録のタブのその日へ
  */
-function DayCard({ date, entries, exercise, roles, unit }: {
-  date: string; entries: Entry[]; exercise: Exercise | null; roles: Map<string, Big3Role>; unit: 'kg' | 'lb';
+function ExerciseTrendView({ rows, exercise, today, unit, reloadKey, onOpenDay, onError }: {
+  rows: TrainingSetRow[]; exercise: Exercise; today: string; unit: 'kg' | 'lb'; reloadKey: unknown;
+  onOpenDay: (date: string) => void; onError: () => Promise<unknown>;
 }) {
-  const { parts, volume } = dayCardSummary(entries);
-  const open = () => router.push({ pathname: '/workout', params: { date } });
+  const [pages, setPages] = useState(1);
+  const allDays = useMemo(() => trendDays(rows, exercise.id), [rows, exercise.id]);
+  const shownDays = allDays.slice(0, PAGE_DAYS * pages);
+  const shownKey = shownDays.join(',');
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [failed, setFailed] = useState(false);
+  const repos = useRepos();
+  useEffect(() => {
+    let alive = true;
+    // 読めなかったときは、読み直し（reload で reloadKey が変わる）でもう一度読む
+    repos.workouts.getDays(shownKey === '' ? [] : shownKey.split(',')).then(
+      (es) => { if (alive) { setEntries(es); setFailed(false); } },
+      () => { if (alive) setFailed(true); },
+    );
+    return () => { alive = false; };
+  }, [repos, shownKey, reloadKey]);
+  const cards = shownDays.map((d) => ({ date: d, entry: entries.find((e) => e.date === d && e.exerciseId === exercise.id) }))
+    .filter((c): c is { date: string; entry: Entry } => c.entry != null);
+
+  if (failed) return <LoadError onRetry={onError} />;
   return (
-    <Card style={{ marginTop: space.m, gap: space.s }}>
-      <Pressable accessibilityRole="button" onPress={open} hitSlop={{ top: 12, bottom: 12 }} testID={`trend-day-${date}`}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 24 }}>
-          <T variant="titleM" style={{ flexShrink: 1 }}>{formatJpDate(date)}{exercise ? ` ${exercise.name}` : ''}</T>
-          {!exercise && parts.map((p) => <Badge key={p} label={p} tone="neutral" />)}
-          <View style={{ flex: 1 }} />
-          {!exercise && <T num bold size={20}>{tonnes(volume, unit)} {unit === 'kg' ? 't' : 'k lb'}</T>}
-          <Icon name="chevron" size={20} color={colors.sub} />
-        </View>
-        {exercise ? (
-          <View style={{ gap: space.s, marginTop: space.m }}>
-            {entries.flatMap((e) => e.sets).map((st, i) => (
-              <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <SetNo n={i + 1} />
-                <T variant="titleM">{formatSetLong(st.weightKg, st.reps, unit)}</T>
-                {st.memo !== '' && <T variant="bodyS" color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{st.memo}</T>}
+    <>
+      <ExerciseLineCard rows={rows} exercise={exercise} today={today} unit={unit} />
+      <T variant="titleS" color={colors.sub} accessibilityRole="header" style={{ marginTop: space.xl }}>{exercise.name}の記録（新しい順）</T>
+      {cards.map((c) => <ExerciseDayCard key={c.date} date={c.date} entry={c.entry} name={exercise.name} unit={unit} onPress={() => onOpenDay(c.date)} />)}
+      {allDays.length > shownDays.length && (
+        <Button
+          label={`もっと見る（あと ${allDays.length - shownDays.length}日）`}
+          variant="outline" small style={{ marginTop: space.m }}
+          onPress={() => setPages((n) => n + 1)}
+        />
+      )}
+    </>
+  );
+}
+
+/** 種目の推定1RM（回数だけの種目は総負荷量）の、今の値と先月との差、3か月の折れ線 */
+function ExerciseLineCard({ rows, exercise, today, unit }: { rows: TrainingSetRow[]; exercise: Exercise; today: string; unit: 'kg' | 'lb' }) {
+  const from = addMonths(today, -EXERCISE_MONTHS);
+  const weighted = exercise.recordType === 'weight_reps';
+  const value = weighted ? (p: DailyPoint) => p.max1RM : (p: DailyPoint) => p.volume;
+  const trend = exerciseTrend(rows, exercise.id, today, from, value);
+  const conv = (kg: number) => kgToUnit(kg, unit);
+  const fmt = weighted ? fmt1 : fmtInt;
+  const title = `${exercise.name}の${weighted ? '推定1RM' : '総負荷量'}`;
+  const diff = trend.current != null && trend.monthAgo != null ? conv(trend.current) - conv(trend.monthAgo) : null;
+  const flat = (v: number) => Math.abs(v) < (weighted ? 0.05 : 0.5);
+  const signed = (v: number) => (flat(v) ? '±0' : `${v > 0 ? '+' : '−'}${fmt(Math.abs(v))}`);
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.s }}>
+        <T variant="titleM" accessibilityRole="header" style={{ flexShrink: 1 }}>{title}</T>
+        <T variant="bodyS" color={colors.sub}>{EXERCISE_MONTHS}か月</T>
+      </View>
+      {trend.current == null ? (
+        <T variant="bodyM" color={colors.sub} style={{ marginTop: space.s }} testID="exercise-trend-empty">
+          {weighted ? '重量 × 回数の記録があると、推定1RM が出ます' : '体重の記録があると、自重の総負荷量が出ます'}
+        </T>
+      ) : (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, marginTop: space.s, flexWrap: 'wrap' }} testID="exercise-trend-value">
+            <CountUpText num bold size={40} value={conv(trend.current)} format={fmt} animKey={exercise.id} />
+            <T variant="bodyM" color={colors.sub}>{unit}</T>
+            {diff != null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, marginLeft: space.s }}>
+                <Icon name={flat(diff) ? 'arrowFlat' : diff > 0 ? 'arrowUp' : 'arrowDown'} size={16} color={!flat(diff) && diff < 0 ? colors.danger : colors.accent} />
+                <T variant="labelL" color={!flat(diff) && diff < 0 ? colors.danger : colors.accent}>{signed(diff)} {unit}</T>
+                <T variant="bodyS" color={colors.sub}>先月より</T>
               </View>
-            ))}
+            )}
           </View>
-        ) : (
-          <View style={{ gap: space.s, marginTop: space.m }}>
-            {entries.map((e) => (
-              <View key={e.id}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
-                  <T variant="titleS" style={{ flexShrink: 1 }}>{e.exerciseName}</T>
-                  {roles.has(e.exerciseId) && <Big3Badge />}
-                </View>
-                <T num size={14} color={colors.sub}>{summarizeSets(e.sets, unit)}</T>
-              </View>
-            ))}
-          </View>
-        )}
-      </Pressable>
+          {trend.points.length >= 2 ? (
+            <View accessible accessibilityLabel={`${title}のグラフ。${EXERCISE_MONTHS}か月。今 ${fmt(conv(trend.current))}${unit}`}>
+              <LineChart
+                points={datePoints(trend.points, (p) => conv(value(p)), from, today)}
+                xLabels={dateLabels(from, today, 4)}
+                formatY={(v) => fmtInt(v)}
+                animKey={exercise.id}
+              />
+            </View>
+          ) : (
+            <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>{EXERCISE_MONTHS}か月の記録が2日以上になると、折れ線が出ます</T>
+          )}
+        </>
+      )}
     </Card>
   );
 }
 
-function ExerciseGraph({ rows, exerciseId, recordType, today, period, setPeriod, unit }: {
-  rows: Parameters<typeof exerciseDailySeries>[0]; exerciseId: string; recordType: 'weight_reps' | 'reps_only';
-  today: string; period: Period; setPeriod: (p: Period) => void; unit: 'kg' | 'lb';
-}) {
-  const all = exerciseDailySeries(rows, exerciseId);
-  const from = periodStart(today, period);
-  const series = filterSince(all, from);
-  const start = from ?? series[0]?.date ?? today;
-  const labels = dateLabels(start, today, 4);
-  const conv = (kg: number) => kgToUnit(kg, unit);
-  const [layouts, setLayouts] = useLayouts();
-  const mark = layouts[period];
-
+/** 種目の記録の、1日のカード（日付と種目、セット、総負荷量と推定1RM）。押すと記録のタブのその日 */
+function ExerciseDayCard({ date, entry, name, unit, onPress }: { date: string; entry: Entry; name: string; unit: 'kg' | 'lb'; onPress: () => void }) {
+  const best = bestSet(entry.sets);
   return (
-    <>
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
-        <SlidingMark layout={mark} style={{ top: 0, bottom: 0, borderRadius: 8, backgroundColor: colors.input }} />
-        {PERIODS.map((p) => (
-          <Pressable
-            key={p}
-            accessibilityRole="button"
-            aria-selected={period === p}
-            hitSlop={{ top: 9, bottom: 9, left: 3, right: 3 }}
-            onPress={() => setPeriod(p)}
-            onLayout={(e) => setLayouts(p, e.nativeEvent.layout)}
-            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: period === p && !mark ? colors.input : 'transparent' }}
-          >
-            <T size={13} bold={period === p} color={period === p ? colors.text : colors.sub}>{PERIOD_LABELS[p]}</T>
-          </Pressable>
-        ))}
-      </View>
-      {series.length < 2 ? (
-        <EmptyState icon="chart" title="グラフにするには記録が足りません" body={`この期間の記録は ${series.length} 日です。2日以上になるとグラフが出ます`} />
-      ) : (
-        // 回数だけの種目は、自重の総負荷量（体重 × 割合 × 回数）だけ。推定1RM は出さない
-        [
-          { title: '総負荷量', value: (p: (typeof series)[number]) => conv(p.volume), fmt: (v: number) => fmtInt(v) },
-          ...(recordType === 'weight_reps'
-            ? [{ title: '最大RM（推定）', value: (p: (typeof series)[number]) => conv(p.max1RM), fmt: (v: number) => fmt1(v) }] : []),
-        ].map((c) => {
-          const last = c.value(series[series.length - 1]);
-          const diff = changeOver(series, c.value) ?? 0;
-          return (
-            <Card key={c.title} style={{ marginTop: 14 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <T bold size={16}>{c.title}</T>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                  <CountUpText num bold size={28} value={last} format={c.fmt} animKey={`${exerciseId}-${period}`} />
-                  <T size={12} color={colors.sub}>{unit}</T>
-                </View>
-              </View>
-              <CountUpText
-                size={12} bold color={diff >= 0 ? colors.accent : colors.danger} style={{ marginBottom: 8 }}
-                value={Math.abs(diff)} animKey={`${exerciseId}-${period}`}
-                format={(v) => `${PERIOD_LABELS[period]}${period === 'all' ? 'の期間' : ''}で ${diff >= 0 ? '+' : '−'}${c.fmt(v)}${unit}`}
-              />
-              <LineChart points={datePoints(series, c.value, start, today)} xLabels={labels} formatY={(v) => fmtInt(v)} animKey={`${exerciseId}-${period}`} />
-            </Card>
-          );
-        })
-      )}
-    </>
+    <Card style={{ marginTop: space.m }}>
+      <PressableScale accessibilityRole="button" scaleTo={0.98} onPress={onPress} testID={`trend-day-${date}`}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 24 }}>
+          <T variant="titleM" style={{ flex: 1 }}>{formatJpDate(date)} {name}</T>
+          <Icon name="chevron" size={20} color={colors.sub} />
+        </View>
+        <View style={{ gap: space.s, marginTop: space.m }}>
+          {entry.sets.map((st, i) => (
+            <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <SetNo n={i + 1} />
+              <T variant="titleM">{formatSetLong(st.weightKg, st.reps, unit)}</T>
+              {st.memo !== '' && <T variant="bodyS" color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{st.memo}</T>}
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
+          <Tile label="総負荷量" value={`${fmtInt(kgToUnit(totalVolume(entry.sets), unit))} ${unit}`} />
+          {best && <Tile label="推定1RM" value={`${fmt1(kgToUnit(best.e1rm, unit))} ${unit}`} />}
+        </View>
+      </PressableScale>
+    </Card>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.input, borderRadius: 10, padding: 10, gap: 2 }}>
+      <T variant="labelM" color={colors.sub}>{label}</T>
+      <T num bold size={20}>{value}</T>
+    </View>
   );
 }
 

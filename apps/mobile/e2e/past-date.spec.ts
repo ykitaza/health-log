@@ -1,5 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, fillSets, homeCard, openApp, openTrainingTrend, saveButton, see, TODAY, trendDay } from './helpers';
+import {
+  button, chooseExercise, expectTrainingDay, fillSets, goTab, homeCard, openApp, openTrainingTrend, saveButton, see, TODAY, trendDay,
+} from './helpers';
 
 // ホームのカレンダーで過去の日を選んで記録する流れ。日付の計算（前回・自己ベスト・選べる日）は jest で確かめる
 const day = (page: Page, date: string) => page.getByTestId('home-calendar').getByTestId(`day-${date}`);
@@ -18,9 +20,10 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await expect(see(page, '11月3日（火）の記録', { exact: true })).toBeVisible();
   await expect(see(page, '区分を選んで記録します', { exact: true })).toBeVisible();
   await expect(see(page, '11月3日の体重や体脂肪率を入れます', { exact: true })).toBeVisible();
+  // 筋トレのタブの「記録」がその日で開く
   await page.getByTestId('record-training').click();
-  await expect(see(page, '11月3日（火）', { exact: true })).toBeVisible();
-  await expect(see(page, '過去の日（11月3日（火））に記録しています')).toBeVisible();
+  await expectTrainingDay(page, '11月3日（火）');
+  await expect(see(page, '今日ではない日を見ています')).toBeVisible();
   await button(page, '種目を追加').click();
   await expect(see(page, '11月3日（火）に記録', { exact: true })).toBeVisible();
   await chooseExercise(page, 'ベンチプレス');
@@ -30,7 +33,8 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await expect(saveButton(page)).toHaveText('この日のトレーニングに追加');
   await saveButton(page).click();
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
-  await button(page, '戻る').click();
+  await expectTrainingDay(page, '11月3日（火）');
+  await goTab(page, 'ホーム');
 
   // ホーム：選んだ日に出て、カレンダーに印が付く
   await expect(homeCard(page, 'training')).toContainText('11月3日のトレーニング');
@@ -43,16 +47,19 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
   await expect(day(page, TODAY)).toHaveAttribute('aria-selected', 'true');
 
-  // 筋トレの推移：その日のカードが出て、押すとその日のトレーニング。そこから同じ日に足せる
+  // 筋トレの推移：種目を選ぶとその日のカードが出て、押すと記録のタブのその日。そこから同じ日に足せる
+  await goTab(page, '筋トレ');
+  await button(page, '今日に戻る').click();
   await openTrainingTrend(page);
+  await button(page, 'ベンチプレス').click();
   await expect(trendDay(page, '2026-11-03')).toContainText('ベンチプレス');
   await trendDay(page, '2026-11-03').click();
-  await expect(see(page, '11月3日（火）', { exact: true })).toBeVisible();
+  await expectTrainingDay(page, '11月3日（火）');
   await button(page, '種目を追加').click();
   await expect(see(page, '11月3日（火）に記録', { exact: true })).toBeVisible();
 });
 
-test('未来の日は選べず、開いても記録できない', async ({ page }) => {
+test('未来の日は選べず、URL で開いても記録できない', async ({ page }) => {
   await openApp(page);
   await expect(day(page, '2026-11-20')).toHaveAttribute('aria-disabled', 'true');
   await day(page, '2026-11-20').click({ force: true });
@@ -61,8 +68,11 @@ test('未来の日は選べず、開いても記録できない', async ({ page 
   await button(page, '記録する').click();
   await expect(see(page, '11月8日（日）の記録', { exact: true })).toBeVisible();
 
-  // URL で直接開いても、種目を足せない
+  // 前のその日の画面の URL で未来の日を開くと、筋トレのタブの今日になる
   await page.goto('/workout?date=2026-11-20');
+  await expectTrainingDay(page, '11月8日（日）');
+  await expect(button(page, '次の日')).toHaveAttribute('aria-disabled', 'true');
+  // 種目の選択を URL で直接開いても、未来の日には記録できない
+  await page.goto('/workout/select?date=2026-11-20');
   await expect(see(page, '未来の日には記録できません')).toBeVisible();
-  await expect(button(page, '種目を追加')).toHaveAttribute('aria-disabled', 'true');
 });

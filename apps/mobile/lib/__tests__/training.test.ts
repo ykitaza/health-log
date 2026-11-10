@@ -1,5 +1,5 @@
 import {
-  bestSet, changeOver, estimated1RM, exerciseDailySeries, filterSince, periodStart,
+  bestSet, estimated1RM, exerciseDailySeries, filterSince, periodStart,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
   daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary,
 } from '../training';
@@ -79,8 +79,6 @@ describe('種目ごとの推移', () => {
     expect(s.map((p) => p.date)).toEqual(['2026-11-01', '2026-11-06']);
     expect(s[1].volume).toBe(1390);
     expect(s[1].max1RM).toBeCloseTo(101.333, 2);
-    expect(changeOver(s, (p) => p.volume)).toBe(1390 - 480);
-    expect(changeOver([s[0]], (p) => p.volume)).toBeNull();
   });
   test('期間で絞る', () => {
     expect(periodStart('2026-11-08', '3m')).toBe('2026-08-08');

@@ -1,18 +1,10 @@
 import { completeBig3, openFormVideo } from '../exercises';
-import { big3Trend, dayCardSummary, menuFromDay, summarizeSets, TrainingSetRow, trendDays } from '../training';
+import { big3Trend, exerciseTrend, menuFromDay, TrainingSetRow, trendDays } from '../training';
 
 const row = (date: string, exerciseId: string, weightKg: number | null, reps: number): TrainingSetRow =>
   ({ date, exerciseId, bodyPartId: 'p', weightKg, reps });
 
-describe('推移の記録のカード', () => {
-  test('セットの要約：同じ重さが続くと回数をつなぐ。回数だけは「回」。lb でも出せる', () => {
-    expect(summarizeSets([{ weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8 }, { weightKg: 75, reps: 10 }], 'kg')).toBe('80.0 kg × 8・8　75.0 kg × 10');
-    expect(summarizeSets([{ weightKg: 80, reps: 8 }, { weightKg: 75, reps: 10 }, { weightKg: 80, reps: 6 }], 'kg')).toBe('80.0 kg × 8　75.0 kg × 10　80.0 kg × 6');
-    expect(summarizeSets([{ weightKg: null, reps: 10 }, { weightKg: null, reps: 8 }], 'kg')).toBe('10・8 回');
-    expect(summarizeSets([{ weightKg: 100, reps: 5 }], 'lb')).toBe('220.5 lb × 5');
-    expect(summarizeSets([], 'kg')).toBe('');
-  });
-
+describe('推移の種目の記録と折れ線', () => {
   test('出す日は新しい順。種目を選ぶと、その種目をした日だけ', () => {
     const rows = [row('2026-11-02', 'bench', 80, 8), row('2026-11-06', 'squat', 100, 5), row('2026-11-06', 'bench', 80, 8), row('2026-11-04', 'squat', 90, 5)];
     expect(trendDays(rows, null)).toEqual(['2026-11-06', '2026-11-04', '2026-11-02']);
@@ -20,12 +12,20 @@ describe('推移の記録のカード', () => {
     expect(trendDays(rows, 'deadlift')).toEqual([]);
   });
 
-  test('日のカードの見出し：部位（重なりなし）とその日の合計負荷量', () => {
-    expect(dayCardSummary([
-      { bodyPartName: '胸', sets: [{ weightKg: 80, reps: 8 }, { weightKg: 75, reps: 10 }] },
-      { bodyPartName: '胸', sets: [{ weightKg: 26, reps: 10 }] },
-      { bodyPartName: '背中', sets: [{ weightKg: null, reps: 10, bodyweightLoadKg: null }] },
-    ])).toEqual({ parts: ['胸', '背中'], volume: 640 + 750 + 260 });
+  test('種目の折れ線：今の値はいちばん新しい日、先月は1か月前の日までのいちばん新しい日。点は期間の中だけ。値が 0 の日は入れない', () => {
+    const rows = [
+      row('2026-07-01', 'bench', 70, 8), row('2026-09-15', 'bench', 75, 8), row('2026-10-08', 'bench', 77.5, 8),
+      row('2026-11-06', 'bench', 80, 8), row('2026-11-06', 'bench', 75, 10), row('2026-11-20', 'bench', 90, 8),
+      row('2026-11-01', 'chin', null, 10),
+    ];
+    const t = exerciseTrend(rows, 'bench', '2026-11-08', '2026-08-08', (p) => p.max1RM);
+    expect(t.current).toBeCloseTo(101.333, 2); // 11/6 の 80 × 8（未来の 11/20 は入れない）
+    expect(t.monthAgo).toBeCloseTo(98.167, 2); // 10/8 の 77.5 × 8
+    expect(t.points.map((p) => p.date)).toEqual(['2026-09-15', '2026-10-08', '2026-11-06']);
+    // 回数だけの種目は推定1RM が出ない。総負荷量なら（自重の割合がないので）0 で、点にしない
+    expect(exerciseTrend(rows, 'chin', '2026-11-08', '2026-08-08', (p) => p.max1RM)).toEqual({ current: null, monthAgo: null, points: [] });
+    // 1か月前より前の記録がなければ、先月との差は出さない
+    expect(exerciseTrend([row('2026-11-06', 'bench', 80, 8)], 'bench', '2026-11-08', '2026-08-08', (p) => p.volume)).toMatchObject({ current: 640, monthAgo: null });
   });
 });
 

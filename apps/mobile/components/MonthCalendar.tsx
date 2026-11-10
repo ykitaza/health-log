@@ -12,6 +12,8 @@ type Props = {
   today: DateKey;
   /** 印を付ける日（トレーニングした日） */
   marked: Set<DateKey>;
+  /** 印の形。ring は緑の丸の枠（ホーム・推移）、dot は濃い緑の丸と数字の下の点（日を選ぶシート） */
+  markStyle?: 'ring' | 'dot';
   /** 右上に小さな白い点を付ける日（ホームの、食事を記録した日）。読み上げに「食事の記録あり」を足す */
   dotted?: Set<DateKey>;
   /** 塗りつぶす日（選んだ日）。なければ今日を塗る */
@@ -28,7 +30,7 @@ type Props = {
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
@@ -68,13 +70,16 @@ export function MonthCalendar({ year, month, today, marked, dotted, selected, on
                     // 幅が足りなければ縮める（360 の幅など）。足りれば cell の大きさ
                     { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: cell / 2 },
                     d.inMonth && { borderWidth: 1, borderColor: colors.line },
-                    isMarked && { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark },
+                    isMarked && (markStyle === 'ring'
+                      ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark }
+                      : { borderColor: colors.accentDark, backgroundColor: colors.accentDark }),
                     isToday && !isFilled && !isMarked && { borderColor: colors.text },
                     isFilled && { borderColor: colors.accent },
                   ]}
                 >
                   {isFilled && <Animated.View entering={grow} style={[StyleSheet.absoluteFill, { borderRadius: cell / 2, backgroundColor: colors.accent }]} />}
-                  <T num bold size={15} color={fg}>{d.day}</T>
+                  <T num bold size={15} color={markStyle === 'dot' && isMarked && !isFilled ? colors.text : fg}>{d.day}</T>
+                  {markStyle === 'dot' && isMarked && <View style={[s.markDot, { backgroundColor: isFilled ? colors.onAccent : colors.accent }]} />}
                   {/* 今日や筋トレの日の丸の上でも見えるよう、背景の色の縁を付ける */}
                   {isDotted && <View style={s.dot} testID={`meal-dot-${d.key}`} />}
                 </Pressable>
@@ -91,5 +96,6 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   cellBox: { alignItems: 'center', justifyContent: 'center' },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 4 },
+  markDot: { position: 'absolute', bottom: 4, width: 4, height: 4, borderRadius: 2 },
   dot: { position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.text },
 });
