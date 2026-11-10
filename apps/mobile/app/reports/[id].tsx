@@ -2,18 +2,31 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { LoadError } from '@/components/LoadError';
+import { Big3Tile, BodyChangeBlock, DailyAchievementBlock, LinkCard, ReviewCard, WeeklyGoalsBlock } from '@/components/reportBlocks';
 import { HighlightCard, MarkdownBody, MetricTile, NextStepCard, ReportSection, ToneBand } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { ConfirmDialog, Header, IconButton } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
-import { Highlight, Metric, NEXT_TITLES, ReportKind } from '@/lib/reports';
+import { achievementScope, Big3Lifts, Highlight, Metric, NEXT_TITLES, ReportKind } from '@/lib/reports';
 import { colors } from '@/theme';
 
 const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先週より', monthly: '先月より', other: '前より' };
 
-/** レポートの中身。上に調子の帯、指標のタイル、分野ごとのカード、次の一歩、くわしい本文。消せる（確認のダイアログ） */
+/**
+ * BIG3 に割り当てた種目。筋トレの担当が「種目の BIG3 の割り当て」を足したら、ここで読む（それまでは null で、BIG3 のタイルを出さない）
+ */
+const BIG3_LIFTS: Big3Lifts | null = null;
+
+/**
+ * レポートの中身。種類ごとに並びを変える（Figma の report-daily・report-weekly・report-monthly）。
+ * - 日：調子の帯 → 今日の達成 → 分野ごと → 明日の一歩 → くわしく（指標のタイルは出さず、指標は分野のカードに小さく）
+ * - 週：調子の帯 → 今週の目標 → 指標のタイル → つながり → 分野ごと → 来週の一歩 → くわしく
+ * - 月：調子の帯 → 体の変化 → 指標のタイル（BIG3 を含む） → つながり → 分野ごと → 目標の見直し → 来月の一歩 → くわしく
+ * 達成（今日の達成・今週の目標・体の変化）はアプリが記録から出す。前の形のレポート（達成の期間に合わない・つながりがない）は、ある分だけ出す。
+ * 消せる（確認のダイアログ）
+ */
 export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   // 読み込み中（null）と、ないレポート（report が null）を分ける
@@ -29,13 +42,19 @@ export default function ReportScreen() {
     return <Screen><Header title="レポートが見つかりません" onBack={back} /><T color={colors.sub}>消されたか、まだ届いていないレポートです。</T></Screen>;
   }
 
-  const tiles = report.highlights.filter((h): h is Highlight & { metric: Metric } => h.metric != null);
+  const daily = report.kind === 'daily';
+  const scope = achievementScope(report);
+  const tiles = daily ? [] : report.highlights.filter((h): h is Highlight & { metric: Metric } => h.metric != null);
+  const big3 = scope?.type === 'month' && BIG3_LIFTS != null;
   const remove = () => run(async (stayBusy) => {
     setConfirm(false);
     await repos.reports.remove(report.id);
     stayBusy();
     router.back();
   });
+  // 開いたときに順に出す番号（帯が 0）
+  let n = 1;
+  const next = () => n++;
 
   return (
     <Screen>
@@ -46,19 +65,29 @@ export default function ReportScreen() {
       />
       <View style={{ gap: 12, marginTop: 4 }}>
         <ToneBand report={report} />
-        {tiles.length > 0 && (
+        {scope?.type === 'day' && <DailyAchievementBlock date={scope.date} index={next()} />}
+        {scope?.type === 'week' && <WeeklyGoalsBlock date={scope.date} index={next()} />}
+        {scope?.type === 'month' && <BodyChangeBlock start={scope.start} end={scope.end} index={next()} />}
+        {(tiles.length > 0 || big3) && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="report-tiles">
-            {tiles.map((h, i) => <MetricTile key={i} highlight={h} index={i + 1} vs={VS[report.kind]} animKey={report.id} />)}
+            {tiles.map((h, i) => <MetricTile key={i} highlight={h} index={next()} vs={VS[report.kind]} animKey={report.id} />)}
+            {big3 && scope?.type === 'month' && <Big3Tile lifts={BIG3_LIFTS} start={scope.start} end={scope.end} index={next()} animKey={report.id} />}
           </View>
+        )}
+        {report.links.length > 0 && (
+          <ReportSection title="つながり">
+            {report.links.map((l, i) => <LinkCard key={i} link={l} index={next()} />)}
+          </ReportSection>
         )}
         {report.highlights.length > 0 && (
           <ReportSection title="分野ごと">
-            {report.highlights.map((h, i) => <HighlightCard key={i} highlight={h} index={tiles.length + i + 1} />)}
+            {report.highlights.map((h, i) => <HighlightCard key={i} highlight={h} index={next()} metricVs={daily ? VS.daily : undefined} />)}
           </ReportSection>
         )}
+        {report.review && <ReviewCard review={report.review} index={next()} />}
         {report.nextSteps.length > 0 && (
           <ReportSection title={NEXT_TITLES[report.kind]}>
-            {report.nextSteps.map((s, i) => <NextStepCard key={i} n={i + 1} text={s} index={tiles.length + report.highlights.length + i + 1} />)}
+            {report.nextSteps.map((s, i) => <NextStepCard key={i} n={i + 1} text={s} index={next()} />)}
           </ReportSection>
         )}
         {report.body.trim() !== '' && (

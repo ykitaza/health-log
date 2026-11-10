@@ -2,7 +2,7 @@ import { parseReport, Report, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
-const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, created_at';
+const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, created_at';
 
 /** 閉じた「まだ作っていないまとめ」の key（lib/reports.ts の PendingReport）。端末だけに覚える（同期しない sync_meta に置く） */
 const DISMISSED_PENDING = 'reports.dismissed_pending';

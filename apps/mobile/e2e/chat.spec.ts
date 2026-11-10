@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, openApp, openSettings, see } from './helpers';
+import { button, goTab, homeCard, moveToDate, openApp, openSettings, recordOn, see } from './helpers';
 
 // チャット（ChatGPT・Claude）を開くショートカット。web では Linking.openURL が window.open を呼ぶので、
 // それを見張って、開いた URL（決まった文だけ・エンコード・選んだアプリ）を確かめる
@@ -103,10 +103,41 @@ test('レポートの「チャットで作る」：期間を選んでから開�
   await button(page, 'Claude で開く（外のアプリ）').click();
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CLAUDE);
-  expect(q).toContain(`${C}で11月1日〜今日（11月8日）のまとめを作ってください。`);
-  expect(q).toContain('list_workouts と list_meals（start=2026-11-01、end=2026-11-08）');
-  expect(q).toContain('heart_rate_summary（days=8）');
-  expect(q).toContain('save_report で保存してください（kind=monthly、period_start=2026-11-01、period_end=2026-11-08、');
+  expect(q).toContain(`${C}で今月（11月1日〜今日（11月8日））のまとめを作ってください。`);
+  expect(q).toContain('period_overview(start=2026-11-01, end=2026-11-08)を読み');
+  expect(q).toContain('目標の見直しを review に（食事の目標なら target=meals_goal）');
+  expect(q).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-08)で保存してください。');
+});
+
+test('ホームのおすすめ：まだ作っていないまとめの件数と中身。「作る」でまとめて頼む文を開き、「×」で閉じるともう出ない', async ({ page }) => {
+  // 11月6日（金）・7日（土）に記録し、火曜の11月10日に開く：先週（11月2日〜8日）の週のまとめと、6日・7日の日のまとめがまだ
+  await openApp(page, '2026-11-06');
+  await recordOn(page, '2026-11-06', [{ exercise: 'ベンチプレス', sets: [{ weight: '60', reps: '10' }] }]);
+  await recordOn(page, '2026-11-07', [{ exercise: 'スクワット', sets: [{ weight: '80', reps: '8' }] }]);
+  await moveToDate(page, '2026-11-10');
+  const banner = page.getByTestId('report-suggestion').filter({ visible: true });
+  await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
+  await expect(see(banner, '先週の分と、11月6日・7日の分', { exact: true })).toBeVisible();
+
+  await button(banner, 'まとめを作る。ChatGPT か Claude を開きます').click();
+  await expect(see(sheet(page), 'チャットで作る', { exact: true })).toBeVisible();
+  await expect(see(sheet(page), 'まだのまとめ 3 件を作るための文を入れて開きます')).toBeVisible();
+  await button(page, 'Claude で開く（外のアプリ）').click();
+  await expect(sheet(page)).toBeHidden();
+  const [{ app, q }] = (await opened(page)).map(parse);
+  expect(app).toBe(CLAUDE);
+  expect(q).toBe(`${C}で、まだ作っていないまとめを1件ずつ作り、save_report で保存してください。`
+    + '対象は3件：weekly(2026-11-02..2026-11-08), daily(2026-11-06), daily(2026-11-07)。'
+    + '期間ごとに period_overview を読み、数字は記録の値だけを使ってください。'
+    + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで。'
+    + '記録がない期間は作らず、そう伝えてください。'
+    + '終わったら、アプリに戻ると自動で取り込まれると添えてください。');
+
+  await button(banner, 'おすすめを閉じる。今出ている分は、もう出しません').click();
+  await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
+  await moveToDate(page, '2026-11-10');
+  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
 });
 
 test('開けなかったら、シートの中に案内を出し、もう一方を選べる', async ({ page }) => {

@@ -141,7 +141,7 @@ export const HEALTH_ENTITIES: EntitySpec[] = [
 export const TRAINING_ENTITIES_V8: EntitySpec[] = TRAINING_ENTITIES_V2.map((s) =>
   s.type === 'exercise' ? { ...s, columns: { ...s.columns, bodyweight_ratio: 'real' } } : s);
 
-/** 筋トレの今の形。版9で、種目に BIG3 の役（big3）とフォームの動画のリンク（form_video_url）を足した */
+/** 筋トレの今の形。版10で、種目に BIG3 の役（big3）とフォームの動画のリンク（form_video_url）を足した */
 export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V8.map((s) =>
   s.type === 'exercise' ? { ...s, columns: { ...s.columns, big3: 'text', form_video_url: 'text' } } : s);
 
@@ -150,7 +150,7 @@ export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
   s.type === 'meal' ? { ...s, columns: { ...s.columns, basis: 'text' } } : s);
 
 /** レポート（版7）。MCP の save_report だけが作る。highlights と next_steps は SQLite では JSON の文字列 */
-export const REPORT_ENTITIES: EntitySpec[] = [
+export const REPORT_ENTITIES_V7: EntitySpec[] = [
   {
     type: 'report', table: 'reports',
     columns: {
@@ -161,6 +161,9 @@ export const REPORT_ENTITIES: EntitySpec[] = [
     readOnly: true,
   },
 ];
+
+/** レポートの今の形。版9で、つながり（links）と目標の見直し（review）を足した（どちらも JSON の文字列。ないレポートは NULL） */
+export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({ ...s, columns: { ...s.columns, links: 'json', review: 'json' } }));
 
 export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES];
 
