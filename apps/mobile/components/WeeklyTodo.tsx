@@ -1,13 +1,13 @@
-// 週のまとめの次の一歩のチェック：ホームの「今週やること」と、レポートの中身の「次の週にやること」。
+// 週のまとめの次の一歩のチェック：ホームの「今週やること」、レポートのタブの「やること」、週のまとめの中身の「先週やることの振り返り」。
 // チェックはレポートの next_steps_done（端末の表に書き、同期でサーバーに送る。次の週のまとめで Claude・ChatGPT が振り返る）。
-// どちらの画面も同じレポートの同じ値を見る
+// どの画面も同じレポートの同じ値を見る
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useFocusData, useRepos } from '@/hooks/data';
-import { DateKey } from '@/lib/date';
-import { nextWeekLabel, todoAllDone, todoCount, toggleTodo, weeklyTodo } from '@/lib/home';
-import type { Report } from '@/lib/reports';
+import { addDays, DateKey } from '@/lib/date';
+import { TodoWeek, todoAllDone, todoCount, toggleTodo, weekRangeLabel, weeklyTodo } from '@/lib/home';
 import { colors, radius, space } from '@/theme';
 import { duration, HOLD_MS, motionDuration } from '@/theme/motion';
 import { Icon } from './Icon';
@@ -32,12 +32,24 @@ export function useTodoChecks(reportId: string | undefined, saved: number[]) {
   return { done, toggle };
 }
 
-/** チェックの一覧（押せる大きさ 48 以上。読み上げは checkbox と、その一歩の文） */
-export function TodoList({ steps, done, onToggle }: { steps: string[]; done: number[]; onToggle: (i: number) => void }) {
+/**
+ * チェックの一覧（押せる大きさ 48 以上。読み上げは checkbox と、その一歩の文）。
+ * onToggle がなければ見るだけ（押せない。読み上げは「その一歩の文、済み」「…、まだ」）
+ */
+export function TodoList({ steps, done, onToggle }: { steps: string[]; done: number[]; onToggle?: (i: number) => void }) {
   return (
     <View>
       {steps.map((step, i) => {
         const checked = done.includes(i);
+        const content = (<>
+          <View style={[s.box, checked ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.outline }]}>
+            <CheckPop done={checked}>{checked && <Icon name="check" size={16} color={colors.onAccent} strokeWidth={3} />}</CheckPop>
+          </View>
+          <T variant="bodyL" color={checked ? colors.sub : colors.text} style={[{ flex: 1 }, checked && { textDecorationLine: 'line-through' }]}>{step}</T>
+        </>);
+        if (!onToggle) {
+          return <View key={i} accessible accessibilityLabel={`${step}、${checked ? '済み' : 'まだ'}`} style={s.todoRow} testID={`todo-${i}`}>{content}</View>;
+        }
         return (
           <PressableScale
             key={i}
@@ -50,14 +62,36 @@ export function TodoList({ steps, done, onToggle }: { steps: string[]; done: num
             style={s.todoRow}
             testID={`todo-${i}`}
           >
-            <View style={[s.box, checked ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.outline }]}>
-              <CheckPop done={checked}>{checked && <Icon name="check" size={16} color={colors.onAccent} strokeWidth={3} />}</CheckPop>
-            </View>
-            <T variant="bodyL" color={checked ? colors.sub : colors.text} style={[{ flex: 1 }, checked && { textDecorationLine: 'line-through' }]}>{step}</T>
+            {content}
           </PressableScale>
         );
       })}
     </View>
+  );
+}
+
+/** 済んだ数「2／3」。全部できたら緑の文字（読み上げは「3つのうち2つ済み」） */
+function TodoCount({ steps, done }: { steps: string[]; done: number[] }) {
+  const count = todoCount(steps, done);
+  return (
+    <T variant="bodyM" color={todoAllDone(steps, done) ? colors.accent : colors.sub} accessibilityLabel={`${steps.length}つのうち${count}つ済み`}>
+      {count}／{steps.length}
+    </T>
+  );
+}
+
+/** ホームの今週やることから、レポートのタブの「やること」を開く入口（押せる大きさ 48） */
+function TodoAllLink() {
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel="やることをすべて見る"
+      onPress={() => router.navigate({ pathname: '/reports', params: { view: 'todo' } })}
+      style={s.allLink}
+      testID="weekly-todo-all"
+    >
+      <T bold size={14} color={colors.accent}>すべて</T>
+    </PressableScale>
   );
 }
 
@@ -78,7 +112,8 @@ const COLLAPSE_AFTER_DRAW = duration.enter + HOLD_MS;
 /**
  * ホームの「今週やること」：最新の週のまとめの次の一歩をチェックの一覧で。週のまとめがなければ出さない。
  * 全部できたら1行にたたむ（［✓］今週やることを全部できた［3／3］［⌄］）。押すと一覧を開き、見直し・チェックを外せる。
- * 最後の1つをチェックした瞬間だけ、✓ が線を描くように出てから、たたむ（250ms。開くのも同じ）。動きを減らす設定なら動かさない
+ * 最後の1つをチェックした瞬間だけ、✓ が線を描くように出てから、たたむ（250ms。開くのも同じ）。動きを減らす設定なら動かさない。
+ * 右上（たたんだ行の右）の「すべて」で、レポートのタブの「やること」（週ごとの一覧）を開く
  */
 export function WeeklyTodoCard({ today }: { today: DateKey }) {
   const { data } = useFocusData(async (r) => weeklyTodo(await r.reports.list(), today), today);
@@ -105,26 +140,30 @@ export function WeeklyTodoCard({ today }: { today: DateKey }) {
   return (
     <View style={s.card} testID="weekly-todo">
       {allDone ? (
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          aria-expanded={expanded}
-          accessibilityLabel={`今週やることを全部できた。${countLabel}`}
-          accessibilityHint={expanded ? '一覧を閉じます' : '一覧を開いて、見直したりチェックを外したりできます'}
-          scaleTo={0.98}
-          onPress={() => { setAfterDraw(false); setExpanded((v) => !v); }}
-          style={s.doneRow}
-          testID="weekly-todo-toggle"
-        >
-          <DrawCheck key={completed} animate={completed > 0} size={24} color={colors.accent} />
-          <T variant="titleM" style={{ flex: 1 }} numberOfLines={1}>今週やることを全部できた</T>
-          <T variant="bodyM" color={colors.sub}>{count}／{total}</T>
-          <Chevron open={expanded} />
-        </PressableScale>
+        <View style={s.head}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            aria-expanded={expanded}
+            accessibilityLabel={`今週やることを全部できた。${countLabel}`}
+            accessibilityHint={expanded ? '一覧を閉じます' : '一覧を開いて、見直したりチェックを外したりできます'}
+            scaleTo={0.98}
+            onPress={() => { setAfterDraw(false); setExpanded((v) => !v); }}
+            style={s.doneRow}
+            testID="weekly-todo-toggle"
+          >
+            <DrawCheck key={completed} animate={completed > 0} size={24} color={colors.accent} />
+            <T variant="titleM" style={{ flex: 1 }} numberOfLines={1}>今週やることを全部できた</T>
+            <T variant="bodyM" color={colors.sub}>{count}／{total}</T>
+            <Chevron open={expanded} />
+          </PressableScale>
+          <TodoAllLink />
+        </View>
       ) : (
         <View style={s.head}>
-          <T variant="titleM" accessibilityRole="header">今週やること</T>
+          <T variant="titleM" accessibilityRole="header" style={{ flex: 1 }}>今週やること</T>
           <T variant="bodyM" color={colors.sub} accessibilityLabel={countLabel}>{count}／{total}</T>
+          <TodoAllLink />
         </View>
       )}
       <Collapse open={open} closeDelay={afterDraw ? COLLAPSE_AFTER_DRAW : 0} testID="weekly-todo-list">
@@ -137,25 +176,48 @@ export function WeeklyTodoCard({ today }: { today: DateKey }) {
 }
 
 /**
- * レポートの中身の「次の週にやること」：そのレポートの次の一歩を、ホームと同じチェックの一覧で（同じ値を見て、ここでもチェックできる）。
- * 見出しは次の週の日付（11月9日〜15日にやること）
+ * レポートのタブの「やること」の1週分：見出し（今週なら「今週 11月9日〜15日」）、右に「2／3」、チェックの一覧。
+ * どの週もチェックを付け外しできる（ホームと同じレポートの同じ値）。見出しの行を押すと、もとの週のまとめを開く
  */
-export function ReportTodoPanel({ report, done, onToggle }: { report: Pick<Report, 'periodEnd' | 'nextSteps'>; done: number[]; onToggle: (i: number) => void }) {
-  const total = report.nextSteps.length;
-  const count = todoCount(report.nextSteps, done);
-  const week = nextWeekLabel(report.periodEnd);
+export function TodoWeekCard({ week, today }: { week: TodoWeek; today: DateKey }) {
+  const { done, toggle } = useTodoChecks(week.reportId, week.done);
+  const range = weekRangeLabel(week.start);
+  const title = week.start <= today && today < addDays(week.start, 7) ? `今週 ${range}` : range;
   return (
-    <View style={{ gap: space.m }} testID="report-todo">
-      <View style={s.card}>
-        <View style={s.head}>
-          <T variant="titleM" accessibilityRole="header" style={{ flex: 1 }}>{week ? `${week}にやること` : '次の週にやること'}</T>
-          <T variant="bodyM" color={colors.sub} accessibilityLabel={`${total}つのうち${count}つ済み`}>{count}／{total}</T>
-        </View>
-        <View style={{ marginTop: space.xs }}>
-          <TodoList steps={report.nextSteps} done={done} onToggle={onToggle} />
-        </View>
+    <View style={s.card} testID={`todo-week-${week.start}`}>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`${title}にやること、${week.steps.length}つのうち${todoCount(week.steps, done)}つ済み`}
+        accessibilityHint="もとの週のまとめを開きます"
+        scaleTo={0.98}
+        onPress={() => router.push({ pathname: '/reports/[id]', params: { id: week.reportId } })}
+        style={[s.head, { minHeight: 48, marginVertical: -space.s }]}
+      >
+        <T variant="titleM" style={{ flex: 1 }}>{title}</T>
+        <TodoCount steps={week.steps} done={done} />
+      </PressableScale>
+      <View style={{ marginTop: space.xs }}>
+        <TodoList steps={week.steps} done={done} onToggle={toggle} />
       </View>
-      <T variant="bodyS" color={colors.sub}>チェックは次の週のまとめで Claude・ChatGPT が振り返ります</T>
+    </View>
+  );
+}
+
+/**
+ * 週のまとめの中身の「先週やることの振り返り」：そのまとめの週にやることだった一覧（前の週のまとめの次の一歩と、済んだか）。見るだけ。
+ * 振り返りの文は Claude・ChatGPT が本文に書くので、ここでは一覧だけ
+ */
+export function PreviousTodoCard({ week }: { week: TodoWeek }) {
+  const title = `${weekRangeLabel(week.start)}にやること`;
+  return (
+    <View style={s.card} testID="report-prev-todo">
+      <View style={s.head}>
+        <T variant="titleM" accessibilityRole="header" style={{ flex: 1 }}>{title}</T>
+        <TodoCount steps={week.steps} done={week.done} />
+      </View>
+      <View style={{ marginTop: space.xs }}>
+        <TodoList steps={week.steps} done={week.done} />
+      </View>
     </View>
   );
 }
@@ -163,7 +225,8 @@ export function ReportTodoPanel({ report, done, onToggle }: { report: Pick<Repor
 const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
-  doneRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 48, marginVertical: -space.s },
+  doneRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 48, marginVertical: -space.s },
   todoRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, minHeight: 48, paddingVertical: space.xs },
+  allLink: { minHeight: 48, minWidth: 48, paddingHorizontal: space.s, marginRight: -space.s, marginVertical: -space.s, alignItems: 'center', justifyContent: 'center' },
   box: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

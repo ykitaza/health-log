@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Locator, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, see, tab, TODAY } from './helpers';
+import { button, goTab, openApp, openSettings, primaryTab, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）と、食事の推定の根拠。
@@ -91,26 +91,36 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect(page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel(/^睡眠、睡眠（平均） 5\.8 時間/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、良い。脚の日が2回に増えた').filter({ visible: true })).toBeVisible();
-  // 週のまとめの次の一歩は、切り替えの「次の週にやること」の側に出す（まとめの側には「来週の一歩」の節を出さない）
-  await expect(button(page, 'まとめ')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(page, '来週の一歩', { exact: true })).toHaveCount(0);
+  // 週のまとめは、まとめだけ（「まとめ ／ 次の週にやること」の切り替えはない）。来週の一歩は節で出し、チェックはレポートのタブの「やること」で
+  await expect(button(page, 'まとめ')).toHaveCount(0);
+  await expect(see(page, '来週の一歩', { exact: true })).toBeVisible();
+  // 前の週のまとめがなければ「先週やることの振り返り」は出さない
+  await expect(see(page, '先週やることの振り返り', { exact: true })).toHaveCount(0);
   const body = page.getByTestId('report-body').filter({ visible: true });
   await expect(see(body, '[ここを押す](https://example.invalid)')).toBeVisible();
   await expect(body.locator('a')).toHaveCount(0);
 
-  // 次の週にやること：ホームと同じチェックの一覧。チェックするとサーバーに next_steps_done が届く
-  await button(page, '次の週にやること 0/1').click();
-  const todo = page.getByTestId('report-todo').filter({ visible: true });
-  await expect(page.getByRole('heading', { name: '11月9日〜15日にやること', exact: true }).filter({ visible: true })).toBeVisible();
-  await expect(see(todo, 'チェックは次の週のまとめで Claude・ChatGPT が振り返ります')).toBeVisible();
-  await expect(body).toHaveCount(0);
-  const step = todo.getByRole('checkbox', { name: '平日は 23時半までに寝る' });
+  // レポートのタブの「やること」：やることの週（まとめの期間の次の週）の見出しと、ホームと同じチェックの一覧。チェックするとサーバーに届く
+  await button(page, '戻る').click();
+  await primaryTab(page, 'やること').click();
+  await expect(primaryTab(page, 'やること')).toHaveAttribute('aria-selected', 'true');
+  // 絞り込み・並べ替え・お知らせの帯は出さない
+  await expect(button(page, '並び順、新しい順。押すと古い順にします')).toHaveCount(0);
+  const week = page.getByTestId('todo-week-2026-11-09').filter({ visible: true });
+  await expect(see(week, '11月9日〜15日', { exact: true })).toBeVisible();
+  await expect(see(week, '0／1', { exact: true })).toBeVisible();
+  const step = week.getByRole('checkbox', { name: '平日は 23時半までに寝る' });
   await step.click();
   await expect(step).toHaveAttribute('aria-checked', 'true');
-  await expect(button(page, '次の週にやること 1/1')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(week, '1／1', { exact: true })).toBeVisible();
   await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
-  await button(page, 'まとめ').click();
-  await expect(page.getByTestId('report-body').filter({ visible: true })).toBeVisible();
+  // ほかのタブへ移って戻っても「やること」のまま
+  await goTab(page, 'ホーム');
+  await goTab(page, 'レポート');
+  await expect(primaryTab(page, 'やること')).toHaveAttribute('aria-selected', 'true');
+  // 見出しの行を押すと、もとの週のまとめを開く
+  await button(page, '11月9日〜15日にやること、1つのうち1つ済み').click();
+  await expect(see(page.getByTestId('report-band').filter({ visible: true }), '11月2日（月）〜11月8日（日）')).toBeVisible();
 
   // 消す：確認のダイアログ → 一覧に戻り、空の状態。サーバーにも delete が届く
   await button(page, 'このレポートを消す').click();
@@ -119,9 +129,58 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect(see(page, 'レポートを消しますか？')).toHaveCount(0);
   await button(page, 'このレポートを消す').click();
   await button(page, '消す').click();
-  await expect(see(page, 'レポートはまだありません')).toBeVisible();
+  await expect(see(page, 'やることはまだありません')).toBeVisible();
   await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  await primaryTab(page, 'レポート').click();
+  await expect(see(page, 'レポートはまだありません')).toBeVisible();
   await expect.poll(() => server.state('report', REPORT)?.deleted, { timeout: 15_000 }).toBe(true);
+});
+
+test('週のまとめの「先週やることの振り返り」と、レポートのタブの「やること」の週ごとのカード（今週・過去の週もチェックできる）', async ({ page, context }) => {
+  const server = serverWithReport(); // 今週のまとめ（11月2日〜8日。やることの週は 11月9日〜15日）
+  // 先週のまとめ（10月26日〜11月1日）：やることの週は 11月2日〜8日（今日を含む週）
+  server.append([{
+    parent_id: null, changed_at: '2026-11-08T01:00:00.000Z', origin: 'mcp', device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: DAILY, op: 'create', fields: {
+      title: '先週のまとめ', kind: 'weekly', period_start: '2026-10-26', period_end: '2026-11-01', overall_tone: 'good',
+      headline: '', highlights: [], next_steps: ['ベンチプレスを 82.5kg で5回', '水を1日2L飲む'], next_steps_done: [0], body: '',
+    },
+  }]);
+  await connect(page, context, server);
+  await openApp(page);
+  await signInAndSync(page);
+  await goTab(page, 'レポート');
+
+  // やること：やることの週の新しい順。今日を含む週は「今週」
+  await primaryTab(page, 'やること').click();
+  const weeks = page.getByTestId(/^todo-week-/).filter({ visible: true });
+  await expect(weeks).toHaveCount(2);
+  await expect(see(weeks.nth(0), '11月9日〜15日', { exact: true })).toBeVisible();
+  await expect(see(weeks.nth(1), '今週 11月2日〜8日', { exact: true })).toBeVisible();
+  const thisWeek = weeks.nth(1);
+  await expect(see(thisWeek, '1／2', { exact: true })).toBeVisible();
+  await expect(see(thisWeek, 'ベンチプレスを 82.5kg で5回', { exact: true })).toHaveCSS('text-decoration-line', 'line-through');
+  await thisWeek.getByRole('checkbox', { name: '水を1日2L飲む' }).click();
+  await expect(see(thisWeek, '2／2', { exact: true })).toBeVisible();
+  await expect.poll(() => server.state('report', DAILY)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0, 1]);
+
+  // 今週のまとめの中身：今週の目標の下に「先週やることの振り返り」（前の週のまとめの次の一歩と済んだか。見るだけ）
+  await primaryTab(page, 'レポート').click();
+  await page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
+  await expect(page.getByRole('heading', { name: '先週やることの振り返り', exact: true }).filter({ visible: true })).toBeVisible();
+  const prev = page.getByTestId('report-prev-todo').filter({ visible: true });
+  await expect(prev.getByRole('heading', { name: '11月2日〜8日にやること', exact: true })).toBeVisible();
+  await expect(see(prev, '2／2', { exact: true })).toBeVisible();
+  await expect(prev.getByLabel('水を1日2L飲む、済み', { exact: true })).toBeVisible();
+  await expect(prev.getByRole('checkbox')).toHaveCount(0);
+  // 今週の目標の下
+  const goals = await page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true }).boundingBox();
+  expect(goals!.y).toBeLessThan((await prev.boundingBox())!.y);
+  // 先週のまとめには、その前の週のまとめがないので出さない
+  await button(page, '戻る').click();
+  await page.getByRole('button', { name: /先週のまとめ/ }).filter({ visible: true }).click();
+  await expect(see(page.getByTestId('report-band').filter({ visible: true }), '10月26日（月）〜11月1日（日）')).toBeVisible();
+  await expect(see(page, '先週やることの振り返り', { exact: true })).toHaveCount(0);
 });
 
 test('日のまとめ（daily）は、種類の名前・その日だけの期間・前の日との比べ・明日の一歩を出す', async ({ page, context }) => {

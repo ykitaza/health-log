@@ -86,16 +86,46 @@ export function todoAllDone(steps: readonly string[], done: readonly number[]): 
   return steps.length > 0 && todoCount(steps, done) === steps.length;
 }
 
-/**
- * 週のまとめの次の週（期間の終わりの次の日から7日）。レポートの中身の「11月9日〜15日にやること」の見出し。
- * 月をまたぐときは「11月30日〜12月6日」。期間がなければ null
- */
-export function nextWeekLabel(periodEnd: DateKey | null): string | null {
-  if (!periodEnd) return null;
-  const start = addDays(periodEnd, 1);
+/** 週（月曜〜日曜）の見出し。「11月9日〜15日」、月をまたぐときは「11月30日〜12月6日」 */
+export function weekRangeLabel(start: DateKey): string {
   const end = addDays(start, 6);
   const sameMonth = start.slice(0, 7) === end.slice(0, 7);
   return `${formatMonthDay(start)}〜${sameMonth ? `${Number(end.slice(8))}日` : formatMonthDay(end)}`;
+}
+
+type TodoSource = Pick<Report, 'id' | 'kind' | 'periodStart' | 'periodEnd' | 'nextSteps' | 'nextStepsDone'>;
+
+/** 週のまとめの次の一歩を、やることの週（まとめの期間の次の週。月曜の日付）でまとめたもの */
+export type TodoWeek = { reportId: string; start: DateKey; steps: string[]; done: number[] };
+
+/** まとめの期間の週の月曜（期間の終わり、なければ始まりの週）。期間がなければ null */
+function reportWeek(r: Pick<Report, 'periodStart' | 'periodEnd'>): DateKey | null {
+  const last = r.periodEnd ?? r.periodStart;
+  return last ? weekStart(last) : null;
+}
+
+/**
+ * レポートのタブの「やること」：週のまとめの次の一歩を、やることの週（まとめの期間の次の週）の新しい順に。
+ * reports は新しい順（db の reports.list）。同じ週のまとめが2つあれば新しいほうだけ（ホームの今週やることと同じく、それに次の一歩がなければ出さない）。
+ * 期間のないまとめと、次の一歩がない週は出さない
+ */
+export function todoWeeks(reports: TodoSource[]): TodoWeek[] {
+  const seen = new Set<DateKey>();
+  const weeks: TodoWeek[] = [];
+  for (const r of reports) {
+    const week = r.kind === 'weekly' ? reportWeek(r) : null;
+    if (week == null || seen.has(week)) continue;
+    seen.add(week);
+    if (r.nextSteps.length > 0) weeks.push({ reportId: r.id, start: addDays(week, 7), steps: r.nextSteps, done: r.nextStepsDone });
+  }
+  return weeks.sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : 0));
+}
+
+/** 週のまとめの中身の「先週やることの振り返り」：そのまとめの週にやることだった一覧（前の週のまとめの次の一歩）。なければ null */
+export function previousTodo(reports: TodoSource[], report: Pick<Report, 'kind' | 'periodStart' | 'periodEnd'>): TodoWeek | null {
+  const week = report.kind === 'weekly' ? reportWeek(report) : null;
+  if (week == null) return null;
+  return todoWeeks(reports).find((w) => w.start === week) ?? null;
 }
 
 /** i 番目を済んだ／まだに切り替えた値（番号は小さい順） */

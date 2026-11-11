@@ -6,12 +6,12 @@ import { Big3Tile, BodyChangeBlock, DailyAchievementBlock, LinkCard, ReviewCard,
 import { HighlightCard, MarkdownBody, MetricTile, NextStepCard, ReportSection, ToneBand } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { ConfirmDialog, Header, IconButton, Segmented } from '@/components/ui';
-import { ReportTodoPanel, useTodoChecks } from '@/components/WeeklyTodo';
+import { ConfirmDialog, Header, IconButton } from '@/components/ui';
+import { PreviousTodoCard } from '@/components/WeeklyTodo';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { big3Assignments, completeBig3 } from '@/lib/exercises';
-import { todoCount } from '@/lib/home';
+import { previousTodo } from '@/lib/home';
 import { achievementScope, Big3Lifts, Highlight, Metric, NEXT_TITLES, ReportKind } from '@/lib/reports';
 import { colors } from '@/theme';
 
@@ -20,8 +20,8 @@ const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先�
 /**
  * レポートの中身。種類ごとに並びを変える（Figma の report-daily・report-weekly・report-monthly）。
  * - 日：調子の帯 → 今日の達成 → 分野ごと → 明日の一歩 → くわしく（指標のタイルは出さず、指標は分野のカードに小さく）
- * - 週：調子の帯 → 切り替え「まとめ ／ 次の週にやること 2/3」（次の一歩があるときだけ）。
- *   まとめ：今週の目標 → 指標のタイル → つながり → 分野ごと → くわしく。次の週にやること：次の一歩のチェック（ホームの「今週やること」と同じ値）
+ * - 週：調子の帯 → 今週の目標 → 先週やることの振り返り（前の週のまとめの次の一歩と済んだか。見るだけ。前の週のまとめがなければ出さない）
+ *   → 指標のタイル → つながり → 分野ごと → 来週の一歩 → くわしく。来週の一歩のチェックは、ホームの「今週やること」とレポートのタブの「やること」で
  * - 月：調子の帯 → 体の変化 → 指標のタイル（BIG3 を含む） → つながり → 分野ごと → 目標の見直し → 来月の一歩 → くわしく
  * 達成（今日の達成・今週の目標・体の変化）はアプリが記録から出す。前の形のレポート（達成の期間に合わない・つながりがない）は、ある分だけ出す。
  * レポートのタブの一覧（またはホーム・各タブの日のまとめのカード）の上に開き、戻るで元へ。消せる（確認のダイアログ）。開いたら「見た」にする（新しいレポートのお知らせと「新着」の札を消す。端末だけ）
@@ -31,13 +31,11 @@ export default function ReportScreen() {
   // 読み込み中（null）と、ないレポート（report が null）を分ける
   // BIG3 に割り当てた種目（種目の BIG3 の役。割り当てる前は名前で決めたもの）。3つそろわなければ BIG3 のタイルを出さない
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [report, exercises] = await Promise.all([r.reports.get(id), r.catalog.listExercises({ includeHidden: true })]);
+    const [report, exercises, reports] = await Promise.all([r.reports.get(id), r.catalog.listExercises({ includeHidden: true }), r.reports.list()]);
     const lifts: Big3Lifts | null = completeBig3(big3Assignments(exercises));
-    return { report, lifts };
+    return { report, lifts, prevTodo: report ? previousTodo(reports, report) : null };
   }, id);
   const [confirm, setConfirm] = useState(false);
-  const [tab, setTab] = useState<'summary' | 'todo'>('summary');
-  const checks = useTodoChecks(data?.report?.id, data?.report?.nextStepsDone ?? []);
   const { busy, run } = useBusy();
   const openedId = data?.report?.id;
   useEffect(() => {
@@ -54,9 +52,6 @@ export default function ReportScreen() {
   }
 
   const daily = report.kind === 'daily';
-  // 週のまとめの次の一歩は「次の週にやること」の側に出す（まとめの側からは外す）。次の一歩がなければ切り替えを出さない
-  const hasTodo = report.kind === 'weekly' && report.nextSteps.length > 0;
-  const showTodo = hasTodo && tab === 'todo';
   const scope = achievementScope(report);
   const tiles = daily ? [] : report.highlights.filter((h): h is Highlight & { metric: Metric } => h.metric != null);
   const big3 = scope?.type === 'month' && data.lifts != null;
@@ -79,50 +74,42 @@ export default function ReportScreen() {
       />
       <View style={{ gap: 12, marginTop: 4 }}>
         <ToneBand report={report} />
-        {hasTodo && (
-          <Segmented
-            options={[
-              { key: 'summary', label: 'まとめ' },
-              { key: 'todo', label: `次の週にやること ${todoCount(report.nextSteps, checks.done)}/${report.nextSteps.length}` },
-            ]}
-            value={tab}
-            onChange={setTab}
-          />
+        {scope?.type === 'day' && <DailyAchievementBlock date={scope.date} index={next()} />}
+        {scope?.type === 'week' && <WeeklyGoalsBlock date={scope.date} index={next()} />}
+        {data.prevTodo && (
+          <ReportSection title="先週やることの振り返り">
+            <PreviousTodoCard week={data.prevTodo} />
+          </ReportSection>
         )}
-        {showTodo && <ReportTodoPanel report={report} done={checks.done} onToggle={checks.toggle} />}
-        {!showTodo && (<>
-          {scope?.type === 'day' && <DailyAchievementBlock date={scope.date} index={next()} />}
-          {scope?.type === 'week' && <WeeklyGoalsBlock date={scope.date} index={next()} />}
-          {scope?.type === 'month' && <BodyChangeBlock start={scope.start} end={scope.end} index={next()} />}
-          {(tiles.length > 0 || big3) && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="report-tiles">
-              {tiles.map((h, i) => <MetricTile key={i} highlight={h} index={next()} vs={VS[report.kind]} animKey={report.id} />)}
-              {big3 && scope?.type === 'month' && <Big3Tile lifts={data.lifts} start={scope.start} end={scope.end} index={next()} animKey={report.id} />}
-            </View>
-          )}
-          {report.links.length > 0 && (
-            <ReportSection title="つながり">
-              {report.links.map((l, i) => <LinkCard key={i} link={l} index={next()} />)}
-            </ReportSection>
-          )}
-          {report.highlights.length > 0 && (
-            <ReportSection title="分野ごと">
-              {report.highlights.map((h, i) => <HighlightCard key={i} highlight={h} index={next()} metricVs={daily ? VS.daily : undefined} />)}
-            </ReportSection>
-          )}
-          {report.review && <ReviewCard review={report.review} index={next()} />}
-          {report.nextSteps.length > 0 && !hasTodo && (
-            <ReportSection title={NEXT_TITLES[report.kind]}>
-              {report.nextSteps.map((s, i) => <NextStepCard key={i} n={i + 1} text={s} index={next()} />)}
-            </ReportSection>
-          )}
-          {report.body.trim() !== '' && (
-            <ReportSection title="くわしく">
-              <MarkdownBody body={report.body} />
-            </ReportSection>
-          )}
-          <T size={12} color={colors.sub}>Claude・ChatGPT が書いたまとめです。数字はアプリの記録で確かめてください。</T>
-        </>)}
+        {scope?.type === 'month' && <BodyChangeBlock start={scope.start} end={scope.end} index={next()} />}
+        {(tiles.length > 0 || big3) && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="report-tiles">
+            {tiles.map((h, i) => <MetricTile key={i} highlight={h} index={next()} vs={VS[report.kind]} animKey={report.id} />)}
+            {big3 && scope?.type === 'month' && <Big3Tile lifts={data.lifts} start={scope.start} end={scope.end} index={next()} animKey={report.id} />}
+          </View>
+        )}
+        {report.links.length > 0 && (
+          <ReportSection title="つながり">
+            {report.links.map((l, i) => <LinkCard key={i} link={l} index={next()} />)}
+          </ReportSection>
+        )}
+        {report.highlights.length > 0 && (
+          <ReportSection title="分野ごと">
+            {report.highlights.map((h, i) => <HighlightCard key={i} highlight={h} index={next()} metricVs={daily ? VS.daily : undefined} />)}
+          </ReportSection>
+        )}
+        {report.review && <ReviewCard review={report.review} index={next()} />}
+        {report.nextSteps.length > 0 && (
+          <ReportSection title={NEXT_TITLES[report.kind]}>
+            {report.nextSteps.map((s, i) => <NextStepCard key={i} n={i + 1} text={s} index={next()} />)}
+          </ReportSection>
+        )}
+        {report.body.trim() !== '' && (
+          <ReportSection title="くわしく">
+            <MarkdownBody body={report.body} />
+          </ReportSection>
+        )}
+        <T size={12} color={colors.sub}>Claude・ChatGPT が書いたまとめです。数字はアプリの記録で確かめてください。</T>
       </View>
       <ConfirmDialog
         visible={confirm}
