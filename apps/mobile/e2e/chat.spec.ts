@@ -140,6 +140,38 @@ test('ホームのおすすめ：まだ作っていないまとめの件数と�
   await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
 });
 
+test('レポートのタブ：おすすめの帯と右下の「レポートを作る」（まだのまとめを頼む）。閉じるとホームにも出ない', async ({ page }) => {
+  await openApp(page, '2026-11-06');
+  await recordOn(page, '2026-11-06', [{ exercise: 'ベンチプレス', sets: [{ weight: '60', reps: '10' }] }]);
+  await recordOn(page, '2026-11-07', [{ exercise: 'スクワット', sets: [{ weight: '80', reps: '8' }] }]);
+  await moveToDate(page, '2026-11-10');
+  await goTab(page, 'レポート');
+  // 後ろに重なったホームのタブ（aria-hidden）の帯は数えない
+  const banner = page.getByTestId('report-suggestion').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
+  await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
+  await expect(see(banner, '先週の分と、11月6日・7日の分', { exact: true })).toBeVisible();
+
+  // 右下の「レポートを作る」：まだのまとめがあれば、それをまとめて頼む文で開く
+  await button(page, 'レポートを作る').click();
+  await expect(see(sheet(page), 'まだのまとめ 3 件を作るための文を入れて開きます')).toBeVisible();
+  await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  await expect(sheet(page)).toBeHidden();
+  const [{ app, q }] = (await opened(page)).map(parse);
+  expect(app).toBe(CHATGPT);
+  expect(q).toContain('対象は3件：weekly(2026-11-02..2026-11-08), daily(2026-11-06), daily(2026-11-07)。');
+
+  // レポートのタブで閉じると、ホームにも出ない（閉じたことは同じ所に覚える）。閉じたあとの「レポートを作る」は期間を選ぶシート
+  await button(banner, 'おすすめを閉じる。今出ている分は、もう出しません').click();
+  await expect(banner).toHaveCount(0);
+  await button(page, 'レポートを作る').click();
+  await expect(see(sheet(page), '今日のまとめを作るための文を入れて開きます')).toBeVisible();
+  await button(page, 'Claude で開く（外のアプリ）').click();
+  await expect(sheet(page)).toBeHidden();
+  await goTab(page, 'ホーム');
+  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
+});
+
 test('開けなかったら、シートの中に案内を出し、もう一方を選べる', async ({ page }) => {
   await openApp(page);
   await goTab(page, '筋トレ');

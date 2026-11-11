@@ -12,6 +12,7 @@ const TABS: { name: string; title: string; icon: IconName }[] = [
   { name: 'training', title: '筋トレ', icon: 'dumbbell' },
   { name: 'meals', title: '食事', icon: 'meal' },
   { name: 'body', title: 'からだ', icon: 'scale' },
+  { name: 'reports', title: 'レポート', icon: 'report' },
 ];
 
 export default function TabLayout() {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { button, openApp, openMealWeek, see } from './helpers';
+import { button, openApp, openMealWeek, see, tab, TabName } from './helpers';
 
 // 412 より狭い画面（360×800 など）での崩れ
 test.use({ viewport: { width: 360, height: 800 } });
@@ -28,4 +28,23 @@ test('360 の幅でも、食事の推移の週（いちばん長い「10月26日
   // 1行（titleM の行の高さ 24）で、次の週のボタンに重ならない
   expect(box.height).toBeLessThan(30);
   expect(picker.x + picker.width).toBeLessThanOrEqual(next.x);
+});
+
+test('360 の幅でも、下の5つのタブの文字（いちばん長い「レポート」）が切れず1行に収まり、選んだ印がタブの中に入る', async ({ page }) => {
+  await openApp(page);
+  const names: TabName[] = ['ホーム', '筋トレ', '食事', 'からだ', 'レポート'];
+  for (const name of names) {
+    const t = (await tab(page, name).boundingBox())!;
+    expect(t.x).toBeGreaterThanOrEqual(0);
+    expect(t.x + t.width).toBeLessThanOrEqual(360);
+    // 選んだ印（幅 64）が入る幅
+    expect(t.width).toBeGreaterThanOrEqual(64);
+    const label = tab(page, name).getByText(name, { exact: true });
+    const l = (await label.boundingBox())!;
+    expect(l.x).toBeGreaterThanOrEqual(t.x);
+    expect(l.x + l.width).toBeLessThanOrEqual(t.x + t.width);
+    // 1行（labelM の行の高さ 16）で、はみ出して切れていない
+    expect(l.height).toBeLessThan(24);
+    expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
 });

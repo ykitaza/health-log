@@ -21,7 +21,7 @@ const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先�
  * - 週：調子の帯 → 今週の目標 → 指標のタイル → つながり → 分野ごと → 来週の一歩 → くわしく
  * - 月：調子の帯 → 体の変化 → 指標のタイル（BIG3 を含む） → つながり → 分野ごと → 目標の見直し → 来月の一歩 → くわしく
  * 達成（今日の達成・今週の目標・体の変化）はアプリが記録から出す。前の形のレポート（達成の期間に合わない・つながりがない）は、ある分だけ出す。
- * 消せる（確認のダイアログ）。開いたら「見た」にする（新しいレポートのお知らせと「新着」の札を消す。端末だけ）
+ * レポートのタブの一覧（またはホーム・各タブの日のまとめのカード）の上に開き、戻るで元へ。消せる（確認のダイアログ）。開いたら「見た」にする（新しいレポートのお知らせと「新着」の札を消す。端末だけ）
  */
 export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,7 +39,8 @@ export default function ReportScreen() {
     if (openedId) repos.reports.markSeen([openedId]).catch(() => {});
   }, [openedId, repos]);
 
-  const back = () => router.back();
+  // URL で直接開いたとき（戻る先がない）は、レポートのタブへ移る
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/reports'));
   if (error) return <Screen><Header title="レポート" onBack={back} /><LoadError onRetry={reload} /></Screen>;
   if (data == null) return <Screen><Header title="レポート" onBack={back} /></Screen>;
   const report = data.report;
@@ -55,7 +56,7 @@ export default function ReportScreen() {
     setConfirm(false);
     await repos.reports.remove(report.id);
     stayBusy();
-    router.back();
+    back();
   });
   // 開いたときに順に出す番号（帯が 0）
   let n = 1;

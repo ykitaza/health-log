@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { button, enterBody, goPane, goTab, homeCard, openApp, openBody, openRm, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
 
-test('4つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
+test('5つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
   await openApp(page);
-  // タブはホーム・筋トレ・食事・からだの4つ（推移は筋トレ・食事・からだのタブの中）
-  await expect(page.getByRole('tab')).toHaveCount(4);
-  await expect(page.getByRole('tab')).toHaveText(['ホーム', '筋トレ', '食事', 'からだ']);
+  // タブはホーム・筋トレ・食事・からだ・レポートの5つ（推移は筋トレ・食事・からだのタブの中）
+  await expect(page.getByRole('tab')).toHaveCount(5);
+  await expect(page.getByRole('tab')).toHaveText(['ホーム', '筋トレ', '食事', 'からだ', 'レポート']);
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
 
   await goTab(page, '食事');

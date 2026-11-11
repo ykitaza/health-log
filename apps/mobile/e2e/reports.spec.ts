@@ -1,7 +1,7 @@
-import { BrowserContext, expect, Page, test } from '@playwright/test';
+import { BrowserContext, expect, Locator, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, see, TODAY } from './helpers';
+import { button, goTab, openApp, openSettings, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）と、食事の推定の根拠。
@@ -75,8 +75,11 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   const card = page.getByRole('button', { name: /^気をつけたい、今週のまとめ、睡眠が短い日が多かった、/ }).filter({ visible: true });
   await expect(card).toBeVisible();
   await expect(card).toHaveAccessibleName(/睡眠（平均） 5\.8 時間、前より 0\.6 減った、気をつけたい変化/);
+  // 「すべて」でレポートのタブへ移る（一覧に戻るはない）
   await button(page, 'すべてのレポート').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。期間の日付の新しい順に、月ごとに並びます。')).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
   // 同期で届いた、まだ開いていないものには「新着」
   await page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
 
@@ -101,6 +104,7 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await button(page, 'このレポートを消す').click();
   await button(page, '消す').click();
   await expect(see(page, 'レポートはまだありません')).toBeVisible();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect.poll(() => server.state('report', REPORT)?.deleted, { timeout: 15_000 }).toBe(true);
 });
 
@@ -165,8 +169,12 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
 
   // 筋トレ：training だけ。押すと日のまとめの中身
   await goTab(page, '筋トレ');
-  await expect(see(section(), '今日のまとめから', { exact: true })).toBeVisible();
+  await expect(see(section(), 'レポートから（今日のまとめ）', { exact: true })).toBeVisible();
   await expect(section().getByRole('button')).toHaveCount(1);
+  // 記録のカードと見分けるため、塗りのない点線の枠
+  const extract = section().getByTestId('daily-highlight');
+  await expect(extract).toHaveCSS('border-top-style', 'dashed');
+  await expect(extract).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await button(page, '筋トレ、良い。ベンチプレスを3セット。合計負荷量 2.33 t、前より 0.4 増えた、良い変化').click();
   await expect(see(page.getByTestId('report-band').filter({ visible: true }), '日のまとめ ・ 11月8日に作成')).toBeVisible();
   await button(page, '戻る').click();
@@ -178,7 +186,7 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   await button(page, '前の日').click();
   await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
   // 隠れたタブ（筋トレ）の分は数えない（役割で探すと、隠れたものは入らない）
-  await expect(page.getByRole('heading', { name: /のまとめから$/ })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /^レポートから（/ })).toHaveCount(0);
   await expect(button(page, '食事、変わらない。たんぱく質は 98g')).toHaveCount(0);
 
   // からだ：body と sleep
@@ -188,14 +196,23 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   await expect(button(section(), '睡眠、変わらない。睡眠はいつもどおり')).toBeVisible();
 
   // 一覧：種類のラベル・月の見出し・絞り込み・0件の空の状態
-  await goTab(page, 'ホーム');
-  await button(page, 'すべてのレポート').click();
+  await goTab(page, 'レポート');
   await expect(page.getByRole('heading', { name: '11月', exact: true }).filter({ visible: true })).toBeVisible();
   // 週のまとめはまだ開いていない（新着）。日のまとめは筋トレのタブから開いた
   const weekly = page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ、睡眠が短い日が多かった、週のまとめ、/ }).filter({ visible: true });
   const day = page.getByRole('button', { name: /^良い調子、11月8日のまとめ、ベンチプレスが伸びた日、日のまとめ、/ }).filter({ visible: true });
   await expect(weekly).toBeVisible();
   await expect(day).toBeVisible();
+  // 種類は左上の四角の1文字（右上の「週のまとめ」のバッジはない）。並びは［種類］［調子］…［日付］
+  await expect(weekly.getByTestId('report-kind')).toHaveText('週');
+  await expect(day.getByTestId('report-kind')).toHaveText('日');
+  await expect(see(weekly, '週のまとめ', { exact: true })).toHaveCount(0);
+  const kindBox = (await weekly.getByTestId('report-kind').boundingBox())!;
+  const toneBox = (await see(weekly, '気をつけたい', { exact: true }).boundingBox())!;
+  const dateBox = (await see(weekly, '11月8日', { exact: true }).boundingBox())!;
+  expect(kindBox.width).toBe(28);
+  expect(kindBox.x + kindBox.width).toBeLessThanOrEqual(toneBox.x);
+  expect(toneBox.x + toneBox.width).toBeLessThanOrEqual(dateBox.x);
   await button(page, '日').click();
   await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
   await expect(weekly).toHaveCount(0);
@@ -263,13 +280,15 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   await openApp(page);
   await signInAndSync(page);
 
-  const banner = page.getByTestId('new-report-banner').filter({ visible: true });
+  const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 2 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ・10月31日のまとめ', { exact: true })).toBeVisible();
   await button(banner, '新しいレポートを一覧で見る').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
 
   // 一覧：期間の日付の新しい順。月の見出しも期間の日付。どちらも新着
-  const cards = page.getByTestId(/^report-[0-9a-f]{8}-/).filter({ visible: true });
+  // 後ろに重なったホームのタブ（aria-hidden）の「最新のレポート」は数えない
+  const cards = page.getByTestId(/^report-[0-9a-f]{8}-/).filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toHaveAccessibleName(/^新着、気をつけたい、今週のまとめ、/);
   await expect(cards.nth(1)).toHaveAccessibleName(/^新着、良い調子、10月31日のまとめ、日のまとめ、期間 10月31日（土）/);
@@ -290,25 +309,71 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   // 「新着」の札がなくても、高さは同じ
   const [c, d] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
   expect(Math.round(c!.height)).toBe(Math.round(d!.height));
-  await button(page, '戻る').click();
+  await goTab(page, 'ホーム');
 
   // ホーム：残りの1件。「見る」でそのレポートを開き、戻るとお知らせは消える
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await button(banner, '新しいレポートを見る').click();
   await expect(see(page.getByTestId('report-band').filter({ visible: true }), '気をつけたい', { exact: true })).toBeVisible();
   await button(page, '戻る').click();
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
-  await expect(page.getByTestId('new-report-banner').filter({ visible: true })).toHaveCount(0);
+  await expect(page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
 });
 
 test('新しいレポートのお知らせの「×」：今の分を全部見たことにする', async ({ page, context }) => {
   await connect(page, context, serverWithReport());
   await openApp(page);
   await signInAndSync(page);
-  const banner = page.getByTestId('new-report-banner').filter({ visible: true });
+  const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await button(banner, 'お知らせを閉じる。今出ている分は、見たことにします').click();
-  await expect(page.getByTestId('new-report-banner').filter({ visible: true })).toHaveCount(0);
-  await button(page, 'すべてのレポート').click();
+  await expect(page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
+  await goTab(page, 'レポート');
   await expect(page.getByRole('button', { name: /^気をつけたい、今週のまとめ/ }).filter({ visible: true })).toBeVisible();
+});
+
+test('レポートは下のタブの5つ目。一覧に戻るはなく、今までの URL から来てもレポートのタブへ', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, 'レポート');
+  await expect(page.getByRole('heading', { name: 'レポート', exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(see(page, 'レポートはまだありません')).toBeVisible();
+  await expect(button(page, '自動で作る。ChatGPT のスケジュールに、まとめを作る予定を入れます')).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
+
+  // 前の一覧の URL（/reports、お知らせの /reports?order=newest）は、レポートのタブで開く
+  await page.goto('/reports?order=newest');
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, 'レポートはまだありません')).toBeVisible();
+
+  // 中身の URL を直接開いて戻る先がないときは、戻るでレポートのタブへ
+  await page.goto('/reports/no-such-report');
+  await expect(see(page, 'レポートが見つかりません')).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, 'レポートはまだありません')).toBeVisible();
+});
+
+test('レポートのタブにも新しいレポートのお知らせ。「×」で見たことにすると、一覧の新着もホームのお知らせも消える', async ({ page, context }) => {
+  await connect(page, context, serverWithReport());
+  await openApp(page);
+  await signInAndSync(page);
+  await goTab(page, 'レポート');
+  // 後ろに重なったホームのタブ（aria-hidden）の帯は数えない
+  const shown = (l: Locator) => l.filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
+  const banner = shown(page.getByTestId('new-report-banner'));
+  await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
+  await expect(see(banner, '今週のまとめ', { exact: true })).toBeVisible();
+  // 帯は絞り込みのチップより上
+  const bannerBox = (await banner.boundingBox())!;
+  const chipBox = (await button(page, 'すべて').boundingBox())!;
+  expect(bannerBox.y + bannerBox.height).toBeLessThanOrEqual(chipBox.y);
+  await expect(page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ/ }).filter({ visible: true })).toBeVisible();
+
+  await button(banner, 'お知らせを閉じる。今出ている分は、見たことにします').click();
+  await expect(banner).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^気をつけたい、今週のまとめ/ }).filter({ visible: true })).toBeVisible();
+  await goTab(page, 'ホーム');
+  await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
+  await expect(shown(page.getByTestId('new-report-banner'))).toHaveCount(0);
 });

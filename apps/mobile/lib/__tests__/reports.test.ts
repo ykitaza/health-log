@@ -1,7 +1,7 @@
 import {
-  dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, NEXT_TITLES,
+  dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, KIND_SHORT, NEXT_TITLES,
   formatMetricValue, formatPeriod, formatReportDate, Metric, metricLabel, newReportsSummary, orderToggleLabel, parseInline, parseMarkdown, parseReport, pendingReports,
-  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, sortReports, TAB_AREAS,
+  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, sortReports, suggestionItems, TAB_AREAS,
 } from '../reports';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
@@ -150,6 +150,11 @@ describe('一覧の絞り込み・並び・月の見出し', () => {
     expect(emptyFilterText('monthly').title).toBe('月のまとめはまだありません');
     expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' });
   });
+
+  test('カードの種類の四角は1文字（色ではなく文字で分ける。種類ごとに違う文字）', () => {
+    expect(KIND_SHORT).toEqual({ daily: '日', weekly: '週', monthly: '月', other: '他' });
+    expect(new Set(Object.values(KIND_SHORT)).size).toBe(4);
+  });
 });
 
 describe('新しいレポートのお知らせ', () => {
@@ -199,9 +204,9 @@ describe('各タブに出す、その日の日のまとめ', () => {
     expect(highlightsFor(parseReport(row({ kind: 'daily' })), TAB_AREAS.training)).toEqual([]);
   });
 
-  test('題は「今日のまとめから」、過去の日は「11月6日のまとめから」。読み上げは言葉で', () => {
-    expect(dailySectionTitle('2026-11-08', '2026-11-08')).toBe('今日のまとめから');
-    expect(dailySectionTitle('2026-11-06', '2026-11-08')).toBe('11月6日のまとめから');
+  test('題は「レポートから（今日のまとめ）」、過去の日は「レポートから（11月6日のまとめ）」。読み上げは言葉で', () => {
+    expect(dailySectionTitle('2026-11-08', '2026-11-08')).toBe('レポートから（今日のまとめ）');
+    expect(dailySectionTitle('2026-11-06', '2026-11-08')).toBe('レポートから（11月6日のまとめ）');
     const [training] = highlightsFor(daily, TAB_AREAS.training);
     expect(dailyHighlightLabel(training)).toBe('筋トレ、良い。ベンチプレスを3セット。合計負荷量 2.33 t、前より 0.4 増えた、良い変化');
     expect(dailyHighlightLabel(highlightsFor(daily, ['meals'])[0])).toBe('食事、変わらない。たんぱく質は 98g');
@@ -278,5 +283,21 @@ describe('まだ作っていないまとめ', () => {
   test('1月なら先月は前の年の12月', () => {
     const out = pendingReports({ now: new Date(2027, 0, 5, 9), reports: [], recordDates: ['2026-12-31'] });
     expect(out.at(-1)).toEqual({ kind: 'monthly', periodStart: '2026-12-01', periodEnd: '2026-12-31', key: 'monthly:2026-12-01' });
+  });
+});
+
+describe('お知らせの帯のおすすめ（ホームとレポートのタブ）', () => {
+  const pending = ['daily:2026-11-06', 'weekly:2026-11-02'];
+  test('新しいレポートを読み終わるまでは、どちらも出さない', () => {
+    expect(suggestionItems(null, pending, false)).toEqual([]);
+    expect(suggestionItems(null, pending, true)).toEqual([]);
+  });
+  test('ホームは帯を1つだけ：新しいレポートがあればおすすめは出さない', () => {
+    expect(suggestionItems([{}], pending, false)).toEqual([]);
+    expect(suggestionItems([], pending, false)).toEqual(pending);
+  });
+  test('レポートのタブは2つとも出す（新着があってもおすすめを出す）', () => {
+    expect(suggestionItems([{}], pending, true)).toEqual(pending);
+    expect(suggestionItems([], null, true)).toEqual([]);
   });
 });

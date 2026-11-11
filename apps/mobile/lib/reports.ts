@@ -52,6 +52,8 @@ export const TONE_LABELS: Record<Tone, string> = { good: '良い調子', steady:
 /** 分野ごとのカードの印（短く） */
 export const TONE_SHORT: Record<Tone, string> = { good: '良い', steady: '変わらない', caution: '気をつけたい' };
 export const KIND_LABELS: Record<ReportKind, string> = { daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' };
+/** 一覧のカードの種類の四角の1文字（読み上げは KIND_LABELS） */
+export const KIND_SHORT: Record<ReportKind, string> = { daily: '日', weekly: '週', monthly: '月', other: '他' };
 export const AREA_LABELS: Record<Area, string> = { training: '筋トレ', meals: '食事', body: 'からだ', sleep: '睡眠' };
 /** 次の一歩の見出し（日のまとめなら明日、週のまとめなら来週、月なら来月） */
 export const NEXT_TITLES: Record<ReportKind, string> = { daily: '明日の一歩', weekly: '来週の一歩', monthly: '来月の一歩', other: '次の一歩' };
@@ -346,9 +348,9 @@ export function highlightsFor(r: Report | null, areas: readonly Area[]): Highlig
   return r ? r.highlights.filter((h) => areas.includes(h.area)) : [];
 }
 
-/** 「今日のまとめから」、過去の日は「11月6日のまとめから」 */
+/** 「レポートから（今日のまとめ）」、過去の日は「レポートから（11月6日のまとめ）」 */
 export function dailySectionTitle(date: DateKey, today: DateKey): string {
-  return `${date === today ? '今日' : formatMonthDay(date)}のまとめから`;
+  return `レポートから（${date === today ? '今日' : formatMonthDay(date)}のまとめ）`;
 }
 
 /** 分野のカードの読み上げの名前（「筋トレ、良い。文。指標」） */
@@ -410,6 +412,15 @@ export function pendingReports(input: {
   const thisMonth = `${today.slice(0, 7)}-01`;
   push('monthly', addMonths(thisMonth, -1), addDays(thisMonth, -1));
   return out;
+}
+
+/**
+ * お知らせの帯に出すおすすめ（まだ作っていないまとめ）。新しいレポートを読み終わるまでは出さない（出てから入れ替わらないように）。
+ * ホーム（both=false）は帯を1つだけにするので、新しいレポートがあればおすすめは出さない。レポートのタブ（both=true）は2つとも出す
+ */
+export function suggestionItems<T>(fresh: readonly unknown[] | null, pending: readonly T[] | null, both: boolean): T[] {
+  if (fresh == null || (fresh.length > 0 && !both)) return [];
+  return [...(pending ?? [])];
 }
 
 /** 「先週の分と、11月6日・7日の分」（ホームのおすすめの補足）。並びは月・週・日 */

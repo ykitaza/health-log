@@ -24,7 +24,7 @@ export async function moveToDate(page: Page, date: string) {
   await expect(see(page, 'hlog', { exact: true })).toBeVisible();
 }
 
-export type TabName = 'ホーム' | '筋トレ' | '食事' | 'からだ';
+export type TabName = 'ホーム' | '筋トレ' | '食事' | 'からだ' | 'レポート';
 export const tab = (page: Page, name: TabName) => page.getByRole('tab', { name, exact: true });
 
 /** タブを切り替える。前のタブが隠れる（aria-hidden になる）まで待つ */
