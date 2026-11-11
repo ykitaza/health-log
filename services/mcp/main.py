@@ -151,6 +151,9 @@ def create_server(
         ),
     )
     sync_status = EngineAppSyncStatus(engine)
+    report_service = create_report_service(engine)
+    # 前の週のまとめの次の一歩（アプリのチェックつき）を、週のまとめの材料（weekly_review・period_overview）に足す
+    previous_steps = report_tools.PreviousNextSteps(report_service)
     training_queries, training_commands = create_queries(engine), create_commands(engine, now)
 
     # 食事：食事・いつもの・目標・日の種類は同期の仕組みで読み書きする。体重は筋トレの体組成を、ポートを通して読み書きする
@@ -165,13 +168,13 @@ def create_server(
         goals=GoalService(eaters, goals, day_types, body_data),
         summaries=summaries,
         weights=WeightService(eaters, BodyRecordWeights(training_commands, training_queries), goals),
-    ), today=today, sync_status=sync_status)
+    ), today=today, sync_status=sync_status, previous_steps=previous_steps)
 
     training_tools.register_training_tools(
         mcp, training_commands, training_queries, today=today, sync_status=sync_status)
     # 期間の材料（レポートを書くため）。筋トレ・食事・からだ・目標をまたぐので、ここでつなぐ
-    register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today)
-    report_tools.register_report_tools(mcp, create_report_service(engine))
+    register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today, previous_steps)
+    report_tools.register_report_tools(mcp, report_service)
     register_connector_tools(mcp, session)
     return mcp
 

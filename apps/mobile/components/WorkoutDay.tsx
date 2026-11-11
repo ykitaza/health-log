@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { AiRecordButton } from './ChatSheet';
-import { Big3Badge } from './ExerciseFields';
+import { Big3Badge, PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
@@ -19,7 +19,7 @@ import { big3RoleById } from '@/lib/exercises';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
-import { bestSet, totalVolume } from '@/lib/training';
+import { bestSet, dayBodyParts, entryCardLabel, totalVolume } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
 
@@ -65,6 +65,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
   const entries = data?.entries ?? [];
   const setCount = entries.reduce((a, e) => a + e.sets.length, 0);
   const volume = entries.reduce((a, e) => a + totalVolume(e.sets), 0);
+  const parts = dayBodyParts(entries);
 
   const move = async (id: string, d: -1 | 1) => { await repos.workouts.moveEntry(id, d); reload(); };
   // 外すは1つずつ（確認の「外す」を続けて押しても2回消さない）。並べ替えは、続けて押した分だけ動かす
@@ -116,6 +117,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
         <>
           <Card style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.m, marginTop: space.s }}>
             <Stat label="種目" value={String(entries.length)} />
+            {parts.text !== '' && <Stat label="部位" value={parts.text} spoken={parts.spoken} text center testID="day-parts" />}
             <Stat label="セット" value={String(setCount)} center />
             <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
           </Card>
@@ -128,24 +130,31 @@ export function WorkoutDayContent({ date }: { date: string }) {
           <View style={{ gap: space.m, marginTop: space.s }}>
             {entries.map((e, i) => {
               const best = bestSet(e.sets);
+              const big3 = data?.big3.has(e.exerciseId) ?? false;
+              const e1rm = best ? `${fmt1(kgToUnit(best.e1rm, unit))}${unit}` : null;
+              const hasPart = e.bodyPartName.trim() !== '';
               return (
                 <Animated.View key={e.id} entering={list.entering(i)} exiting={list.exiting} layout={list.layout}>
                   <Card style={{ paddingTop: space.l, paddingBottom: space.s }}>
                     <PressableScale
                       accessibilityRole="button"
                       scaleTo={0.98}
-                      accessibilityLabel={`${e.exerciseName}を直す`}
+                      accessibilityLabel={entryCardLabel({ name: e.exerciseName, part: e.bodyPartName, big3, e1rm })}
                       onPress={() => router.push({ pathname: '/workout/entry', params: { date, entryId: e.id } })}
                     >
+                      {/* 1行目は順番・種目名・＞だけ。2行目（種目名の位置にそろえる）に部位・BIG3・推定1RM */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <SetNo n={i + 1} active />
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.s, flexWrap: 'wrap' }}>
-                          <T variant="titleM" style={{ flexShrink: 1 }} numberOfLines={2}>{e.exerciseName}</T>
-                          {data?.big3.has(e.exerciseId) && <Big3Badge />}
-                        </View>
-                        {best && <T variant="labelL" color={colors.accent}>推定1RM {fmt1(kgToUnit(best.e1rm, unit))}{unit}</T>}
+                        <T variant="titleM" style={{ flex: 1 }} numberOfLines={2}>{e.exerciseName}</T>
                         <Icon name="chevron" size={24} color={colors.sub} />
                       </View>
+                      {(hasPart || big3 || e1rm) && (
+                        <View style={{ marginLeft: 32, marginTop: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.s, flexWrap: 'wrap' }} testID="entry-tags">
+                          <PartBadge name={e.bodyPartName} />
+                          {big3 && <Big3Badge />}
+                          {e1rm && <T variant="labelL" color={colors.accent}>推定1RM {e1rm}</T>}
+                        </View>
+                      )}
                       <View style={{ marginLeft: 32, marginTop: space.s, gap: space.s }}>
                         {e.sets.map((st, j) => (
                           <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -188,11 +197,22 @@ export function WorkoutDayContent({ date }: { date: string }) {
   );
 }
 
-function Stat({ label, value, center, right }: { label: string; value: string; center?: boolean; right?: boolean }) {
+/**
+ * まとめの1つの欄（見出しと値）。text は値が文字（部位の名前）のとき：数字の欄と同じ行の高さで、1行に収める（縮められる欄にする）。
+ * spoken を渡すと、見出しと値をまとめて読み上げる（値を短くした欄で、読み上げではすべてを言う）
+ */
+function Stat({ label, value, center, right, text, spoken, testID }: {
+  label: string; value: string; center?: boolean; right?: boolean; text?: boolean; spoken?: string; testID?: string;
+}) {
   return (
-    <View style={{ alignItems: center ? 'center' : right ? 'flex-end' : 'flex-start' }}>
+    <View
+      style={{ alignItems: center ? 'center' : right ? 'flex-end' : 'flex-start', flexShrink: text ? 1 : 0, minWidth: 0 }}
+      accessible={spoken != null} accessibilityLabel={spoken != null ? `${label} ${spoken}` : undefined} testID={testID}
+    >
       <T variant="labelM" color={colors.sub}>{label}</T>
-      <T variant="numM" bold>{value}</T>
+      {text
+        ? <T variant="titleM" style={{ lineHeight: 28 }} numberOfLines={1}>{value}</T>
+        : <T variant="numM" bold>{value}</T>}
     </View>
   );
 }

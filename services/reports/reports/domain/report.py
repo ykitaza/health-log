@@ -117,6 +117,8 @@ class Report:
     created_at: str = ""  # サーバーが受け付けた時刻（UTC、ISO 8601）。保存の前は空
     links: tuple[Link, ...] = ()  # 前の形のレポートにはない
     review: Review | None = None
+    # 済んだ次の一歩の番号（0 から、小さい順）。アプリのチェック（同期で届く）。次の一歩の数を超える番号は持たない
+    next_steps_done: tuple[int, ...] = ()
 
     def __post_init__(self):
         if not self.title.strip():
@@ -152,6 +154,8 @@ class Report:
                 raise ReportError("links の from_area と to_area は違う分野にしてください（分野をまたぐ気づき）")
         if self.review is not None and (not self.review.text.strip() or len(self.review.text) > MAX_REVIEW_TEXT):
             raise ReportError(f"review の text は1〜{MAX_REVIEW_TEXT}文字にしてください")
+        if any(not 0 <= i < len(self.next_steps) for i in self.next_steps_done):
+            raise ReportError("next_steps_done は next_steps の番号（0 から）にしてください")
         if (self.period_start is None) != (self.period_end is None):
             raise ReportError("期間は period_start と period_end の両方を入れるか、両方とも省いてください")
         if self.period_start and self.period_end:

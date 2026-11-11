@@ -24,10 +24,45 @@ def raw(op, fields=None, entity_id=REPORT_ID):
     return {**out, "fields": fields} if fields is not None else out
 
 
-@pytest.mark.parametrize("op", ["create", "update", "restore"])
-def test_アプリからは_消す以外を断る(op):
-    result = REGISTRY.parse_change(raw(op, FIELDS if op != "restore" else None), {"report"}, "device")
+@pytest.mark.parametrize("op, fields", [
+    ("create", FIELDS), ("restore", None), ("update", {"title": "書き換え"}),
+    ("update", {"next_steps_done": [0], "title": "書き換え"}), ("create", {"next_steps_done": [0]}),
+])
+def test_アプリからは_消すのと次の一歩のチェック以外を断る(op, fields):
+    result = REGISTRY.parse_change(raw(op, fields), {"report"}, "device")
     assert isinstance(result, Rejection) and result.code == "op_not_allowed"
+
+
+def test_アプリから次の一歩のチェックを書ける():
+    change = REGISTRY.parse_change(raw("update", {"next_steps_done": [0, 2]}), {"report"}, "device")
+    assert not isinstance(change, Rejection) and change.fields == {"next_steps_done": [0, 2]}
+    cleared = REGISTRY.parse_change(raw("update", {"next_steps_done": []}), {"report"}, "device")
+    assert not isinstance(cleared, Rejection) and cleared.fields == {"next_steps_done": []}
+
+
+@pytest.mark.parametrize("done", [[3], [-1], [1, 0], [0, 0], [0, 1, 2, 2], ["0"], None, [True]])
+def test_次の一歩のチェックの番号を確かめる(done):
+    result = REGISTRY.parse_change(raw("update", {"next_steps_done": done}), {"report"}, "device")
+    assert isinstance(result, Rejection) and result.code == "invalid_fields"
+
+
+def test_チェックは次の一歩にある番号だけを読む_前の形のレポートでも読める():
+    engine = SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY, clock=lambda: "2026-11-09T01:00:00.000Z")
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", REPORT_ID, None, "create",
+                                   {**FIELDS, "next_steps": ["脚の日を2回", "たんぱく質130g"]},
+                                   "2026-11-09T01:00:00.000Z", "mcp")])
+    repo = SyncReportRepository(engine)
+    assert asyncio.run(repo.get("alice", REPORT_ID)).next_steps_done == ()
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", REPORT_ID, None, "update", {"next_steps_done": [1, 2]},
+                                   "2026-11-09T02:00:00.000Z", "app")])
+    assert asyncio.run(repo.get("alice", REPORT_ID)).next_steps_done == (1,)
+
+
+def test_まだないレポートへのチェックは_一覧に出ない():
+    engine = SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY, clock=lambda: "2026-11-09T01:00:00.000Z")
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", REPORT_ID, None, "update", {"next_steps_done": [0]},
+                                   "2026-11-09T02:00:00.000Z", "app")])
+    assert asyncio.run(SyncReportRepository(engine).list("alice")) == []
 
 
 def test_アプリから消すのは受け付ける():

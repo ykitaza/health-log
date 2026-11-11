@@ -270,6 +270,28 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
     assert week["last_app_sync_at"] is not None  # アプリから同期した記録がある
 
 
+def test_週のまとめの材料に_前の週のまとめの次の一歩とアプリのチェックが出る(server):
+    steps = ["脚の日を2回入れる", "たんぱく質を毎日130gとる", "0時までに寝る日を4日つくる"]
+
+    async def body(client):
+        saved = data(await client.call_tool("save_report", {
+            "title": "今週のまとめ", "overall_tone": "good", "headline": "脚の日が増えた", "kind": "weekly",
+            "period_start": "2026-10-26", "period_end": "2026-11-01", "next_steps": steps}))["report"]
+        server["engine"].append("alice", [Change(str(uuid.uuid4()), "report", saved["report_id"], None, "update",
+                                                 {"next_steps_done": [1]}, "2026-11-08T01:00:00.000Z", "app")])
+        week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        review = data(await client.call_tool("weekly_review", {}))
+        earlier = data(await client.call_tool("period_overview", {"start": "2026-10-26", "end": "2026-11-01"}))
+        return saved["report_id"], week, review, earlier
+
+    report_id, week, review, earlier = run(server, ALL_SCOPES, body)
+    expected = [{"text": steps[0], "done": False}, {"text": steps[1], "done": True}, {"text": steps[2], "done": False}]
+    assert week["previous_next_steps"]["report_id"] == report_id
+    assert week["previous_next_steps"]["steps"] == expected and week["previous_next_steps"]["done_count"] == 1
+    assert review["previous_next_steps"]["steps"] == expected  # 食事の週のふり返り（今週）にも
+    assert earlier["previous_next_steps"] is None
+
+
 def test_期間の材料は31日まで(server):
     async def body(client):
         return (await client.call_tool("period_overview", {"start": "2026-10-08", "end": "2026-11-08"}),

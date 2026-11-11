@@ -1,6 +1,9 @@
 """レポートの種類（report）を、同期の仕組み（sync）に登録する。項目は docs/api/app-api.yaml の ReportFields と同じ。
 
-書くのは MCP（save_report）だけ。アプリは読むのと消すのだけなので、アプリから届く変更は delete だけを受け付ける（app_ops）。
+書くのは MCP（save_report）だけ。アプリは読むのと消すのと、次の一歩のチェック（next_steps_done）だけなので、アプリから届く変更は
+update と delete だけを受け付け、update で書けるのは next_steps_done だけにする（app_ops・app_fields）。
+next_steps_done は済んだ次の一歩の番号（0 から。小さい順、重なりなし）。レポートは保存したら変えない（次の一歩の並びも変わらない）ので、
+番号で指せる。MCP は書かない（save_report は持たせない）。
 scope は筋トレと同じ torelog-api/training.read・training.write（レポートは筋トレと食事の両方をまとめるので、MCP では
 接続のところで食事の scope、ツールで筋トレの scope を確かめる。新しい scope は作らない）。
 上限は domain/report.py と同じ。
@@ -37,12 +40,19 @@ from sync.registry import UUID_PATTERN, EntitySpec, Registry, Rejection
 
 AREA = "training"
 ENTITY = "report"
+APP_FIELD = "next_steps_done"  # アプリが書ける、ただ1つの項目
 
 
 def _not_blank(text: str) -> str:
     if not text.strip():
         raise ValueError("空白だけにはできません")
     return text
+
+
+def _sorted_unique(done: list[int]) -> list[int]:
+    if done != sorted(set(done)):
+        raise ValueError("小さい順に、重ならないように並べてください")
+    return done
 
 
 Tone = Literal["good", "steady", "caution"]
@@ -92,6 +102,9 @@ class ReportFields(FieldsModel):
                                           AfterValidator(_not_blank)]], Field(max_length=MAX_NEXT_STEPS)] = None
     links: Annotated[list[LinkFields], Field(max_length=MAX_LINKS)] = None  # 分野をまたぐ気づき（つながり）
     review: ReviewFields | None = None  # 目標の見直し
+    # 済んだ次の一歩の番号（アプリのホームとレポートの中身のチェック）。アプリだけが書く
+    next_steps_done: Annotated[list[Annotated[int, Field(ge=0, lt=MAX_NEXT_STEPS)]], Field(max_length=MAX_NEXT_STEPS),
+                               AfterValidator(_sorted_unique)] = None
 
 
 def _check(entity_id: str, fields: dict) -> Rejection | None:
@@ -113,4 +126,5 @@ def _check(entity_id: str, fields: dict) -> Rejection | None:
 def register(registry: Registry) -> None:
     registry.register(ENTITY, EntitySpec(
         ReportFields, ("title", "body", "kind"), AREA,
-        valid_id=lambda entity_id: bool(UUID_PATTERN.match(entity_id)), check=_check, app_ops=("delete",)))
+        valid_id=lambda entity_id: bool(UUID_PATTERN.match(entity_id)), check=_check,
+        app_ops=("update", "delete"), app_fields=(APP_FIELD,)))
