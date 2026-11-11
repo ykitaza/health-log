@@ -46,6 +46,9 @@ class EntitySpec:
     index_key: Callable[[Doc], str | None] | None = None
     # アプリ（端末）から受け付ける op。サーバー（MCP）だけが書く種類は、アプリからは delete だけにする（例：レポート）
     app_ops: tuple[str, ...] = OPS
+    # アプリから create・update で書ける項目。None ならどれでも。サーバーが書く種類のうち、アプリが一部の項目だけを書くもの
+    # （例：レポートの次の一歩の済んだ番号 next_steps_done）に使う
+    app_fields: tuple[str, ...] | None = None
 
 
 class Registry:
@@ -135,6 +138,9 @@ class Registry:
             if fields is not None:
                 return Rejection("fields_not_allowed", f"{op} には fields を入れません")
         else:
+            if spec.app_fields is not None and isinstance(fields, dict) and (extra := set(fields) - set(spec.app_fields)):
+                return Rejection("op_not_allowed", f"{entity_type} はアプリから {', '.join(sorted(extra))} を書けません"
+                                 f"（{'・'.join(spec.app_fields)} だけ）")
             fields = self.check_fields(entity_type, op, fields)
             if isinstance(fields, Rejection):
                 return fields

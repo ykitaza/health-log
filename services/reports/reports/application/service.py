@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
+from datetime import date, timedelta
 from typing import Callable
 
 from reports.domain.errors import NotFound, ReportError
@@ -38,6 +39,13 @@ class ReportService:
         if report is None:
             raise NotFound(f"レポート {report_id} は見つかりません")
         return report
+
+    async def previous_weekly(self, owner: str, start: date) -> Report | None:
+        """start（ふり返る期間の初日）の前の週のまとめ：kind が weekly で、期間の終わりが start の7日前〜前の日のもの。
+        いくつかあれば、いちばん新しく作ったもの（アプリのホームの「今週やること」と同じ選び方）。なければ None。"""
+        found = [r for r in await self.list(owner, Kind.WEEKLY)
+                 if r.period_end is not None and start - timedelta(days=7) <= r.period_end < start]
+        return found[0] if found else None
 
     async def delete(self, owner: str, report_id: str) -> None:
         await self.get(owner, report_id)  # ほかの人のレポートや、ないレポートは消せない

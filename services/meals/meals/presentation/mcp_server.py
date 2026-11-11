@@ -79,6 +79,14 @@ class AppSyncStatus(Protocol):
         ...
 
 
+class PreviousNextSteps(Protocol):
+    """前の週のまとめの次の一歩と、それぞれ済んだか（レポートが持つ）。組み立ての場所でつなぐ。"""
+
+    async def previous_next_steps(self, subject: str, start: date) -> dict | None:
+        """start の前の週のまとめの次の一歩（なければ None）。"""
+        ...
+
+
 class NoAppSync:
     """同期をつながないとき（テストなど）。"""
 
@@ -100,8 +108,9 @@ def register_meal_tools(
     services: Services,
     today: Callable[[], date],
     sync_status: AppSyncStatus | None = None,
+    previous_steps: PreviousNextSteps | None = None,
 ) -> None:
-    """食事のツールを mcp に登録する。"""
+    """食事のツールを mcp に登録する。previous_steps をつなぐと、weekly_review に前の週のまとめの次の一歩を足す。"""
     s = services
     status = sync_status or NoAppSync()
 
@@ -198,6 +207,8 @@ def register_meal_tools(
         """day（省略すると今日）を含む週（月曜〜日曜）の食事のふり返り。今週は今日までの日を返す。平均は記録した日だけで出す。
 
         記録しなかった日や目標との差を責めず、次の一歩を1つだけ提案する。
+        previous_next_steps は、前の週のまとめ（save_report の weekly）の次の一歩と、利用者がアプリでチェックしたか（done）。
+        なければ null。週のまとめを書くときは、これを先に振り返ってから次の一歩を書く。
         """
         sub = subject()
         start = week_start(day or today())
@@ -205,6 +216,8 @@ def register_meal_tools(
         if start <= today() < end:  # 今週は今日まで
             end = today()
         weekly = views.weekly(await s.summaries.period(sub, start, end))
+        if previous_steps is not None:
+            weekly["previous_next_steps"] = await previous_steps.previous_next_steps(sub, start)
         return await synced(sub, {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]})
 
     @mcp.tool(annotations=READ)

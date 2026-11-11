@@ -889,6 +889,14 @@ components:
             minLength: 1
             maxLength: 80
           description: 次の一歩。日のまとめは1つ、週・月のまとめは3つまで（上限の検証は3件）
+        next_steps_done:
+          type: array
+          maxItems: 3
+          items:
+            type: integer
+            minimum: 0
+            maximum: 2
+          description: 済んだ次の一歩の番号（0 から。小さい順、重なりなし）。アプリのチェックで、アプリだけが update で書く（MCP は書かない）。読むときは next_steps にない番号を捨てる
         links:
           type: array
           maxItems: 3
@@ -948,7 +956,7 @@ components:
               - meals_goal
               - null
               description: 見直す目標。meals_goal ならアプリが食事の目標を開くボタンを出す。なければ null
-      description: レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）。書くのは MCP だけで、アプリから受け付けるのは delete だけ（create・update・restore は op_not_allowed）。項目を JSON にした大きさは 150,000 バイトまで
+      description: レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）。書くのは MCP だけで、アプリから受け付けるのは delete と、next_steps_done だけの update（create・restore、ほかの項目の update は op_not_allowed）。項目を JSON にした大きさは 150,000 バイトまで
     EntityType:
       type: string
       enum:
@@ -1858,7 +1866,7 @@ components:
           - insufficient_scope
           - op_not_allowed
           description: invalid_fields：知らない項目・型（"10" と 10、1 と true は別）・範囲の違い、null にできない項目に null、entity_id・op・changed_at・origin の誤り。missing_fields：create に要る項目がない。missing_parent_id：meal_item に parent_id がない。parent_id_not_allowed：meal_item
-            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない。op_not_allowed：アプリから受け付けない op（report の delete 以外）
+            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない。op_not_allowed：アプリから受け付けない op か項目（report の delete と next_steps_done の update 以外）
         message:
           type: string
         errors:

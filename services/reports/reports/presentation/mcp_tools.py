@@ -51,6 +51,7 @@ JST = timezone(timedelta(hours=9))
 
 INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
+週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 
@@ -146,7 +147,9 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         つながり・次の一歩・目標の見直しにする。
         種類ごとに書くこと：
         - 日（kind は daily。period_start と period_end をその日にする）：その日の目標に対する一言（highlights は3件ほど）と、明日の一歩を1つ
-        - 週（weekly。月曜〜日曜）：今週の目標の達成についての一言、分野をまたぐ気づき（links）、来週の一歩を3つまで
+        - 週（weekly。月曜〜日曜）：今週の目標の達成についての一言、分野をまたぐ気づき（links）、来週の一歩を3つまで。
+          前の週の次の一歩の結果（period_overview の previous_next_steps。done が true なら済んだ、false ならまだ）を振り返ってから、
+          次の一歩を書く（済んだものは一言ほめて次へ進め、まだのものは続けるか、やりやすい形に小さくする。責めない）
         - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）
         tone は数字で決める（目標に近づいた・増えたなら good、変わらないなら steady、離れた・少ないなら caution）。責める言い方はしない。
         保存は1回の依頼につき1回。同じ内容を2回保存しない。保存したら、アプリのホームに出ることを一言伝える。
@@ -192,6 +195,30 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         return {"deleted": report_id}
 
 
+class PreviousNextSteps:
+    """前の週のまとめの次の一歩と、それぞれ済んだか（アプリのチェック）。週のまとめの材料（period_overview・weekly_review）に足す。
+    食事のツール（weekly_review）と期間の材料（period_overview）に、組み立ての場所（services/mcp/main.py）でつなぐ。"""
+
+    def __init__(self, service: ReportService):
+        self.service = service
+
+    async def previous_next_steps(self, subject: str, start: date) -> dict | None:
+        report = await self.service.previous_weekly(subject, start)
+        return previous_steps_view(report) if report is not None and report.next_steps else None
+
+
+def previous_steps_view(r: Report) -> dict:
+    done = set(r.next_steps_done)
+    return {
+        "report_id": r.id, "title": r.title,
+        "period_start": r.period_start.isoformat() if r.period_start else None,
+        "period_end": r.period_end.isoformat() if r.period_end else None,
+        "steps": [{"text": text, "done": i in done} for i, text in enumerate(r.next_steps)],
+        "done_count": len(done),
+        "note": "利用者がアプリでチェックした結果（done が false でも、チェックしていないだけのこともある）。責めずに振り返る",
+    }
+
+
 def _created_at(r: Report) -> str:
     at = datetime.fromisoformat(r.created_at.replace("Z", "+00:00"))
     return at.astimezone(JST).isoformat(timespec="seconds")
@@ -217,6 +244,7 @@ def _full(r: Report) -> dict:
                 "delta": h.metric.delta, "delta_good": h.metric.delta_good},
         } for h in r.highlights],
         "next_steps": list(r.next_steps),
+        "next_steps_done": list(r.next_steps_done),  # 済んだ次の一歩の番号（アプリのチェック）
         "links": [{"from_area": link.from_area.value, "to_area": link.to_area.value, "text": link.text,
                    "basis": link.basis} for link in r.links],
         "review": None if r.review is None else {
