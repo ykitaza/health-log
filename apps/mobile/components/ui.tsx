@@ -144,10 +144,10 @@ export function SettingsButton() {
 }
 
 /** タブの画面の上の段（高さ 64）。題（24）と、右に操作（actions）と設定の歯車 */
-export function TabHeader({ title, actions, titleNode }: { title: string; actions?: ReactNode; /** 題を文字以外で出すとき（ホームの hlog） */ titleNode?: ReactNode }) {
+export function TabHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   return (
     <View style={s.tabHeader}>
-      <View style={{ flex: 1 }}>{titleNode ?? <T variant="headlineS" accessibilityRole="header">{title}</T>}</View>
+      <View style={{ flex: 1 }}><T variant="headlineS" accessibilityRole="header">{title}</T></View>
       {actions}
       <SettingsButton />
     </View>

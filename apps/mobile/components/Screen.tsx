@@ -2,7 +2,7 @@ import { useScrollToTop } from 'expo-router';
 import { ReactNode, Ref, useLayoutEffect, useRef } from 'react';
 import { RefreshControl, ScrollView, ScrollViewInstance, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePullToSync } from '@/hooks/sync';
 import { ScrollToTopTarget, scrollToTopTarget } from '@/lib/scrollToTop';
 import { colors, size, space } from '@/theme';
@@ -12,16 +12,21 @@ import { Snackbar } from './ui';
 /**
  * 画面の枠。footer は下に固定する（「今日のトレーニングに追加」など）。bottomSpace はスクロールの下の余白（FAB に隠れないように）。
  * タブの画面（tab）は、下に引っぱると同期し、下のタブで今のタブをもう一度押すといちばん上へ戻る。fab は右下に FAB があるとき（知らせをその上に出す）。
- * scrollRef はタブでない画面のスクロール（設定で、開いたときに欄までスクロールするため）
+ * scrollRef はタブでない画面のスクロール（設定で、開いたときに欄までスクロールするため）。
+ * underStatusBar は、中身をステータスバーの下（画面のいちばん上）から描く（ホームの形の段。上の余白は中身の側で取る）
  */
-export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24, fab, scrollRef }: {
+export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24, fab, scrollRef, underStatusBar }: {
   children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean; bottomSpace?: number; fab?: boolean; scrollRef?: Ref<ScrollViewInstance>;
+  underStatusBar?: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   const contentContainerStyle = { paddingHorizontal: space.screen, paddingBottom: bottomSpace };
+  const edges: Edge[] = tab ? ['top'] : ['top', 'bottom'];
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={tab ? ['top'] : ['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={underStatusBar ? edges.filter((e) => e !== 'top') : edges}>
       {scroll && tab ? (
-        <PullToSyncScroll contentContainerStyle={contentContainerStyle} fab={fab}>{children}</PullToSyncScroll>
+        // 同期のマークは、ステータスバーに重ねず、その下に出す
+        <PullToSyncScroll contentContainerStyle={contentContainerStyle} fab={fab} markTop={underStatusBar ? insets.top : 0}>{children}</PullToSyncScroll>
       ) : scroll ? (
         <ScrollView ref={scrollRef} contentContainerStyle={contentContainerStyle} keyboardShouldPersistTaps="handled">
           {children}
@@ -45,7 +50,7 @@ const HIDDEN_SPINNER_OFFSET = -200;
  * 今のタブをもう一度押すと、いちばん上へなめらかに戻る（動きを減らす設定なら一気に）。中で切り替える画面（今日／履歴など）も、
  * 同じスクロールの中なので、表示中のほうが上に戻る
  */
-function PullToSyncScroll({ children, contentContainerStyle, fab }: { children: ReactNode; contentContainerStyle: object; fab?: boolean }) {
+function PullToSyncScroll({ children, contentContainerStyle, fab, markTop }: { children: ReactNode; contentContainerStyle: object; fab?: boolean; markTop: number }) {
   const { refreshing, onRefresh, notice } = usePullToSync();
   const mark = usePullMark(refreshing);
   const scroll = useRef<ScrollViewInstance>(null);
@@ -68,7 +73,9 @@ function PullToSyncScroll({ children, contentContainerStyle, fab }: { children: 
       >
         <Animated.View style={mark.shift}>{children}</Animated.View>
       </ScrollView>
-      <PullMark values={mark.values} />
+      <View style={{ position: 'absolute', top: markTop, left: 0, right: 0 }} pointerEvents="none">
+        <PullMark values={mark.values} />
+      </View>
       {notice && (
         <View style={{ position: 'absolute', left: space.screen, right: space.screen, bottom: fab ? size.fab + space.l * 2 : space.s }}>
           <Snackbar message={notice.message} action={notice.retry ? { label: 'やり直す', onPress: onRefresh } : undefined} testID="pull-notice" />

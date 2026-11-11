@@ -1,5 +1,8 @@
+import type { GrowthDay, GrowthScore } from '../growth';
 import {
-  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, previousTodo, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone, todoCount, todoWeeks, toggleTodo, weekRangeLabel, weeklyTodo,
+  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, homeGrowth, mealRecordTarget, previousTodo, scoreA11yLabel, scoreDiff,
+  scoreDiffSpoken, scorePillars, scoreText, scoreTotalText, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone,
+  todoCount, todoWeeks, toggleTodo, weekRangeLabel, weeklyTodo,
 } from '../home';
 import { big3Trend, TrainingSetRow } from '../training';
 
@@ -205,5 +208,70 @@ describe('今週の目標の連続と、達成のチェックを動かすか', (
     expect(shouldCelebrate(true, '2026-11-09', '2026-11-02')).toBe(true); // 先週に動かした
     expect(shouldCelebrate(true, '2026-11-09', '2026-11-09')).toBe(false); // 同じ週の2回目
     expect(shouldCelebrate(false, '2026-11-09', null)).toBe(false);
+  });
+});
+
+describe('形の段：形の値・今日の衛星・成長スコア', () => {
+  const gday = (date: string, p: Partial<GrowthDay> = {}): GrowthDay => ({
+    date, trained: false, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: null, ...p,
+  });
+  test('記録がまだないときは、形の値は全部 0（種だけ）、衛星はなし、スコアは出せない', () => {
+    expect(homeGrowth([], '2026-11-08', null)).toEqual({
+      params: { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 },
+      sats: { training: 'none', food: 'none', sleep: 'none' },
+      score: null,
+    });
+    // 未来の日の記録だけなら、まだないのと同じ
+    expect(homeGrowth([gday('2026-11-09', { trained: true, volumeKg: 500 })], '2026-11-08', null).score).toBeNull();
+  });
+  test('形の値は今日までの累計の最後、衛星は今日の記録（meal を food に写す）', () => {
+    const g = homeGrowth([
+      gday('2026-11-01', { trained: true, volumeKg: 1000 }),
+      gday('2026-11-08', { trained: true, volumeKg: 500, mealRecorded: true, mealGoalReached: false, sleepMin: 480 }),
+    ], '2026-11-08', 3);
+    expect(g.params).toEqual({ volumeKg: 1500, foodDays: 0, sleepDays: 1, days: 8 });
+    expect(g.sats).toEqual({ training: 'bright', food: 'dim', sleep: 'bright' });
+    expect(g.score?.total).toEqual(expect.any(Number));
+  });
+  test('記録が今日だけ：筋トレ 1/3 回（負荷量も回数の割合）・食事と睡眠は満点。先週の差は出せない', () => {
+    const g = homeGrowth([gday('2026-11-08', { trained: true, volumeKg: 500, mealRecorded: true, mealGoalReached: true, sleepMin: 480 })], '2026-11-08', null);
+    expect(scoreText(g.score)).toBe('73');
+    expect(scoreTotalText(g.score)).toBe('73 / 100');
+    expect(scorePillars(g.score).map((p) => `${p.name} ${p.text}`)).toEqual(['筋トレ 13 / 40', '食事 30 / 30', '睡眠 30 / 30']);
+    expect(scoreDiff(g.score!.diffFromLastWeek)).toBeNull();
+    expect(scoreA11yLabel(g.score)).toBe('成長スコア 73点、直近7日。押すと内訳');
+  });
+
+  const score = (total: number, diff: number | null, meal: number | null = 22): GrowthScore => ({
+    total, training: { points: 32, max: 40 }, meal: { points: meal, max: 30 }, sleep: { points: 24.4, max: 30 }, diffFromLastWeek: diff,
+  });
+  test('先週との差：矢印と符号。0 は ±0。出せないときは出さない', () => {
+    expect(scoreDiff(4)).toEqual({ dir: 'up', text: '↑ +4' });
+    expect(scoreDiff(-3)).toEqual({ dir: 'down', text: '↓ −3' });
+    expect(scoreDiff(0)).toEqual({ dir: 'flat', text: '±0' });
+    expect(scoreDiff(null)).toBeNull();
+    expect(scoreDiffSpoken(4)).toBe('先週より 4点高い');
+    expect(scoreDiffSpoken(-3)).toBe('先週より 3点低い');
+    expect(scoreDiffSpoken(0)).toBe('先週と同じ');
+    expect(scoreDiffSpoken(null)).toBeNull();
+  });
+  test('点が出せないときは「—」', () => {
+    expect(scoreText(null)).toBe('—');
+    expect(scoreTotalText(null)).toBe('—');
+    expect(scorePillars(null).map((p) => p.text)).toEqual(['—', '—', '—']);
+    expect(scoreA11yLabel(null)).toBe('成長スコア まだ記録がありません。押すと内訳');
+  });
+  test('内訳：柱ごとに 点／満点（四捨五入）。記録がない柱は「—」', () => {
+    expect(scorePillars(score(78, 4))).toEqual([
+      { key: 'training', name: '筋トレ', text: '32 / 40', label: '筋トレ 32点、40点満点' },
+      { key: 'meal', name: '食事', text: '22 / 30', label: '食事 22点、30点満点' },
+      { key: 'sleep', name: '睡眠', text: '24 / 30', label: '睡眠 24点、30点満点' },
+    ]);
+    expect(scorePillars(score(70, null, null))[1]).toEqual({ key: 'meal', name: '食事', text: '—', label: '食事 記録なし' });
+  });
+  test('スコアの読み上げ', () => {
+    expect(scoreA11yLabel(score(78, 4))).toBe('成長スコア 78点、直近7日。先週より 4点高い。押すと内訳');
+    expect(scoreA11yLabel(score(60, -3))).toBe('成長スコア 60点、直近7日。先週より 3点低い。押すと内訳');
+    expect(scoreA11yLabel(score(60, 0))).toBe('成長スコア 60点、直近7日。先週と同じ。押すと内訳');
   });
 });

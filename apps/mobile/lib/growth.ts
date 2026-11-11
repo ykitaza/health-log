@@ -21,6 +21,7 @@ export type GrowthDay = {
 /** 形を描く値。その日までの累計 */
 export type GrowthParams = { volumeKg: number; foodDays: number; sleepDays: number; days: number };
 
+/** 今日の衛星。none＝点線の軌道だけ、dim＝薄い衛星、bright＝明るく光る衛星 */
 export type SatState = 'none' | 'dim' | 'bright';
 
 /** 食事の目標に届いたとみなす割合（カロリーとたんぱく質の両方が、その日の目標のこれ以上） */

@@ -4,6 +4,7 @@ import { addDays, addMonths, DateKey, formatMonthDay, weekStart } from './date';
 import type { Big3Role } from './exercises';
 import type { GoalProgress, GoalStreak } from './goals';
 import { weekOf } from './goals';
+import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, satellites, SatState, SCORE_MAX } from './growth';
 import { formatMinutes } from './health';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
 import type { Report } from './reports';
@@ -165,6 +166,78 @@ export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big
     points: trend.points,
     from,
   };
+}
+
+/** ホームの形の段（形・「成長を見る」）の読み上げ */
+export const GROWTH_STAGE_LABEL = '成長の形。押すと成長を見る画面を開く';
+
+/** 成長スコアの内訳のシートのひとこと */
+export const GROWTH_SCORE_NOTE = '直近7日の記録から計算します。記録がない日は数えません';
+
+/** 記録がまだないときの形の値（種だけが出る） */
+const NO_GROWTH: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+
+/**
+ * ホームの形の段に出すもの：形の値（今日までの累計）、今日の衛星（部品の名前に合わせて meal を food に写す）、成長スコア。
+ * 今日までに記録が1つもなければ、形の値は全部 0、スコアは null（点が出せない。画面では「—」）
+ */
+export function homeGrowth(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null): {
+  params: GrowthParams; sats: { training: SatState; food: SatState; sleep: SatState }; score: GrowthScore | null;
+} {
+  const series = growthSeries(days, today);
+  const sat = satellites(days.find((d) => d.date === today));
+  return {
+    params: series[series.length - 1] ?? NO_GROWTH,
+    sats: { training: sat.training, food: sat.meal, sleep: sat.sleep },
+    score: series.length === 0 ? null : growthScore(days, today, weeklyTrainingGoal),
+  };
+}
+
+/** 成長スコアの大きい数字（「78」）。点が出せないときは「—」 */
+export function scoreText(score: GrowthScore | null): string {
+  return score ? String(score.total) : '—';
+}
+
+/** 内訳の合計（「78 / 100」）。点が出せないときは「—」 */
+export function scoreTotalText(score: GrowthScore | null): string {
+  return score ? `${score.total} / 100` : '—';
+}
+
+/** 先週との差（「↑ +4」「↓ −3」「±0」）。向きは矢印と符号でも伝える（色だけにしない）。差が出せないときは null（出さない） */
+export function scoreDiff(diff: number | null): { dir: 'up' | 'down' | 'flat'; text: string } | null {
+  if (diff == null) return null;
+  if (diff === 0) return { dir: 'flat', text: '±0' };
+  return diff > 0 ? { dir: 'up', text: `↑ +${diff}` } : { dir: 'down', text: `↓ −${-diff}` };
+}
+
+/** 先週との差の読み上げ（「先週より 4点高い」「先週より 3点低い」「先週と同じ」）。差が出せないときは null */
+export function scoreDiffSpoken(diff: number | null): string | null {
+  if (diff == null) return null;
+  if (diff === 0) return '先週と同じ';
+  return diff > 0 ? `先週より ${diff}点高い` : `先週より ${-diff}点低い`;
+}
+
+/** 成長スコアの読み上げ（「成長スコア 78点、直近7日。先週より 4点高い。押すと内訳」） */
+export function scoreA11yLabel(score: GrowthScore | null): string {
+  if (!score) return '成長スコア まだ記録がありません。押すと内訳';
+  return [`成長スコア ${score.total}点、直近7日`, scoreDiffSpoken(score.diffFromLastWeek), '押すと内訳'].filter(Boolean).join('。');
+}
+
+const PILLAR_NAMES = { training: '筋トレ', meal: '食事', sleep: '睡眠' } as const;
+
+/**
+ * 内訳の柱の行（筋トレ・食事・睡眠の順）。text は「32 / 40」（点は四捨五入）、その柱の記録が7日に1日もなければ「—」。
+ * 点が出せない（score が null）ときは、どの柱も「—」
+ */
+export function scorePillars(score: GrowthScore | null): { key: keyof typeof PILLAR_NAMES; name: string; text: string; label: string }[] {
+  return (['training', 'meal', 'sleep'] as const).map((key) => {
+    const name = PILLAR_NAMES[key];
+    const max = SCORE_MAX[key];
+    const points = score?.[key].points ?? null;
+    if (points == null) return { key, name, text: '—', label: `${name} 記録なし` };
+    const n = Math.round(points);
+    return { key, name, text: `${n} / ${max}`, label: `${name} ${n}点、${max}点満点` };
+  });
 }
 
 /** 先月との差の向きと文字（「+7.5」「−2.5」「±0」）。0.05 未満の差は ±0 とする（筋トレの推移のカードと同じ） */

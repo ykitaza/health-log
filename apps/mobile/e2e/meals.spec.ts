@@ -1,7 +1,7 @@
 // 食事タブの代表の流れ（画面でしか確かめられないもの）。合計・目標の残り・週のふり返り・入力の確かめ・複製の中身は
 // jest（lib/__tests__/meals*.test.ts、db/__tests__/meals.test.ts）で確かめている
 import { expect, Page, test } from '@playwright/test';
-import { button, controlDb, enterBody, goTab, openApp, openBody, openMealWeek, see, setBodyInfo, TODAY } from './helpers';
+import { button, controlDb, enterBody, goTab, homeIcon, openApp, openBody, openMealWeek, see, setBodyInfo, TODAY } from './helpers';
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
 const bmi = (page: Page) => page.getByRole('button', { name: /^BMI .*BMIの推移を見る$/ }).filter({ visible: true });
@@ -72,7 +72,7 @@ test('下の「食事を追加」：今の時刻に近い区分を選んだシ�
   // 夜 7 時半なら夕食を選んでおく
   await page.clock.setFixedTime(new Date(`${TODAY}T19:30:00+09:00`));
   await page.goto('/');
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
   await goTab(page, '食事');
   await button(page, '食事を追加').click();
   await expect(see(page, '夕食を記録', { exact: true })).toBeVisible();

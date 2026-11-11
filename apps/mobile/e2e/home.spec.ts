@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 import {
-  button, expectTrainingDay, goTab, homeCard, openApp, openSettings, recordFromHome, recordOn, recordToday, moveToDate, setBodyInfo, TODAY, see, tab,
+  button, expectTrainingDay, goTab, homeCard, homeIcon, openApp, openSettings, recordFromHome, recordOn, recordToday, moveToDate, setBodyInfo, TODAY, see, tab,
 } from './helpers';
 
 // 今週の負荷量・日数の計算は jest（lib/__tests__/screen-logic.test.ts の「ホームの数字」）、BIG3 の合計は lib/__tests__/home.test.ts。ここは画面に出ること
@@ -157,6 +157,45 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await expect(visible(page, 'goal-training')).toContainText('1／3 回');
 });
 
+// 形は web では描かない（components/growth/GrowthShape.web.tsx）。スコアの計算と文言は jest（lib/__tests__/growth.test.ts・home.test.ts）。
+// ここは形の段の文字と押せるものが出ること
+test('形の段：アイコン・月・歯車・成長スコア・「成長を見る」。スコアを押すと内訳のシート', async ({ page }) => {
+  await openApp(page);
+  const stage = visible(page, 'growth-stage');
+  await expect(stage.getByTestId('home-app-icon')).toHaveAttribute('aria-label', 'hlog');
+  // 月の見出しは段にだけ出す（カレンダーの上に二重に出さない）
+  await expect(see(stage, 'November 2026', { exact: true })).toBeVisible();
+  await expect(see(page, 'November 2026', { exact: true })).toHaveCount(1);
+  await expect(button(stage, '設定')).toBeVisible();
+  await expect(button(stage, '成長の形。押すと成長を見る画面を開く')).toBeVisible();
+  await expect(button(stage, '成長を見る')).toHaveText('成長を見る ›');
+
+  // 記録がまだないときは「—」。内訳もどの柱も「—」で、先週との差は出さない
+  const noScore = button(stage, '成長スコア まだ記録がありません。押すと内訳');
+  await expect(noScore).toHaveText('—成長スコア');
+  await noScore.click();
+  const sheet = visible(page, 'growth-score-sheet');
+  await expect(see(sheet, '成長スコア', { exact: true })).toBeVisible();
+  for (const name of ['training', 'meal', 'sleep', 'total']) await expect(sheet.getByTestId(`growth-score-${name}`)).toContainText('—');
+  await expect(sheet.getByTestId('growth-score-week')).toHaveCount(0);
+  await expect(see(sheet, '直近7日の記録から計算します。記録がない日は数えません')).toBeVisible();
+  await button(page, '閉じる').click();
+  await expect(sheet).toHaveCount(0);
+
+  // 先週（11/1）と今日に筋トレ：今週は筋トレ 1/3 回・負荷量は前の4週の平均以上で 27点、食事と睡眠は記録がないので外す
+  await recordOn(page, '2026-11-01', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
+  await moveToDate(page, TODAY);
+  await recordToday(page, [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
+  const score = button(stage, '成長スコア 67点、直近7日。先週より 34点高い。押すと内訳');
+  await expect(score).toHaveText('67成長スコア↑ +34');
+  await score.click();
+  await expect(sheet.getByTestId('growth-score-training')).toHaveText('筋トレ27 / 40');
+  await expect(sheet.getByTestId('growth-score-meal')).toHaveText('食事—');
+  await expect(sheet.getByTestId('growth-score-sleep')).toHaveText('睡眠—');
+  await expect(sheet.getByTestId('growth-score-total')).toHaveText('合計67 / 100');
+  await expect(sheet.getByTestId('growth-score-week')).toHaveText('先週との差↑ +34');
+});
+
 /** 今週の目標を、筋トレ 2回・食事の記録 3日・睡眠 切にする（ホームから設定を開いて戻る） */
 async function setSmallGoals(page: Page) {
   await openSettings(page);
@@ -165,7 +204,7 @@ async function setSmallGoals(page: Page) {
     await expect(button(page, name)).toHaveAttribute('aria-selected', 'true');
   }
   await button(page, '戻る').click();
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
 }
 
 /** 食事のタブで、今の日の昼食を1品だけ記録して、ホームに戻る */
@@ -210,7 +249,7 @@ test('今週の目標：最後の1つが届くと見出しの右に「✓ 達成
   );
 
   await page.reload();
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
   await expect(visible(page, 'goal-meals')).toContainText('3／3 日');
   await expect(visible(page, 'goals-achieved')).toHaveText('達成');
   await expect(visible(page, 'goal-streak')).toHaveText('1週連続で達成');
