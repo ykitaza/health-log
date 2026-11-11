@@ -44,6 +44,16 @@ export const colors = {
   scrim: 'rgba(0,0,0,0.6)',
 } as const;
 
+/**
+ * 記録で育つ形（components/growth）の色。点は training を主に、中心に近い部分は sleep。
+ * 衛星は内側から training（丸）・food（ひし形）・sleep（輪）
+ */
+export const growthColors = {
+  training: '#5EE6A0',
+  food: '#5ED4E6',
+  sleep: '#B79CF0',
+} as const;
+
 /** 入力のヒント（placeholder）の色 */
 export const placeholderColor = colors.sub;
 
