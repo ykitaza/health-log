@@ -25,7 +25,8 @@ REQUIRED = {"title", "body", "kind"}
 
 
 def report_fields(r: Report) -> dict:
-    """保存する項目。構造のある項目は、入っているものだけ（前の形のレポートと同じく、なければ持たない）。"""
+    """保存する項目。構造のある項目は、入っているものだけ（前の形のレポートと同じく、なければ持たない）。
+    次の一歩の済んだ番号（next_steps_done）はアプリだけが書くので、ここには入れない。"""
     fields: dict = {
         "title": r.title, "body": r.body, "kind": r.kind.value,
         "period_start": r.period_start.isoformat() if r.period_start else None,
@@ -67,13 +68,17 @@ def report_from_state(state: EntityState) -> Report | None:
         links = tuple(Link(Area(link["from_area"]), Area(link["to_area"]), link["text"], link.get("basis"))
                       for link in v.get("links") or [])
         review = v.get("review")
+        next_steps = tuple(v.get("next_steps") or ())
+        # アプリが送った番号のうち、次の一歩にあるものだけ（項目ごとに当てはめるので、次の一歩より先に届くこともある）
+        done = tuple(i for i in v.get("next_steps_done") or () if isinstance(i, int) and 0 <= i < len(next_steps))
         return Report(
             state.entity_id, v["title"], v["body"], Kind(v["kind"]),
             date.fromisoformat(v["period_start"]) if v.get("period_start") else None,
             date.fromisoformat(v["period_end"]) if v.get("period_end") else None,
             Tone(v["overall_tone"]) if v.get("overall_tone") else None,
-            v.get("headline") or "", highlights, tuple(v.get("next_steps") or ()), state.created_at, links,
-            Review(review["text"], ReviewTarget(review["target"]) if review.get("target") else None) if review else None)
+            v.get("headline") or "", highlights, next_steps, state.created_at, links,
+            Review(review["text"], ReviewTarget(review["target"]) if review.get("target") else None) if review else None,
+            done)
     except (ReportError, ValueError, KeyError, TypeError) as e:
         logger.warning("読めない report を飛ばしました（id=%s）: %s", state.entity_id, e)
         return None

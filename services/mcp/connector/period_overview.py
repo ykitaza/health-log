@@ -35,6 +35,12 @@ class Settings(Protocol):
     async def weekly_goals(self, eater_id: EaterId) -> dict[str, int | None]: ...
 
 
+class PreviousNextSteps(Protocol):
+    """前の週のまとめの次の一歩と、済んだか。実装は reports.presentation.mcp_tools.PreviousNextSteps。"""
+
+    async def previous_next_steps(self, subject: str, start: date) -> dict | None: ...
+
+
 class AppSyncStatus(Protocol):
     async def last_app_sync_at(self, subject: str) -> str | None: ...
 
@@ -46,6 +52,7 @@ def register_overview_tools(
     settings: Settings,
     sync_status: AppSyncStatus,
     today: Callable[[], date],
+    previous_steps: PreviousNextSteps,
 ) -> None:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def period_overview(start: date | None = None, end: date | None = None) -> dict:
@@ -59,6 +66,8 @@ def register_overview_tools(
         - steps：日ごとの歩数の合計と、記録がある日の平均（Health Connect の取り込み。記録がない日は含めない）
         - goals：食事の目標（meals）、目標体重（goal_weight_kg）、今週の目標（weekly。筋トレの回数・食事を記録する日数・
           7時間以上寝る日数。週の日数で、0 は目標を切っている、null は未設定）
+        - previous_next_steps：前の週のまとめ（start の7日前〜前の日に終わる weekly）の次の一歩と、利用者がアプリでチェックしたか
+          （done）。なければ null。週のまとめは、これを先に振り返ってから次の一歩を書く
         数字はこの結果の値だけを使い、推測で作らない。達成の数字（目標に対する回数など）はアプリが記録から計算して見せるので、
         レポートには書かなくてよい。もっとくわしい記録は、それぞれのツール（get_workout、list_meals など）で読む。
         """
@@ -100,5 +109,6 @@ def register_overview_tools(
                 else (nutrition_goal or {}).get("target_weight_kg"),
                 "weekly": await settings.weekly_goals(eater),
             },
+            "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
             "last_app_sync_at": await sync_status.last_app_sync_at(sub),
         }

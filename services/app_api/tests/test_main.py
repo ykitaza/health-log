@@ -58,7 +58,7 @@ def test_MCP_で記録した人と_アプリの人は_同じ_sub_なら同じデ
     assert {s["entity_type"] for s in meals_only["states"]} == {"meal", "meal_item"}
 
 
-def test_レポートはアプリから消せるが_作ったり書き換えたりするのは断る():
+def test_レポートはアプリから消せて_次の一歩のチェックだけ書ける_作ったり書き換えたりするのは断る():
     registry = main.create_registry()
     engine = SyncEngine(InMemorySyncStore(registry.index_key), registry)
     api = main.create_api(engine, APP_CLIENT)
@@ -73,6 +73,7 @@ def test_レポートはアプリから消せるが_作ったり書き換えた�
     created = push("create", {"title": "偽のレポート", "body": "x", "kind": "other"})
     assert (created["status"], created["error"]["code"]) == ("rejected", "op_not_allowed")
     assert push("update", {"title": "書き換え"})["error"]["code"] == "op_not_allowed"
+    assert push("update", {"next_steps_done": [0]})["status"] == "accepted"
     assert push("delete")["status"] == "accepted"
 
 

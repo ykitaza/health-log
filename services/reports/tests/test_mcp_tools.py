@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import uuid
+from datetime import date
 
 import pytest
 from mcp.server.auth.provider import AccessToken
@@ -12,6 +14,7 @@ from reports.domain import report as limits
 from reports.main import create_service, register_sync_entities
 from reports.presentation import mcp_tools
 from sync.engine import SyncEngine
+from sync.model import Change
 from sync.registry import Registry
 from sync.store import InMemorySyncStore
 
@@ -214,3 +217,32 @@ def test_件数の上限(call, monkeypatch):
         call("save_report", **WEEKLY)
     call("delete_report", report_id=call("list_reports")["reports"][0]["report_id"])
     call("save_report", **WEEKLY)  # 消せば保存できる
+
+
+def test_説明に_前の週の次の一歩を振り返ってから書くとある():
+    mcp = MCPServer(name="test")
+    mcp_tools.register_report_tools(mcp, None)
+    save = {t.name: t for t in asyncio.run(mcp.list_tools())}["save_report"]
+    assert "previous_next_steps" in save.description and "振り返ってから" in save.description
+    assert "振り返ってから" in mcp_tools.INSTRUCTIONS
+
+
+def test_前の週のまとめの次の一歩と_アプリのチェック(call, engine):
+    steps = ["脚の日を2回入れる", "たんぱく質を毎日130gとる", "0時までに寝る日を4日つくる"]
+    old = call("save_report", **{**WEEKLY, "period_start": "2026-10-26", "period_end": "2026-11-01", "next_steps": ["古い"]})
+    saved = call("save_report", **{**WEEKLY, "next_steps": steps})["report"]
+    call("save_report", **{**WEEKLY, "kind": "monthly", "period_start": "2026-11-01", "period_end": "2026-11-08"})
+    report_id = saved["report_id"]
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", report_id, None, "update", {"next_steps_done": [0, 2]},
+                                   "2026-11-09T02:00:00.000Z", "app")])
+    previous = mcp_tools.PreviousNextSteps(create_service(engine))
+    got = asyncio.run(previous.previous_next_steps("alice", date(2026, 11, 9)))
+    assert got["report_id"] == report_id and got["done_count"] == 2
+    assert got["steps"] == [{"text": steps[0], "done": True}, {"text": steps[1], "done": False},
+                            {"text": steps[2], "done": True}]
+    assert asyncio.run(previous.previous_next_steps("alice", date(2026, 11, 2)))["steps"] == [
+        {"text": "古い", "done": False}]
+    assert old["report"]["report_id"] != report_id
+    assert asyncio.run(previous.previous_next_steps("alice", date(2026, 11, 17))) is None  # 2週前のまとめは見ない
+    assert asyncio.run(previous.previous_next_steps("bob", date(2026, 11, 9))) is None
+    assert call("get_report", report_id=report_id)["next_steps_done"] == [0, 2]
