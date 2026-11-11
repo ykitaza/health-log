@@ -196,9 +196,6 @@ export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big
   };
 }
 
-/** ホームの形の段（形・「成長を見る」）の読み上げ */
-export const GROWTH_STAGE_LABEL = '成長の形。押すと成長を見る画面を開く';
-
 /** 成長スコアの内訳のシートのひとこと */
 export const GROWTH_SCORE_NOTE = '直近7日の記録から計算します。記録がない日は数えません';
 

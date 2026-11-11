@@ -1,6 +1,7 @@
 // 形「点の軌跡」：奇妙なアトラクタ（Clifford）で点を並べ、記録の値から、出す点の数・広がり・光の強さを決める。
 // 点の並びは固定の順（同じ値なら毎回同じ形）。値が変わっても並びは作り直さず、「先頭から N 個を出す」だけにする。
 // attractorLayout は、再生のとき UI スレッドで毎フレーム呼ぶので worklet にしている（jest ではただの関数として動く）
+import { grow, seedRamp, ShapeLayout, smoothstep } from './common';
 import type { GrowthParams } from './types';
 
 /** 出す点の数の下限と上限。最初の数週間でもまばらにならない数と、Pixel で毎フレーム回しても重くならない数 */
@@ -65,36 +66,15 @@ export function pointTints(points: Float32Array): Float32Array {
   return out;
 }
 
-function smoothstep(a: number, b: number, v: number): number {
-  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-}
-
-/** 0 から始まり、scale のとき約 0.63、増えるほど 1 に近づく。負の値や数でない値は 0 として扱う */
-function grow(value: number, scale: number): number {
-  'worklet';
-  const v = Number.isFinite(value) && value > 0 ? value : 0;
-  return 1 - Math.exp(-v / scale);
-}
-
-export type AttractorLayout = {
-  /** 出す点の数（小数。端の点はなめらかに現れる）。記録がまだなければ 0 */
-  count: number;
-  /** 広がり（形の大きさの倍率、0.55〜1） */
-  spread: number;
-  /** 光の強さ（0.35〜1） */
-  glow: number;
-};
-
 /**
  * 記録の値から、点の数（筋トレ）・広がり（食事）・光の強さ（睡眠）を決める。段階ではなく連続して変わる。
  * days が 0（記録がまだない）なら点は出さない（種だけを出す）。そこから SEED_RAMP_DAYS 日かけて点が増える
  */
-export function attractorLayout(p: GrowthParams): AttractorLayout {
+export function attractorLayout(p: GrowthParams): ShapeLayout {
   'worklet';
   const spread = 0.55 + 0.45 * grow(p.foodDays, FOOD_SCALE_DAYS);
   const glow = 0.35 + 0.65 * grow(p.sleepDays, SLEEP_SCALE_DAYS);
-  const ramp = Number.isFinite(p.days) ? Math.min(1, Math.max(0, p.days / SEED_RAMP_DAYS)) : 0;
+  const ramp = seedRamp(p.days, SEED_RAMP_DAYS);
   const count = (MIN_POINTS + (MAX_POINTS - MIN_POINTS) * grow(p.volumeKg, VOLUME_SCALE_KG)) * ramp;
   return { count, spread, glow };
 }

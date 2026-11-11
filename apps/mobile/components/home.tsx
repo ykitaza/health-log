@@ -7,14 +7,16 @@ import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-re
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncStore } from '@/db/repositories/sync';
 import { useGoalStreak, useGrowthData, useWeeklyAchievement } from '@/hooks/data';
+import { useGrowthShape } from '@/hooks/growthShape';
 import { NOTICE_MS, useSync } from '@/hooks/sync';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/date';
 import { allGoalsReached, GoalProgress } from '@/lib/goals';
 import type { GrowthScore } from '@/lib/growth';
 import {
-  goalA11yLabel, goalRatio, goalStreakText, GROWTH_SCORE_NOTE, GROWTH_STAGE_LABEL, homeGrowth, mealRecordTarget, scoreA11yLabel, scoreDiff,
+  goalA11yLabel, goalRatio, goalStreakText, GROWTH_SCORE_NOTE, homeGrowth, mealRecordTarget, scoreA11yLabel, scoreDiff,
   scoreDiffSpoken, scorePillars, scoreText, scoreTotalText, shouldCelebrate, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
 } from '@/lib/home';
+import { DEFAULT_SHAPE, growthStageLabel } from '@/lib/shapes/labels';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
 import { colors, radius, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
@@ -47,6 +49,7 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const { data } = useGrowthData(today);
+  const { shape } = useGrowthShape();
   const [open, setOpen] = useState(false);
   const growth = useMemo(() => homeGrowth(data?.days ?? [], today, data?.weeklyTrainingGoal ?? null), [data, today]);
   const score = data ? growth.score : null;
@@ -61,11 +64,12 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
       onLayout={(e) => setShapeWidth(Math.max(0, e.nativeEvent.layout.width - space.screen * 2))}
     >
       <PressableScale
-        accessibilityRole="button" accessibilityLabel={GROWTH_STAGE_LABEL} scaleTo={0.98} onPress={openGrowth} testID="growth-shape"
+        accessibilityRole="button" accessibilityLabel={growthStageLabel(shape ?? DEFAULT_SHAPE)} scaleTo={0.98} onPress={openGrowth} testID="growth-shape"
         style={{ position: 'absolute', left: space.screen, top: shapeTop, width: shapeWidth, height: shapeHeight }}
       >
-        {shapeWidth > 0 && shapeHeight > 0 && (
-          <GrowthShape shape="attractor" params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
+        {shapeWidth > 0 && shapeHeight > 0 && shape != null && (
+          // 形を変えたら作り直す（形ごとに点の数がちがう）
+          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
         )}
       </PressableScale>
       <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">

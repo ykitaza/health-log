@@ -77,4 +77,51 @@ test('記録があるとき：今日の姿、つまみと ⏭ で日を移ると
   await expect(see(page, '成長', { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(day(page)).toHaveAttribute('aria-label', 'DAY 3、2026年11月8日（日）');
   await expect(button(page, '再生')).toBeEnabled();
+
+  // 再生中に「形を選ぶ」を押すと、一時停止してシートを出す
+  await button(page, '再生').click();
+  await expect(see(page, '成長を再生中', { exact: true })).toBeVisible();
+  await button(page, '形を選ぶ').click();
+  await expect(page.getByTestId('shape-picker').filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('growth-status').filter({ visible: true })).toHaveText('成長');
+});
+
+test('形を選ぶ：シートに3つ並び、木を選ぶと画面の名前が変わって閉じる。開き直しても、ホームに戻っても木のまま', async ({ page }) => {
+  await openApp(page);
+  await button(page, '成長を見る').click();
+  const name = page.getByTestId('growth-shape-name').filter({ visible: true });
+  await expect(name).toHaveText('点の軌跡');
+
+  // 記録がまだない日にもボタンは出る。押すとシートに3つ並び、最初は点の軌跡を選んでいる
+  await button(page, '形を選ぶ').click();
+  const sheet = page.getByTestId('shape-picker').filter({ visible: true });
+  await expect(see(sheet, '形を選ぶ', { exact: true })).toBeVisible();
+  await expect(see(sheet, 'どの形でも、育ち方と衛星の意味は同じです')).toBeVisible();
+  const radios = sheet.getByRole('radio');
+  await expect(radios).toHaveCount(3);
+  const attractor = sheet.getByRole('radio', { name: '点の軌跡。点が増えて形が浮かび、広がる', exact: true });
+  const tree = sheet.getByRole('radio', { name: '木。枝が伸び、葉が増え、光の粒が増える', exact: true });
+  const galaxy = sheet.getByRole('radio', { name: '銀河。腕が伸び、星が増え、中心が光る', exact: true });
+  await expect(attractor).toHaveAttribute('aria-checked', 'true');
+  await expect(tree).toHaveAttribute('aria-checked', 'false');
+  await expect(galaxy).toHaveAttribute('aria-checked', 'false');
+
+  // 木を選ぶと、名前が「木」になり、シートが閉じる
+  await tree.click();
+  await expect(name).toHaveText('木');
+  await expect(page.getByTestId('shape-picker')).toHaveCount(0);
+
+  // 開き直しても木を選んでいる。外を押して閉じる
+  await button(page, '形を選ぶ').click();
+  await expect(tree).toHaveAttribute('aria-checked', 'true');
+  await expect(attractor).toHaveAttribute('aria-checked', 'false');
+  await button(page, '閉じる').click();
+  await expect(page.getByTestId('shape-picker')).toHaveCount(0);
+
+  // ホームに戻っても、形の段は木
+  await button(page, '戻る').click();
+  await expect(button(page, '成長の形（木）。押すと成長を見る画面を開く')).toBeVisible();
+  // 開き直しても（端末に置いた値を読む）木のまま
+  await page.reload();
+  await expect(button(page, '成長の形（木）。押すと成長を見る画面を開く')).toBeVisible();
 });

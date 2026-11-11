@@ -170,7 +170,7 @@ test('形の段：アイコン・月・歯車・成長スコア・「成長を�
   await expect(see(stage, 'November 2026', { exact: true })).toBeVisible();
   await expect(see(page, 'November 2026', { exact: true })).toHaveCount(1);
   await expect(button(stage, '設定')).toBeVisible();
-  await expect(button(stage, '成長の形。押すと成長を見る画面を開く')).toBeVisible();
+  await expect(button(stage, '成長の形（点の軌跡）。押すと成長を見る画面を開く')).toBeVisible();
   await expect(button(stage, '成長を見る')).toHaveText('成長を見る ›');
 
   // 記録がまだないときは「—」。内訳もどの柱も「—」で、先週との差は出さない
