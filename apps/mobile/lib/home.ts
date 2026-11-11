@@ -1,6 +1,6 @@
 // ホームの画面に出す言葉と、カードを出すかどうかの決まり（app/(tabs)/index.tsx と components/home.tsx が使う）
 import { goalProgress } from './body';
-import { addDays, addMonths, DateKey, formatMonthDay, weekStart } from './date';
+import { addDays, addMonths, DateKey, daysBetween, formatMonthDay, weekStart } from './date';
 import type { Big3Role } from './exercises';
 import type { GoalProgress, GoalStreak } from './goals';
 import { weekOf } from './goals';
@@ -8,7 +8,7 @@ import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, satell
 import { formatMinutes } from './health';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
 import type { Report } from './reports';
-import { big3Trend, TrainingSetRow, volumeBetween } from './training';
+import { big3PartialNote, big3Trend, TrainingSetRow, volumeBetween } from './training';
 import { fmt1, kgToUnit, WeightUnit } from './units';
 
 /** 今日の体調のカードの2行目。目標体重とその日の体重があるときだけ（からだの画面と同じ lib/body.ts の goalProgress） */
@@ -149,22 +149,50 @@ export function thisWeekVolume(rows: TrainingSetRow[], today: DateKey): number {
   return volumeBetween(rows, weekStart(today), today);
 }
 
-/** ホームの BIG3 のカードの折れ線の期間（筋トレの推移の「BIG3 の推定1RM（合計）」と同じ3か月） */
+/** ホームの BIG3 のカードの折れ線の、いちばん広い期間（上限の3か月。筋トレの推移の「BIG3 の推定1RM（合計）」と同じ） */
 export const HOME_BIG3_MONTHS = 3;
 
+/** 折れ線の始まりの日（from）、差の基準の日（base）、差の言葉（「先週より」「先週の記録なし」） */
+export type Big3Range = { from: DateKey; base: DateKey; diffText: string; noDiffText: string };
+
 /**
- * ホームの「BIG3 推定1RM 合計」。筋トレの推移のグラフと同じ big3Trend で、今の合計・先月との差・3か月の折れ線の点を出す。
- * 3種目がそろわない（割り当てがない・記録がない）あいだは null
+ * ホームのカードの折れ線の幅と、差の基準。BIG3 の最初の記録の日（first）から今日までの長さで、段階で広げる。
+ * - 7日以内：7日。最初の記録の日との差（「始めた日より」）
+ * - 8〜14日：14日。7日前との差（「先週より」）
+ * - 15日〜1か月：1か月。7日前との差（「先週より」）
+ * - 1か月を超える：3か月（上限）。1か月前との差（「先月より」）
+ */
+export function big3Range(first: DateKey, today: DateKey): Big3Range {
+  const days = daysBetween(first, today);
+  const monthAgo = addMonths(today, -1);
+  const make = (from: DateKey, base: DateKey, word: string): Big3Range => ({ from, base, diffText: `${word}より`, noDiffText: `${word}の記録なし` });
+  if (days <= 7) return make(addDays(today, -7), first, '始めた日');
+  if (days <= 14) return make(addDays(today, -14), addDays(today, -7), '先週');
+  if (first >= monthAgo) return make(monthAgo, addDays(today, -7), '先週');
+  return make(addMonths(today, -HOME_BIG3_MONTHS), monthAgo, '先月');
+}
+
+/**
+ * ホームの「BIG3 推定1RM 合計」。筋トレの推移のグラフと同じ big3Trend で、今の合計・基準の日との差・折れ線の点を出す。
+ * 折れ線の幅と差の基準は big3Range。記録がある種目だけの合計で、3種目そろっていなければ添え書き（note）も返す。
+ * 1種目も記録がない（割り当てがない・記録がない）あいだは null
  */
 export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey) {
-  const from = addMonths(today, -HOME_BIG3_MONTHS);
-  const trend = big3Trend(rows, assignments, today, from);
-  if (trend.total == null) return null;
+  const widest = addMonths(today, -HOME_BIG3_MONTHS);
+  const wide = big3Trend(rows, assignments, today, widest);
+  if (wide.total == null) return null;
+  // 最初の記録の日。点は記録の日と from から並ぶので、先頭が from なら記録は from 以前（1か月を超える昔）で、段階は同じになる
+  const range = big3Range(wide.points[0].date, today);
+  const trend = range.from === widest ? wide : big3Trend(rows, assignments, today, range.from);
+  const base = trend.points.filter((p) => p.date <= range.base).pop();
   return {
-    totalKg: trend.total,
-    diffKg: trend.totalMonthAgo == null ? null : trend.total - trend.totalMonthAgo,
+    totalKg: wide.total,
+    diffKg: base ? wide.total - base.total : null,
     points: trend.points,
-    from,
+    from: range.from,
+    diffText: range.diffText,
+    noDiffText: range.noDiffText,
+    note: big3PartialNote(wide),
   };
 }
 

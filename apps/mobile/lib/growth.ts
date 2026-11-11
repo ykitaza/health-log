@@ -222,7 +222,7 @@ export function highlights(input: HighlightInput): Highlight[] {
     if (hit) add(hit.date, 'goalWeight', `目標体重 ${w(goal)} に到達`);
   }
 
-  // BIG3 の推定1RM の合計の節目
+  // BIG3 の推定1RM の合計の節目（記録がある種目だけの合計。種目が増えた日に、いくつか飛び越えることがあり、その日はいちばん高い節目だけ出る）
   if (sets.length > 0) {
     const from = sets.reduce((a, s) => (s.date < a ? s.date : a), today);
     let reachedStep = 0;

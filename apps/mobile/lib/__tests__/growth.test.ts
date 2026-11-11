@@ -224,15 +224,15 @@ describe('highlights', () => {
     expect(r).toEqual([{ date: '2026-01-05', kind: 'personalBest', text: 'ベンチプレス 自己ベスト 82.5 kg', priority: 2 }]);
   });
 
-  test('BIG3 合計：3種目がそろってから、50kg の節目を超えた日', () => {
+  test('BIG3 合計：記録がある種目だけの合計が、50kg の節目を超えた日。種目が増えて飛び越えたら、いちばん高い節目だけ', () => {
     const sets = [
-      set('2026-01-01', 'bench', 60, 1), set('2026-01-01', 'squat', 80, 1),
-      set('2026-01-02', 'dl', 100, 1), // 合計 240 → 200 を超えた
+      set('2026-01-01', 'bench', 60, 1), set('2026-01-01', 'squat', 80, 1), // 2種目で合計 140 → 100 を超えた
+      set('2026-01-02', 'dl', 100, 1), // デッドリフトが入って合計 240 → 150 を飛び越えて 200 を超えた
       set('2026-01-09', 'bench', 70, 1), // 合計 250
     ];
     const r = highlights({ ...base, sets }).filter((h) => h.kind === 'big3Total');
     expect(r.map((h) => [h.date, h.text, h.priority])).toEqual([
-      ['2026-01-02', 'BIG3 合計 200.0 kg 突破', 4], ['2026-01-09', 'BIG3 合計 250.0 kg 突破', 4],
+      ['2026-01-01', 'BIG3 合計 100.0 kg 突破', 4], ['2026-01-02', 'BIG3 合計 200.0 kg 突破', 4], ['2026-01-09', 'BIG3 合計 250.0 kg 突破', 4],
     ]);
   });
 
@@ -260,6 +260,7 @@ describe('highlights', () => {
       set('2026-01-11', 'bench', 85, 1),
     ];
     const r = highlights({ ...base, sets });
-    expect(r.map((h) => [h.date, h.kind])).toEqual([['2026-01-10', 'trainingCount'], ['2026-01-11', 'personalBest']]);
+    // 1種目でも記録があれば、合計の節目（80kg → 50）が最初の日に出る
+    expect(r.map((h) => [h.date, h.kind])).toEqual([['2026-01-01', 'big3Total'], ['2026-01-10', 'trainingCount'], ['2026-01-11', 'personalBest']]);
   });
 });
