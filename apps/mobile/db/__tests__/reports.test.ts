@@ -1,5 +1,9 @@
-// レポート（版7）：同期で受け取って読む、消すと delete だけを送る、積み直さない。食事の推定の根拠も
+// レポート（版7）：同期で受け取って読む、消すと delete だけを送る、積み直さない。食事の推定の根拠も。次の一歩のチェック（版12）
+import fs from 'fs';
+import path from 'path';
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
+import { toggleTodo } from '@/lib/home';
+import { SPEC_BY_TYPE, toApiFields } from '../syncSpec';
 import { ItemInput } from '@/lib/meals';
 import { syncStore } from '../repositories/sync';
 import { createApiClient } from '@/lib/api';
@@ -276,5 +280,94 @@ describe('版9のマイグレーション', () => {
     await d.r.reports.setScheduleRequestedOn('2026-11-11');
     expect(await d.r.reports.scheduleRequestedOn()).toBe('2026-11-11');
     expect(d.outbox()).toEqual([]);
+  });
+});
+
+/** outbox の1行の fields を、送るときの API の値にする（JSON の列は文字列のまま積まれる） */
+const apiFields = (r: Record<string, unknown>) => toApiFields(SPEC_BY_TYPE.get('report')!, JSON.parse(String(r.fields)));
+
+describe('次の一歩のチェック（next_steps_done）', () => {
+  // testdata/sync/report_checks.json：アプリが送る変更の形。サーバーの pytest（services/reports/tests/test_shared_report_checks.py）が
+  // 同じファイルの変更を本物の API に送り、MCP の previous_next_steps に出ることを確かめる
+  const CHECKS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'testdata', 'sync', 'report_checks.json'), 'utf8'));
+
+  test('report_checks.json：受け取った週のまとめにチェックを付けると、next_steps_done だけの update を送る', async () => {
+    const d = await device();
+    saveReport(d, CHECKS.report_id, '2026-11-09T01:00:00.000Z', CHECKS.report);
+    await d.engine.run();
+    for (const i of CHECKS.checks as number[]) {
+      const done = (await d.r.reports.get(CHECKS.report_id))!.nextStepsDone;
+      await d.r.reports.setStepsDone(CHECKS.report_id, toggleTodo(done, i));
+    }
+    const sent = d.outbox().map((r) => ({ entity_type: r.entity_type, entity_id: r.entity_id, op: r.op, fields: apiFields(r), origin: r.origin }));
+    expect(sent[sent.length - 1]).toEqual(CHECKS.app_change);
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+    expect(d.server.state('report', CHECKS.report_id)!.fields).toMatchObject({ next_steps_done: CHECKS.checks });
+    expect((await d.r.reports.get(CHECKS.report_id))!.nextStepsDone).toEqual(CHECKS.checks);
+  });
+
+  test('ほかの端末のチェックを受け取る。次の一歩にない番号は読まない。変わらなければ積まない', async () => {
+    const d = await device();
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', { ...WEEKLY, next_steps: ['a', 'b'] });
+    d.server.append([{
+      change_id: crypto.randomUUID(), entity_type: 'report', entity_id: WEEK, parent_id: null, op: 'update', fields: { next_steps_done: [1, 2] },
+      changed_at: '2026-11-09T02:00:00.000Z', origin: 'app', device_id: 'other',
+    }]);
+    await d.engine.run();
+    expect((await d.r.reports.get(WEEK))!.nextStepsDone).toEqual([1]);
+    await d.r.reports.setStepsDone(WEEK, [1]);
+    expect(d.outbox()).toEqual([]);
+    await d.r.reports.setStepsDone(WEEK, [1, 0, 0, 5]);
+    expect(d.outbox().map(apiFields)).toEqual([{ next_steps_done: [0, 1] }]);
+  });
+
+  test('消したレポートにはチェックを書かない', async () => {
+    const d = await device();
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', WEEKLY);
+    await d.engine.run();
+    await d.r.reports.remove(WEEK);
+    await d.r.reports.setStepsDone(WEEK, [0]);
+    expect(d.outbox().map((r) => r.op)).toEqual(['delete']);
+  });
+});
+
+describe('版12のマイグレーション', () => {
+  async function v11() {
+    const db = memoryDb();
+    const deps = testDeps();
+    const v12 = MIGRATIONS.splice(11);
+    try {
+      await migrate(db, deps.now);
+    } finally {
+      MIGRATIONS.push(...v12);
+    }
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('applying', '1')`).run();
+    db.raw.prepare(`INSERT INTO reports (id, title, body, kind, next_steps, created_at, updated_at) VALUES (?, '今週のまとめ', '', 'weekly', ?, 'x', 'x')`)
+      .run(WEEK, JSON.stringify(['a', 'b', 'c']));
+    db.raw.prepare(`DELETE FROM sync_meta WHERE key = 'applying'`).run();
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '9')`).run();
+    db.raw.prepare(`INSERT INTO sync_seen (entity_type, entity_id, seq) VALUES ('report', ?, 1), ('meal', 'm1', 5)`).run(WEEK);
+    return { db, deps };
+  }
+
+  test('端末だけのチェック（home.weekly_todo）を一度だけレポートに移して送る。受け取りの位置とレポートの印は消す', async () => {
+    const { db, deps } = await v11();
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('home.weekly_todo', ?)`).run(JSON.stringify({ reportId: WEEK, done: [2, 0, 7] }));
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    expect(db.raw.prepare(`SELECT key FROM sync_meta WHERE key IN ('home.weekly_todo', 'cursor')`).all()).toEqual([]);
+    expect(db.raw.prepare('SELECT entity_type, entity_id FROM sync_seen').all()).toEqual([{ entity_type: 'meal', entity_id: 'm1' }]);
+    expect((await repos(db, deps).reports.get(WEEK))!.nextStepsDone).toEqual([0, 2]);
+    const outbox = db.raw.prepare('SELECT entity_type, op, fields FROM sync_outbox').all() as Record<string, unknown>[];
+    expect(outbox.map((r) => [r.entity_type, r.op, apiFields(r)])).toEqual([['report', 'update', { next_steps_done: [0, 2] }]]);
+  });
+
+  test('違うレポート・壊れた値・チェックがないときは、移さずに消すだけ', async () => {
+    for (const raw of [JSON.stringify({ reportId: MONTH, done: [0] }), '{', JSON.stringify({ reportId: WEEK, done: [] })]) {
+      const { db, deps } = await v11();
+      db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('home.weekly_todo', ?)`).run(raw);
+      await migrate(db, deps.now);
+      expect(db.raw.prepare(`SELECT key FROM sync_meta WHERE key = 'home.weekly_todo'`).get()).toBeUndefined();
+      expect(db.raw.prepare('SELECT COUNT(*) AS n FROM sync_outbox').get()).toEqual({ n: 0 });
+    }
   });
 });

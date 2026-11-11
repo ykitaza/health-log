@@ -41,7 +41,7 @@ async function leaveAndReturn(page: Page) {
   }
 }
 
-test('今週やること：週のまとめの次の一歩にチェックを付けると、取り消し線と件数。再読み込みしても残る', async ({ page, context }) => {
+test('今週やること：チェックすると取り消し線と件数。サーバーに届く。全部できたら1行にたたみ、押すと開いて外せる。再読み込みしても残る', async ({ page, context }) => {
   const server = createFakeSyncServer({ clock: () => AT });
   server.append([{ ...mcp, change_id: crypto.randomUUID(), entity_type: 'report', entity_id: 'aaaaaaaa-0000-4000-8000-000000000001', op: 'create', fields: {
     title: '今週のまとめ', kind: 'weekly', period_start: '2026-11-02', period_end: TODAY, overall_tone: 'good', headline: '脚の日が増えた',
@@ -67,9 +67,35 @@ test('今週やること：週のまとめの次の一歩にチェックを付�
   const reportBox = await page.getByTestId('latest-report').filter({ visible: true }).boundingBox();
   expect(todoBox!.y).toBeLessThan(reportBox!.y);
 
+  // チェックはレポートの next_steps_done として、同期でサーバーに届く（次の週のまとめで Claude・ChatGPT が読む）
+  const REPORT = 'aaaaaaaa-0000-4000-8000-000000000001';
+  const serverDone = () => server.state('report', REPORT)?.fields.next_steps_done;
+  await expect.poll(serverDone, { timeout: 30_000 }).toEqual([0]);
+
+  // 全部できたら1行にたたむ：［✓］今週やることを全部できた［3／3］［⌄］
+  await card.getByRole('checkbox', { name: 'たんぱく質を毎日 120g とる' }).click();
+  await card.getByRole('checkbox', { name: '平日は 23時半までに寝る' }).click();
+  const toggle = card.getByRole('button', { name: '今週やることを全部できた。3つのうち3つ済み' });
+  await expect(toggle).toBeVisible();
+  await expect(see(card, '3／3', { exact: true })).toBeVisible();
+  await expect(card.getByRole('checkbox')).toHaveCount(0);
+  await expect.poll(serverDone, { timeout: 30_000 }).toEqual([0, 1, 2]);
+
+  // 押すと開いて見直せる。チェックを外すと、いつもの見出しに戻る
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await card.getByRole('checkbox', { name: '平日は 23時半までに寝る' }).click();
+  await expect(see(card, '今週やること', { exact: true })).toBeVisible();
+  await expect(see(card, '2／3', { exact: true })).toBeVisible();
+  await expect(card.getByRole('checkbox')).toHaveCount(3);
+  await expect.poll(serverDone, { timeout: 30_000 }).toEqual([0, 1]);
+
+  // 再読み込みしても残る（端末の表に書いてある）
   await page.reload();
-  await expect(card.getByRole('checkbox', { name: '脚の日を2回入れる' })).toHaveAttribute('aria-checked', 'true');
-  await expect(see(card, '1／3', { exact: true })).toBeVisible();
+  await expect(card.getByRole('checkbox', { name: 'たんぱく質を毎日 120g とる' })).toHaveAttribute('aria-checked', 'true');
+  await expect(card.getByRole('checkbox', { name: '平日は 23時半までに寝る' })).toHaveAttribute('aria-checked', 'false');
+  await expect(see(card, '2／3', { exact: true })).toBeVisible();
 });
 
 test('取り込みの知らせ：MCP で記録して戻ると「食事を2件、筋トレを1件取り込みました」。見るでその日の食事', async ({ page, context }) => {

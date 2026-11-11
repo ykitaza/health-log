@@ -1,6 +1,6 @@
 // ホームの画面に出す言葉と、カードを出すかどうかの決まり（app/(tabs)/index.tsx と components/home.tsx が使う）
 import { goalProgress } from './body';
-import { addDays, addMonths, DateKey, weekStart } from './date';
+import { addDays, addMonths, DateKey, formatMonthDay, weekStart } from './date';
 import type { Big3Role } from './exercises';
 import type { GoalProgress, GoalStreak } from './goals';
 import { weekOf } from './goals';
@@ -61,30 +61,41 @@ export function shouldCelebrate(achieved: boolean, weekStart: DateKey, seen: str
 
 /**
  * 今週やること：最新の週のまとめ（kind が weekly で、期間の終わりが先週の月曜〜今週の日曜のもの）の次の一歩。
- * reports は新しい順（db の reports.list）。いちばん新しい週のまとめに次の一歩がなければ null（カードを出さない）
+ * reports は新しい順（db の reports.list）。いちばん新しい週のまとめに次の一歩がなければ null（カードを出さない）。
+ * done は済んだ番号（レポートの next_steps_done。同期でサーバーにも届き、次の週のまとめで Claude・ChatGPT が振り返る）
  */
-export function weeklyTodo(reports: Pick<Report, 'id' | 'kind' | 'periodStart' | 'periodEnd' | 'nextSteps'>[], today: DateKey): { reportId: string; steps: string[] } | null {
+export function weeklyTodo(
+  reports: Pick<Report, 'id' | 'kind' | 'periodStart' | 'periodEnd' | 'nextSteps' | 'nextStepsDone'>[], today: DateKey,
+): { reportId: string; steps: string[]; done: number[] } | null {
   const { start, end } = weekOf(today);
   const from = addDays(start, -7);
   const latest = reports.find((r) => {
     const last = r.periodEnd ?? r.periodStart;
     return r.kind === 'weekly' && last != null && last >= from && last <= end;
   });
-  return latest && latest.nextSteps.length > 0 ? { reportId: latest.id, steps: latest.nextSteps } : null;
+  return latest && latest.nextSteps.length > 0 ? { reportId: latest.id, steps: latest.nextSteps, done: latest.nextStepsDone } : null;
 }
 
-/** 今週やることのチェック（端末だけに置く）。レポートの id と、済んだ項目の番号 */
-export type TodoChecks = { reportId: string; done: number[] };
+/** 済んだ数（次の一歩にある番号だけ数える） */
+export function todoCount(steps: readonly string[], done: readonly number[]): number {
+  return steps.filter((_, i) => done.includes(i)).length;
+}
 
-/** 置いた値（JSON）から、そのレポートの済んだ番号を読む。違うレポートの値や壊れた値なら空 */
-export function readTodoChecks(raw: string | null, reportId: string): number[] {
-  try {
-    const v = raw ? (JSON.parse(raw) as Partial<TodoChecks>) : null;
-    if (v?.reportId !== reportId || !Array.isArray(v.done)) return [];
-    return v.done.filter((n): n is number => Number.isInteger(n) && n >= 0);
-  } catch {
-    return [];
-  }
+/** 全部できたか（次の一歩があって、どれも済んだ） */
+export function todoAllDone(steps: readonly string[], done: readonly number[]): boolean {
+  return steps.length > 0 && todoCount(steps, done) === steps.length;
+}
+
+/**
+ * 週のまとめの次の週（期間の終わりの次の日から7日）。レポートの中身の「11月9日〜15日にやること」の見出し。
+ * 月をまたぐときは「11月30日〜12月6日」。期間がなければ null
+ */
+export function nextWeekLabel(periodEnd: DateKey | null): string | null {
+  if (!periodEnd) return null;
+  const start = addDays(periodEnd, 1);
+  const end = addDays(start, 6);
+  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  return `${formatMonthDay(start)}〜${sameMonth ? `${Number(end.slice(8))}日` : formatMonthDay(end)}`;
 }
 
 /** i 番目を済んだ／まだに切り替えた値（番号は小さい順） */

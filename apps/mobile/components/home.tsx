@@ -1,4 +1,4 @@
-// ホームの部品：今週の目標、カレンダーの凡例、今週やること、「記録する」のシート、取り込みの知らせ
+// ホームの部品：今週の目標、カレンダーの凡例、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
@@ -6,20 +6,19 @@ import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncStore } from '@/db/repositories/sync';
-import { useFocusData, useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
+import { useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
 import { NOTICE_MS, useSync } from '@/hooks/sync';
 import { DateKey, formatJpDate, formatMonthDay } from '@/lib/date';
 import { allGoalsReached, GoalProgress } from '@/lib/goals';
 import {
-  goalA11yLabel, goalRatio, goalStreakText, mealRecordTarget, readTodoChecks, shouldCelebrate, toggleTodo, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
-  weeklyTodo,
+  goalA11yLabel, goalRatio, goalStreakText, mealRecordTarget, shouldCelebrate, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
 } from '@/lib/home';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
 import { colors, radius, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { Icon, IconName } from './Icon';
-import { CheckPop, DrawCheck, easeIn, easeOut, GrowBar, PressableScale, Sheet } from './motion';
+import { DrawCheck, easeIn, easeOut, GrowBar, PressableScale, Sheet } from './motion';
 import { T } from './Text';
 import { Snackbar } from './ui';
 
@@ -105,64 +104,6 @@ export function CalendarLegend() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.text }} />
         <T variant="bodyS" color={colors.sub}>食事の記録</T>
-      </View>
-    </View>
-  );
-}
-
-/** チェックを置く場所（sync_meta。同期しない。端末だけ） */
-const TODO_KEY = 'home.weekly_todo';
-
-/**
- * 今週やること：最新の週のまとめの次の一歩をチェックの一覧で。チェックは端末の中だけ（レポートの id と何番目か）。
- * 週のまとめがなければ出さない
- */
-export function WeeklyTodoCard({ today }: { today: DateKey }) {
-  const db = useSQLiteContext();
-  const store = useMemo(() => syncStore(db), [db]);
-  const { data } = useFocusData(async (r) => {
-    const todo = weeklyTodo(await r.reports.list(), today);
-    if (!todo) return null;
-    return { ...todo, done: readTodoChecks(await store.getMeta(TODO_KEY), todo.reportId) };
-  }, today);
-  // 押したらすぐに見た目を変える（保存は後ろで）
-  const [local, setLocal] = useState<{ reportId: string; done: number[] } | null>(null);
-  if (!data) return null;
-  const done = local?.reportId === data.reportId ? local.done : data.done;
-  const toggle = (i: number) => {
-    const next = toggleTodo(done, i);
-    setLocal({ reportId: data.reportId, done: next });
-    void store.setMeta(TODO_KEY, JSON.stringify({ reportId: data.reportId, done: next })).catch(() => {});
-  };
-  const count = data.steps.filter((_, i) => done.includes(i)).length;
-  return (
-    <View style={s.card} testID="weekly-todo">
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <T variant="titleM" accessibilityRole="header">今週やること</T>
-        <T variant="bodyM" color={colors.sub} accessibilityLabel={`${data.steps.length}つのうち${count}つ済み`}>{count}／{data.steps.length}</T>
-      </View>
-      <View style={{ marginTop: space.xs }}>
-        {data.steps.map((step, i) => {
-          const checked = done.includes(i);
-          return (
-            <PressableScale
-              key={i}
-              accessibilityRole="checkbox"
-              aria-checked={checked}
-              accessibilityState={{ checked }}
-              accessibilityLabel={step}
-              scaleTo={0.98}
-              onPress={() => toggle(i)}
-              style={s.todoRow}
-              testID={`todo-${i}`}
-            >
-              <View style={[s.box, checked ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.outline }]}>
-                <CheckPop done={checked}>{checked && <Icon name="check" size={16} color={colors.onAccent} strokeWidth={3} />}</CheckPop>
-              </View>
-              <T variant="bodyL" color={checked ? colors.sub : colors.text} style={[{ flex: 1 }, checked && { textDecorationLine: 'line-through' }]}>{step}</T>
-            </PressableScale>
-          );
-        })}
       </View>
     </View>
   );
@@ -291,9 +232,6 @@ const s = StyleSheet.create({
   small: { backgroundColor: colors.input, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10 },
   track: { height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden', marginTop: 4 },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  card: { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l },
-  todoRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, minHeight: 48, paddingVertical: space.xs },
-  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
