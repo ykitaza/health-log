@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { CountUpText, LineChart, StackedBarChart } from './charts';
+import { PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { LoadError } from './LoadError';
 import { PressableScale } from './motion';
@@ -174,14 +175,16 @@ function ExerciseLineCard({ rows, exercise, today, unit }: { rows: TrainingSetRo
   );
 }
 
-/** 種目の記録の、1日のカード（日付と種目、セット、総負荷量と推定1RM）。押すと記録のタブのその日 */
+/** 種目の記録の、1日のカード（日付と種目と部位の札、セット、総負荷量と推定1RM）。押すと記録のタブのその日 */
 function ExerciseDayCard({ date, entry, name, unit, onPress }: { date: string; entry: Entry; name: string; unit: 'kg' | 'lb'; onPress: () => void }) {
   const best = bestSet(entry.sets);
   return (
     <Card style={{ marginTop: space.m }}>
       <PressableScale accessibilityRole="button" scaleTo={0.98} onPress={onPress} testID={`trend-day-${date}`}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 24 }}>
-          <T variant="titleM" style={{ flex: 1 }}>{formatJpDate(date)} {name}</T>
+          <T variant="titleM" style={{ flexShrink: 1 }}>{formatJpDate(date)} {name}</T>
+          <PartBadge name={entry.bodyPartName} />
+          <View style={{ flex: 1 }} />
           <Icon name="chevron" size={20} color={colors.sub} />
         </View>
         <View style={{ gap: space.s, marginTop: space.m }}>

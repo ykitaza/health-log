@@ -6,6 +6,15 @@ import { Badge, Chip } from '@/components/ui';
 import { BIG3_LABELS, BIG3_ROLES, Big3Role } from '@/lib/exercises';
 import { colors, fonts, radius, space } from '@/theme';
 
+/**
+ * 種目の部位の札（「胸」「背中」。種目と部位の管理で決めた名前をそのまま）。色を増やさず、落ち着いた地に名前の文字で伝える。
+ * 高さ 24（上下 4 ＋ labelM の行 16）、左右 8。名前がなければ出さない
+ */
+export function PartBadge({ name }: { name: string }) {
+  if (name.trim() === '') return null;
+  return <Badge label={name} color={colors.text} bg={colors.input} />;
+}
+
 /** BIG3 に割り当てた種目の名前の横の印 */
 export function Big3Badge() {
   return <Badge label="BIG3" tone="primary" />;

@@ -13,7 +13,7 @@ const TODAY_LABEL = '11月8日（日）';
 
 /** その日のトレーニングの画面の、種目の並び */
 const entryOrder = (page: Page) =>
-  page.getByRole('button', { name: /を直す$/ }).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')!.replace(/を直す$/, '')));
+  page.getByRole('button', { name: /を直す(。|$)/ }).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')!.replace(/を直す(。.*)?$/, '')));
 
 test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画面（回数だけの種目も）。選択と入力の画面にタブバーは出ない', async ({ page }) => {
   await openApp(page);
@@ -39,7 +39,7 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   // 種目のカードの並びの上に見出し（記録がない日は出さない）
   await expect(page.getByRole('heading', { name: '記録した種目', exact: true }).filter({ visible: true })).toBeVisible();
   // 空の3セット目は保存しない：2セット、負荷量 80×8 + 80×6 = 1120kg
-  await expect(see(page, '種目1セット2合計負荷量1.12 t')).toBeVisible();
+  await expect(see(page, '種目1部位胸セット2合計負荷量1.12 t')).toBeVisible();
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
   await expect(see(page, '80.0 kg × 6 回')).toBeVisible();
   await expect(see(page, '推定1RM 101.3kg')).toBeVisible();
@@ -52,7 +52,7 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   await fillSets(page, [{ reps: '12' }]);
   await saveButton(page).click();
   await expect(see(page, '12 回', { exact: true })).toBeVisible();
-  await expect(see(page, '種目2セット3合計負荷量1.12 t')).toBeVisible();
+  await expect(see(page, '種目2部位胸・背中セット3合計負荷量1.12 t')).toBeVisible();
   await expect(see(page, /推定1RM/)).toHaveCount(1);
 
   // 下のタブでホームへ
@@ -134,7 +134,7 @@ test('上のセットをコピー（押せないとき）、セットの追加�
   await fillSets(page, [{}, {}, { weight: '75', reps: '4', memo: '限界' }]);
   await saveButton(page).click();
   // 60×10 + 70×8 + 75×4 = 1460kg
-  await expect(see(page, '種目1セット3合計負荷量1.46 t')).toBeVisible();
+  await expect(see(page, '種目1部位胸セット3合計負荷量1.46 t')).toBeVisible();
   await expect(see(page, 'アップ')).toBeVisible();
   await expect(see(page, '限界')).toBeVisible();
 
@@ -214,7 +214,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await saveButton(page).click();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);
   await expect(see(page, '85.0 kg × 3 回')).toBeVisible();
-  await expect(see(page, '種目3セット4')).toBeVisible();
+  await expect(see(page, '種目3部位背中・胸 ほか1セット4')).toBeVisible();
 
   // 外すときの確認。やめるなら残る
   await button(page, 'ベンチプレスを外す').click();
@@ -229,7 +229,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await button(page.getByRole('dialog'), '外す').click();
   await expect(page.getByRole('dialog')).toBeHidden();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'スクワット']);
-  await expect(see(page, '種目2セット2合計負荷量0.86 t')).toBeVisible(); // 120×3 + 100×5
+  await expect(see(page, '種目2部位背中・脚セット2合計負荷量0.86 t')).toBeVisible(); // 120×3 + 100×5
 
   // 最後の1つを外すと空の画面に戻り、ホームの数字も 0 に戻る
   for (const name of ['デッドリフト', 'スクワット']) {
@@ -300,7 +300,7 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   await page.getByRole('button', { name: 'ベンチプレスを直す' }).click();
   await expect(saveButton(page)).toHaveText('変更を保存');
   await button(page, '戻る').click();
-  await expect(see(page, '種目1セット1')).toBeVisible();
+  await expect(see(page, '種目1部位胸セット1')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // 完了の印を変えただけでも確かめる。保存せずに戻ると元のまま
@@ -317,7 +317,7 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   await button(page, '戻る').click();
   await button(page.getByRole('dialog'), '保存せずに戻る').click();
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();
-  await expect(see(page, '種目1セット1')).toBeVisible();
+  await expect(see(page, '種目1部位胸セット1')).toBeVisible();
 
   // 種目の選択から戻っても、確かめず、何も足されない
   await button(page, '種目を追加').click();

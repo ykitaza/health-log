@@ -353,3 +353,27 @@ export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Bi
     points,
   };
 }
+
+/** その日のまとめの「部位」に、名前を並べて出す数（これより多ければ「ほか ◯」） */
+const DAY_PARTS_SHOWN = 2;
+
+/**
+ * その日にやった部位（種目の並び順に、重ねずに）。名前のない部位は数えない。
+ * text はまとめの欄に1行で出す形（「胸・肩」、3つ以上なら「胸・背中 ほか1」）、spoken は読み上げ用にすべての部位を並べたもの
+ */
+export function dayBodyParts(entries: { bodyPartName: string }[]): { names: string[]; text: string; spoken: string } {
+  const names = [...new Set(entries.map((e) => e.bodyPartName.trim()).filter((n) => n !== ''))];
+  const shown = names.slice(0, DAY_PARTS_SHOWN).join('・');
+  const rest = names.length - DAY_PARTS_SHOWN;
+  return { names, text: rest > 0 ? `${shown} ほか${rest}` : shown, spoken: names.join('、') };
+}
+
+/**
+ * 記録のタブの種目のカードの読み上げ：「ベンチプレスを直す。部位 胸、BIG3、推定1RM 101.3kg」。
+ * 押したときの動き（◯◯を直す）を先に言い、あとに2行目の札と数字を並べる。部位・BIG3・推定1RM はあるものだけ
+ */
+export function entryCardLabel(e: { name: string; part: string; big3: boolean; e1rm: string | null }): string {
+  const details = [e.part.trim() !== '' ? `部位 ${e.part.trim()}` : null, e.big3 ? 'BIG3' : null, e.e1rm != null ? `推定1RM ${e.e1rm}` : null]
+    .filter((d): d is string => d != null);
+  return details.length > 0 ? `${e.name}を直す。${details.join('、')}` : `${e.name}を直す`;
+}
