@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, expectTrainingDay, goTab, homeCard, openApp, openSettings, recordToday, see } from './helpers';
+import { button, expectTrainingDay, goTab, homeCard, homeIcon, openApp, openSettings, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -199,15 +199,13 @@ async function setVisible(page: Page, visible: boolean) {
   }, visible);
 }
 
-const homeTitle = (page: Page) => page.getByRole('heading', { name: 'hlog' }).filter({ visible: true });
-
 // web では下に引っぱる操作（RefreshControl）が動かないので、ホームに同期の状態の行が出ないことと、失敗の知らせの出し方を確かめる。
 // 引っぱったときの決まり（ログインしていなければ同期しない、など）とマークの動きの値は jest の lib/__tests__/sync-status.test.ts・pull-mark.test.ts
 test('ホーム：ふだんは同期の状態を出さない（ログインしていない・同期できたとき）。時刻と件数はアカウントの画面', async ({ page, context }) => {
   await signIn(page, context);
   await routeSyncServer(context, createFakeSyncServer());
   await openApp(page);
-  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
   await expect(homeAlert(page)).toHaveCount(0);
   await expect(see(page, 'ログインすると同期できます')).toHaveCount(0);
 
@@ -216,7 +214,7 @@ test('ホーム：ふだんは同期の状態を出さない（ログインし�
   await expect(status(page, 'sync-last')).toHaveText('11/8 10:00');
   await button(page, '戻る').click();
   await button(page, '戻る').click();
-  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
   await expect(homeAlert(page)).toHaveCount(0);
   await expect(see(page, '同期 ', { exact: false })).toHaveCount(0);
 });
@@ -235,7 +233,7 @@ test('ホーム：自動の同期が続けて失敗したときだけ知らせ�
 
   // 1回の失敗では出さない（自動でやり直す）
   await expect.poll(() => seen.length).toBeGreaterThan(0);
-  await expect(homeTitle(page)).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
   await expect(homeAlert(page)).toHaveCount(0);
   // 前面に戻ったときの同期も失敗すると、続けて 2 回なので出す
   await setVisible(page, false);

@@ -1,26 +1,135 @@
-// ホームの部品：今週の目標、カレンダーの凡例、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
+// ホームの部品：形の段、今週の目標、カレンダーの凡例、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncStore } from '@/db/repositories/sync';
-import { useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
+import { useGoalStreak, useGrowthData, useWeeklyAchievement } from '@/hooks/data';
 import { NOTICE_MS, useSync } from '@/hooks/sync';
-import { DateKey, formatJpDate, formatMonthDay } from '@/lib/date';
+import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/date';
 import { allGoalsReached, GoalProgress } from '@/lib/goals';
+import type { GrowthScore } from '@/lib/growth';
 import {
-  goalA11yLabel, goalRatio, goalStreakText, mealRecordTarget, shouldCelebrate, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
+  goalA11yLabel, goalRatio, goalStreakText, GROWTH_SCORE_NOTE, GROWTH_STAGE_LABEL, homeGrowth, mealRecordTarget, scoreA11yLabel, scoreDiff,
+  scoreDiffSpoken, scorePillars, scoreText, scoreTotalText, shouldCelebrate, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
 } from '@/lib/home';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
-import { colors, radius, space } from '@/theme';
+import { colors, radius, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
+import { GrowthShape } from './growth/GrowthShape';
 import { Icon, IconName } from './Icon';
 import { DrawCheck, easeIn, easeOut, GrowBar, PressableScale, Sheet } from './motion';
 import { T } from './Text';
-import { Snackbar } from './ui';
+import { SettingsButton, Snackbar } from './ui';
+
+/** 形の段の高さ（ステータスバーの下まで含める） */
+const STAGE_HEIGHT = 228;
+/** 形の段の上の行（アイコン・月・歯車）と下の行（成長スコア・成長を見る）の高さ。押せる大きさ（48） */
+const STAGE_ROW = size.touch;
+/** 形の箱の下の端と、段の下の端のあいだ（形と軌道が下の行に重なりすぎないように） */
+const SHAPE_BOTTOM_GAP = 8;
+
+/** 成長を見る画面を開く */
+const openGrowth = () => router.push('/growth');
+
+/** 先週との差の色（上がった・下がった・同じ。向きは矢印と符号でも伝える） */
+const diffColor = (dir: 'up' | 'down' | 'flat') => (dir === 'up' ? colors.accent : dir === 'down' ? colors.danger : colors.sub);
+
+/**
+ * ホームのいちばん上の「記録で育つ形」の段（高さ 228。ステータスバーの下まで含め、中身と一緒にスクロールする）。
+ * 上の行：アプリのアイコンと、カレンダーの月の見出し、設定の歯車。まん中：形（押すと成長を見る画面）。
+ * 下の行：成長スコア（押すと内訳のシート）と「成長を見る」。地は画面と同じ色なので、段の下の端はそのまま下の中身へつながる
+ */
+export function GrowthStage({ today, year, month }: { today: DateKey; year: number; month: number }) {
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
+  const { data } = useGrowthData(today);
+  const [open, setOpen] = useState(false);
+  const growth = useMemo(() => homeGrowth(data?.days ?? [], today, data?.weeklyTrainingGoal ?? null), [data, today]);
+  const score = data ? growth.score : null;
+  const diff = score ? scoreDiff(score.diffFromLastWeek) : null;
+  // 形の箱：上の行の下から、段の下の端の少し上まで。幅は画面の左右の余白の内側
+  const [shapeWidth, setShapeWidth] = useState(0);
+  const shapeTop = insets.top + STAGE_ROW;
+  const shapeHeight = Math.max(0, STAGE_HEIGHT - shapeTop - SHAPE_BOTTOM_GAP);
+  return (
+    <View
+      style={[s.stage, { height: STAGE_HEIGHT }]} testID="growth-stage"
+      onLayout={(e) => setShapeWidth(Math.max(0, e.nativeEvent.layout.width - space.screen * 2))}
+    >
+      <PressableScale
+        accessibilityRole="button" accessibilityLabel={GROWTH_STAGE_LABEL} scaleTo={0.98} onPress={openGrowth} testID="growth-shape"
+        style={{ position: 'absolute', left: space.screen, top: shapeTop, width: shapeWidth, height: shapeHeight }}
+      >
+        {shapeWidth > 0 && shapeHeight > 0 && (
+          <GrowthShape shape="attractor" params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
+        )}
+      </PressableScale>
+      <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">
+        <Image
+          source={require('@/assets/images/icon.png')} style={s.appIcon}
+          accessible accessibilityRole="image" accessibilityLabel="hlog" testID="home-app-icon"
+        />
+        <T num bold size={28} accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
+        <View style={{ marginRight: -12 }}><SettingsButton /></View>
+      </View>
+      <View style={[s.stageRow, { position: 'absolute', left: 0, right: 0, bottom: 0, justifyContent: 'space-between' }]} pointerEvents="box-none">
+        <PressableScale
+          accessibilityRole="button" accessibilityLabel={scoreA11yLabel(score)} scaleTo={0.96} onPress={() => setOpen(true)} style={s.score} testID="growth-score"
+        >
+          <T num bold size={28}>{scoreText(score)}</T>
+          <View>
+            <T variant="labelS" bold={false} color={colors.sub}>成長スコア</T>
+            {diff && <T variant="labelS" color={diffColor(diff.dir)}>{diff.text}</T>}
+          </View>
+        </PressableScale>
+        <PressableScale accessibilityRole="button" accessibilityLabel="成長を見る" scaleTo={0.96} onPress={openGrowth} style={s.growthLink} testID="growth-link">
+          <T variant="labelM" color={colors.accent}>成長を見る ›</T>
+        </PressableScale>
+      </View>
+      <GrowthScoreSheet visible={open} score={score} onClose={() => setOpen(false)} />
+    </View>
+  );
+}
+
+/** 成長スコアの内訳（下から出るシート）：柱ごとの 点／満点、合計、先週との差、計算のひとこと */
+function GrowthScoreSheet({ visible, score, onClose }: { visible: boolean; score: GrowthScore | null; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const diff = score ? scoreDiff(score.diffFromLastWeek) : null;
+  const total = scoreTotalText(score);
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="growth-score-sheet">
+        <View style={{ gap: space.xs }}>
+          <T variant="titleL" accessibilityRole="header">成長スコア</T>
+          <T variant="bodyM" color={colors.sub}>直近7日</T>
+        </View>
+        <View style={s.group}>
+          {scorePillars(score).map((p, i) => (
+            <View key={p.key} style={[s.scoreRow, i > 0 && s.line]} accessible accessibilityLabel={p.label} testID={`growth-score-${p.key}`}>
+              <T variant="bodyL">{p.name}</T>
+              <T num bold size={20}>{p.text}</T>
+            </View>
+          ))}
+          <View style={[s.scoreRow, s.line]} accessible accessibilityLabel={score ? `合計 ${score.total}点、100点満点` : '合計 まだ記録がありません'} testID="growth-score-total">
+            <T variant="titleM">合計</T>
+            <T num bold size={20}>{total}</T>
+          </View>
+          {score && diff && (
+            <View style={[s.scoreRow, s.line]} accessible accessibilityLabel={scoreDiffSpoken(score.diffFromLastWeek) ?? undefined} testID="growth-score-week">
+              <T variant="bodyL">先週との差</T>
+              <T variant="labelL" color={diffColor(diff.dir)}>{diff.text}</T>
+            </View>
+          )}
+        </View>
+        <T variant="bodyM" color={colors.sub}>{GROWTH_SCORE_NOTE}</T>
+      </View>
+    </Sheet>
+  );
+}
 
 /** 達成のチェックを動かした週の月曜を置く場所（sync_meta。同期しない。端末だけ）。同じ週に2回目からは動かさない */
 const CELEBRATED_KEY = 'home.goals_celebrated';
@@ -236,4 +345,11 @@ const s = StyleSheet.create({
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   rowIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.l, paddingHorizontal: space.l, minHeight: 56 },
+  // 画面の左右の余白（Screen の paddingHorizontal）の外まで広げる
+  stage: { marginHorizontal: -space.screen, backgroundColor: colors.bg },
+  stageRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: STAGE_ROW, paddingHorizontal: space.screen },
+  appIcon: { width: 32, height: 32, borderRadius: radius.s },
+  score: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: size.touch, minWidth: size.touch },
+  growthLink: { minHeight: size.touch, justifyContent: 'center', paddingLeft: space.s },
 });

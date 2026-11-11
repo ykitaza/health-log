@@ -3,7 +3,7 @@ import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Sparkline } from '@/components/charts';
 import { PartBadge } from '@/components/ExerciseFields';
-import { CalendarLegend, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
+import { CalendarLegend, GrowthStage, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
@@ -15,13 +15,13 @@ import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
 import { SyncAlertLine } from '@/components/SyncStatus';
 import { T } from '@/components/Text';
-import { Badge, Button, Fab, TabHeader } from '@/components/ui';
+import { Badge, Button, Fab } from '@/components/ui';
 import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { datePoints } from '@/lib/chart';
-import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN, monthMatrix, pickedDayOrToday, yearMonth } from '@/lib/date';
+import { DateKey, formatJpDate, formatMonthDay, monthMatrix, pickedDayOrToday, yearMonth } from '@/lib/date';
 import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
 import { goalLine, homeBig3, signedChange, sleepNote, thisWeekVolume } from '@/lib/home';
@@ -86,16 +86,16 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <Screen tab fab bottomSpace={size.fab + space.l * 2}>
-      <TabHeader title="hlog" titleNode={<T variant="headlineS" accessibilityLabel="hlog" accessibilityRole="header">hl<T variant="headlineS" color={colors.accent}>o</T>g</T>} />
+    <Screen tab fab bottomSpace={size.fab + space.l * 2} underStatusBar>
+      {/* いちばん上は「記録で育つ形」の段（アプリのアイコン・カレンダーの月・設定の歯車・成長スコア。ステータスバーの下まで含める） */}
+      <GrowthStage today={today} year={year} month={month} />
       {/* 同期が続けて失敗しているときだけ、見出しの下に1行で知らせる（ふだんは出さない。時刻と未送信の件数はアカウントの画面） */}
       <SyncAlertLine />
 
       <View style={{ flexDirection: 'row', gap: 10, paddingTop: 12 }}>
         {/* 左右の列の下の端をそろえる：短いほうの列も下まで伸ばし、最後の要素を下に寄せる */}
         <View style={{ flex: 1.55 }}>
-          {/* 大きさは Figma（ホーム 1. ホーム）に合わせる：見出し 30、日の丸 26、行の間 8、曜日の下に線 */}
-          <T num bold size={30} style={{ marginBottom: 4 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
+          {/* 大きさは Figma（ホーム 1. ホーム）に合わせる：日の丸 26、行の間 8、曜日の下に線。月の見出しは上の形の段 */}
           <MonthCalendar
             year={year} month={month} today={today} marked={new Set(dates)} dotted={data?.mealDates} cell={26} rowGap={8} divider testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}

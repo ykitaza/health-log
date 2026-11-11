@@ -10,18 +10,21 @@ export async function setDate(page: Page, date: string) {
   await page.clock.setFixedTime(new Date(`${date}T10:00:00+09:00`));
 }
 
+/** ホームのいちばん上（形の段）のアプリのアイコン。ホームが出ていることを確かめるのに使う */
+export const homeIcon = (page: Page) => page.getByTestId('home-app-icon').filter({ visible: true });
+
 /** 日付を固定してホームを開く。新しいコンテキストなので、データはまっさら */
 export async function openApp(page: Page, date = TODAY) {
   await setDate(page, date);
   await page.goto('/');
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
 }
 
 /** 日付を変えて、ホームを開き直す（保存したデータは残る） */
 export async function moveToDate(page: Page, date: string) {
   await setDate(page, date);
   await page.goto('/');
-  await expect(see(page, 'hlog', { exact: true })).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
 }
 
 export type TabName = 'ホーム' | '筋トレ' | '食事' | 'からだ' | 'レポート';
