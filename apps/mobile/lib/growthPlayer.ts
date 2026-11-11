@@ -150,13 +150,16 @@ export function scrubberLabels(startDate: DateKey | null, today: DateKey): { lef
   return { left: formatMonthDay(startDate), right: formatMonthDay(today) };
 }
 
-/** 下の累計の文字。筋トレは負荷量の累計をトン（lb なら k lb）で小数1桁、食事・睡眠は日数 */
+/** 再生中に、日の数字と下の累計を描き直す間隔（ms）。日と日のあいだの値で、なめらかに数え上げる */
+export const LIVE_UPDATE_MS = 33;
+
+/** 下の累計の文字。筋トレは負荷量の累計をトン（lb なら k lb）で小数1桁、食事・睡眠は日数（再生中の日と日のあいだの値は切り捨てる） */
 export function growthTotals(p: GrowthParams, unit: WeightUnit): { volume: string; volumeUnit: string; foodDays: string; sleepDays: string } {
   return {
     volume: fmt1(kgToUnit(p.volumeKg, unit) / 1000),
     volumeUnit: unit === 'kg' ? 't' : 'k lb',
-    foodDays: String(p.foodDays),
-    sleepDays: String(p.sleepDays),
+    foodDays: String(Math.floor(p.foodDays + 1e-6)),
+    sleepDays: String(Math.floor(p.sleepDays + 1e-6)),
   };
 }
 

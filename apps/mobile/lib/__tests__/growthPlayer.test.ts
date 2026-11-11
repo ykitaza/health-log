@@ -161,6 +161,9 @@ describe('文字', () => {
     expect(growthTotals(P(287_049, 58, 44, 100), 'kg')).toEqual({ volume: '287.0', volumeUnit: 't', foodDays: '58', sleepDays: '44' });
     expect(growthTotals(P(287_060, 0, 0, 1), 'kg').volume).toBe('287.1');
     expect(growthTotals(P(0, 0, 0, 0), 'kg')).toEqual({ volume: '0.0', volumeUnit: 't', foodDays: '0', sleepDays: '0' });
+    // 再生中の日と日のあいだの値：筋トレは 0.1 ずつ進み、日数は次の日に届くまで切り捨てる
+    expect(growthTotals(lerpParams([P(1000, 3, 2, 1), P(2000, 4, 2, 2)], 0.5), 'kg')).toEqual({ volume: '1.5', volumeUnit: 't', foodDays: '3', sleepDays: '2' });
+    expect(growthTotals(lerpParams([P(1000, 3, 2, 1), P(2000, 4, 2, 2)], 1), 'kg')).toMatchObject({ volume: '2.0', foodDays: '4' });
     // 1000 kg ≒ 2204.6 lb → 2.2 k lb
     expect(growthTotals(P(1000, 0, 0, 1), 'lb')).toMatchObject({ volume: '2.2', volumeUnit: 'k lb' });
   });
