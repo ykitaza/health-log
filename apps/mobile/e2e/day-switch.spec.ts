@@ -185,14 +185,29 @@ test.describe('動きを減らす設定がオフ', () => {
   /** 中身の横の位置（transform の translateX） */
   const offsetX = (page: Page) => page.getByTestId('training-day-content').filter({ visible: true })
     .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
+  /** これから frames フレームのあいだ、毎フレーム中身の横の位置を記録する（動きの途中を見落とさないよう、操作の前に始める） */
+  const sampleX = (page: Page, frames = 60) => page.evaluate((n) => new Promise<number[]>((resolve) => {
+    const xs: number[] = [];
+    let count = 0;
+    const tick = () => {
+      for (const el of document.querySelectorAll('[data-testid="training-day-content"]')) xs.push(new DOMMatrix(getComputedStyle(el).transform).m41);
+      if (++count < n) requestAnimationFrame(tick); else resolve(xs);
+    };
+    tick();
+  }), frames);
 
   // 指についてくる位置の計算は jest（dragOffset）。web のマウスでは途中の動きが間引かれることがあるので、ここは向きと大きさの範囲だけ見る
   test('今日より先へはゴムのように小さく動いて戻り、日は変わらない。前へはボタンでもスワイプでも横にすべって変わる', async ({ page }) => {
     await openApp(page);
+    // 開いたときのヒントのずれ：今日は次へ進めないので、右（前の日の向き）へずれて戻る。開く前から毎フレーム位置を記録する
+    const nudge = sampleX(page, 180);
     await goTab(page, '筋トレ');
     await expectTrainingDay(page, '11月8日（日）');
-    // 開いたときのヒントのずれ（左へずれて戻る）が終わるのを待つ
     await expect(hint(page)).toBeVisible();
+    const xs = await nudge;
+    expect(Math.max(...xs)).toBeGreaterThan(10);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(24);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0); // 左（進めない次の向き）へはずれない
     await expect.poll(() => offsetX(page)).toBe(0);
     await page.addStyleTag({ content: '* { user-select: none !important; -webkit-user-select: none !important; }' });
     const box = await trainingArea(page).boundingBox();
@@ -211,9 +226,12 @@ test.describe('動きを減らす設定がオフ', () => {
     await expectTrainingDay(page, '11月8日（日）');
 
     // 前の日のボタンでも、スワイプと同じ向きに横にすべって変わる（右へ出ていき、左から入る）
+    const slid = sampleX(page);
     await button(page, '前の日').click();
-    await expect.poll(() => offsetX(page)).not.toBe(0);
     await expectTrainingDay(page, '11月7日（土）');
+    const xs2 = await slid;
+    expect(Math.max(...xs2)).toBeGreaterThan(50);
+    expect(Math.min(...xs2)).toBeLessThan(-50);
     await expect.poll(() => offsetX(page)).toBe(0);
     await swipe(trainingArea(page), 'prev');
     await expectTrainingDay(page, '11月6日（金）');
