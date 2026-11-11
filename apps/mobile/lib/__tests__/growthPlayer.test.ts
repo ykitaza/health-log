@@ -1,13 +1,12 @@
-import { GrowthDay, GrowthParams, Highlight, Subtitle } from '../growth';
+import { GrowthParams, Highlight, Subtitle } from '../growth';
 import {
-  canPlay, dateAt, dayIndexAt, formatFullDate, growthTotals, highlightsInRange, indexAtX, lastPosition, lerpParams, nextSpeed, NO_SATS,
-  playLabel, ratioAt, remainingMs, SatStates, satsByIndex, satsLabel, satWindowDays, scrubberLabels, secondsAt, smoothSats, speedLabel,
+  canPlay, dateAt, dayIndexAt, formatFullDate, growthTotals, highlightsInRange, indexAtX, lastPosition, lerpParams, nextSpeed,
+  playLabel, ratioAt, remainingMs, scrubberLabels, secondsAt, speedLabel,
   subtitleOn, subtitlePassed,
 } from '../growthPlayer';
 
 const P = (volumeKg: number, foodDays: number, sleepDays: number, days: number): GrowthParams => ({ volumeKg, foodDays, sleepDays, days });
 const hl = (date: string, priority: number, text = date): Highlight => ({ date, kind: 'goalStreak', text, priority });
-const sats = (training: SatStates['training'], food: SatStates['food'] = 'none', sleep: SatStates['sleep'] = 'none'): SatStates => ({ training, food, sleep });
 
 describe('速さと再生の位置', () => {
   test('速さは 1x → 2x → 4x → 1x', () => {
@@ -22,16 +21,16 @@ describe('速さと再生の位置', () => {
     expect(canPlay(100, true)).toBe(false);
   });
   test('位置 → 再生の秒（等速。最後の位置が再生の長さ）', () => {
-    // 100日：1x は 30秒（50秒を最長 30秒に）、2x は 15秒
+    // 100日：1x は 20秒（50秒を最長 20秒に）、2x は 10秒
     expect(lastPosition(100)).toBe(99);
     expect(lastPosition(0)).toBe(0);
-    expect(secondsAt(99, 100, 1)).toBeCloseTo(30);
-    expect(secondsAt(49.5, 100, 1)).toBeCloseTo(15);
-    expect(secondsAt(99, 100, 2)).toBeCloseTo(15);
+    expect(secondsAt(99, 100, 1)).toBeCloseTo(20);
+    expect(secondsAt(49.5, 100, 1)).toBeCloseTo(10);
+    expect(secondsAt(99, 100, 2)).toBeCloseTo(10);
   });
   test('残りの時間：途中からは残りの分だけ。最後なら 0', () => {
-    expect(remainingMs(0, 100, 1)).toBeCloseTo(30000);
-    expect(remainingMs(49.5, 100, 4)).toBeCloseTo(3750);
+    expect(remainingMs(0, 100, 1)).toBeCloseTo(20000);
+    expect(remainingMs(49.5, 100, 4)).toBeCloseTo(2500);
     expect(remainingMs(99, 100, 1)).toBe(0);
     expect(remainingMs(120, 100, 1)).toBe(0);
   });
@@ -61,45 +60,6 @@ describe('lerpParams（前後の日の値をつなぐ）', () => {
     expect(lerpParams(series, -3)).toEqual(series[0]);
     expect(lerpParams(series, 7)).toEqual(series[2]);
     expect(lerpParams([], 0)).toEqual(P(0, 0, 0, 0));
-  });
-});
-
-describe('衛星', () => {
-  const day = (date: string, p: Partial<GrowthDay> = {}): GrowthDay => ({
-    date, trained: false, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: null, ...p,
-  });
-  test('日ごとの衛星。lib/growth.ts の meal を food に写し、記録のない日はなし', () => {
-    const s = satsByIndex([
-      day('2026-11-01', { trained: true, mealRecorded: true }),
-      day('2026-11-03', { mealRecorded: true, mealGoalReached: true, sleepMin: 480 }),
-    ], '2026-11-01', 3);
-    expect(s).toEqual([sats('bright', 'dim'), NO_SATS, sats('none', 'bright', 'bright')]);
-    expect(satsByIndex([], null, 0)).toEqual([]);
-  });
-  test('ならす日数は再生の約1秒ぶん（少なくとも1日）', () => {
-    // 100日・1x は 30秒 → 99 ÷ 30 ≒ 3日。4x は 7.5秒 → 13日
-    expect(satWindowDays(100, 1)).toBe(3);
-    expect(satWindowDays(100, 4)).toBe(13);
-    // 10日・1x は 8秒 → 9 ÷ 8 ≒ 1日
-    expect(satWindowDays(10, 1)).toBe(1);
-  });
-  test('半分以上の日で明るければ明るい、1日でも記録があれば薄い、なければなし', () => {
-    const list = [sats('bright', 'dim'), sats('none', 'none', 'dim'), sats('bright'), sats('none'), sats('none')];
-    // 0〜2 日：筋トレ 2/3 明るい、食事 薄い1日、睡眠 薄い1日
-    expect(smoothSats(list, 2, 3)).toEqual(sats('bright', 'dim', 'dim'));
-    // 2〜4 日：筋トレ 1/3 → 薄い
-    expect(smoothSats(list, 4, 3)).toEqual(sats('dim'));
-    // 1〜4 日：筋トレ 1/4 → 薄い。ちょうど半分（2〜3 日で 1/2）は明るい
-    expect(smoothSats(list, 4, 4)).toEqual(sats('dim', 'none', 'dim'));
-    expect(smoothSats(list, 3, 2)).toEqual(sats('bright'));
-    // 1日だけなら、その日のまま。最初の日より前は数えない
-    expect(smoothSats(list, 0, 1)).toEqual(list[0]);
-    expect(smoothSats(list, 0, 5)).toEqual(list[0]);
-    expect(smoothSats([], 0, 3)).toEqual(NO_SATS);
-  });
-  test('読み上げ', () => {
-    expect(satsLabel(sats('bright', 'dim', 'none'))).toBe('筋トレ あり、食事 記録あり、睡眠 なし');
-    expect(satsLabel(sats('none', 'bright', 'bright'))).toBe('筋トレ なし、食事 目標に届いた、睡眠 7時間以上');
   });
 });
 

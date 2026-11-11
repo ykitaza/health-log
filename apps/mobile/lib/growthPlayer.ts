@@ -1,11 +1,8 @@
 // 「成長を見る」画面（app/growth.tsx）の決まり。どれも純粋な関数（lerpParams・dayIndexAt は UI スレッドでも呼ぶ worklet。
 // jest ではただの関数として動く）。再生の位置は「日の番号の小数」で、0 が最初の記録の日、dayCount − 1 が今日
 import { addDays, DateKey, daysBetween, formatJpDate, formatMonthDay } from './date';
-import { GrowthDay, GrowthParams, Highlight, PlaybackSpeed, playbackSeconds, satellites, SatState, Subtitle } from './growth';
+import { GrowthParams, Highlight, PlaybackSpeed, playbackSeconds, Subtitle } from './growth';
 import { fmt1, kgToUnit, WeightUnit } from './units';
-
-/** 衛星の状態（形の部品 components/growth と同じ名前。lib/growth.ts の meal は food に写す） */
-export type SatStates = { training: SatState; food: SatState; sleep: SatState };
 
 export const EMPTY_PARAMS: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
 
@@ -66,38 +63,6 @@ export function lerpParams(series: GrowthParams[], pos: number): GrowthParams {
 /** 日の番号 → 日付 */
 export function dateAt(startDate: DateKey, index: number): DateKey {
   return addDays(startDate, index);
-}
-
-/** 最初の記録の日から today までの、日ごとの衛星（番号 i は最初の記録の日の i 日後） */
-export function satsByIndex(days: GrowthDay[], startDate: DateKey | null, dayCount: number): SatStates[] {
-  if (startDate == null) return [];
-  const byDate = new Map(days.map((d) => [d.date, d]));
-  return Array.from({ length: dayCount }, (_, i) => {
-    const s = satellites(byDate.get(addDays(startDate, i)));
-    return { training: s.training, food: s.meal, sleep: s.sleep };
-  });
-}
-
-export const NO_SATS: SatStates = { training: 'none', food: 'none', sleep: 'none' };
-
-/** 再生中に衛星をならす日数（再生の約1秒ぶん。少なくとも1日） */
-export function satWindowDays(dayCount: number, speed: PlaybackSpeed): number {
-  return Math.max(1, Math.round(Math.max(1, dayCount - 1) / playbackSeconds(dayCount, speed)));
-}
-
-/**
- * 再生中の衛星：index までの window 日でならす。その間の半分以上の日で明るい（できた）なら明るい、
- * 1日でも記録があれば薄い、なければなし
- */
-export function smoothSats(byIndex: SatStates[], index: number, window: number): SatStates {
-  const list = byIndex.slice(Math.max(0, index - Math.max(1, window) + 1), index + 1);
-  if (list.length === 0) return NO_SATS;
-  const one = (k: keyof SatStates): SatState => {
-    const bright = list.filter((s) => s[k] === 'bright').length;
-    if (bright > 0 && bright * 2 >= list.length) return 'bright';
-    return list.some((s) => s[k] !== 'none') ? 'dim' : 'none';
-  };
-  return { training: one('training'), food: one('food'), sleep: one('sleep') };
 }
 
 /** 最初の記録の日から today までのハイライトだけ（体重の記録は、最初の記録の日より前にあることがある） */
@@ -161,17 +126,6 @@ export function growthTotals(p: GrowthParams, unit: WeightUnit): { volume: strin
     foodDays: String(Math.floor(p.foodDays + 1e-6)),
     sleepDays: String(Math.floor(p.sleepDays + 1e-6)),
   };
-}
-
-const SAT_WORDS: Record<keyof SatStates, Record<SatState, string>> = {
-  training: { bright: '筋トレ あり', dim: '筋トレ 少し', none: '筋トレ なし' },
-  food: { bright: '食事 目標に届いた', dim: '食事 記録あり', none: '食事 なし' },
-  sleep: { bright: '睡眠 7時間以上', dim: '睡眠 7時間未満', none: '睡眠 なし' },
-};
-
-/** 衛星の印の読み上げ（「筋トレ あり、食事 記録あり、睡眠 なし」） */
-export function satsLabel(s: SatStates): string {
-  return (['training', 'food', 'sleep'] as const).map((k) => SAT_WORDS[k][s[k]]).join('、');
 }
 
 /** 速さのボタンの読み上げ（「再生の速さ 1倍。押すと2倍」） */

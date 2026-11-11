@@ -3,14 +3,13 @@ import { ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 import Animated, { SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { indexAtX, LIVE_UPDATE_MS, ratioAt, SatStates } from '@/lib/growthPlayer';
-import type { SatState } from '@/lib/growth';
+import { indexAtX, LIVE_UPDATE_MS, ratioAt } from '@/lib/growthPlayer';
 import { colors, growthColors, size, space } from '@/theme';
 import { Icon, IconName } from '../Icon';
 import { PressableScale } from '../motion';
 import { T } from '../Text';
 
-type MarkKind = keyof SatStates;
+type MarkKind = 'training' | 'food' | 'sleep';
 
 /**
  * 再生中の位置（日の番号の小数）を、細かい間隔（33ms）で React に渡す。日の数字と下の累計を、日と日のあいだの値で数え上げるため。
@@ -30,30 +29,17 @@ export function useLivePos(pos: SharedValue<number>, playing: boolean): number |
 }
 const MARK = 10;
 
-/** 衛星の印1つ（丸＝筋トレ、ひし形＝食事、輪＝睡眠）。明るい／薄い／なし（なしは形だけ薄く） */
-export function SatMark({ kind, state = 'bright', size: s = MARK }: { kind: MarkKind; state?: SatState; size?: number }) {
+/** 下の累計の印1つ（丸＝筋トレ、ひし形＝食事、輪＝睡眠。ホームの衛星と同じ形と色） */
+export function SatMark({ kind, size: s = MARK }: { kind: MarkKind; size?: number }) {
   const color = growthColors[kind];
-  const opacity = state === 'bright' ? 1 : state === 'dim' ? 0.45 : 0.3;
-  const filled = state !== 'none';
   const shape = kind === 'training'
-    ? { width: s, height: s, borderRadius: s / 2, backgroundColor: filled ? color : 'transparent', borderWidth: filled ? 0 : 1.5, borderColor: color }
+    ? { width: s, height: s, borderRadius: s / 2, backgroundColor: color }
     : kind === 'food'
-      ? { width: s * 0.8, height: s * 0.8, transform: [{ rotate: '45deg' }], backgroundColor: filled ? color : 'transparent', borderWidth: filled ? 0 : 1.5, borderColor: color }
+      ? { width: s * 0.8, height: s * 0.8, transform: [{ rotate: '45deg' }], backgroundColor: color }
       : { width: s, height: s, borderRadius: s / 2, borderWidth: 2, borderColor: color };
   return (
-    <View style={{ width: s + 2, height: s + 2, alignItems: 'center', justifyContent: 'center', opacity }}>
+    <View style={{ width: s + 2, height: s + 2, alignItems: 'center', justifyContent: 'center' }}>
       <View style={shape} />
-    </View>
-  );
-}
-
-/** その日の衛星の印3つ（右はし）。読み上げは label にまとめる */
-export function SatMarks({ sats, label }: { sats: SatStates; label: string }) {
-  return (
-    <View style={s.marks} accessible accessibilityLabel={label} testID="growth-sats">
-      <SatMark kind="training" state={sats.training} />
-      <SatMark kind="food" state={sats.food} />
-      <SatMark kind="sleep" state={sats.sleep} />
     </View>
   );
 }
@@ -195,7 +181,6 @@ export function TotalsRow({ children }: { children: ReactNode }) {
 }
 
 const s = StyleSheet.create({
-  marks: { flexDirection: 'row', alignItems: 'center', gap: space.m },
   scrubTouch: { height: size.touch, justifyContent: 'center' },
   track: { height: 4, borderRadius: 2, backgroundColor: colors.line, overflow: 'hidden' },
   fill: { height: 4, backgroundColor: colors.accent },

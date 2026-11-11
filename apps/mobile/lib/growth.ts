@@ -159,9 +159,9 @@ export function growthScore(days: GrowthDay[], today: DateKey, weeklyTrainingGoa
 
 export type PlaybackSpeed = 1 | 2 | 4;
 
-/** 再生の長さ（秒）。1x は 日数 × 0.5秒（最短 8秒、最長 30秒）、2x は半分、4x は4分の1 */
+/** 再生の長さ（秒）。1x は 日数 × 0.5秒（最短 8秒、最長 20秒）、2x は半分、4x は4分の1 */
 export function playbackSeconds(dayCount: number, speed: PlaybackSpeed = 1): number {
-  return Math.min(30, Math.max(8, dayCount * 0.5)) / speed;
+  return Math.min(20, Math.max(8, dayCount * 0.5)) / speed;
 }
 
 export type HighlightKind = 'goalWeight' | 'big3Total' | 'trainingCount' | 'personalBest' | 'goalStreak';

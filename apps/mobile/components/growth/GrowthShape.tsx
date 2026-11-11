@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import {
-  Atlas, BlurMask, Canvas, Circle, DashPathEffect, Group, Oval, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
+  Atlas, BlurMask, Canvas, Circle, DashPathEffect, FilterMode, Group, MipmapMode, Oval, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
 } from '@shopify/react-native-skia';
 import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
@@ -20,9 +20,12 @@ export type GrowthShapeProps = {
    * 点の並びは最初に1回だけ作り、値からは「出す点の数・広がり・光」だけを決めるので、毎フレーム点を計算し直さない
    */
   params: GrowthParams | SharedValue<GrowthParams>;
-  sats: SatStates;
+  /** 今日の衛星。渡さなければ、軌道も衛星も描かず、形を箱いっぱいに大きく描く（成長を見る画面） */
+  sats?: SatStates;
   width: number;
   height: number;
+  /** 回す速さの倍率（既定 1）。再生中に速く回して、育つ動きを大きく見せる */
+  spin?: number;
   /** true なら回すのを止める（別のタブ、アプリが後ろ、画面の外）。止めているあいだは描き直さない */
   paused?: boolean;
   /** 読み上げの名前。渡さなければ飾りとして扱い、読み上げに出さない */
@@ -37,15 +40,21 @@ const TILT = 0.35;
 const PERSPECTIVE = 0.22;
 /** 回し始めの時刻（秒）。動きを減らす設定のときは、この向きで止める */
 const START_S = 9;
-/** 光る点の絵の大きさ（px）と、画面に出す大きさ（dp、光のにじみを含む） */
-const SPRITE = 24;
+/** 光る点の絵の大きさ（px）と、画面に出す大きさ（dp、光のにじみを含む）。絵は出す大きさより細かく作り、縮めてもぼやけないようにする */
+const SPRITE = 32;
 const DOT_DP = 5;
+/** 点の芯（くっきりした部分）の、絵の半径に対する割合。その外は薄い光 */
+const CORE = 0.3;
+/** 絵を縮めるときの補間（なめらかに。指定しないと粗く見える） */
+const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.None };
 /** 点1つの濃さ。重なると足し合わせて光るので、密なところだけが明るくなる（濃すぎると白くつぶれる） */
 const POINT_ALPHA = 0.42;
 /** 出す点の数の端で、この数の点をかけて、なめらかに現れる */
 const FADE_POINTS = 60;
 /** 広がりが最大のとき、形の半径はいちばん外の軌道のこの割合 */
 const SHAPE_RATIO = 0.75;
+/** 衛星を描かないとき、広がりが最大の形の半径は、箱の短い辺の半分のこの割合 */
+const SOLO_RATIO = 0.94;
 
 const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
 const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
@@ -54,7 +63,7 @@ const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
  * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
  * 点の位置は UI スレッドで毎フレーム計算する（JS スレッドを使わない）。動きを減らす設定なら止まった形を出す
  */
-export function GrowthShape({ shape, params, sats, width, height, paused = false, accessibilityLabel }: GrowthShapeProps) {
+export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel }: GrowthShapeProps) {
   const def = SHAPES[shape];
   const { points, tints } = useMemo(() => def.build(), [def]);
   const layout = def.layout;
@@ -70,8 +79,12 @@ export function GrowthShape({ shape, params, sats, width, height, paused = false
   // 時刻（秒）。止めているあいだは進めない
   const reduced = useReducedMotion();
   const seconds = useSharedValue(START_S);
+  const spinSV = useSharedValue(spin);
+  useEffect(() => {
+    spinSV.set(spin);
+  }, [spin, spinSV]);
   const clock = useFrameCallback((info) => {
-    seconds.set(seconds.get() + (info.timeSincePreviousFrame ?? 0) / 1000);
+    seconds.set(seconds.get() + ((info.timeSincePreviousFrame ?? 0) / 1000) * spinSV.get());
   }, false);
   const running = !paused && !reduced;
   useEffect(() => {
@@ -82,7 +95,7 @@ export function GrowthShape({ shape, params, sats, width, height, paused = false
   const cy = height / 2;
   const orbitY = def.orbitOffsetY * height;
   const outer = outerOrbitRadius(width, height, { x: 0, y: orbitY });
-  const baseUnit = outer * SHAPE_RATIO;
+  const baseUnit = sats ? outer * SHAPE_RATIO : (Math.min(width, height) / 2) * SOLO_RATIO;
 
   const view = useDerivedValue(() => {
     const l = layout(source.get());
@@ -124,7 +137,10 @@ export function GrowthShape({ shape, params, sats, width, height, paused = false
   // 白い光る点の絵（中心が明るく、まわりへ薄れる）。色は点ごとに掛け合わせる
   const texture = useTexture(
     <Circle cx={half} cy={half} r={half}>
-      <RadialGradient c={vec(half, half)} r={half} colors={['#FFFFFF', 'rgba(255,255,255,0.25)', 'rgba(255,255,255,0)']} positions={[0, 0.18, 1]} />
+      <RadialGradient
+        c={vec(half, half)} r={half}
+        colors={['#FFFFFF', '#FFFFFF', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0)']} positions={[0, CORE, CORE + 0.08, 1]}
+      />
     </Circle>,
     { width: SPRITE, height: SPRITE },
   );
@@ -146,7 +162,7 @@ export function GrowthShape({ shape, params, sats, width, height, paused = false
       importantForAccessibility={accessibilityLabel != null ? 'yes' : 'no-hide-descendants'}
     >
       <Canvas style={{ width, height }}>
-        {ORBITS.map((o) => (
+        {sats && ORBITS.map((o) => (
           <OrbitLine key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} />
         ))}
         <Group opacity={glow}>
@@ -161,9 +177,9 @@ export function GrowthShape({ shape, params, sats, width, height, paused = false
           <Circle cx={cx} cy={cy} r={2.5} color="#FFFFFF" />
         </Group>
         <Group opacity={glow}>
-          <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" />
+          <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" sampling={SAMPLING} />
         </Group>
-        {ORBITS.map((o) => (
+        {sats && ORBITS.map((o) => (
           <Satellite key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} seconds={seconds} />
         ))}
       </Canvas>
