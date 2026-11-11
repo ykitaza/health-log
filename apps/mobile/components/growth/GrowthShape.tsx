@@ -1,0 +1,230 @@
+import { useEffect, useMemo } from 'react';
+import { View } from 'react-native';
+import {
+  Atlas, BlurMask, Canvas, Circle, DashPathEffect, Group, Oval, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
+} from '@shopify/react-native-skia';
+import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { MIN_POINTS } from '@/lib/shapes/attractor';
+import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
+import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
+import { growthColors } from '@/theme';
+import { SHAPES } from './shapes';
+
+/** 今日の衛星の状態（内側から 筋トレ・食事・睡眠） */
+export type SatStates = { training: SatState; food: SatState; sleep: SatState };
+
+export type GrowthShapeProps = {
+  shape: ShapeKind;
+  /**
+   * 記録の値。再生では SharedValue を渡し、UI スレッドで毎フレーム書き換える（React の再描画なしで形が育つ）。
+   * 点の並びは最初に1回だけ作り、値からは「出す点の数・広がり・光」だけを決めるので、毎フレーム点を計算し直さない
+   */
+  params: GrowthParams | SharedValue<GrowthParams>;
+  sats: SatStates;
+  width: number;
+  height: number;
+  /** true なら回すのを止める（別のタブ、アプリが後ろ、画面の外）。止めているあいだは描き直さない */
+  paused?: boolean;
+  /** 読み上げの名前。渡さなければ飾りとして扱い、読み上げに出さない */
+  accessibilityLabel?: string;
+};
+
+/** Y 軸まわりに1周する秒数 */
+const ROTATION_PERIOD_S = 50;
+/** 手前に倒す傾き（ラジアン） */
+const TILT = 0.35;
+/** 奥行きの強さ（手前の点を少し大きく、奥を少し小さく） */
+const PERSPECTIVE = 0.22;
+/** 回し始めの時刻（秒）。動きを減らす設定のときは、この向きで止める */
+const START_S = 9;
+/** 光る点の絵の大きさ（px）と、画面に出す大きさ（dp、光のにじみを含む） */
+const SPRITE = 24;
+const DOT_DP = 5;
+/** 点1つの濃さ。重なると足し合わせて光るので、密なところだけが明るくなる（濃すぎると白くつぶれる） */
+const POINT_ALPHA = 0.42;
+/** 出す点の数の端で、この数の点をかけて、なめらかに現れる */
+const FADE_POINTS = 60;
+/** 広がりが最大のとき、形の半径はいちばん外の軌道のこの割合 */
+const SHAPE_RATIO = 0.75;
+
+const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
+
+/**
+ * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
+ * 点の位置は UI スレッドで毎フレーム計算する（JS スレッドを使わない）。動きを減らす設定なら止まった形を出す
+ */
+export function GrowthShape({ shape, params, sats, width, height, paused = false, accessibilityLabel }: GrowthShapeProps) {
+  const def = SHAPES[shape];
+  const { points, tints } = useMemo(() => def.build(), [def]);
+  const layout = def.layout;
+  const maxPoints = def.maxPoints;
+
+  // 値：SharedValue ならそのまま、ふつうの値なら自前の SharedValue に写す
+  const own = useSharedValue<GrowthParams>(isSharedValue(params) ? EMPTY : (params as GrowthParams));
+  useEffect(() => {
+    if (!isSharedValue(params)) own.set(params as GrowthParams);
+  }, [params, own]);
+  const source = isSharedValue(params) ? (params as SharedValue<GrowthParams>) : own;
+
+  // 時刻（秒）。止めているあいだは進めない
+  const reduced = useReducedMotion();
+  const seconds = useSharedValue(START_S);
+  const clock = useFrameCallback((info) => {
+    seconds.set(seconds.get() + (info.timeSincePreviousFrame ?? 0) / 1000);
+  }, false);
+  const running = !paused && !reduced;
+  useEffect(() => {
+    clock.setActive(running);
+  }, [running, clock]);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const orbitY = def.orbitOffsetY * height;
+  const outer = outerOrbitRadius(width, height, { x: 0, y: orbitY });
+  const baseUnit = outer * SHAPE_RATIO;
+
+  const view = useDerivedValue(() => {
+    const l = layout(source.get());
+    const a = (seconds.get() / ROTATION_PERIOD_S) * Math.PI * 2;
+    return { count: l.count, unit: baseUnit * l.spread, glow: l.glow, cos: Math.cos(a), sin: Math.sin(a) };
+  });
+
+  const tiltCos = Math.cos(TILT);
+  const tiltSin = Math.sin(TILT);
+  const dotScale = DOT_DP / SPRITE;
+  const half = SPRITE / 2;
+  // 点ごとの位置と大きさ。並びの先頭から count 個だけ出し、残りは大きさ 0 にする
+  const transforms = useRSXformBuffer(maxPoints, (val, i) => {
+    'worklet';
+    const v = view.get();
+    const k = Math.min(1, (v.count - i) / FADE_POINTS);
+    if (k <= 0) {
+      val.set(0, 0, 0, 0);
+      return;
+    }
+    const x = points[i * 3];
+    const y = points[i * 3 + 1];
+    const z = points[i * 3 + 2];
+    // Y 軸まわりに回してから、X 軸まわりに倒す
+    const x1 = x * v.cos + z * v.sin;
+    const z1 = z * v.cos - x * v.sin;
+    const y2 = y * tiltCos - z1 * tiltSin;
+    const z2 = y * tiltSin + z1 * tiltCos;
+    const p = 1 / (1 - z2 * PERSPECTIVE);
+    const s = dotScale * k * (0.75 + 0.25 * p);
+    val.set(s, 0, cx + x1 * v.unit * p - s * half, cy + y2 * v.unit * p - s * half);
+  });
+
+  const sprites = useMemo(() => Array.from({ length: maxPoints }, () => rect(0, 0, SPRITE, SPRITE)), [maxPoints]);
+  const colors = useMemo(
+    () => Array.from(tints, (t) => Skia.Color(mixHex(growthColors.sleep, growthColors.training, t, POINT_ALPHA))),
+    [tints],
+  );
+  // 白い光る点の絵（中心が明るく、まわりへ薄れる）。色は点ごとに掛け合わせる
+  const texture = useTexture(
+    <Circle cx={half} cy={half} r={half}>
+      <RadialGradient c={vec(half, half)} r={half} colors={['#FFFFFF', 'rgba(255,255,255,0.25)', 'rgba(255,255,255,0)']} positions={[0, 0.18, 1]} />
+    </Circle>,
+    { width: SPRITE, height: SPRITE },
+  );
+
+  const glow = useDerivedValue(() => view.get().glow);
+  // 形のまわりの薄い光。箱の端で切れて見えないよう、箱の中で消えきる大きさにする
+  const haloMax = Math.min(width, height) / 2;
+  const haloR = useDerivedValue(() => Math.max(Math.min(view.get().unit * 1.3, haloMax), 24));
+  // 種：記録がまだないときの光る点。点が増えるにつれて消える
+  const seedOpacity = useDerivedValue(() => Math.max(0, 1 - view.get().count / MIN_POINTS));
+
+  return (
+    <View
+      style={{ width, height }}
+      pointerEvents="none"
+      accessible={accessibilityLabel != null}
+      accessibilityRole={accessibilityLabel != null ? 'image' : undefined}
+      accessibilityLabel={accessibilityLabel}
+      importantForAccessibility={accessibilityLabel != null ? 'yes' : 'no-hide-descendants'}
+    >
+      <Canvas style={{ width, height }}>
+        {ORBITS.map((o) => (
+          <OrbitLine key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} />
+        ))}
+        <Group opacity={glow}>
+          <Circle cx={cx} cy={cy} r={haloR}>
+            <RadialGradient c={vec(cx, cy)} r={haloR} colors={[withAlpha(growthColors.training, 0.16), withAlpha(growthColors.training, 0)]} />
+          </Circle>
+        </Group>
+        <Group opacity={seedOpacity}>
+          <Circle cx={cx} cy={cy} r={20}>
+            <RadialGradient c={vec(cx, cy)} r={20} colors={[withAlpha(growthColors.training, 0.45), withAlpha(growthColors.training, 0)]} />
+          </Circle>
+          <Circle cx={cx} cy={cy} r={2.5} color="#FFFFFF" />
+        </Group>
+        <Group opacity={glow}>
+          <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" />
+        </Group>
+        {ORBITS.map((o) => (
+          <Satellite key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} seconds={seconds} />
+        ))}
+      </Canvas>
+    </View>
+  );
+}
+
+type OrbitProps = { orbit: Orbit; state: SatState; outer: number; cx: number; cy: number };
+
+/** 軌道の線。衛星がいない（none）ときは点線 */
+function OrbitLine({ orbit, state, outer, cx, cy }: OrbitProps) {
+  const ax = outer * orbit.radius;
+  const ay = ax * orbit.aspect;
+  return (
+    <Group transform={[{ rotate: orbit.tilt }]} origin={vec(cx, cy)}>
+      <Oval rect={rect(cx - ax, cy - ay, ax * 2, ay * 2)} style="stroke" strokeWidth={1}
+        color={withAlpha(SAT_COLORS[orbit.key], state === 'bright' ? 0.4 : state === 'dim' ? 0.24 : 0.32)}>
+        {state === 'none' && <DashPathEffect intervals={[2, 5]} />}
+      </Oval>
+    </Group>
+  );
+}
+
+/** 軌道の上をゆっくり回る衛星。形（丸・ひし形・輪）でも見分けられる。dim は薄く、bright は光をまとう */
+function Satellite({ orbit, state, outer, cx, cy, seconds }: OrbitProps & { seconds: SharedValue<number> }) {
+  const transform = useDerivedValue(() => {
+    const p = orbitPoint(orbit, outer, seconds.get());
+    return [{ translateX: cx + p.x }, { translateY: cy + p.y }];
+  });
+  if (state === 'none') return null;
+  const color = SAT_COLORS[orbit.key];
+  return (
+    <Group transform={transform} opacity={state === 'bright' ? 1 : 0.4}>
+      {state === 'bright' && (
+        <Circle cx={0} cy={0} r={SAT_RADIUS * 1.6} color={withAlpha(color, 0.55)}>
+          <BlurMask blur={6} style="normal" />
+        </Circle>
+      )}
+      {orbit.mark === 'dot' && <Circle cx={0} cy={0} r={SAT_RADIUS - 0.5} color={color} />}
+      {orbit.mark === 'diamond' && <Path path={DIAMOND} color={color} />}
+      {orbit.mark === 'ring' && <Circle cx={0} cy={0} r={SAT_RADIUS - 1} color={color} style="stroke" strokeWidth={2} />}
+    </Group>
+  );
+}
+
+const DIAMOND = `M0 ${-SAT_RADIUS - 1}L${SAT_RADIUS + 1} 0L0 ${SAT_RADIUS + 1}L${-SAT_RADIUS - 1} 0Z`;
+
+/** '#RRGGBB' を、透明度つきの rgba() に */
+function withAlpha(hex: string, alpha: number): string {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/** 2つの色を t（0〜1）で混ぜる */
+function mixHex(from: string, to: string, t: number, alpha: number): string {
+  const a = rgb(from);
+  const b = rgb(to);
+  const [r, g, bl] = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return `rgba(${r},${g},${bl},${alpha})`;
+}
+
+function rgb(hex: string): number[] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
