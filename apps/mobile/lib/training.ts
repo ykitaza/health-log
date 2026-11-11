@@ -354,18 +354,87 @@ export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Bi
   };
 }
 
-/** その日のまとめの「部位」に、名前を並べて出す数（これより多ければ「ほか ◯」） */
-const DAY_PARTS_SHOWN = 2;
+/** その日の部位で2番目の部位も出す、1番目の負荷量に対する割合（7割以上なら「胸・肩」） */
+export const SECOND_PART_RATIO = 0.7;
 
 /**
- * その日にやった部位（種目の並び順に、重ねずに）。名前のない部位は数えない。
- * text はまとめの欄に1行で出す形（「胸・肩」、3つ以上なら「胸・背中 ほか1」）、spoken は読み上げ用にすべての部位を並べたもの
+ * その日の部位。部位ごとに総負荷量（重さ×回数。自重の種目は自重の負荷量）を足し、いちばん多い部位。
+ * 2番目が1番目の 7 割以上なら2つ。負荷量がどれも 0（体重の記録のない自重の種目だけなど）なら、セットの数で比べる。
+ * 同じ量なら先に出た部位を先に。部位は名前で（種目と部位の管理の名前のまま）、名前のない部位は数えない
  */
-export function dayBodyParts(entries: { bodyPartName: string }[]): { names: string[]; text: string; spoken: string } {
-  const names = [...new Set(entries.map((e) => e.bodyPartName.trim()).filter((n) => n !== ''))];
-  const shown = names.slice(0, DAY_PARTS_SHOWN).join('・');
-  const rest = names.length - DAY_PARTS_SHOWN;
-  return { names, text: rest > 0 ? `${shown} ほか${rest}` : shown, spoken: names.join('、') };
+export function focusParts(sets: { part: string; volume: number }[]): string[] {
+  const byPart = new Map<string, { volume: number; sets: number }>();
+  for (const s of sets) {
+    const name = s.part.trim();
+    if (name === '') continue;
+    const cur = byPart.get(name) ?? { volume: 0, sets: 0 };
+    cur.volume += s.volume;
+    cur.sets += 1;
+    byPart.set(name, cur);
+  }
+  const all = [...byPart];
+  const anyVolume = all.some(([, v]) => v.volume > 0);
+  const score = (v: { volume: number; sets: number }) => (anyVolume ? v.volume : v.sets);
+  // sort は同じ値の並びを保つので、同じ量なら先に出た部位が先
+  const [first, second] = all.sort((a, b) => score(b[1]) - score(a[1]));
+  if (!first) return [];
+  return second && score(second[1]) >= score(first[1]) * SECOND_PART_RATIO ? [first[0], second[0]] : [first[0]];
+}
+
+/**
+ * 記録のまとめの「部位」：その日の種目から「胸」「胸・肩」（focusParts）。spoken は読み上げ用（「胸、肩」）。種目がなければ空
+ */
+export function dayFocus(entries: { bodyPartName: string; sets: SetValues[] }[]): { names: string[]; text: string; spoken: string } {
+  const names = focusParts(entries.flatMap((e) => e.sets.map((s) => ({ part: e.bodyPartName, volume: setVolume(s) }))));
+  if (names.length === 0) return { names, text: '', spoken: '' };
+  return { names, text: names.join('・'), spoken: names.join('、') };
+}
+
+/** 日ごとの部位（focusParts。日付の昇順）。partName は部位の ID から名前を引く */
+export function focusByDate(rows: TrainingSetRow[], partName: (bodyPartId: string) => string): { date: DateKey; parts: string[] }[] {
+  const byDate = new Map<DateKey, { part: string; volume: number }[]>();
+  for (const r of rows) {
+    const list = byDate.get(r.date) ?? [];
+    list.push({ part: partName(r.bodyPartId), volume: setVolume(r) });
+    byDate.set(r.date, list);
+  }
+  return [...byDate].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([date, sets]) => ({ date, parts: focusParts(sets) }))
+    .filter((d) => d.parts.length > 0);
+}
+
+/** おすすめに使う3つの部位（この名前の部位だけ。同じだけあいていれば、この順） */
+export const SUGGEST_PARTS = ['背中', '脚', '胸'] as const;
+
+/** 部位ごとの前回：その部位の日だった、今日より前のいちばん新しい日と、今日から何日前か。一度もなければ null */
+export type PartLast = { name: string; last: DateKey | null; days: number | null };
+
+/**
+ * 背中・脚・胸の前回と、今日のおすすめ（3つのうち、前回からいちばん日があいている部位。一度もやっていなければそれ）。
+ * 「前回」はその日の部位（focusByDate）にその部位が入っていた日（「胸・肩」の日は胸と肩の両方）。今日とそれより後の日は見ない。
+ * names はユーザーの部位の名前で、3つのうち名前があるものだけを出す。どれも一度もやっていなければ、何も出さない。
+ * rows は前回の新しい順（一度もない部位は最後）
+ */
+export function partSuggestion(days: { date: DateKey; parts: string[] }[], names: string[], today: DateKey): { rows: PartLast[]; suggest: PartLast | null } {
+  const have = new Set(names.map((n) => n.trim()));
+  const rows: PartLast[] = SUGGEST_PARTS.filter((n) => have.has(n)).map((name) => {
+    let last: DateKey | null = null;
+    for (const d of days) if (d.date < today && d.parts.includes(name) && (last == null || d.date > last)) last = d.date;
+    return { name, last, days: last == null ? null : daysBetween(last, today) };
+  });
+  if (rows.every((r) => r.last == null)) return { rows: [], suggest: null };
+  // 一度もない部位をいちばんあいているとみなす
+  const gap = (r: PartLast) => r.days ?? Infinity;
+  const suggest = rows.reduce((a, b) => (gap(b) > gap(a) ? b : a));
+  return { rows: [...rows].sort((a, b) => (gap(a) === gap(b) ? 0 : gap(a) - gap(b))), suggest };
+}
+
+/**
+ * ホームの「最近の流れ」：今日より前の、直近 n 回の筋トレの日（古い順）と、今日の部位（今日やっていなければ null）
+ */
+export function recentFlow(days: { date: DateKey; parts: string[] }[], today: DateKey, n = 3): { past: { date: DateKey; parts: string[] }[]; today: string[] | null } {
+  const past = days.filter((d) => d.date < today).slice(-n);
+  return { past, today: days.find((d) => d.date === today)?.parts ?? null };
 }
 
 /**

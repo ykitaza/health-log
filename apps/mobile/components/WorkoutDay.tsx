@@ -7,6 +7,7 @@ import { Big3Badge, PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
+import { loadPartDays, PartLastCard } from './partDay';
 import { DailyHighlights } from './reports';
 import { RestTimerBar } from './RestTimer';
 import { T } from './Text';
@@ -19,7 +20,7 @@ import { big3RoleById } from '@/lib/exercises';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
-import { bestSet, dayBodyParts, entryCardLabel, totalVolume } from '@/lib/training';
+import { bestSet, dayFocus, entryCardLabel, partSuggestion, totalVolume } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
 
@@ -56,8 +57,11 @@ export function WorkoutDayContent({ date }: { date: string }) {
       r.workouts.getDay(date), r.settings.get(), r.catalog.listExercises({ includeHidden: true }),
     ]);
     // 今日が空なら「前回のメニュー」（直近のトレーニングの日）を出す
-    const previous = entries.length === 0 && date === todayKey() ? await r.workouts.previousDay(date) : null;
-    return { entries, settings, big3: big3RoleById(exercises), previous };
+    const empty = entries.length === 0 && date === todayKey();
+    const previous = empty ? await r.workouts.previousDay(date) : null;
+    // 今日が空なら「部位ごとの前回」（背中・脚・胸の前回と今日のおすすめ）も出す
+    const partDays = empty ? await loadPartDays(r) : null;
+    return { entries, settings, big3: big3RoleById(exercises), previous, partDays };
   }, date);
   const [removing, setRemoving] = useState<Entry | null>(null);
   const list = useListMotion(data != null);
@@ -65,7 +69,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
   const entries = data?.entries ?? [];
   const setCount = entries.reduce((a, e) => a + e.sets.length, 0);
   const volume = entries.reduce((a, e) => a + totalVolume(e.sets), 0);
-  const parts = dayBodyParts(entries);
+  const parts = dayFocus(entries);
 
   const move = async (id: string, d: -1 | 1) => { await repos.workouts.moveEntry(id, d); reload(); };
   // 外すは1つずつ（確認の「外す」を続けて押しても2回消さない）。並べ替えは、続けて押した分だけ動かす
@@ -89,18 +93,22 @@ export function WorkoutDayContent({ date }: { date: string }) {
     await reload();
   });
   const previous = data?.previous;
+  const partDays = data?.partDays;
+  const partCard = partDays && partSuggestion(partDays.days, partDays.names, today).suggest
+    ? <PartLastCard data={partDays} date={date} today={today} /> : null;
 
   if (error) return <LoadError onRetry={reload} />;
 
   return (
     <>
-      {data && entries.length === 0 && date <= today && (
+      {data && entries.length === 0 && partCard && <View style={{ marginTop: space.s }}>{partCard}</View>}
+      {data && entries.length === 0 && date <= today && !partCard && (
         <View style={{ marginTop: previous ? space.xxl : space.xxl * 2 }}>
           <EmptyState title="まだ種目がありません" body={previous ? '下の「種目を追加」か、前回のメニューから始めましょう' : '下の「種目を追加」から始めましょう'} />
         </View>
       )}
       {data && entries.length === 0 && previous && (
-        <View testID="previous-menu"><Card style={{ gap: space.xs }}>
+        <View testID="previous-menu" style={partCard ? { marginTop: space.m } : undefined}><Card style={{ gap: space.xs }}>
           <T variant="labelM" color={colors.sub}>前回のメニュー</T>
           <T variant="titleM">{formatJpDate(previous.date)} ・ {[...new Set(previous.entries.map((e) => e.bodyPartName))].join('・')}</T>
           <T variant="bodyM" color={colors.sub}>{previous.entries.map((e) => e.exerciseName).join(' ・ ')}</T>

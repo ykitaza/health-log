@@ -58,3 +58,29 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 2 }: 
   })();
   return <Svg width={size} height={size} viewBox="0 0 24 24">{body}</Svg>;
 }
+
+/** 部位のアイコンを持つ部位（背中・脚・胸。lib/training.ts の SUGGEST_PARTS） */
+const PART_ICON_KINDS: Record<string, 'chest' | 'back' | 'legs'> = { 胸: 'chest', 背中: 'back', 脚: 'legs' };
+
+/**
+ * 部位のアイコン（24 の格子）：人の形を補足の色の線（太さ 1.5、丸い端）で描き、鍛えた所を緑に。
+ * 胸は胸の左右、背中は胴の台形を塗り、脚は2本の脚の線を緑の太い線に。背中・脚・胸以外の部位はダンベル
+ */
+export function PartIcon({ name, size = 24 }: { name: string; size?: number }) {
+  const kind = PART_ICON_KINDS[name.trim()];
+  if (!kind) return <Icon name="dumbbell" size={size} color={colors.sub} />;
+  const line = { stroke: colors.sub, strokeWidth: 1.5, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const legs = kind === 'legs' ? { ...line, stroke: colors.accent, strokeWidth: 2.4 } : line;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle {...line} cx="12" cy="3.5" r="2" />
+      <Path {...line} d="M8 7 L16 7 L15 15 L9 15 Z" />
+      <Path {...line} d="M8 7 L6 14M16 7 L18 14" />
+      <Path {...legs} d="M9.6 15 L9.2 22.5M14.4 15 L14.8 22.5" />
+      {kind === 'chest' && (
+        <Path fill={colors.accent} d="M8.95 8.4 L11.65 8.4 L11.65 11.2 C10.6 11.6 9.5 11 8.95 9.8 Z M15.05 8.4 L12.35 8.4 L12.35 11.2 C13.4 11.6 14.5 11 15.05 9.8 Z" />
+      )}
+      {kind === 'back' && <Path fill={colors.accent} d="M9.1 8.7 L14.9 8.7 L13.6 13.7 L10.4 13.7 Z" />}
+    </Svg>
+  );
+}

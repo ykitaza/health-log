@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Sparkline } from '@/components/charts';
+import { PartBadge } from '@/components/ExerciseFields';
 import { CalendarLegend, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
+import { loadPartDays, RecentPartFlow, todaySuggestion, TodaySuggestLines, todaySuggestionSpoken } from '@/components/partDay';
 import { PressableScale, RollNumber } from '@/components/motion';
 import { LatestReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
@@ -26,7 +28,7 @@ import { goalLine, homeBig3, signedChange, sleepNote, thisWeekVolume } from '@/l
 import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
 import { tonnes } from '@/lib/format';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
-import { daysInMonth, totalVolume, TrainingSetRow, trainingDates, Vehicle, vehicleRatio } from '@/lib/training';
+import { dayFocus, daysInMonth, recentFlow, totalVolume, TrainingSetRow, trainingDates, Vehicle, vehicleRatio } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space, toneColors } from '@/theme';
 
@@ -56,7 +58,9 @@ export default function HomeScreen() {
     ]);
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     const mealDates = new Set(monthMeals.days.filter((d) => d.meals.length > 0).map((d) => d.date));
-    return { rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected, mealDates, big3: big3Assignments(exercises) };
+    // 日ごとの部位（最近の流れと、今日がまだのときの前回・おすすめ）
+    const partDays = await loadPartDays(r, rows);
+    return { partDays, rows, todays, settings, meal: meals.days[0] ?? null, weightKg, sleep, heart, day: selected, mealDates, big3: big3Assignments(exercises) };
   }, `${selected}|${today}`);
   // 日を選び直した直後は、読み終わるまで前の日の記録を出さない
   const dayEntries = data?.day === selected ? data.todays : null;
@@ -69,6 +73,14 @@ export default function HomeScreen() {
   const condition = data?.day === selected ? data : null;
   // 寝不足の日のひとこと（今日だけ。今日の体調と同じ、その日に起きた睡眠）
   const sleepy = isToday ? sleepNote(condition?.sleep?.asleepMin) : null;
+  // 今日のトレーニングがまだのとき：前回の部位と今日のおすすめ（今日を見ているときだけ）
+  const partDays = data?.partDays ?? null;
+  const todayParts = partDays && isToday && dayEntries?.length === 0 ? todaySuggestion(partDays, today) : null;
+  // 前の筋トレの日もおすすめもなければ（はじめて使うとき）、今までどおり「まだ記録がありません」
+  const suggestion = todayParts?.prev || todayParts?.suggest ? todayParts : null;
+  const flow = partDays ? recentFlow(partDays.days, today) : null;
+  // 記録のある日：見出しの右にその日の部位の札（「胸」、2つなら「胸」「肩」）
+  const focus = dayEntries && dayEntries.length > 0 ? dayFocus(dayEntries) : null;
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
@@ -89,6 +101,9 @@ export default function HomeScreen() {
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
           />
           <CalendarLegend />
+          {flow && partDays && (
+            <RecentPartFlow past={flow.past} today={flow.today} suggest={flow.today ? null : todaySuggestion(partDays, today).suggest?.name ?? null} />
+          )}
           <View style={{ flexGrow: 1 }} />
           <View style={s.archive} testID="archive">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -129,9 +144,11 @@ export default function HomeScreen() {
           testID="home-training"
           icon="dumbbell"
           title={`${dayLabel}のトレーニング`}
-          body={dayEntries == null ? '' : dayEntries.length === 0
+          parts={focus?.names}
+          body={dayEntries == null ? '' : suggestion ? todaySuggestionSpoken(suggestion) : dayEntries.length === 0
             ? 'まだ記録がありません'
             : `${dayEntries.length}種目 ・ ${dayEntries.reduce((n, e) => n + e.sets.length, 0)}セット ・ ${tonnes(dayEntries.reduce((n, e) => n + totalVolume(e.sets), 0), unit)} ${unit === 'kg' ? 't' : 'k lb'}`}
+          lines={suggestion ? <TodaySuggestLines s={suggestion} /> : undefined}
           note={sleepy ?? undefined}
           onPress={() => router.push({ pathname: '/workout', params: { date: selected } })}
         />
@@ -182,21 +199,34 @@ function conditionLine(weightKg: number | null, sleep: SleepDay | null, heart: H
 
 /**
  * ホームの小さなカード（今日のトレーニング・食事・体調）。押すとそれぞれの画面へ。
- * sub は2行目（体調の目標体重まで）、note は注意の色のひとこと（寝不足の日。月のアイコン付き）
+ * sub は2行目（体調の目標体重まで）、note は注意の色のひとこと（寝不足の日。月のアイコン付き）。
+ * lines を渡すと、body と sub の代わりに見せる（部位の札の入った行。body は読み上げに使う）。
+ * parts はその日の部位（見出しの右に部位の札。読み上げは「今日の部位 胸、肩」）
  */
-function SummaryCard({ testID, icon, title, badge, body, sub, note, onPress }: {
-  testID: string; icon: IconName; title: string; badge?: string; body: string; sub?: string; note?: string; onPress: () => void;
+function SummaryCard({ testID, icon, title, badge, parts, body, sub, lines, note, onPress }: {
+  testID: string; icon: IconName; title: string; badge?: string; parts?: string[]; body: string; sub?: string; lines?: ReactNode; note?: string; onPress: () => void;
 }) {
+  const partsSpoken = parts && parts.length > 0 ? `${title.replace(/のトレーニング$/, '')}の部位 ${parts.join('、')}。` : '';
   return (
-    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={`${title}を開く。${badge ? `${badge}。` : ''}${[body, sub, note].filter(Boolean).join('。')}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
+    <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={`${title}を開く。${partsSpoken}${badge ? `${badge}。` : ''}${[body, sub, note].filter(Boolean).join('。')}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
       <View style={s.summaryIcon}><Icon name={icon} size={24} color={colors.onAccentDark} /></View>
       <View style={{ flex: 1, gap: space.xs }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+        {/* 見出しと札が1行に収まらなければ、札を次の行へ回す（見出しを切らない） */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: space.s, rowGap: space.xs }}>
           <T variant="titleM" style={{ flexShrink: 1 }} numberOfLines={1}>{title}</T>
           {badge && <Badge label={badge} />}
+          {parts && parts.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: space.xs }} testID={`${testID}-parts`}>
+              {parts.map((p) => <PartBadge key={p} name={p} />)}
+            </View>
+          )}
         </View>
-        <T variant="bodyM" color={colors.sub}>{body}</T>
-        {sub && <T variant="bodyM" color={colors.sub}>{sub}</T>}
+        {lines ?? (
+          <>
+            <T variant="bodyM" color={colors.sub}>{body}</T>
+            {sub && <T variant="bodyM" color={colors.sub}>{sub}</T>}
+          </>
+        )}
         {note && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.xs }} testID={`${testID}-note`}>
             {/* 1行目の文字の高さ（20）のまん中に置く */}

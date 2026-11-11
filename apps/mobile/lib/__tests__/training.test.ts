@@ -1,7 +1,8 @@
 import {
   bestSet, estimated1RM, exerciseDailySeries, filterSince, periodStart,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
-  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary, dayBodyParts, entryCardLabel,
+  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary, dayFocus, entryCardLabel,
+  focusByDate, focusParts, partSuggestion, recentFlow,
 } from '../training';
 
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
@@ -211,19 +212,90 @@ describe('過去の日を基準にした「前回」と自己ベスト', () => {
   });
 });
 
-describe('その日のまとめの部位（dayBodyParts）', () => {
-  const e = (...names: string[]) => names.map((bodyPartName) => ({ bodyPartName }));
-  test('種目の並び順に重ねずに並べる。2つまでは「・」でつなぐ', () => {
-    expect(dayBodyParts(e('胸', '胸', '肩'))).toEqual({ names: ['胸', '肩'], text: '胸・肩', spoken: '胸、肩' });
-    expect(dayBodyParts(e('背中')).text).toBe('背中');
+describe('その日の部位（focusParts・dayFocus）', () => {
+  const v = (part: string, volume: number) => ({ part, volume });
+  test('部位ごとに総負荷量を足し、いちばん多い部位。2番目が7割未満なら1つ', () => {
+    expect(focusParts([v('胸', 1000), v('肩', 300), v('胸', 500), v('上腕三頭筋', 600)])).toEqual(['胸']);
   });
-  test('3つ以上は先頭の2つと「ほか ◯」。読み上げはすべて', () => {
-    expect(dayBodyParts(e('胸', '背中', '肩'))).toEqual({ names: ['胸', '背中', '肩'], text: '胸・背中 ほか1', spoken: '胸、背中、肩' });
-    expect(dayBodyParts(e('胸', '背中', '肩', '脚', '前腕')).text).toBe('胸・背中 ほか3');
+  test('2番目が1番目の7割以上なら2つ（ちょうど7割も）', () => {
+    expect(focusParts([v('胸', 1000), v('肩', 700)])).toEqual(['胸', '肩']);
+    expect(focusParts([v('胸', 1000), v('肩', 699)])).toEqual(['胸']);
+    expect(focusParts([v('肩', 400), v('胸', 600), v('肩', 400)])).toEqual(['肩', '胸']);
   });
-  test('自分で足した部位もそのまま。名前のない部位は数えない', () => {
-    expect(dayBodyParts(e('首まわり', ' ', '胸')).text).toBe('首まわり・胸');
-    expect(dayBodyParts([])).toEqual({ names: [], text: '', spoken: '' });
+  test('同じ量なら先に出た部位が先。名前のない部位は数えない。自分で足した部位もそのまま', () => {
+    expect(focusParts([v('背中', 500), v('脚', 500)])).toEqual(['背中', '脚']);
+    expect(focusParts([v(' ', 9999), v('首まわり', 100)])).toEqual(['首まわり']);
+    expect(focusParts([])).toEqual([]);
+  });
+  test('負荷量がどれも 0（体重の記録のない自重の種目だけ）なら、セットの数で比べる', () => {
+    expect(focusParts([v('背中', 0), v('背中', 0), v('背中', 0), v('腹筋', 0)])).toEqual(['背中']);
+  });
+  test('記録のまとめは「胸」「胸・肩」。自重の種目は自重の負荷量で数える', () => {
+    const bench = { bodyPartName: '胸', sets: [{ weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8 }] }; // 1280
+    const press = { bodyPartName: '肩', sets: [{ weightKg: 40, reps: 10 }] }; // 400
+    expect(dayFocus([bench, press])).toEqual({ names: ['胸'], text: '胸', spoken: '胸' });
+    // 懸垂：自重の負荷 70kg × 10回 × 2 = 1400 → 背中が多く、胸は 1280 で7割以上
+    const pullUp = { bodyPartName: '背中', sets: [{ weightKg: null, reps: 10, bodyweightLoadKg: 70 }, { weightKg: null, reps: 10, bodyweightLoadKg: 70 }] };
+    expect(dayFocus([bench, pullUp])).toEqual({ names: ['背中', '胸'], text: '背中・胸', spoken: '背中、胸' });
+    expect(dayFocus([])).toEqual({ names: [], text: '', spoken: '' });
+  });
+});
+
+describe('日ごとの部位・部位ごとの前回とおすすめ・最近の流れ', () => {
+  const names: Record<string, string> = { chest: '胸', back: '背中', legs: '脚', shoulder: '肩' };
+  const partName = (id: string) => names[id] ?? '';
+  const days = focusByDate([
+    row('2026-11-06', 80, 8, 'bench', 'chest'),
+    row('2026-11-02', 100, 5, 'dead', 'back'),
+    row('2026-11-04', 100, 5, 'squat', 'legs'),
+    row('2026-11-06', 20, 10, 'press', 'shoulder'),
+  ], partName);
+  const TODAY = '2026-11-08';
+
+  test('日付の昇順に、その日の部位', () => {
+    expect(days).toEqual([
+      { date: '2026-11-02', parts: ['背中'] },
+      { date: '2026-11-04', parts: ['脚'] },
+      { date: '2026-11-06', parts: ['胸'] },
+    ]);
+  });
+  test('前回の新しい順に並べ、いちばん日があいている部位をおすすめにする', () => {
+    const r = partSuggestion(days, ['胸', '背中', '肩', '脚', '上腕二頭筋'], TODAY);
+    expect(r.rows).toEqual([
+      { name: '胸', last: '2026-11-06', days: 2 },
+      { name: '脚', last: '2026-11-04', days: 4 },
+      { name: '背中', last: '2026-11-02', days: 6 },
+    ]);
+    expect(r.suggest).toEqual({ name: '背中', last: '2026-11-02', days: 6 });
+  });
+  test('一度もやっていない部位があれば、それをおすすめにする（2つあれば 背中・脚・胸 の順）', () => {
+    const r = partSuggestion([{ date: '2026-11-06', parts: ['胸'] }], ['胸', '背中', '脚'], TODAY);
+    expect(r.suggest?.name).toBe('背中');
+    expect(r.rows.map((x) => [x.name, x.days])).toEqual([['胸', 2], ['背中', null], ['脚', null]]);
+  });
+  test('「肩・脚」の日は脚の前回にも数える。今日とそれより後の日は前回にしない', () => {
+    const r = partSuggestion([
+      { date: '2026-11-03', parts: ['背中'] }, { date: '2026-11-05', parts: ['肩', '脚'] }, { date: '2026-11-06', parts: ['胸'] },
+      { date: '2026-11-08', parts: ['背中'] },
+    ], ['胸', '背中', '脚'], TODAY);
+    expect(r.rows.find((x) => x.name === '脚')?.last).toBe('2026-11-05');
+    expect(r.suggest?.name).toBe('背中');
+  });
+  test('同じだけあいていれば 背中・脚・胸 の順', () => {
+    const r = partSuggestion([{ date: '2026-11-05', parts: ['胸', '脚'] }, { date: '2026-11-05', parts: ['背中'] }], ['胸', '背中', '脚'], TODAY);
+    expect(r.suggest?.name).toBe('背中');
+  });
+  test('名前が違う部位は出さない。どれも一度もやっていなければ何も出さない', () => {
+    const r = partSuggestion(days, ['胸', 'あし', '背中'], TODAY);
+    expect(r.rows.map((x) => x.name)).toEqual(['胸', '背中']);
+    expect(partSuggestion(days, ['肩', '下半身'], TODAY)).toEqual({ rows: [], suggest: null });
+    expect(partSuggestion([{ date: '2026-11-06', parts: ['肩'] }], ['胸', '背中', '脚'], TODAY)).toEqual({ rows: [], suggest: null });
+  });
+  test('最近の流れ：今日より前の直近3回（古い順）と、今日の部位', () => {
+    const more = [{ date: '2026-10-30', parts: ['胸'] }, ...days];
+    expect(recentFlow(more, TODAY)).toEqual({ past: days, today: null });
+    expect(recentFlow([...more, { date: TODAY, parts: ['背中'] }], TODAY)).toEqual({ past: days, today: ['背中'] });
+    expect(recentFlow([], TODAY)).toEqual({ past: [], today: null });
   });
 });
 

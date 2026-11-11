@@ -44,7 +44,7 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   // 今日に戻ると、今日の記録には出ない
   await button(page, '今日に戻る').click();
   await expect(homeCard(page, 'training')).toContainText('今日のトレーニング');
-  await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
+  await expect(homeCard(page, 'training')).toContainText('まだ記録なし ・前回胸5日前');
   await expect(day(page, TODAY)).toHaveAttribute('aria-selected', 'true');
 
   // 筋トレの推移：種目を選ぶとその日のカードが出て、押すと記録のタブのその日。そこから同じ日に足せる
