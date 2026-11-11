@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { addDays, addMonths, DateKey, MONTH_NAMES_EN, yearMonth } from '@/lib/date';
 import {
-  claimsSwipe, dragOffset, releaseDirection, showsSwipeHint, slideSign, SWIPE_HINT_NUDGE_DX, SwipeDirection, SwipeHintKind, swipeHintText,
+  claimsSwipe, dragOffset, hintNudgeDx, releaseDirection, showsSwipeHint, slideSign, SwipeDirection, SwipeHintKind, swipeHintText,
 } from '@/lib/swipe';
 import { colors, space } from '@/theme';
 import { duration, HOLD_MS, motionDuration } from '@/theme/motion';
@@ -167,7 +167,7 @@ export function usePageSlide(): PageSlide {
  * 指についてくる。放して日が変わるときは横にすべって入れ替わり、足りなければ元の位置へ戻る。次へ進めない（canNext でない）
  * ときに左へ引くと、ゴムのように抵抗して動き、放すと戻る（lib/swipe.ts）。
  * 横の動きが十分大きいときだけ指を受けるので、縦のスクロールと押す操作はそのまま。
- * 最初の数回は、開いたときに中身が少し左へずれて戻り、日付の切り替えの下に「左右にスワイプで日を移れます」を出す
+ * 最初の数回は、開いたときに中身が進める向きへ少しずれて戻り（次へ進めないなら右、進めるなら左）、日付の切り替えの下に「左右にスワイプで日を移れます」を出す
  * （一度スワイプで動かしたら、もう出さない。端末だけに覚える）。読み上げでは前・次のボタンを使い、ヒントの文も読み上げる。
  * 動きを減らす設定なら、指についてこず、ヒントもずらさない（結果と文だけ）
  */
@@ -192,12 +192,12 @@ export function SwipeArea({ slide, onSwipe, canNext, hint, header, children, tes
     })().catch(() => {});
     return () => { alive = false; };
   }, [repos, hint]);
-  // ヒントを出したら、中身を少し左へずらして戻す（行き帰り同じ長さ、はね返りなし）
+  // ヒントを出したら、中身を進める向きへ少しずらして戻す（行き帰り同じ長さ、はね返りなし）。向きは出したときの日で決める
   const { x } = slide;
   useEffect(() => {
     if (!hinting || reduced) return;
     const cfg = { duration: duration.toggle, easing: easeOut };
-    x.set(withDelay(HOLD_MS, withSequence(withTiming(-SWIPE_HINT_NUDGE_DX, cfg), withTiming(0, cfg))));
+    x.set(withDelay(HOLD_MS, withSequence(withTiming(hintNudgeDx(latest.current.canNext), cfg), withTiming(0, cfg))));
   }, [hinting, reduced, x]);
 
   // ref は指の動きの中（描く間ではない）でだけ読むので、描くたびに作り直さずに最新の値を使える

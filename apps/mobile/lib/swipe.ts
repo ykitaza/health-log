@@ -61,7 +61,7 @@ export function slideSign(direction: SwipeDirection): 1 | -1 {
   return direction === 'next' ? -1 : 1;
 }
 
-// 最初の数回だけのヒント（画面を開いたときに中身が少し左へずれて戻り、日付の切り替えの下に文を出す）
+// 最初の数回だけのヒント（画面を開いたときに中身が進める向きへ少しずれて戻り、日付の切り替えの下に文を出す）
 
 /** ヒントを出す画面（数は画面ごとに数える） */
 export type SwipeHintKind = 'meal-day' | 'meal-week' | 'training-day';
@@ -69,6 +69,14 @@ export type SwipeHintKind = 'meal-day' | 'meal-week' | 'training-day';
 export const SWIPE_HINT_MAX = 3;
 /** ヒントで中身をずらす幅（dp） */
 export const SWIPE_HINT_NUDGE_DX = 24;
+
+/**
+ * ヒントで中身をずらす位置（dp）。次へも進めるなら左（次の日の向き）、今日（今週）で次へ進めないなら右（前の日の向き）。
+ * 進めない向きへずらすと、そちらへ引いてもゴムで戻るだけになるため
+ */
+export function hintNudgeDx(canNext: boolean): number {
+  return canNext ? -SWIPE_HINT_NUDGE_DX : SWIPE_HINT_NUDGE_DX;
+}
 
 /** shown：その画面でヒントを出した回数。used：どこかの画面で一度でもスワイプで日（週）を動かしたか */
 export type SwipeHintState = { shown: number; used: boolean };

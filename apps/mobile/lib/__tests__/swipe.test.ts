@@ -1,5 +1,5 @@
 import {
-  claimsSwipe, dragOffset, pageDirection, releaseDirection, RUBBER_MAX_DX, rubberBand, showsSwipeHint, slideSign, SWIPE_CLAIM_DX,
+  claimsSwipe, dragOffset, hintNudgeDx, pageDirection, releaseDirection, RUBBER_MAX_DX, rubberBand, showsSwipeHint, slideSign, SWIPE_CLAIM_DX,
   SWIPE_HINT_MAX, swipeDirection, swipeHintText,
 } from '../swipe';
 
@@ -68,6 +68,11 @@ describe('スワイプのヒント（最初の数回だけ）', () => {
     expect(showsSwipeHint({ shown: SWIPE_HINT_MAX, used: false })).toBe(false);
     expect(showsSwipeHint({ shown: 0, used: true })).toBe(false);
     expect(SWIPE_HINT_MAX).toBe(3);
+  });
+
+  test('ずらす向き：今日（今週）で次へ進めないなら右（前の向き）、次へも進めるなら左（次の向き）。幅は 24dp', () => {
+    expect(hintNudgeDx(false)).toBe(24);
+    expect(hintNudgeDx(true)).toBe(-24);
   });
 
   test('文：食事の推移は週、ほかは日', () => {
