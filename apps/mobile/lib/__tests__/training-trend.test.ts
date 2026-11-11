@@ -1,5 +1,5 @@
 import { completeBig3, openFormVideo } from '../exercises';
-import { big3Trend, exerciseTrend, menuFromDay, TrainingSetRow, trendDays } from '../training';
+import { big3PartialNote, big3Trend, exerciseTrend, menuFromDay, TrainingSetRow, trendDays } from '../training';
 
 const row = (date: string, exerciseId: string, weightKg: number | null, reps: number): TrainingSetRow =>
   ({ date, exerciseId, bodyPartId: 'p', weightKg, reps });
@@ -67,21 +67,52 @@ describe('BIG3 の推定1RM の合計', () => {
     expect(t.lifts[0].current).toBeCloseTo(80 * (1 + 8 / 30), 6); // 100×1 = 100 より 80×8 のほうが大きい
   });
 
-  test('折れ線：3種目がそろった日から。記録のあった日と今日', () => {
+  test('折れ線：記録のある日から。from の点（from より前の記録の分）、記録のあった日、今日。欠けた種目が入った日に増える', () => {
     const t = big3Trend(rows, assigned, today, from);
-    expect(t.points.map((p) => p.date)).toEqual(['2026-09-10', '2026-10-20', '2026-11-05', '2026-11-06', '2026-11-08']);
-    expect(t.points[0].total).toBeCloseTo(80 * (1 + 8 / 30) + 100 * (1 + 5 / 30) + 140, 6);
+    // from（8/8）の時点でデッドリフトだけ（7/1 の 140）。9/1 にベンチが入り、9/10 にスクワットが入って3種目そろう
+    expect(t.points.map((p) => p.date)).toEqual(['2026-08-08', '2026-09-01', '2026-09-10', '2026-10-20', '2026-11-05', '2026-11-06', '2026-11-08']);
+    expect(t.points[0].total).toBeCloseTo(140, 6);
+    expect(t.points[1].total).toBeCloseTo(140 + 80 * (1 + 8 / 30), 6);
+    expect(t.points[2].total).toBeCloseTo(80 * (1 + 8 / 30) + 100 * (1 + 5 / 30) + 140, 6);
+    expect(t.points[2].total).toBeGreaterThan(t.points[1].total);
   });
 
-  test('そろわないとき：割り当てていない役と、記録がない役。合計は出さない', () => {
+  test('2種目だけ（割り当てがない役と、記録がない役）：記録がある種目だけの合計。unassigned・noRecord は残る', () => {
     const t = big3Trend(rows.filter((r) => r.exerciseId !== 'squat'), { bench: 'bench', squat: 'squat' }, today, from);
     expect(t.unassigned).toEqual(['deadlift']);
     expect(t.noRecord).toEqual(['squat']);
+    // デッドリフトは割り当てがないので 0。ベンチだけの合計
+    expect(t.total).toBeCloseTo(80 * (1 + 8 / 30), 6);
+    expect(t.totalMonthAgo).toBeCloseTo(80 * (1 + 8 / 30), 6);
+    expect(t.points.map((p) => p.date)).toEqual(['2026-09-01', '2026-10-20', '2026-11-05', '2026-11-08']);
+    expect(t.lifts[0].current).toBeCloseTo(80 * (1 + 8 / 30), 6);
+    expect(t.lifts[2]).toEqual({ role: 'deadlift', exerciseId: null, current: null, monthAgo: null });
+    expect(big3PartialNote(t)).toBe('1種目の合計（スクワット・デッドリフトはまだ）');
+  });
+
+  test('2種目：割り当てたデッドリフトとベンチ。1か月前にまだない種目は 0 として足す', () => {
+    const t = big3Trend(rows.filter((r) => r.exerciseId !== 'squat'), { bench: 'bench', deadlift: 'dl' }, today, from);
+    expect(t.unassigned).toEqual(['squat']);
+    expect(t.noRecord).toEqual([]);
+    expect(t.total).toBeCloseTo(80 * (1 + 8 / 30) + 140, 6);
+    expect(big3PartialNote(t)).toBe('2種目の合計（スクワットはまだ）');
+  });
+
+  test('1種目も記録がないときは、合計も点もない', () => {
+    const t = big3Trend([], assigned, today, from);
     expect(t.total).toBeNull();
     expect(t.totalMonthAgo).toBeNull();
     expect(t.points).toEqual([]);
-    expect(t.lifts[0].current).toBeCloseTo(80 * (1 + 8 / 30), 6);
-    expect(t.lifts[2]).toEqual({ role: 'deadlift', exerciseId: null, current: null, monthAgo: null });
+    expect(t.noRecord).toEqual(['bench', 'squat', 'deadlift']);
+    expect(big3PartialNote(t)).toBeNull();
+    // 割り当てもないとき
+    expect(big3Trend(rows, {}, today, from).total).toBeNull();
+    // 今日より後の記録だけのときも
+    expect(big3Trend([row('2026-11-09', 'dl', 200, 1)], assigned, today, from).total).toBeNull();
+  });
+
+  test('添え書き：3種目そろっていれば出さない', () => {
+    expect(big3PartialNote(big3Trend(rows, assigned, today, from))).toBeNull();
   });
 });
 

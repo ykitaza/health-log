@@ -1,5 +1,5 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
-import type { Big3Role } from './exercises';
+import { BIG3_LABELS, type Big3Role } from './exercises';
 import type { SetInput } from './sets';
 import { fmt1, kgToUnit, parseNumber, WeightUnit } from './units';
 
@@ -302,15 +302,16 @@ export type Big3Trend = {
   unassigned: Big3Role[];
   /** 割り当てたが、推定1RM の出る記録がまだない役 */
   noRecord: Big3Role[];
-  /** 3種目の今の合計（そろわなければ null）と、1か月前の合計（そのときにそろっていなければ null） */
+  /** 記録がある種目だけの、今の合計（1種目も記録がなければ null）と、1か月前の合計（そのときに1種目も記録がなければ null）。欠けている種目は 0 として足す */
   total: number | null;
   totalMonthAgo: number | null;
-  /** 合計の折れ線（from〜today。3種目がそろった日から。記録のあった日と、from・today の点） */
+  /** 合計の折れ線（from〜today。1種目でも記録がある日から。記録のあった日と、from・today の点） */
   points: { date: DateKey; total: number }[];
 };
 
 /**
- * BIG3 の推定1RM の合計。役ごとに、その日までの最高の推定1RM（estimated1RM）を出し、3つの和を合計とする。
+ * BIG3 の推定1RM の合計。役ごとに、その日までの最高の推定1RM（estimated1RM）を出し、記録がある役だけの和を合計とする
+ * （割り当てがない・記録がない役は 0 として足す。どの役にも記録がない日は合計なし）。
  * 推移は from〜today（3か月など）。from より前の記録も「その日までの最高」には入る
  */
 export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey, from: DateKey): Big3Trend {
@@ -326,12 +327,14 @@ export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Bi
   };
   const sumAt = (d: DateKey): number | null => {
     let sum = 0;
+    let count = 0;
     for (const role of roles) {
-      const v = assignments[role] ? bestUpTo(role, d) : null;
-      if (v == null) return null;
+      const v = bestUpTo(role, d);
+      if (v == null) continue;
       sum += v;
+      count += 1;
     }
-    return sum;
+    return count === 0 ? null : sum;
   };
   const monthAgo = addMonths(today, -1);
   const lifts = roles.map((role) => ({
@@ -352,6 +355,17 @@ export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Bi
     totalMonthAgo: sumAt(monthAgo),
     points,
   };
+}
+
+/**
+ * 合計に入っている種目が3つに満たないときの添え書き（「2種目の合計（デッドリフトはまだ）」）。画面の小さな文字と読み上げに使う。
+ * 3種目そろっているとき、1種目も入っていないとき（合計がない）は null
+ */
+export function big3PartialNote(trend: Pick<Big3Trend, 'lifts'>): string | null {
+  const included = trend.lifts.filter((l) => l.current != null);
+  const missing = trend.lifts.filter((l) => l.current == null);
+  if (included.length === 0 || missing.length === 0) return null;
+  return `${included.length}種目の合計（${missing.map((l) => BIG3_LABELS[l.role]).join('・')}はまだ）`;
 }
 
 /** その日の部位で2番目の部位も出す、1番目の負荷量に対する割合（7割以上なら「胸・肩」） */

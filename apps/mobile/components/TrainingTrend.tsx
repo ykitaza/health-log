@@ -17,7 +17,7 @@ import { addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey } fr
 import { BIG3_LABELS, big3Assignments, Big3Role } from '@/lib/exercises';
 import { formatSetLong } from '@/lib/format';
 import {
-  bestSet, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
+  bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
   weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
@@ -337,7 +337,8 @@ const BIG3_MONTHS = 3;
 
 /**
  * BIG3 の推定1RM の合計（3か月の折れ線）、今の合計と先月との差、3種目それぞれの値と差。
- * 3種目がそろわないあいだは、そろっている分と、何を割り当てる（記録する）と合計が出るかを出す
+ * 3種目がそろわないあいだは、記録がある種目だけの合計に、入っている種目の添え書きと、何を割り当てる（記録する）と合計に加わるかを添える。
+ * 1種目も記録がなければ、合計とグラフは出さず、案内だけ
  */
 function Big3Card({ rows, exercises, today, unit }: {
   rows: Parameters<typeof big3Trend>[0]; exercises: Exercise[]; today: string; unit: 'kg' | 'lb';
@@ -345,6 +346,7 @@ function Big3Card({ rows, exercises, today, unit }: {
   const from = addMonths(today, -BIG3_MONTHS);
   const trend = big3Trend(rows, big3Assignments(exercises), today, from);
   const conv = (kg: number) => kgToUnit(kg, unit);
+  const partialNote = big3PartialNote(trend);
   const names = (rs: Big3Role[]) => rs.map((r) => BIG3_LABELS[r]).join('・');
   const diff = trend.total != null && trend.totalMonthAgo != null ? conv(trend.total) - conv(trend.totalMonthAgo) : null;
   const signed = (v: number) => (Math.abs(v) < 0.05 ? '±0' : `${v > 0 ? '+' : '−'}${fmt1(Math.abs(v))}`);
@@ -354,7 +356,7 @@ function Big3Card({ rows, exercises, today, unit }: {
         <T variant="titleM" accessibilityRole="header">BIG3 の推定1RM（合計）</T>
         <T variant="bodyS" color={colors.sub}>{BIG3_MONTHS}か月</T>
       </View>
-      {trend.total != null ? (
+      {trend.total != null && (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, marginTop: space.s, flexWrap: 'wrap' }} testID="big3-total">
             <CountUpText num bold size={40} value={conv(trend.total)} format={fmt1} animKey="big3" />
@@ -367,8 +369,9 @@ function Big3Card({ rows, exercises, today, unit }: {
               </View>
             )}
           </View>
+          {partialNote != null && <T variant="labelM" color={colors.sub} style={{ marginTop: space.xs }} testID="big3-partial">{partialNote}</T>}
           {trend.points.length >= 2 && (
-            <View accessible accessibilityLabel={`BIG3 の推定1RM の合計のグラフ。${BIG3_MONTHS}か月。今 ${fmt1(conv(trend.total))}${unit}`}>
+            <View accessible accessibilityLabel={`BIG3 の推定1RM の合計のグラフ。${BIG3_MONTHS}か月。今 ${fmt1(conv(trend.total))}${unit}${partialNote ? `。${partialNote}` : ''}`}>
               <LineChart
                 points={datePoints(trend.points, (p) => conv(p.total), from, today)}
                 xLabels={dateLabels(from, today, 4)}
@@ -378,13 +381,14 @@ function Big3Card({ rows, exercises, today, unit }: {
             </View>
           )}
         </>
-      ) : (
+      )}
+      {(trend.unassigned.length > 0 || trend.noRecord.length > 0) && (
         <View style={{ marginTop: space.s, gap: space.xs }} testID="big3-missing">
           {trend.unassigned.length > 0 && (
-            <T variant="bodyM" color={colors.sub}>あと {names(trend.unassigned)} を割り当てると合計が出ます</T>
+            <T variant="bodyM" color={colors.sub}>あと {names(trend.unassigned)} を割り当てると合計{trend.total != null ? 'に加わります' : 'が出ます'}</T>
           )}
           {trend.noRecord.length > 0 && (
-            <T variant="bodyM" color={colors.sub}>{names(trend.noRecord)}の記録（重量 × 回数）がそろうと合計が出ます</T>
+            <T variant="bodyM" color={colors.sub}>{names(trend.noRecord)}の記録（重量 × 回数）が{trend.total != null ? 'あると合計に加わります' : 'そろうと合計が出ます'}</T>
           )}
           {trend.unassigned.length > 0 && (
             <Button

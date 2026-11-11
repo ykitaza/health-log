@@ -49,8 +49,10 @@ test('記録がないとき（筋トレと食事）。回数だけの記録し�
 test('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総負荷量の週 → 日の切り替え（開き直しても覚えている）、自己ベスト', async ({ page }) => {
   await seed(page);
   // BIG3：ベンチ 101.3（1か月前の 10/8 までは 80 → +21.3）、スクワット 116.7（1か月前は記録なし）、デッドリフトは記録なし
-  await expect(page.getByTestId('big3-missing')).toContainText('デッドリフトの記録（重量 × 回数）がそろうと合計が出ます');
-  await expect(page.getByTestId('big3-total')).toHaveCount(0);
+  // 記録がある2種目だけの合計（101.3 + 116.7 = 218.0）と添え書き。デッドリフトの記録を促す案内も残る
+  await expect(page.getByTestId('big3-total')).toContainText('218.0');
+  await expect(page.getByTestId('big3-partial')).toHaveText('2種目の合計（デッドリフトはまだ）');
+  await expect(page.getByTestId('big3-missing')).toContainText('デッドリフトの記録（重量 × 回数）があると合計に加わります');
   await expect(page.getByTestId('big3-bench')).toContainText('101.3kg+21.3');
   await expect(page.getByTestId('big3-squat')).toContainText('116.7kg先月の記録なし');
   await expect(page.getByTestId('big3-deadlift')).toContainText('—記録なし');

@@ -57,8 +57,11 @@ test('記録したあとの今週の負荷量のカード、カレンダーの�
   await expect(visible(page, 'volume-week')).toContainText('3.48t');
   await expect(visible(page, 'volume-week')).toContainText('× 2.3');
   await expect(page.getByTestId('week-bar-0')).toHaveCount(0);
-  // デッドリフトの記録がないので、BIG3 の合計はまだ出ない
-  await expect(visible(page, 'home-big3')).toContainText('BIG3 の記録がまだありません');
+  // スクワット（11/3、116.7）とベンチ（今日、101.3）の2種目の合計 218.0 と添え書き。最初の記録は 11/3 で5日前なので、始めた日（スクワットだけ 116.7）との差 +101.3
+  await expect(visible(page, 'home-big3')).toContainText('218.0kg');
+  await expect(visible(page, 'home-big3')).toContainText('2種目の合計（デッドリフトはまだ）');
+  await expect(visible(page, 'home-big3')).toContainText('+101.3 kg始めた日より');
+  await expect(visible(page, 'home-big3')).toHaveAttribute('aria-label', 'BIG3 推定1RM 合計 218.0kg。2種目の合計（デッドリフトはまだ）。始めた日より +101.3kg。筋トレの推移を開く');
 
   // カレンダーの印は 11 月の 3 日と 8 日
   await expect(day(page, '2026-11-03')).toHaveAttribute('aria-label', '11月3日（火） 記録あり');

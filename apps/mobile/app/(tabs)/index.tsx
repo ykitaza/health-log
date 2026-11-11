@@ -241,8 +241,9 @@ function SummaryCard({ testID, icon, title, badge, parts, body, sub, lines, note
 }
 
 /**
- * BIG3 推定1RM 合計（筋トレの推移の「BIG3 の推定1RM（合計）」と同じ計算）。大きな数字、3か月の折れ線、先月との差。
- * 押すと筋トレの推移。3種目がそろうまでは「—」と、記録がまだないこと
+ * BIG3 推定1RM 合計（筋トレの推移の「BIG3 の推定1RM（合計）」と同じ計算）。大きな数字、折れ線、基準の日との差。
+ * 折れ線の幅と差の基準は記録の長さで広がる（lib/home.ts の big3Range）。押すと筋トレの推移。
+ * 3種目そろうまでは、入っている種目を小さく添える。1種目も記録がないあいだは「—」と、記録がまだないこと
  */
 function Big3Card({ rows, assignments, today, unit }: {
   rows: TrainingSetRow[]; assignments: Parameters<typeof homeBig3>[1] | null; today: DateKey; unit: 'kg' | 'lb';
@@ -252,8 +253,8 @@ function Big3Card({ rows, assignments, today, unit }: {
   const change = big3?.diffKg != null ? signedChange(kgToUnit(big3.diffKg, unit)) : null;
   const changeColor = change?.dir === 'down' ? colors.danger : colors.accent;
   const label = assignments == null ? 'BIG3 推定1RM 合計'
-    : total == null ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
-    : `BIG3 推定1RM 合計 ${total}${unit}。${change ? `先月より ${change.text}${unit}` : '先月の記録なし'}`;
+    : total == null || !big3 ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
+    : `BIG3 推定1RM 合計 ${total}${unit}。${big3.note ? `${big3.note}。` : ''}${change ? `${big3.diffText} ${change.text}${unit}` : big3.noDiffText}`;
   return (
     <PressableScale
       testID="home-big3" accessibilityRole="button" accessibilityLabel={`${label}。筋トレの推移を開く`} scaleTo={0.98}
@@ -268,6 +269,7 @@ function Big3Card({ rows, assignments, today, unit }: {
           </>
         ) : <T num bold size={22}>—</T>}
       </View>
+      {big3?.note != null && <T variant="labelS" bold={false} color={colors.sub}>{big3.note}</T>}
       {big3 ? (
         <>
           {/* 列の高さの余りはこのカードが受け、折れ線と差は下に寄せる */}
@@ -279,9 +281,9 @@ function Big3Card({ rows, assignments, today, unit }: {
               <>
                 <Icon name={change.dir === 'up' ? 'arrowUp' : change.dir === 'down' ? 'arrowDown' : 'arrowFlat'} size={14} color={changeColor} />
                 <T variant="labelS" bold color={changeColor}>{change.text} {unit}</T>
-                <T variant="labelS" bold={false} color={colors.sub}>先月より</T>
+                <T variant="labelS" bold={false} color={colors.sub}>{big3.diffText}</T>
               </>
-            ) : <T variant="labelS" bold={false} color={colors.sub}>先月の記録なし</T>}
+            ) : <T variant="labelS" bold={false} color={colors.sub}>{big3.noDiffText}</T>}
           </View>
         </>
       ) : assignments != null && (
