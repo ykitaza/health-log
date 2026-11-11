@@ -68,7 +68,8 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
         style={{ position: 'absolute', left: space.screen, top: shapeTop, width: shapeWidth, height: shapeHeight }}
       >
         {shapeWidth > 0 && shapeHeight > 0 && shape != null && (
-          <GrowthShape shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
+          // 形を変えたら作り直す（形ごとに点の数がちがう）
+          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
         )}
       </PressableScale>
       <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">

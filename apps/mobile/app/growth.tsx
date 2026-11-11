@@ -11,8 +11,10 @@ import { LoadError } from '@/components/LoadError';
 import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { IconButton } from '@/components/ui';
+import { ShapePickerSheet } from '@/components/growth/ShapePickerSheet';
+import { Chip, IconButton } from '@/components/ui';
 import { useGrowthData } from '@/hooks/data';
+import { useGrowthShape } from '@/hooks/growthShape';
 import { useToday } from '@/hooks/today';
 import { DateKey, daysBetween } from '@/lib/date';
 import {
@@ -23,6 +25,7 @@ import {
   nextSpeed, playLabel, remainingMs, scrubberLabels, speedLabel,
   subtitleOn, subtitlePassed,
 } from '@/lib/growthPlayer';
+import { growthShapeLabel, SHAPE_LABELS } from '@/lib/shapes/labels';
 import type { WeightUnit } from '@/lib/units';
 import { colors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
@@ -204,14 +207,31 @@ export default function GrowthScreen() {
     return () => clearTimeout(t);
   }, [subtitle]);
 
+  // 形を選ぶ：再生中なら一時停止してから、下からシートを出す
+  const { shape, setShape } = useGrowthShape();
+  const [picking, setPicking] = useState(false);
+  const openPicker = () => {
+    if (playingRef.current) pause();
+    setPicking(true);
+  };
+
+  // 左右の列を同じ幅にして、まん中の見出しを画面のまん中に置く
   const header = (
     <View style={s.header}>
-      <IconButton name="back" label="戻る" onPress={() => router.back()} />
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <T variant="bodyS" color={colors.sub} testID="growth-status">{playing ? '成長を再生中' : '成長'}</T>
-        <T variant="titleM" accessibilityRole="header">点の軌跡</T>
+      <View style={s.side}>
+        <IconButton name="back" label="戻る" onPress={() => router.back()} />
       </View>
-      <View style={{ width: size.touch }} />
+      <View style={{ alignItems: 'center' }}>
+        <T variant="bodyS" color={colors.sub} testID="growth-status">{playing ? '成長を再生中' : '成長'}</T>
+        <T variant="titleM" accessibilityRole="header" testID="growth-shape-name">{shape ? SHAPE_LABELS[shape].name : ''}</T>
+      </View>
+      <View style={[s.side, { alignItems: 'flex-end', paddingRight: 12 }]}>
+        <Chip label="形を選ぶ" onPress={openPicker} />
+      </View>
+      <ShapePickerSheet
+        visible={picking} value={shape} onClose={() => setPicking(false)}
+        onSelect={(kind) => { setShape(kind); setPicking(false); }}
+      />
     </View>
   );
   if (error) return <Screen>{header}<LoadError onRetry={reload} /></Screen>;
@@ -228,11 +248,14 @@ export default function GrowthScreen() {
   return (
     <Screen>
       {header}
-      <View style={{ marginHorizontal: -space.screen }}>
-        <GrowthShape
-          shape="attractor" params={params} width={width} height={SHAPE_HEIGHT} paused={!visible} spin={playing ? PLAYING_SPIN : 1}
-          accessibilityLabel={`記録で育つ形（点の軌跡）。DAY ${dayNumber}`}
-        />
+      <View style={{ marginHorizontal: -space.screen, height: SHAPE_HEIGHT }}>
+        {/* 形を変えたら作り直す（形ごとに点の数がちがう） */}
+        {shape != null && (
+          <GrowthShape
+            key={shape} shape={shape} params={params} width={width} height={SHAPE_HEIGHT} paused={!visible} spin={playing ? PLAYING_SPIN : 1}
+            accessibilityLabel={growthShapeLabel(shape, dayNumber)}
+          />
+        )}
       </View>
 
       <View style={s.subtitle} accessibilityLiveRegion="polite" testID="growth-subtitle">
@@ -314,6 +337,7 @@ const SUBTITLE_COLOR = 'rgba(243,245,247,0.7)';
 
 const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', minHeight: size.topBar, marginHorizontal: -12 },
+  side: { flex: 1, alignItems: 'flex-start' },
   subtitle: { minHeight: 48, justifyContent: 'center', marginTop: space.s },
   dayRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: space.l, marginBottom: space.s },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xl },
