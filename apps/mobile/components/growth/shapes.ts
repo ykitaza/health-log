@@ -13,14 +13,19 @@ export type ShapeDef = {
   orbitOffsetY: number;
 };
 
-export const SHAPES: Record<ShapeKind, ShapeDef> = {
-  attractor: {
-    maxPoints: MAX_POINTS,
-    build: () => {
-      const points = attractorPoints(MAX_POINTS);
-      return { points, tints: pointTints(points) };
-    },
-    layout: attractorLayout,
-    orbitOffsetY: 0,
+const attractor: ShapeDef = {
+  maxPoints: MAX_POINTS,
+  build: () => {
+    const points = attractorPoints(MAX_POINTS);
+    return { points, tints: pointTints(points) };
   },
+  layout: attractorLayout,
+  orbitOffsetY: 0,
+};
+
+export const SHAPES: Record<ShapeKind, ShapeDef> = {
+  attractor,
+  // 木と銀河は、それぞれの形ができるまで点の軌跡で代える
+  tree: attractor,
+  galaxy: attractor,
 };
