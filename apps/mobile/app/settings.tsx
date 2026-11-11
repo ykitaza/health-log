@@ -1,8 +1,9 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, Share, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, Platform, Pressable, ScrollViewInstance, Share, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { ActivityChoice, SexChoice } from '@/components/GoalProfile';
 import { Input } from '@/components/Input';
 import { Shake } from '@/components/motion';
@@ -16,6 +17,7 @@ import { versionLines } from '@/lib/appVersion';
 import { parseBirthYear } from '@/lib/autoGoal';
 import { workoutCsv } from '@/lib/csv';
 import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS } from '@/lib/goals';
+import { WEEKLY_GOALS_SECTION } from '@/lib/home';
 import { LIMITS, parseInRange } from '@/lib/limits';
 import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts, radius, space } from '@/theme';
@@ -37,6 +39,17 @@ export default function SettingsScreen() {
   // 打ったが、まだ保存していない欄。Android では、入力中に単位を押しても欄を離れない（onBlur が起きない）ため、
   // 単位を変える前に、これを今の単位で保存する
   const editing = useRef(new Set<'height' | 'goal'>());
+  // ホームの今週の目標のカードから開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrolledToSection = useRef(false);
+  const reduced = useReducedMotion();
+  const onGoalsLayout = (e: LayoutChangeEvent) => {
+    if (section !== WEEKLY_GOALS_SECTION || scrolledToSection.current) return;
+    scrolledToSection.current = true;
+    const { y } = e.nativeEvent.layout;
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y, animated: !reduced }));
+  };
 
   const unit = settings?.weightUnit ?? 'kg';
   // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
@@ -99,7 +112,7 @@ export default function SettingsScreen() {
   if (error) return <Screen><Header title="設定" onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   return (
-    <Screen>
+    <Screen scrollRef={scrollRef}>
       <Header title="設定" onBack={() => router.back()} />
 
       <SectionTitle title="アカウント" />
@@ -138,24 +151,26 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <SectionTitle title="今週の目標" />
-      <Card style={{ gap: space.l }}>
-        <Choices
-          title="筋トレ" description="1週間に筋トレをする回数"
-          options={WEEKLY_TRAINING_OPTIONS} value={settings?.weeklyGoalTrainingDays} label={(n) => `${n}回`}
-          onChange={(weeklyGoalTrainingDays) => save({ weeklyGoalTrainingDays })}
-        />
-        <Choices
-          title="食事の記録" description="1週間に食事を記録する日数"
-          options={WEEKLY_MEAL_OPTIONS} value={settings?.weeklyGoalMealDays} label={(n) => `${n}日`}
-          onChange={(weeklyGoalMealDays) => save({ weeklyGoalMealDays })}
-        />
-        <Choices
-          title="睡眠" description="7時間以上寝る日数。Health Connect の睡眠で数えます"
-          options={WEEKLY_SLEEP_OPTIONS} value={settings?.weeklyGoalSleepDays} label={(n) => (n === 0 ? '切' : `${n}日`)}
-          onChange={(weeklyGoalSleepDays) => save({ weeklyGoalSleepDays })}
-        />
-      </Card>
+      <View onLayout={onGoalsLayout} testID="settings-weekly-goals">
+        <SectionTitle title="今週の目標" />
+        <Card style={{ gap: space.l }}>
+          <Choices
+            title="筋トレ" description="1週間に筋トレをする回数"
+            options={WEEKLY_TRAINING_OPTIONS} value={settings?.weeklyGoalTrainingDays} label={(n) => `${n}回`}
+            onChange={(weeklyGoalTrainingDays) => save({ weeklyGoalTrainingDays })}
+          />
+          <Choices
+            title="食事の記録" description="1週間に食事を記録する日数"
+            options={WEEKLY_MEAL_OPTIONS} value={settings?.weeklyGoalMealDays} label={(n) => `${n}日`}
+            onChange={(weeklyGoalMealDays) => save({ weeklyGoalMealDays })}
+          />
+          <Choices
+            title="睡眠" description="7時間以上寝る日数。Health Connect の睡眠で数えます"
+            options={WEEKLY_SLEEP_OPTIONS} value={settings?.weeklyGoalSleepDays} label={(n) => (n === 0 ? '切' : `${n}日`)}
+            onChange={(weeklyGoalSleepDays) => save({ weeklyGoalSleepDays })}
+          />
+        </Card>
+      </View>
 
       <SectionTitle title="体の情報" />
       <Card style={{ gap: space.l }}>

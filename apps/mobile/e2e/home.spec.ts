@@ -196,7 +196,7 @@ test('今週の目標：最後の1つが届くと見出しの右に「✓ 達成
   await expect(visible(page, 'goal-training')).toContainText('2／2 回');
   await expect(visible(page, 'goal-meals')).toContainText('2／3 日');
   await expect(visible(page, 'goals-achieved')).toHaveCount(0);
-  await expect(page.getByLabel('今週の目標', { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(visible(page, 'weekly-goals')).toHaveAttribute('aria-label', '今週の目標。筋トレ 2回、目標 2回、達成。食事の記録 2日、目標 3日。押すと設定で変えられます');
   // 連続が0なら出さない
   await expect(visible(page, 'goal-streak')).toHaveCount(0);
 
@@ -204,8 +204,10 @@ test('今週の目標：最後の1つが届くと見出しの右に「✓ 達成
   await recordMeal(page);
   await expect(visible(page, 'goal-meals')).toContainText('3／3 日');
   await expect(visible(page, 'goals-achieved')).toHaveText('達成');
-  await expect(page.getByLabel('今週の目標をすべて達成', { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(visible(page, 'goal-streak')).toHaveText('1週連続で達成');
+  await expect(visible(page, 'weekly-goals')).toHaveAttribute(
+    'aria-label', '今週の目標をすべて達成。筋トレ 2回、目標 2回、達成。食事の記録 3日、目標 3日、達成。1週連続で達成。押すと設定で変えられます',
+  );
 
   await page.reload();
   await expect(see(page, 'hlog', { exact: true })).toBeVisible();
@@ -229,4 +231,16 @@ test('今週の目標：今週はまだで先週まで達成していれば「�
   await moveToDate(page, TODAY);
   await expect(visible(page, 'goals-achieved')).toHaveCount(0);
   await expect(visible(page, 'goal-streak')).toHaveText('先週まで 1週連続で達成');
+});
+
+test('今週の目標のカードを押すと、設定の「今週の目標」の欄までスクロールして開く。変えるとホームに出る', async ({ page }) => {
+  await openApp(page);
+  await button(page, '今週の目標。筋トレ 0回、目標 3回。食事の記録 0日、目標 5日。押すと設定で変えられます').click();
+  await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('settings-weekly-goals').filter({ visible: true })).toBeInViewport();
+  await expect(button(page, '睡眠、4日')).toBeInViewport();
+  await button(page, '筋トレ、4回').click();
+  await expect(button(page, '筋トレ、4回')).toHaveAttribute('aria-selected', 'true');
+  await button(page, '戻る').click();
+  await expect(visible(page, 'goal-training')).toContainText('0／4 回');
 });

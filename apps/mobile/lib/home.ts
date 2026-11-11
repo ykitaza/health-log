@@ -43,6 +43,17 @@ export function goalStreakText(s: GoalStreak): string | null {
   return s.thisWeek ? `${s.weeks}週連続で達成` : `先週まで ${s.weeks}週連続で達成`;
 }
 
+/** 設定の「今週の目標」の欄を開く道（ホームの今週の目標のカードを押したとき） */
+export const WEEKLY_GOALS_SECTION = 'weekly-goals';
+
+/**
+ * 今週の目標のカード全体の読み上げ（押すと設定で目標を変えられる）。
+ * 「今週の目標をすべて達成。筋トレ 2回、目標 2回、達成。食事の記録 3日、目標 3日、達成。1週連続で達成。押すと設定で変えられます」
+ */
+export function weeklyGoalCardLabel(achieved: boolean, rows: string[], streak: string | null): string {
+  return [achieved ? '今週の目標をすべて達成' : '今週の目標', ...rows, streak, '押すと設定で変えられます'].filter(Boolean).join('。');
+}
+
 /** 達成のチェックを動かして出すか。その週で初めてすべて達成したのを見たときだけ（seen は端末に覚えた、前に動かした週の月曜） */
 export function shouldCelebrate(achieved: boolean, weekStart: DateKey, seen: string | null): boolean {
   return achieved && seen !== weekStart;
