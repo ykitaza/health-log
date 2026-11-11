@@ -1,5 +1,5 @@
 import {
-  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, nextWeekLabel, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone, todoCount, toggleTodo, weeklyTodo,
+  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, previousTodo, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone, todoCount, todoWeeks, toggleTodo, weekRangeLabel, weeklyTodo,
 } from '../home';
 import { big3Trend, TrainingSetRow } from '../training';
 
@@ -135,10 +135,43 @@ describe('今週やること', () => {
     expect(todoAllDone([], [])).toBe(false);
   });
 
-  test('次の週の見出し（期間の終わりの次の日から7日）', () => {
-    expect(nextWeekLabel('2026-11-08')).toBe('11月9日〜15日');
-    expect(nextWeekLabel('2026-11-29')).toBe('11月30日〜12月6日');
-    expect(nextWeekLabel(null)).toBeNull();
+  test('週の見出し（月曜から7日）', () => {
+    expect(weekRangeLabel('2026-11-09')).toBe('11月9日〜15日');
+    expect(weekRangeLabel('2026-11-30')).toBe('11月30日〜12月6日');
+  });
+
+  test('レポートのタブのやること：やることの週（まとめの期間の次の週）の新しい順。同じ週は新しいまとめだけ、次の一歩がない週は出さない', () => {
+    const weeks = todoWeeks([
+      r('d1', 'daily', '2026-11-10', ['寝る']),
+      r('w1', 'weekly', '2026-11-01', ['ベンチ'], '2026-10-26', [0]),
+      // 作った順と期間の順が違っても、やることの週の新しい順
+      r('w3', 'weekly', '2026-11-08', ['脚の日', '水'], '2026-11-02', [1]),
+      r('w3old', 'weekly', '2026-11-08', ['古いほう']),
+      r('w0', 'weekly', '2026-10-25', []),
+      r('wn', 'weekly', null, ['a'], '2026-10-12'),
+      r('none', 'weekly', null, ['a']),
+      r('m', 'monthly', '2026-10-31', ['月']),
+    ]);
+    expect(weeks).toEqual([
+      { reportId: 'w3', start: '2026-11-09', steps: ['脚の日', '水'], done: [1] },
+      { reportId: 'w1', start: '2026-11-02', steps: ['ベンチ'], done: [0] },
+      { reportId: 'wn', start: '2026-10-19', steps: ['a'], done: [] },
+    ]);
+    // 同じ週の新しいまとめに次の一歩がなければ、前のまとめに戻らない
+    expect(todoWeeks([r('w2', 'weekly', '2026-11-08', []), r('w1', 'weekly', '2026-11-08', ['a'])])).toEqual([]);
+  });
+
+  test('週のまとめの「先週やることの振り返り」：そのまとめの週にやることだった、前の週のまとめの次の一歩', () => {
+    const reports = [
+      r('w2', 'weekly', '2026-11-08', ['脚の日'], '2026-11-02'),
+      r('w1', 'weekly', '2026-11-01', ['ベンチ', '水'], '2026-10-26', [0, 1]),
+    ];
+    expect(previousTodo(reports, { kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08' }))
+      .toEqual({ reportId: 'w1', start: '2026-11-02', steps: ['ベンチ', '水'], done: [0, 1] });
+    // 前の週のまとめがない・日や月のまとめ・期間がないときは出さない
+    expect(previousTodo(reports, { kind: 'weekly', periodStart: '2026-10-26', periodEnd: '2026-11-01' })).toBeNull();
+    expect(previousTodo(reports, { kind: 'daily', periodStart: '2026-11-05', periodEnd: '2026-11-05' })).toBeNull();
+    expect(previousTodo(reports, { kind: 'weekly', periodStart: null, periodEnd: null })).toBeNull();
   });
 
   test('切り替え', () => {

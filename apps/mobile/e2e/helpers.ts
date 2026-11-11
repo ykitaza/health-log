@@ -25,7 +25,12 @@ export async function moveToDate(page: Page, date: string) {
 }
 
 export type TabName = 'ホーム' | '筋トレ' | '食事' | 'からだ' | 'レポート';
-export const tab = (page: Page, name: TabName) => page.getByRole('tab', { name, exact: true });
+// 画面の上の切り替え（primary tabs。レポートのタブの「レポート ／ やること」など）は数えない
+export const tab = (page: Page, name: TabName) =>
+  page.getByRole('tab', { name, exact: true }).and(page.locator(':not([data-testid="primary-tabs"] *)'));
+/** 画面の上の切り替え（primary tabs）の、見えているもの */
+export const primaryTab = (page: Page, name: string) =>
+  page.getByTestId('primary-tabs').filter({ visible: true }).getByRole('tab', { name, exact: true });
 
 /** タブを切り替える。前のタブが隠れる（aria-hidden になる）まで待つ */
 export async function goTab(page: Page, name: TabName) {

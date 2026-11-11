@@ -250,7 +250,7 @@ export function PrimaryTabs<K extends string>({ options, value, onChange }: { op
   const [layouts, setLayouts] = useLayouts();
   const mark = layouts[value];
   return (
-    <View accessibilityRole="tablist" style={s.tabs}>
+    <View accessibilityRole="tablist" style={s.tabs} testID="primary-tabs">
       {options.map((o) => {
         const active = o.key === value;
         return (

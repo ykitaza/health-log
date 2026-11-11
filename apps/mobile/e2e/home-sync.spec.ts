@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, homeCard, openApp, openSettings, see, tab, TODAY } from './helpers';
+import { button, goTab, homeCard, openApp, openSettings, primaryTab, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームの、同期で受け取るものに関わる部品：今週やること（週のまとめの次の一歩）と、取り込みの知らせ。
@@ -96,6 +96,19 @@ test('今週やること：チェックすると取り消し線と件数。サ�
   await expect(card.getByRole('checkbox', { name: 'たんぱく質を毎日 120g とる' })).toHaveAttribute('aria-checked', 'true');
   await expect(card.getByRole('checkbox', { name: '平日は 23時半までに寝る' })).toHaveAttribute('aria-checked', 'false');
   await expect(see(card, '2／3', { exact: true })).toBeVisible();
+
+  // 「すべて」で、レポートのタブの「やること」を開く（同じチェック）
+  await button(card, 'やることをすべて見る').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  await expect(primaryTab(page, 'やること')).toHaveAttribute('aria-selected', 'true');
+  const week = page.getByTestId('todo-week-2026-11-09').filter({ visible: true });
+  await expect(see(week, '2／3', { exact: true })).toBeVisible();
+  await expect(week.getByRole('checkbox', { name: 'たんぱく質を毎日 120g とる' })).toHaveAttribute('aria-checked', 'true');
+  // たたんだ行の右にも「すべて」
+  await goTab(page, 'ホーム');
+  await card.getByRole('checkbox', { name: '平日は 23時半までに寝る' }).click();
+  await expect(card.getByRole('button', { name: '今週やることを全部できた。3つのうち3つ済み' })).toBeVisible();
+  await expect(button(card, 'やることをすべて見る')).toBeVisible();
 });
 
 test('取り込みの知らせ：MCP で記録して戻ると「食事を2件、筋トレを1件取り込みました」。見るでその日の食事', async ({ page, context }) => {

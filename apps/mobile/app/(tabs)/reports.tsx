@@ -9,9 +9,11 @@ import { ReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, ChipRow, EmptyState, Fab, TabHeader } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, EmptyState, Fab, PrimaryTabs, TabHeader } from '@/components/ui';
+import { TodoWeekCard } from '@/components/WeeklyTodo';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
+import { todoWeeks } from '@/lib/home';
 import {
   emptyFilterText, filterReports, groupByMonth, isReportOrder, KIND_LABELS, orderToggleLabel, otherOrder, REPORT_FILTERS, REPORT_ORDER_LABELS, ReportFilter,
   ReportOrder, sortReports,
@@ -21,8 +23,19 @@ import { duration } from '@/theme/motion';
 
 const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレと食事をふり返って、レポートに残して」', '「ベンチプレスが伸びない理由を分析して保存して」'];
 
+type Pane = 'report' | 'todo';
+const paneOf = (v: string | undefined): Pane | null => (v === 'report' || v === 'todo' ? v : null);
+
 /**
- * レポートの一覧（下のタブの5つ目。ホームの「最新のレポート」の「すべて」と、新しいレポートのお知らせからもこのタブへ移る）。
+ * レポートのタブ（下のタブの5つ目）。上の切り替え（M3 の primary tabs。筋トレ・食事の「記録／推移」と同じ）で「レポート」と「やること」を分ける。
+ * どちらを開いていたかは画面の状態で覚える（タブを移っても、戻ったら同じ）。ほかの画面から view=todo で開くと「やること」
+ * （ホームの今週やることの「すべて」）。お知らせから order=newest で開くと「レポート」。
+ *
+ * やること：週のまとめの次の一歩を、やることの週（まとめの期間の次の週）の新しい順にカードで（lib/home.ts の todoWeeks）。
+ * 今週の分は見出しに「今週」。どの週もチェックを付け外しでき、ホームの今週やることと同じ next_steps_done を変える。
+ * 見出しの行を押すと、もとの週のまとめを開く。絞り込みと並べ替え、お知らせの帯は出さない。
+ *
+ * レポート：レポートの一覧（ホームの「最新のレポート」の「すべて」と、新しいレポートのお知らせからもこのタブへ移る）。
  * 期間の日付（lib/reports.ts の reportDate）の新しい順（右の切り替えで古い順）に並べ、その月の見出しで区切る。
  * 上の filter chip で種類（日・週・月）に絞る。「その他」は「すべて」でだけ出す。まだ開いていないものに「新着」の札。
  * 並び順は端末に覚える。お知らせから開いたとき（order=newest）は、種類の絞り込みを「すべて」に戻し、新しい順にする（端末には覚えない）。
@@ -33,7 +46,8 @@ const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレ�
  * まだ作っていないまとめ（閉じていないもの）があれば、それをまとめて頼む文で開く）
  */
 export default function ReportsScreen() {
-  const params = useLocalSearchParams<{ order?: string }>();
+  const params = useLocalSearchParams<{ order?: string; view?: string }>();
+  const [pane, setPane] = useState<Pane>(paneOf(params.view) ?? 'report');
   const { data, error, reload, repos } = useFocusData(async (r) => {
     const [reports, seen, order] = await Promise.all([r.reports.list(), r.reports.seenIds(), r.reports.listOrder()]);
     return { reports, seen, order };
@@ -58,20 +72,32 @@ export default function ReportsScreen() {
     if (!isReportOrder(params.order)) return;
     setPicked(params.order);
     setFilter('all');
+    setPane('report');
     router.setParams({ order: undefined });
   }, [params.order]);
+  useEffect(() => {
+    const p = paneOf(params.view);
+    if (!p) return;
+    setPane(p);
+    router.setParams({ view: undefined });
+  }, [params.view]);
   const swap = switched && !reduced && Platform.OS !== 'web' ? FadeIn.duration(duration.text).easing(easeOut) : undefined;
   const header = (
     <TabHeader title="レポート"
       actions={<Button label="自動で作る" icon="calendar" variant="text" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open}
         style={{ paddingLeft: 12, paddingRight: 12 }} testID="report-schedule" />} />
   );
-  // 上の段・お知らせの帯・右下の「レポートを作る」・シートは、どの状態でも同じ
+  // 上の段・切り替え・右下の「レポートを作る」・シートは、どの状態でも同じ。お知らせの帯は「レポート」の側だけ
   const frame = (body: ReactNode) => (
     <View style={{ flex: 1 }}>
       <Screen tab fab bottomSpace={size.fab + space.l * 2}>
         {header}
-        {data != null && <ReportSuggestion both onSeen={reload} />}
+        <PrimaryTabs<Pane>
+          options={[{ key: 'report', label: 'レポート', icon: 'report' }, { key: 'todo', label: 'やること', icon: 'check' }]}
+          value={pane}
+          onChange={setPane}
+        />
+        {data != null && pane === 'report' && <ReportSuggestion both onSeen={reload} />}
         {body}
       </Screen>
       <Fab label="レポートを作る" onPress={make} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="report-make" />
@@ -81,6 +107,20 @@ export default function ReportsScreen() {
   );
   if (error) return frame(<LoadError onRetry={reload} />);
   if (data == null) return frame(null);
+  if (pane === 'todo') {
+    const weeks = todoWeeks(data.reports);
+    if (weeks.length === 0) {
+      return frame(
+        <EmptyState icon="check" title="やることはまだありません" body="週のまとめに次の一歩があると、ここに週ごとに並びます。" />,
+      );
+    }
+    return frame(
+      <View style={{ gap: space.m, marginTop: space.l }} testID="todo-weeks">
+        {weeks.map((w) => <TodoWeekCard key={w.start} week={w} today={today} />)}
+        <T size={12} color={colors.sub}>チェックは次の週のまとめで Claude・ChatGPT が振り返ります。</T>
+      </View>,
+    );
+  }
   if (data.reports.length === 0) {
     return frame(
       <>
