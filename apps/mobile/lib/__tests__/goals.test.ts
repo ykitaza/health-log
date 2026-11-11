@@ -1,4 +1,5 @@
-import { dailyAchievement, weekOf, weeklyAchievement, WeeklyGoals } from '../goals';
+import { addDays } from '../date';
+import { allGoalsReached, dailyAchievement, goalStreak, STREAK_MAX_WEEKS, weekOf, weeklyAchievement, WeeklyGoals } from '../goals';
 import type { DaySummary } from '../meals';
 import type { TrainingSetRow } from '../training';
 
@@ -93,5 +94,71 @@ describe('日の達成', () => {
     expect(a.training).toEqual({ volumeKg: 0, exercises: 0, personalBestExerciseIds: [] });
     expect(a.meals).toEqual({ recorded: true, dayType: 'rest', kcal: 2000, proteinG: 110, kcalTarget: 2200, proteinTarget: 120 });
     expect(a.sleep).toEqual({ asleepMin: 430, goalMin: 420, reached: true });
+  });
+});
+
+describe('今週の目標をすべて達成したか', () => {
+  const p = (days: number, goal: number | null) => ({ days, goal, reached: goal != null && days >= goal });
+  test('筋トレ・食事の記録・睡眠（切でなければ）がすべて届いたら達成。たんぱく質は見ない', () => {
+    expect(allGoalsReached({ training: p(3, 3), meals: p(5, 5), sleep: p(4, 4) })).toBe(true);
+    expect(allGoalsReached({ training: p(4, 3), meals: p(6, 5), sleep: p(0, null) })).toBe(true); // 睡眠が切
+  });
+  test('1つでも途中なら、まだ', () => {
+    expect(allGoalsReached({ training: p(2, 3), meals: p(5, 5), sleep: p(0, null) })).toBe(false);
+    expect(allGoalsReached({ training: p(3, 3), meals: p(4, 5), sleep: p(0, null) })).toBe(false);
+    expect(allGoalsReached({ training: p(3, 3), meals: p(5, 5), sleep: p(3, 4) })).toBe(false);
+  });
+  test('週の達成（weeklyAchievement）から：最後の1つが届くと達成になる', () => {
+    const goals: WeeklyGoals = { trainingDays: 2, mealDays: 3, sleepDays: 0 };
+    const meals = ['2026-11-09', '2026-11-10', '2026-11-11'].map((d) => meal(d, 0, null));
+    const base = { date: '2026-11-11', goals, meals, sleep: [] };
+    expect(allGoalsReached(weeklyAchievement({ ...base, trainingDates: ['2026-11-09'] }))).toBe(false);
+    expect(allGoalsReached(weeklyAchievement({ ...base, trainingDates: ['2026-11-09', '2026-11-11'] }))).toBe(true);
+  });
+});
+
+describe('すべて達成した週の連続', () => {
+  const goals: WeeklyGoals = { trainingDays: 2, mealDays: 3, sleepDays: 0 };
+  /** monday の週を達成させる日（筋トレ2日・食事3日） */
+  const reachedWeek = (monday: string) => ({
+    training: [monday, addDays(monday, 2)],
+    meals: [monday, addDays(monday, 1), addDays(monday, 2)],
+  });
+  const streak = (date: string, mondays: string[], extra: Partial<Parameters<typeof goalStreak>[0]> = {}) => {
+    const weeks = mondays.map(reachedWeek);
+    return goalStreak({
+      date, goals, sleep: [],
+      trainingDates: weeks.flatMap((w) => w.training), mealDates: weeks.flatMap((w) => w.meals), ...extra,
+    });
+  };
+  // 2026-11-11（水）の週は 11/9（月）から
+  test('今週も達成していれば、今週を含めて数える', () => {
+    expect(streak('2026-11-11', ['2026-11-09', '2026-11-02', '2026-10-26'])).toEqual({ weeks: 3, thisWeek: true });
+  });
+  test('今週はまだなら、先週から数える（今週は途切れとしない）', () => {
+    expect(streak('2026-11-11', ['2026-11-02', '2026-10-26'])).toEqual({ weeks: 2, thisWeek: false });
+  });
+  test('途切れた週より前は数えない', () => {
+    // 10/26 の週が抜けている
+    expect(streak('2026-11-11', ['2026-11-09', '2026-11-02', '2026-10-19', '2026-10-12'])).toEqual({ weeks: 2, thisWeek: true });
+  });
+  test('先週も今週もまだなら 0', () => {
+    expect(streak('2026-11-11', ['2026-10-26', '2026-10-19'])).toEqual({ weeks: 0, thisWeek: false });
+    expect(streak('2026-11-11', [])).toEqual({ weeks: 0, thisWeek: false });
+  });
+  test('週は月曜始まり：日曜は同じ週、次の月曜から新しい週', () => {
+    expect(streak('2026-11-15', ['2026-11-09'])).toEqual({ weeks: 1, thisWeek: true });
+    expect(streak('2026-11-16', ['2026-11-09'])).toEqual({ weeks: 1, thisWeek: false });
+  });
+  test('睡眠の目標があれば、7時間以上寝た日も数える', () => {
+    const withSleep = { ...goals, sleepDays: 1 };
+    expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep })).toEqual({ weeks: 0, thisWeek: false });
+    expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep, sleep: [{ date: '2026-11-10', asleepMin: 420 }] })).toEqual({ weeks: 1, thisWeek: true });
+    expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep, sleep: [{ date: '2026-11-10', asleepMin: 419 }] })).toEqual({ weeks: 0, thisWeek: false });
+  });
+  test('数えるのは今週を含めて上限の週まで', () => {
+    const mondays = Array.from({ length: STREAK_MAX_WEEKS + 5 }, (_, i) => addDays('2026-11-09', -7 * i));
+    expect(streak('2026-11-11', mondays)).toEqual({ weeks: STREAK_MAX_WEEKS, thisWeek: true });
+    expect(streak('2026-11-11', mondays, { maxWeeks: 4 })).toEqual({ weeks: 4, thisWeek: true });
   });
 });

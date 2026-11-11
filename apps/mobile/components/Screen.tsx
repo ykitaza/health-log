@@ -1,5 +1,5 @@
 import { useScrollToTop } from 'expo-router';
-import { ReactNode, useLayoutEffect, useRef } from 'react';
+import { ReactNode, Ref, useLayoutEffect, useRef } from 'react';
 import { RefreshControl, ScrollView, ScrollViewInstance, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,16 +11,19 @@ import { Snackbar } from './ui';
 
 /**
  * 画面の枠。footer は下に固定する（「今日のトレーニングに追加」など）。bottomSpace はスクロールの下の余白（FAB に隠れないように）。
- * タブの画面（tab）は、下に引っぱると同期し、下のタブで今のタブをもう一度押すといちばん上へ戻る。fab は右下に FAB があるとき（知らせをその上に出す）
+ * タブの画面（tab）は、下に引っぱると同期し、下のタブで今のタブをもう一度押すといちばん上へ戻る。fab は右下に FAB があるとき（知らせをその上に出す）。
+ * scrollRef はタブでない画面のスクロール（設定で、開いたときに欄までスクロールするため）
  */
-export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24, fab }: { children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean; bottomSpace?: number; fab?: boolean }) {
+export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24, fab, scrollRef }: {
+  children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean; bottomSpace?: number; fab?: boolean; scrollRef?: Ref<ScrollViewInstance>;
+}) {
   const contentContainerStyle = { paddingHorizontal: space.screen, paddingBottom: bottomSpace };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={tab ? ['top'] : ['top', 'bottom']}>
       {scroll && tab ? (
         <PullToSyncScroll contentContainerStyle={contentContainerStyle} fab={fab}>{children}</PullToSyncScroll>
       ) : scroll ? (
-        <ScrollView contentContainerStyle={contentContainerStyle} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={contentContainerStyle} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
       ) : (

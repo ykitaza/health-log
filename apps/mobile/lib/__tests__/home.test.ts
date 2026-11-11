@@ -1,5 +1,5 @@
 import {
-  goalA11yLabel, goalLine, goalRatio, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, readTodoChecks, signedChange, sleepNote, thisWeekVolume, toggleTodo, weeklyTodo,
+  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, readTodoChecks, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, toggleTodo, weeklyTodo,
 } from '../home';
 import { big3Trend, TrainingSetRow } from '../training';
 
@@ -145,5 +145,24 @@ describe('「記録する」の食事の行', () => {
     expect(mealRecordTarget('2026-11-08', '2026-11-08', 19)).toEqual({ slot: 'dinner', text: '夕食として記録します（時刻から）' });
     expect(mealRecordTarget('2026-11-08', '2026-11-08', 7)).toEqual({ slot: 'breakfast', text: '朝食として記録します（時刻から）' });
     expect(mealRecordTarget('2026-11-03', '2026-11-08', 19)).toEqual({ slot: null, text: '区分を選んで記録します' });
+  });
+});
+
+describe('今週の目標の連続と、達成のチェックを動かすか', () => {
+  test('今週を含む・含まない。0 なら出さない', () => {
+    expect(goalStreakText({ weeks: 3, thisWeek: true })).toBe('3週連続で達成');
+    expect(goalStreakText({ weeks: 2, thisWeek: false })).toBe('先週まで 2週連続で達成');
+    expect(goalStreakText({ weeks: 0, thisWeek: false })).toBeNull();
+  });
+  test('カード全体の読み上げ：達成・各行・連続と、押すと設定で変えられること', () => {
+    expect(weeklyGoalCardLabel(true, ['筋トレ 2回、目標 2回、達成', '食事の記録 3日、目標 3日、達成'], '3週連続で達成'))
+      .toBe('今週の目標をすべて達成。筋トレ 2回、目標 2回、達成。食事の記録 3日、目標 3日、達成。3週連続で達成。押すと設定で変えられます');
+    expect(weeklyGoalCardLabel(false, ['筋トレ 1回、目標 3回'], null)).toBe('今週の目標。筋トレ 1回、目標 3回。押すと設定で変えられます');
+  });
+  test('その週で初めて達成を見たときだけ動かす', () => {
+    expect(shouldCelebrate(true, '2026-11-09', null)).toBe(true);
+    expect(shouldCelebrate(true, '2026-11-09', '2026-11-02')).toBe(true); // 先週に動かした
+    expect(shouldCelebrate(true, '2026-11-09', '2026-11-09')).toBe(false); // 同じ週の2回目
+    expect(shouldCelebrate(false, '2026-11-09', null)).toBe(false);
   });
 });

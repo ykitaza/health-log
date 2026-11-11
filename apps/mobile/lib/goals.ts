@@ -1,7 +1,7 @@
 // 今週の目標と、週・日の達成（ホーム・レポートの画面が使う）。どれも純粋な関数で、DB は読まない
 // （読むのは db/repositories/achievements.ts、画面からは hooks/data.ts の useWeeklyAchievement・useDailyAchievement）
 import { mondayOf } from './body';
-import { addDays, DateKey } from './date';
+import { addDays, DateKey, weekStart } from './date';
 import { LONG_SLEEP_MIN } from './health';
 import type { DaySummary, DayType } from './meals';
 import { estimated1RM, personalBests, setVolume, TrainingSetRow } from './training';
@@ -104,6 +104,55 @@ export function weeklyAchievement(input: {
     sleep: progress(count((d) => d.sleptEnough), input.goals.sleepDays > 0 ? input.goals.sleepDays : null),
     days,
   };
+}
+
+/** 設定の今週の目標（筋トレの回数・食事を記録した日数・睡眠（切でなければ））が、すべて届いたか。たんぱく質は設定の目標ではないので見ない */
+export function allGoalsReached(a: Pick<WeeklyAchievement, 'training' | 'meals' | 'sleep'>): boolean {
+  return a.training.reached && a.meals.reached && (a.sleep.goal == null || a.sleep.reached);
+}
+
+/** 連続の記録を数える週の上限（今週を含めて1年ぶん） */
+export const STREAK_MAX_WEEKS = 52;
+
+/** すべての目標を達成した週が続いている数。thisWeek は今週も達成しているか（していなければ、先週から数える） */
+export type GoalStreak = { weeks: number; thisWeek: boolean };
+
+/**
+ * 今週から過去へ、週（月曜始まり、lib/date.ts の weekStart）ごとに、その週の目標をすべて達成したかを見て、続いている数を出す。
+ * 今週がまだなら先週から数える（今週は途中なので途切れとしない）。過去の週の目標も、いまの設定の値で数える（設定の履歴は持たない）。
+ * 数えるのは maxWeeks 週まで（今週を含む）。
+ * - trainingDates：筋トレの記録（セット）がある日、mealDates：食事を記録した日、sleep：日ごとの睡眠（起きた日でまとめた分）
+ */
+export function goalStreak(input: {
+  date: DateKey;
+  goals: WeeklyGoals;
+  trainingDates: Iterable<DateKey>;
+  mealDates: Iterable<DateKey>;
+  sleep: { date: DateKey; asleepMin: number }[];
+  maxWeeks?: number;
+}): GoalStreak {
+  const trained = new Set(input.trainingDates);
+  const meals = new Set(input.mealDates);
+  const slept = new Set(input.sleep.filter((s) => s.asleepMin >= LONG_SLEEP_MIN).map((s) => s.date));
+  const { goals } = input;
+  const reachedWeek = (start: DateKey) => {
+    const dates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    const count = (set: Set<DateKey>) => dates.filter((d) => set.has(d)).length;
+    return allGoalsReached({
+      training: progress(count(trained), goals.trainingDays),
+      meals: progress(count(meals), goals.mealDays),
+      sleep: progress(count(slept), goals.sleepDays > 0 ? goals.sleepDays : null),
+    });
+  };
+  const thisWeek = weekStart(input.date);
+  const max = input.maxWeeks ?? STREAK_MAX_WEEKS;
+  const reachedNow = reachedWeek(thisWeek);
+  let weeks = 0;
+  for (let i = reachedNow ? 0 : 1; i < max; i++) {
+    if (!reachedWeek(addDays(thisWeek, -7 * i))) break;
+    weeks++;
+  }
+  return { weeks, thisWeek: reachedNow };
 }
 
 export type DailyAchievement = {

@@ -179,3 +179,8 @@ export function previousWeight(daily: { date: DateKey; weightKg: number | null }
   const before = daily.filter((d) => d.date < date && d.weightKg != null).sort((a, b) => (a.date < b.date ? -1 : 1)).at(-1);
   return before ? { date: before.date, weightKg: before.weightKg! } : null;
 }
+
+/** 体重の単位の読み上げ（「キログラム」「ポンド」） */
+export function weightUnitSpoken(unit: string): string {
+  return unit === 'lb' ? 'ポンド' : 'キログラム';
+}

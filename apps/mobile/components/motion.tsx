@@ -1,9 +1,10 @@
 import { ComponentProps, ReactNode, useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, PressableProps, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, {
-  EntryExitAnimationFunction, Easing, FadeInDown, interpolateColor, LinearTransition, useAnimatedStyle, useReducedMotion, useSharedValue,
+  EntryExitAnimationFunction, Easing, FadeInDown, interpolateColor, LinearTransition, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue,
   withSequence, withSpring, withTiming,
 } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
 import { changedDigits } from '@/lib/digits';
 import { colors } from '@/theme';
 import { duration, EASE_IN, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_TOTAL_MS, staggerDelay } from '@/theme/motion';
@@ -13,6 +14,7 @@ export const easeOut = Easing.bezier(...EASE_OUT);
 export const easeIn = Easing.bezier(...EASE_IN);
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type PressableScaleProps = Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; scaleTo?: number };
 
@@ -188,6 +190,44 @@ export function CheckPop({ done, children }: { done: boolean; children: ReactNod
     transform: [{ translateY: bounce.get() }, { rotate: `${(1 - p.get()) * -90}deg` }, { scale: 0.5 + p.get() * 0.5 }],
   }));
   return <Animated.View style={anim}>{children}</Animated.View>;
+}
+
+/** チェックの線（components/Icon.tsx の check と同じ形）と、その長さ（24 の格子で約 19.8） */
+const CHECK_PATH = 'M5 12.5l4.5 4.5L19 7.5';
+const CHECK_LENGTH = 20;
+
+/**
+ * 線を描くように出るチェック（今週の目標をすべて達成したとき）。animate が true なら、出したときに1回だけ、
+ * 線が左から描かれながら少し回って出て、上下に小さくはねて止まる（CheckPop と同じ）。false か、動きを減らす設定なら、描いた形をそのまま出す
+ */
+export function DrawCheck({ animate, size = 16, color, strokeWidth = 2.5 }: { animate: boolean; size?: number; color: string; strokeWidth?: number }) {
+  const reduced = useReducedMotion();
+  const run = animate && !reduced;
+  const draw = useSharedValue(run ? 0 : 1);
+  const p = useSharedValue(run ? 0 : 1);
+  const bounce = useSharedValue(0);
+  useEffect(() => {
+    if (!run) { draw.set(1); p.set(1); bounce.set(0); return; }
+    draw.set(withTiming(1, { duration: duration.enter, easing: easeOut }));
+    p.set(withSpring(1, springs.pop));
+    bounce.set(withSequence(
+      withTiming(-3, { duration: 90, easing: easeOut }),
+      withTiming(1.5, { duration: 80 }),
+      withTiming(0, { duration: 80 }),
+    ));
+  }, [run, draw, p, bounce]);
+  const props = useAnimatedProps(() => ({ strokeDashoffset: CHECK_LENGTH * (1 - draw.get()) }));
+  const anim = useAnimatedStyle(() => ({
+    transform: [{ translateY: bounce.get() }, { rotate: `${(1 - p.get()) * -90}deg` }, { scale: 0.5 + p.get() * 0.5 }],
+  }));
+  return (
+    <Animated.View style={anim}>
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <AnimatedPath d={CHECK_PATH} stroke={color} strokeWidth={strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round"
+          strokeDasharray={[CHECK_LENGTH, CHECK_LENGTH]} animatedProps={props} />
+      </Svg>
+    </Animated.View>
+  );
 }
 
 /** 入力の間違いで、欄を左右に小さく揺らす。trigger が 0 より大きい値に変わるたびに揺れる（間違いのたびに数を増やす） */

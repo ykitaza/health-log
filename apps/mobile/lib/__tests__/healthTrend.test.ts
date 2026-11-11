@@ -1,4 +1,4 @@
-import { average, averageClock, formatHM, formatSteps, sleepWeek, stepWeek } from '../health';
+import { average, averageClock, formatHM, formatSteps, sevenDayAverage, sleepWeek, stepWeek } from '../health';
 
 // 睡眠・心拍の推移の画面の数字。時刻は端末の時刻で作る（どの時間帯で動かしても同じ結果）
 const at = (h: number, m: number, day = 8) => new Date(2026, 10, day, h, m).toISOString();
@@ -82,5 +82,19 @@ describe('歩数', () => {
     expect(week.average).toBeNull();
     expect(week.best).toBeNull();
     expect(week.days.every((d) => d.steps == null)).toBe(true);
+  });
+});
+
+describe('その日の記録がない行の、その日までの7日の平均', () => {
+  test('その日を含む7日のうち、記録のある日の平均。範囲の外は入れない。記録がなければ null', () => {
+    const pts = [
+      { date: '2026-11-01', value: 100 }, // 8日前：入れない
+      { date: '2026-11-02', value: 400 },
+      { date: '2026-11-07', value: 444 },
+      { date: '2026-11-09', value: 999 }, // 先の日：入れない
+    ];
+    expect(sevenDayAverage(pts, '2026-11-08')).toBe(422);
+    expect(formatHM(422)).toBe('7:02');
+    expect(sevenDayAverage(pts.slice(0, 1), '2026-11-08')).toBeNull();
   });
 });
