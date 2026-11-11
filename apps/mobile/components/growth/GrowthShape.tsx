@@ -5,6 +5,7 @@ import {
 } from '@shopify/react-native-skia';
 import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
+import { PERSPECTIVE, shapeExtent, shapeUnit } from '@/lib/shapes/common';
 import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
 import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
 import { growthColors } from '@/theme';
@@ -34,10 +35,6 @@ export type GrowthShapeProps = {
 
 /** Y 軸まわりに1周する秒数 */
 const ROTATION_PERIOD_S = 50;
-/** 手前に倒す傾き（ラジアン） */
-const TILT = 0.35;
-/** 奥行きの強さ（手前の点を少し大きく、奥を少し小さく） */
-const PERSPECTIVE = 0.22;
 /** 回し始めの時刻（秒）。動きを減らす設定のときは、この向きで止める */
 const START_S = 9;
 /** 光る点の絵の大きさ（px）と、画面に出す大きさ（dp、光のにじみを含む）。絵は出す大きさより細かく作り、縮めてもぼやけないようにする */
@@ -51,12 +48,14 @@ const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.None };
 const POINT_ALPHA = 0.42;
 /** 出す点の数の端で、この数の点をかけて、なめらかに現れる */
 const FADE_POINTS = 60;
-/** 広がりが最大のとき、形の半径はいちばん外の軌道のこの割合 */
-const SHAPE_RATIO = 0.75;
-/** 衛星を描かないとき、広がりが最大の形の半径は、箱の短い辺の半分のこの割合 */
-const SOLO_RATIO = 0.94;
+/** 組のある点（木の葉・光の粒）が、出す割合の端で、この幅をかけてなめらかに現れる */
+const FADE_FILL = 0.04;
+/** 形を箱に収めるときの、箱の端との余白（dp。点の半径） */
+const FIT_MARGIN = DOT_DP / 2;
 
 const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+const NO_FILLS: readonly number[] = [];
+const NO_GATES = new Float32Array(0);
 const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
 
 /**
@@ -65,9 +64,12 @@ const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
  */
 export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel }: GrowthShapeProps) {
   const def = SHAPES[shape];
-  const { points, tints } = useMemo(() => def.build(), [def]);
+  const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => def.build(), [def]);
   const layout = def.layout;
   const maxPoints = def.maxPoints;
+  const tilt = def.tilt;
+  // どう回しても、形が画面の上で届く範囲（形の半径を 1 としたとき）
+  const extent = useMemo(() => shapeExtent(points, tilt, PERSPECTIVE), [points, tilt]);
 
   // 値：SharedValue ならそのまま、ふつうの値なら自前の SharedValue に写す
   const own = useSharedValue<GrowthParams>(isSharedValue(params) ? EMPTY : (params as GrowthParams));
@@ -95,23 +97,30 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const cy = height / 2;
   const orbitY = def.orbitOffsetY * height;
   const outer = outerOrbitRadius(width, height, { x: 0, y: orbitY });
-  const baseUnit = sats ? outer * SHAPE_RATIO : (Math.min(width, height) / 2) * SOLO_RATIO;
+  // 形の大きさ。軌道の中心をずらした形（木）も、ずらさないときと同じ大きさを目安にし、どう回しても箱からはみ出さない大きさに抑える
+  const baseUnit = shapeUnit(width, height, extent, sats != null, FIT_MARGIN);
 
   const view = useDerivedValue(() => {
     const l = layout(source.get());
     const a = (seconds.get() / ROTATION_PERIOD_S) * Math.PI * 2;
-    return { count: l.count, unit: baseUnit * l.spread, glow: l.glow, cos: Math.cos(a), sin: Math.sin(a) };
+    return { count: l.count, fills: l.fills ?? NO_FILLS, unit: baseUnit * l.spread, glow: l.glow, cos: Math.cos(a), sin: Math.sin(a) };
   });
 
-  const tiltCos = Math.cos(TILT);
-  const tiltSin = Math.sin(TILT);
+  const tiltCos = Math.cos(tilt);
+  const tiltSin = Math.sin(tilt);
   const dotScale = DOT_DP / SPRITE;
   const half = SPRITE / 2;
   // 点ごとの位置と大きさ。並びの先頭から count 個だけ出し、残りは大きさ 0 にする
   const transforms = useRSXformBuffer(maxPoints, (val, i) => {
     'worklet';
     const v = view.get();
-    const k = Math.min(1, (v.count - i) / FADE_POINTS);
+    let k = Math.min(1, (v.count - i) / FADE_POINTS);
+    // 組のある点は、その組の出す割合が順位を超えたら出す
+    const g = i < gates.length ? gates[i] : -1;
+    if (g >= 0) {
+      const c = Math.floor(g);
+      k = Math.min(k, ((v.fills[c] ?? 1) - (g - c)) / FADE_FILL);
+    }
     if (k <= 0) {
       val.set(0, 0, 0, 0);
       return;
@@ -130,9 +139,10 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   });
 
   const sprites = useMemo(() => Array.from({ length: maxPoints }, () => rect(0, 0, SPRITE, SPRITE)), [maxPoints]);
+  const palette = def.palette;
   const colors = useMemo(
-    () => Array.from(tints, (t) => Skia.Color(mixHex(growthColors.sleep, growthColors.training, t, POINT_ALPHA))),
-    [tints],
+    () => Array.from(tints, (t) => Skia.Color(mixPalette(palette, t, POINT_ALPHA))),
+    [tints, palette],
   );
   // 白い光る点の絵（中心が明るく、まわりへ薄れる）。色は点ごとに掛け合わせる
   const texture = useTexture(
@@ -151,6 +161,9 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const haloR = useDerivedValue(() => Math.max(Math.min(view.get().unit * 1.3, haloMax), 24));
   // 種：記録がまだないときの光る点。点が増えるにつれて消える
   const seedOpacity = useDerivedValue(() => Math.max(0, 1 - view.get().count / MIN_POINTS));
+  // 種の位置：形が育ち始める所（木は根元）。形と同じように倒して奥行きをつける
+  const seedP = 1 / (1 - seedY * tiltSin * PERSPECTIVE);
+  const seedTransform = useDerivedValue(() => [{ translateY: seedY * tiltCos * seedP * view.get().unit }]);
 
   return (
     <View
@@ -170,7 +183,7 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
             <RadialGradient c={vec(cx, cy)} r={haloR} colors={[withAlpha(growthColors.training, 0.16), withAlpha(growthColors.training, 0)]} />
           </Circle>
         </Group>
-        <Group opacity={seedOpacity}>
+        <Group opacity={seedOpacity} transform={seedTransform}>
           <Circle cx={cx} cy={cy} r={20}>
             <RadialGradient c={vec(cx, cy)} r={20} colors={[withAlpha(growthColors.training, 0.45), withAlpha(growthColors.training, 0)]} />
           </Circle>
@@ -233,11 +246,13 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** 2つの色を t（0〜1）で混ぜる */
-function mixHex(from: string, to: string, t: number, alpha: number): string {
-  const a = rgb(from);
-  const b = rgb(to);
-  const [r, g, bl] = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+/** 並んだ色（palette）の、t（0〜1）の位置の色。あいだはとなりの2色を混ぜる */
+function mixPalette(palette: readonly string[], t: number, alpha: number): string {
+  const pos = Math.min(1, Math.max(0, t)) * (palette.length - 1);
+  const j = Math.min(palette.length - 2, Math.floor(pos));
+  const a = rgb(palette[j]);
+  const b = rgb(palette[j + 1]);
+  const [r, g, bl] = a.map((v, i) => Math.round(v + (b[i] - v) * (pos - j)));
   return `rgba(${r},${g},${bl},${alpha})`;
 }
 
