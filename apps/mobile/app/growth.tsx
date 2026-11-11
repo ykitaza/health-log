@@ -6,7 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { GrowthShape } from '@/components/growth/GrowthShape';
-import { ControlButton, PlayButton, SatMarks, Scrubber, TotalItem, TotalsRow, useLivePos } from '@/components/growth/player';
+import { ControlButton, PlayButton, Scrubber, TotalItem, TotalsRow, useLivePos } from '@/components/growth/player';
 import { LoadError } from '@/components/LoadError';
 import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
@@ -20,7 +20,7 @@ import {
 } from '@/lib/growth';
 import {
   canPlay, dateAt, DAY_UPDATE_MS, dayIndexAt, EMPTY_PARAMS, formatFullDate, growthTotals, highlightsInRange, lastPosition, lerpParams,
-  nextSpeed, NO_SATS, playLabel, remainingMs, satsByIndex, satsLabel, satWindowDays, scrubberLabels, smoothSats, speedLabel,
+  nextSpeed, playLabel, remainingMs, scrubberLabels, speedLabel,
   subtitleOn, subtitlePassed,
 } from '@/lib/growthPlayer';
 import type { WeightUnit } from '@/lib/units';
@@ -28,7 +28,9 @@ import { colors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 
 /** 形を描く箱の高さ（dp） */
-const SHAPE_HEIGHT = 360;
+const SHAPE_HEIGHT = 440;
+/** 再生中に形を回す速さ（止まっているときの何倍か） */
+const PLAYING_SPIN = 2.5;
 /** 字幕を出しておく長さ（ms）。出る 250ms のあと、これだけ出して 150ms で消える */
 const SUBTITLE_MS = 2000;
 const NO_SERIES: GrowthParams[] = [];
@@ -52,7 +54,7 @@ export default function GrowthScreen() {
       today: data.today, sets: data.sets, days: data.days, exerciseNames: data.exerciseNames, big3: data.big3,
       weights: data.weights, goalWeightKg: data.goalWeightKg, weeklyGoals: data.weeklyGoals, unit: data.weightUnit,
     });
-    return { series, start, items: highlightsInRange(all, start, data.today), sats: satsByIndex(data.days, start, series.length), unit: data.weightUnit };
+    return { series, start, items: highlightsInRange(all, start, data.today), unit: data.weightUnit };
   }, [data]);
   const series = model?.series ?? NO_SERIES;
   const n = series.length;
@@ -218,7 +220,6 @@ export default function GrowthScreen() {
   const empty = n === 0;
   const i = Math.min(index, span);
   const date = start == null ? today : dateAt(start, i);
-  const sats = empty ? NO_SATS : playing ? smoothSats(model.sats, i, satWindowDays(n, speed)) : model.sats[i];
   const dayNumber = empty ? 0 : i + 1;
   const prev = start == null ? null : prevHighlight(model.items, date);
   const next = start == null ? null : nextHighlight(model.items, date);
@@ -229,7 +230,7 @@ export default function GrowthScreen() {
       {header}
       <View style={{ marginHorizontal: -space.screen }}>
         <GrowthShape
-          shape="attractor" params={params} sats={sats} width={width} height={SHAPE_HEIGHT} paused={!visible}
+          shape="attractor" params={params} width={width} height={SHAPE_HEIGHT} paused={!visible} spin={playing ? PLAYING_SPIN : 1}
           accessibilityLabel={`記録で育つ形（点の軌跡）。DAY ${dayNumber}`}
         />
       </View>
@@ -251,7 +252,6 @@ export default function GrowthScreen() {
 
       <View style={s.dayRow}>
         <DayReadout pos={pos} playing={playing} index={i} dayCount={n} start={start} today={today} />
-        <SatMarks sats={sats} label={`その日の記録：${satsLabel(sats)}`} />
       </View>
 
       <Scrubber
