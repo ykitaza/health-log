@@ -1,7 +1,7 @@
 import {
   bestSet, estimated1RM, exerciseDailySeries, filterSince, periodStart,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
-  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary,
+  daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary, dayBodyParts, entryCardLabel,
 } from '../training';
 
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
@@ -208,5 +208,31 @@ describe('過去の日を基準にした「前回」と自己ベスト', () => {
     expect(personalBests(rows, '2026-11-08').get('bench')?.weightKg).toBe(80);
     expect(personalBests(rows, '2026-11-01').get('bench')).toBeUndefined();
     expect(personalBests(rows).get('bench')?.weightKg).toBe(100);
+  });
+});
+
+describe('その日のまとめの部位（dayBodyParts）', () => {
+  const e = (...names: string[]) => names.map((bodyPartName) => ({ bodyPartName }));
+  test('種目の並び順に重ねずに並べる。2つまでは「・」でつなぐ', () => {
+    expect(dayBodyParts(e('胸', '胸', '肩'))).toEqual({ names: ['胸', '肩'], text: '胸・肩', spoken: '胸、肩' });
+    expect(dayBodyParts(e('背中')).text).toBe('背中');
+  });
+  test('3つ以上は先頭の2つと「ほか ◯」。読み上げはすべて', () => {
+    expect(dayBodyParts(e('胸', '背中', '肩'))).toEqual({ names: ['胸', '背中', '肩'], text: '胸・背中 ほか1', spoken: '胸、背中、肩' });
+    expect(dayBodyParts(e('胸', '背中', '肩', '脚', '前腕')).text).toBe('胸・背中 ほか3');
+  });
+  test('自分で足した部位もそのまま。名前のない部位は数えない', () => {
+    expect(dayBodyParts(e('首まわり', ' ', '胸')).text).toBe('首まわり・胸');
+    expect(dayBodyParts([])).toEqual({ names: [], text: '', spoken: '' });
+  });
+});
+
+describe('記録のタブの種目のカードの読み上げ（entryCardLabel）', () => {
+  test('動き、部位、BIG3、推定1RM の順', () => {
+    expect(entryCardLabel({ name: 'ベンチプレス', part: '胸', big3: true, e1rm: '101.3kg' })).toBe('ベンチプレスを直す。部位 胸、BIG3、推定1RM 101.3kg');
+  });
+  test('ないものは言わない', () => {
+    expect(entryCardLabel({ name: '懸垂', part: '背中', big3: false, e1rm: null })).toBe('懸垂を直す。部位 背中');
+    expect(entryCardLabel({ name: '懸垂', part: '', big3: false, e1rm: null })).toBe('懸垂を直す');
   });
 });
