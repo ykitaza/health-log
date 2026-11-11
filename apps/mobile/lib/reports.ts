@@ -33,6 +33,8 @@ export type Report = {
   headline: string;
   highlights: Highlight[];
   nextSteps: string[];
+  /** 済んだ次の一歩の番号（0 から、小さい順。チェックはホームの「今週やること」とレポートの中身で付け、同期でサーバーに送る） */
+  nextStepsDone: number[];
   /** つながり。前の形のレポートは空 */
   links: ReportLink[];
   /** 目標の見直し。前の形のレポートは null */
@@ -41,11 +43,11 @@ export type Report = {
   createdAt: string;
 };
 
-/** 端末の reports の表の1行（db/migrations.ts の版7。links と review は版9） */
+/** 端末の reports の表の1行（db/migrations.ts の版7。links と review は版9、next_steps_done は版12） */
 export type ReportRow = {
   id: string; title: string; body: string; kind: string; period_start: string | null; period_end: string | null;
   overall_tone: string | null; headline: string | null; highlights: string | null; next_steps: string | null;
-  links: string | null; review: string | null; created_at: string;
+  links: string | null; review: string | null; next_steps_done?: string | null; created_at: string;
 };
 
 export const TONE_LABELS: Record<Tone, string> = { good: '良い調子', steady: 'いつもどおり', caution: '気をつけたい' };
@@ -103,9 +105,16 @@ function parseHighlights(raw: string | null): Highlight[] {
   return out.slice(0, MAX_HIGHLIGHTS);
 }
 
-function parseSteps(raw: string | null): string[] {
+export function parseSteps(raw: string | null): string[] {
   const list = parseJson(raw);
   return Array.isArray(list) ? list.filter((s): s is string => typeof s === 'string' && s.trim() !== '').slice(0, MAX_NEXT_STEPS) : [];
+}
+
+/** 済んだ番号。次の一歩にある番号だけを、小さい順に重ならないように（サーバーの report_from_state と同じ） */
+export function parseStepsDone(raw: string | null, count: number): number[] {
+  const list = parseJson(raw);
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < count))].sort((a, b) => a - b);
 }
 
 function parseLinks(raw: string | null): ReportLink[] {
@@ -144,6 +153,7 @@ export function parseReport(row: ReportRow): Report {
     headline: row.headline ?? '',
     highlights: parseHighlights(row.highlights),
     nextSteps: parseSteps(row.next_steps),
+    nextStepsDone: parseStepsDone(row.next_steps_done ?? null, parseSteps(row.next_steps).length),
     links: parseLinks(row.links),
     review: parseReview(row.review),
     createdAt: row.created_at,

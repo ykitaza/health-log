@@ -1,8 +1,8 @@
 import { ComponentProps, ReactNode, useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, PressableProps, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, {
-  EntryExitAnimationFunction, Easing, FadeInDown, interpolateColor, LinearTransition, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue,
-  withSequence, withSpring, withTiming,
+  EntryExitAnimationFunction, Easing, FadeInDown, interpolateColor, LinearTransition, useAnimatedProps, useAnimatedStyle, useReducedMotion,
+  useSharedValue, withDelay, withSequence, withSpring, withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { changedDigits } from '@/lib/digits';
@@ -321,4 +321,40 @@ export function ColorFade({ on, from, to, style, children }: { on: boolean; from
   }, [on, reduced, p]);
   const anim = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(p.get(), [0, 1], [from, to]) }));
   return <Animated.View style={[style, anim]}>{children}</Animated.View>;
+}
+
+/**
+ * たたむ・開く入れ物（アコーディオン）。高さと濃さが 250ms で変わる（行き帰り同じ長さとイージング）。
+ * たたむ前に closeDelay だけ待てる（チェックを描き終えてからたたむ）。たたみ終えたら中身を外す（読み上げにも出ない）。
+ * 中身の高さは、親の高さに縮められない（flexShrink 0）ので、たたんでいるあいだも本来の高さで測れる。動きを減らす設定なら動かさない
+ */
+export function Collapse({ open, closeDelay = 0, children, testID }: { open: boolean; closeDelay?: number; children: ReactNode; testID?: string }) {
+  const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(open);
+  const p = useSharedValue(open ? 1 : 0);
+  const h = useSharedValue(-1);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const ms = motionDuration(duration.toggle, reduced);
+    if (open) {
+      setMounted(true);
+      p.set(withTiming(1, { duration: ms, easing: easeOut }));
+      return;
+    }
+    const wait = reduced ? 0 : closeDelay;
+    p.set(withDelay(wait, withTiming(0, { duration: ms, easing: easeOut })));
+    const t = setTimeout(() => setMounted(false), wait + ms);
+    return () => clearTimeout(t);
+  }, [open, reduced, closeDelay, p]);
+  const anim = useAnimatedStyle(() => {
+    if (h.get() < 0) return p.get() >= 1 ? {} : { height: 0, opacity: 0 };
+    return { height: h.get() * p.get(), opacity: p.get() };
+  });
+  return (
+    <Animated.View style={[{ overflow: 'hidden' }, anim]} importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!open} testID={testID}>
+      {mounted && <View onLayout={(e) => h.set(e.nativeEvent.layout.height)}>{children}</View>}
+    </Animated.View>
+  );
 }

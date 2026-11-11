@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -310,7 +310,7 @@ DELETE FROM sync_meta WHERE key = 'cursor';
 DELETE FROM sync_seen WHERE entity_type = 'report';
 DELETE FROM sync_held WHERE entity_type = 'report';
 `);
-      for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
+      for (const spec of REPORT_ENTITIES_V9) await db.execAsync(triggerSql(spec));
     },
   },
   {
@@ -347,7 +347,51 @@ CREATE INDEX step_days_date ON step_days (date);
       for (const spec of HEALTH_ENTITIES.filter((s) => s.table === 'step_days')) await db.execAsync(triggerSql(spec));
     },
   },
+  {
+    // 次の一歩のチェック（レポートの next_steps_done。済んだ番号の JSON。docs/sync-design.md の「レポート」）。今までは端末だけ
+    // （sync_meta の home.weekly_todo）に置いていたものを、レポートの項目にしてサーバーに送る（次の週のまとめで Claude・ChatGPT が読む）。
+    // 列を足してトリガーを作り直し、sync_meta の値を一度だけ移す（トリガーが update を積み、次の同期で送る）。
+    // ほかの端末が送ったチェックは、版11までの端末では知らない項目として捨てていたので、版9と同じく受け取りの位置と
+    // レポートの当てはめた印を消して、スナップショットで取り直す（移したチェックは outbox にあるので、端末の値が残る）
+    version: 12,
+    up: async (db, now) => {
+      await db.execAsync(`
+ALTER TABLE reports ADD COLUMN next_steps_done TEXT;
+DROP TRIGGER sync_reports_insert;
+DROP TRIGGER sync_reports_update;
+DELETE FROM sync_meta WHERE key = 'cursor';
+DELETE FROM sync_seen WHERE entity_type = 'report';
+DELETE FROM sync_held WHERE entity_type = 'report';
+`);
+      for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
+      const old = await db.getFirstAsync<{ value: string | null }>(`SELECT value FROM sync_meta WHERE key = 'home.weekly_todo'`, []);
+      const moved = old?.value ? oldTodoChecks(old.value) : null;
+      if (moved) {
+        const row = await db.getFirstAsync<{ next_steps: string | null }>(
+          'SELECT next_steps FROM reports WHERE id = ? AND deleted_at IS NULL', [moved.reportId]);
+        let count = 0;
+        try { count = row?.next_steps ? (JSON.parse(row.next_steps) as unknown[]).length : 0; } catch { count = 0; }
+        const done = moved.done.filter((n) => n < count);
+        if (done.length > 0) {
+          await db.runAsync('UPDATE reports SET next_steps_done = ?, updated_at = ? WHERE id = ?', [JSON.stringify(done), now, moved.reportId]);
+        }
+      }
+      await db.execAsync(`DELETE FROM sync_meta WHERE key = 'home.weekly_todo';`);
+    },
+  },
 ];
+
+/** 版11までの今週やることのチェック（sync_meta の home.weekly_todo。{ reportId, done }）。壊れた値なら null。番号は小さい順で重ならない */
+function oldTodoChecks(raw: string): { reportId: string; done: number[] } | null {
+  try {
+    const v = JSON.parse(raw) as { reportId?: unknown; done?: unknown };
+    if (typeof v?.reportId !== 'string' || !Array.isArray(v.done)) return null;
+    const done = [...new Set(v.done.filter((n): n is number => Number.isInteger(n) && n >= 0))].sort((a, b) => a - b);
+    return { reportId: v.reportId, done };
+  } catch {
+    return null;
+  }
+}
 
 /** 初期の部位と種目を入れる（入れたばかりの端末と同じにする。端末の記録を消して受け取り直すときにも使う） */
 export async function insertSeeds(db: Db, now: string) {

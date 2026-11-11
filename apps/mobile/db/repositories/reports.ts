@@ -1,9 +1,9 @@
 import { DateKey } from '@/lib/date';
-import { isReportOrder, parseReport, Report, ReportOrder, ReportRow } from '@/lib/reports';
+import { isReportOrder, parseReport, parseSteps, parseStepsDone, Report, ReportOrder, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
-const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, created_at';
+const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, created_at';
 
 /** 閉じた「まだ作っていないまとめ」の key（lib/reports.ts の PendingReport）。端末だけに覚える（同期しない sync_meta に置く） */
 const DISMISSED_PENDING = 'reports.dismissed_pending';
@@ -17,8 +17,8 @@ const LIST_ORDER = 'reports.list_order';
 const SCHEDULE_REQUESTED = 'reports.schedule_requested_on';
 
 /**
- * レポート（同期で受け取った、MCP の save_report のまとめ）。アプリからは読むのと消すのだけ（書き換えない）。
- * 消すと、トリガーが delete を outbox に積み、次の同期でサーバーに届く
+ * レポート（同期で受け取った、MCP の save_report のまとめ）。アプリからは読むのと消すのと、次の一歩のチェックだけ（ほかは書き換えない）。
+ * 消すと delete、チェックすると next_steps_done だけの update を、トリガーが outbox に積み、次の同期でサーバーに届く
  */
 export function reportRepository(db: Db, deps: Deps) {
   const meta = async (key: string) => (await db.getFirstAsync<{ value: string | null }>('SELECT value FROM sync_meta WHERE key = ?', [key]))?.value ?? null;
@@ -135,9 +135,23 @@ export function reportRepository(db: Db, deps: Deps) {
       await setMeta(DISMISSED_PENDING, JSON.stringify(list.slice(-DISMISSED_MAX)));
     },
 
+    /**
+     * 済んだ次の一歩の番号を置き換える（ホームの「今週やること」とレポートの中身のチェック）。番号は小さい順に並べ、
+     * 次の一歩にない番号は捨てる。変わらなければ書かない（トリガーは next_steps_done だけの update を積む）
+     */
+    async setStepsDone(id: string, done: number[]): Promise<void> {
+      const row = await db.getFirstAsync<{ next_steps: string | null; next_steps_done: string | null }>(
+        'SELECT next_steps, next_steps_done FROM reports WHERE id = ? AND deleted_at IS NULL', [id]);
+      if (!row) return;
+      const count = parseSteps(row.next_steps).length;
+      const next = parseStepsDone(JSON.stringify(done), count);
+      if (JSON.stringify(parseStepsDone(row.next_steps_done, count)) === JSON.stringify(next)) return;
+      await db.runAsync('UPDATE reports SET next_steps_done = ?, updated_at = ? WHERE id = ?', [JSON.stringify(next), deps.now().toISOString(), id]);
+    },
+
     async remove(id: string): Promise<void> {
       const now = deps.now().toISOString();
       await db.runAsync('UPDATE reports SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL', [now, now, id]);
     },
-  }, ['remove']);
+  }, ['remove', 'setStepsDone']);
 }

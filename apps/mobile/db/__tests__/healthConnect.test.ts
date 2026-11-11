@@ -514,7 +514,13 @@ describe('版11のマイグレーション', () => {
     }
     db.raw.prepare(`INSERT INTO settings (id, value, created_at, updated_at) VALUES ('weight_unit', 'lb', 'x', 'x')`).run();
     db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '42')`).run();
-    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    // 版11まで当てる（版12はレポートのために受け取りの位置を消す）
+    const v12 = MIGRATIONS.splice(11);
+    try {
+      expect(await migrate(db, deps.now)).toBe(11);
+    } finally {
+      MIGRATIONS.push(...v12);
+    }
     expect(db.raw.prepare('SELECT entity_type, op FROM sync_outbox ORDER BY seq').all()).toEqual([{ entity_type: 'setting', op: 'create' }]);
     expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toEqual({ value: '42' });
     db.raw.prepare(`INSERT INTO step_days (id, date, steps, created_at, updated_at) VALUES ('s', '2026-11-08', 10, 'y', 'y')`).run();

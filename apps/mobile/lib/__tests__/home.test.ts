@@ -1,5 +1,5 @@
 import {
-  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, readTodoChecks, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, toggleTodo, weeklyTodo,
+  goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, mealRecordTarget, nextWeekLabel, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone, todoCount, toggleTodo, weeklyTodo,
 } from '../home';
 import { big3Trend, TrainingSetRow } from '../training';
 
@@ -102,15 +102,17 @@ describe('今週の目標の棒と読み上げ', () => {
 describe('今週やること', () => {
   // 今日は 2026-11-10（火）。今週は 11/9〜11/15、先週は 11/2〜11/8
   const TODAY = '2026-11-10';
-  const r = (id: string, kind: 'daily' | 'weekly' | 'monthly', periodEnd: string | null, nextSteps: string[], periodStart: string | null = null) =>
-    ({ id, kind, periodStart, periodEnd, nextSteps });
+  const r = (id: string, kind: 'daily' | 'weekly' | 'monthly', periodEnd: string | null, nextSteps: string[], periodStart: string | null = null,
+    nextStepsDone: number[] = []) => ({ id, kind, periodStart, periodEnd, nextSteps, nextStepsDone });
 
   test('いちばん新しい、今週か先週の週のまとめの次の一歩', () => {
     expect(weeklyTodo([
       r('d1', 'daily', '2026-11-10', ['寝る']),
       r('w2', 'weekly', '2026-11-08', ['脚の日を2回入れる', 'たんぱく質を毎日 120g とる']),
       r('w1', 'weekly', '2026-11-01', ['古い']),
-    ], TODAY)).toEqual({ reportId: 'w2', steps: ['脚の日を2回入れる', 'たんぱく質を毎日 120g とる'] });
+    ], TODAY)).toEqual({ reportId: 'w2', steps: ['脚の日を2回入れる', 'たんぱく質を毎日 120g とる'], done: [] });
+    // 済んだ番号はレポートのもの（同期でサーバーにも届く）
+    expect(weeklyTodo([r('w', 'weekly', '2026-11-08', ['a', 'b'], null, [1])], TODAY)?.done).toEqual([1]);
     // 先週の月曜に終わる期間も入る。期間の終わりがなければ始まりで見る
     expect(weeklyTodo([r('w', 'weekly', '2026-11-02', ['a'])], TODAY)?.reportId).toBe('w');
     expect(weeklyTodo([r('w', 'weekly', null, ['a'], '2026-11-09')], TODAY)?.reportId).toBe('w');
@@ -125,12 +127,18 @@ describe('今週やること', () => {
     expect(weeklyTodo([r('w2', 'weekly', '2026-11-09', []), r('w1', 'weekly', '2026-11-08', ['a'])], TODAY)).toBeNull();
   });
 
-  test('チェックは同じレポートの分だけ読む。壊れた値は空', () => {
-    expect(readTodoChecks(JSON.stringify({ reportId: 'w2', done: [0, 2] }), 'w2')).toEqual([0, 2]);
-    expect(readTodoChecks(JSON.stringify({ reportId: 'w1', done: [0] }), 'w2')).toEqual([]);
-    expect(readTodoChecks(JSON.stringify({ reportId: 'w2', done: [0, -1, 1.5, 'x'] }), 'w2')).toEqual([0]);
-    expect(readTodoChecks('{', 'w2')).toEqual([]);
-    expect(readTodoChecks(null, 'w2')).toEqual([]);
+  test('済んだ数と、全部できたか', () => {
+    expect(todoCount(['a', 'b', 'c'], [0, 2])).toBe(2);
+    expect(todoCount(['a'], [0, 3])).toBe(1);
+    expect(todoAllDone(['a', 'b'], [0, 1])).toBe(true);
+    expect(todoAllDone(['a', 'b'], [1])).toBe(false);
+    expect(todoAllDone([], [])).toBe(false);
+  });
+
+  test('次の週の見出し（期間の終わりの次の日から7日）', () => {
+    expect(nextWeekLabel('2026-11-08')).toBe('11月9日〜15日');
+    expect(nextWeekLabel('2026-11-29')).toBe('11月30日〜12月6日');
+    expect(nextWeekLabel(null)).toBeNull();
   });
 
   test('切り替え', () => {

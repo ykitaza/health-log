@@ -32,8 +32,8 @@ export type EntitySpec = {
    */
   imported?: { column: string; equals: string } | 'always';
   /**
-   * サーバー（MCP）だけが書く種類（レポート）。アプリからは消すのだけで、サーバーも delete 以外を断る。
-   * ログインの前の記録・アカウントを変えたときに outbox に積み直さない（backfillOutbox）
+   * サーバー（MCP）が書く種類（レポート）。アプリからは消すのと、次の一歩のチェック（next_steps_done）を書くのだけで、
+   * サーバーもそれ以外を断る。ログインの前の記録・アカウントを変えたときに outbox に積み直さない（backfillOutbox）
    */
   readOnly?: true;
 };
@@ -169,8 +169,14 @@ export const REPORT_ENTITIES_V7: EntitySpec[] = [
   },
 ];
 
-/** レポートの今の形。版9で、つながり（links）と目標の見直し（review）を足した（どちらも JSON の文字列。ないレポートは NULL） */
-export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({ ...s, columns: { ...s.columns, links: 'json', review: 'json' } }));
+/** 版9の形。つながり（links）と目標の見直し（review）を足した（どちらも JSON の文字列。ないレポートは NULL） */
+export const REPORT_ENTITIES_V9: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({ ...s, columns: { ...s.columns, links: 'json', review: 'json' } }));
+
+/**
+ * レポートの今の形。版12で、済んだ次の一歩の番号（next_steps_done。JSON の文字列。チェックしていなければ NULL）を足した。
+ * アプリが書くのはこの項目だけ（ホームの「今週やること」とレポートの中身のチェック）
+ */
+export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V9.map((s) => ({ ...s, columns: { ...s.columns, next_steps_done: 'json' } }));
 
 export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES];
 

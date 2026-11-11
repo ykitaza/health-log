@@ -91,10 +91,26 @@ test('MCP で保存したレポートが、ホーム → 一覧 → 中身に出
   await expect(page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel(/^睡眠、睡眠（平均） 5\.8 時間/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、良い。脚の日が2回に増えた').filter({ visible: true })).toBeVisible();
-  await expect(see(page, '来週の一歩', { exact: true })).toBeVisible();
+  // 週のまとめの次の一歩は、切り替えの「次の週にやること」の側に出す（まとめの側には「来週の一歩」の節を出さない）
+  await expect(button(page, 'まとめ')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, '来週の一歩', { exact: true })).toHaveCount(0);
   const body = page.getByTestId('report-body').filter({ visible: true });
   await expect(see(body, '[ここを押す](https://example.invalid)')).toBeVisible();
   await expect(body.locator('a')).toHaveCount(0);
+
+  // 次の週にやること：ホームと同じチェックの一覧。チェックするとサーバーに next_steps_done が届く
+  await button(page, '次の週にやること 0/1').click();
+  const todo = page.getByTestId('report-todo').filter({ visible: true });
+  await expect(page.getByRole('heading', { name: '11月9日〜15日にやること', exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(see(todo, 'チェックは次の週のまとめで Claude・ChatGPT が振り返ります')).toBeVisible();
+  await expect(body).toHaveCount(0);
+  const step = todo.getByRole('checkbox', { name: '平日は 23時半までに寝る' });
+  await step.click();
+  await expect(step).toHaveAttribute('aria-checked', 'true');
+  await expect(button(page, '次の週にやること 1/1')).toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
+  await button(page, 'まとめ').click();
+  await expect(page.getByTestId('report-body').filter({ visible: true })).toBeVisible();
 
   // 消す：確認のダイアログ → 一覧に戻り、空の状態。サーバーにも delete が届く
   await button(page, 'このレポートを消す').click();
