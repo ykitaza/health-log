@@ -1,8 +1,9 @@
 // 「成長を見る」画面（app/growth.tsx）の部品：衛星の印、つまみ（スクラバー）、再生の操作のボタン、下の累計
-import { ReactNode, useLayoutEffect, useMemo, useRef } from 'react';
+import { ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
-import Animated, { SharedValue, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import { indexAtX, ratioAt, SatStates } from '@/lib/growthPlayer';
+import Animated, { SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { indexAtX, LIVE_UPDATE_MS, ratioAt, SatStates } from '@/lib/growthPlayer';
 import type { SatState } from '@/lib/growth';
 import { colors, growthColors, size, space } from '@/theme';
 import { Icon, IconName } from '../Icon';
@@ -10,6 +11,23 @@ import { PressableScale } from '../motion';
 import { T } from '../Text';
 
 type MarkKind = keyof SatStates;
+
+/**
+ * 再生中の位置（日の番号の小数）を、細かい間隔（33ms）で React に渡す。日の数字と下の累計を、日と日のあいだの値で数え上げるため。
+ * 再生していないあいだは null（止まったときの値は、画面が持つ日の番号から出す）。この値を使う小さな部品だけが描き直される
+ */
+export function useLivePos(pos: SharedValue<number>, playing: boolean): number | null {
+  const [live, setLive] = useState<number | null>(null);
+  const lastAt = useSharedValue(0);
+  useAnimatedReaction(() => pos.get(), (p) => {
+    if (!playing) return;
+    const now = Date.now();
+    if (now - lastAt.get() < LIVE_UPDATE_MS) return;
+    lastAt.set(now);
+    scheduleOnRN(setLive, p);
+  }, [playing]);
+  return playing ? live : null;
+}
 const MARK = 10;
 
 /** 衛星の印1つ（丸＝筋トレ、ひし形＝食事、輪＝睡眠）。明るい／薄い／なし（なしは形だけ薄く） */

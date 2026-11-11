@@ -2,11 +2,11 @@ import { router, useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
-  cancelAnimation, Easing, FadeIn, FadeOut, useAnimatedReaction, useReducedMotion, useSharedValue, withTiming,
+  cancelAnimation, Easing, FadeIn, FadeOut, SharedValue, useAnimatedReaction, useReducedMotion, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { GrowthShape } from '@/components/growth/GrowthShape';
-import { ControlButton, PlayButton, SatMarks, Scrubber, TotalItem, TotalsRow } from '@/components/growth/player';
+import { ControlButton, PlayButton, SatMarks, Scrubber, TotalItem, TotalsRow, useLivePos } from '@/components/growth/player';
 import { LoadError } from '@/components/LoadError';
 import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
@@ -14,7 +14,7 @@ import { T } from '@/components/Text';
 import { IconButton } from '@/components/ui';
 import { useGrowthData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { daysBetween } from '@/lib/date';
+import { DateKey, daysBetween } from '@/lib/date';
 import {
   firstRecordDate, GrowthParams, growthSeries, highlights, nextHighlight, pickSubtitles, PlaybackSpeed, prevHighlight,
 } from '@/lib/growth';
@@ -23,6 +23,7 @@ import {
   nextSpeed, NO_SATS, playLabel, remainingMs, satsByIndex, satsLabel, satWindowDays, scrubberLabels, smoothSats, speedLabel,
   subtitleOn, subtitlePassed,
 } from '@/lib/growthPlayer';
+import type { WeightUnit } from '@/lib/units';
 import { colors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 
@@ -218,7 +219,6 @@ export default function GrowthScreen() {
   const i = Math.min(index, span);
   const date = start == null ? today : dateAt(start, i);
   const sats = empty ? NO_SATS : playing ? smoothSats(model.sats, i, satWindowDays(n, speed)) : model.sats[i];
-  const totals = growthTotals(empty ? EMPTY_PARAMS : series[i], model.unit);
   const dayNumber = empty ? 0 : i + 1;
   const prev = start == null ? null : prevHighlight(model.items, date);
   const next = start == null ? null : nextHighlight(model.items, date);
@@ -250,18 +250,7 @@ export default function GrowthScreen() {
       </View>
 
       <View style={s.dayRow}>
-        <View
-          style={{ flex: 1 }}
-          accessible
-          accessibilityLabel={`DAY ${dayNumber}、${formatFullDate(date)}`}
-          testID="growth-day"
-        >
-          <T variant="labelS" color={colors.sub}>DAY</T>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.m }}>
-            <T variant="numDisplay">{dayNumber}</T>
-            <T variant="bodyM" color={colors.sub}>{formatFullDate(date)}</T>
-          </View>
-        </View>
+        <DayReadout pos={pos} playing={playing} index={i} dayCount={n} start={start} today={today} />
         <SatMarks sats={sats} label={`その日の記録：${satsLabel(sats)}`} />
       </View>
 
@@ -280,15 +269,43 @@ export default function GrowthScreen() {
         <ControlButton text="今日" label="今日の姿に戻る" onPress={() => goTo(span)} disabled={empty} />
       </View>
 
-      <TotalsRow>
-        <TotalItem
-          first kind="training" name="筋トレ" value={totals.volume} unit={totals.volumeUnit}
-          label={`筋トレの負荷量の累計 ${totals.volume} ${model.unit === 'kg' ? 'トン' : '千ポンド'}`}
-        />
-        <TotalItem kind="food" name="食事" value={totals.foodDays} unit="日" label={`食事の目標に届いた日 ${totals.foodDays}日`} />
-        <TotalItem kind="sleep" name="睡眠" value={totals.sleepDays} unit="日" label={`7時間以上眠った日 ${totals.sleepDays}日`} />
-      </TotalsRow>
+      <LiveTotals pos={pos} playing={playing} index={i} series={series} unit={model.unit} />
     </Screen>
+  );
+}
+
+type LiveProps = { pos: SharedValue<number>; playing: boolean; /** 止まっているときに出す日の番号 */ index: number };
+
+/** DAY の数字と日付。再生中は、再生の位置から細かい間隔で数え上げる（この部品だけが描き直される） */
+function DayReadout({ pos, playing, index, dayCount, start, today }: LiveProps & { dayCount: number; start: DateKey | null; today: DateKey }) {
+  const live = useLivePos(pos, playing);
+  const i = live == null ? index : dayIndexAt(live, dayCount);
+  const date = start == null ? today : dateAt(start, i);
+  const dayNumber = dayCount === 0 ? 0 : i + 1;
+  return (
+    <View style={{ flex: 1 }} accessible accessibilityLabel={`DAY ${dayNumber}、${formatFullDate(date)}`} testID="growth-day">
+      <T variant="labelS" color={colors.sub}>DAY</T>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.m }}>
+        <T variant="numDisplay">{dayNumber}</T>
+        <T variant="bodyM" color={colors.sub}>{formatFullDate(date)}</T>
+      </View>
+    </View>
+  );
+}
+
+/** 下の累計。再生中は、日と日のあいだの値をつないで数え上げる（筋トレは 0.1 ずつ、食事・睡眠は 1日ずつ） */
+function LiveTotals({ pos, playing, index, series, unit }: LiveProps & { series: GrowthParams[]; unit: WeightUnit }) {
+  const live = useLivePos(pos, playing);
+  const totals = growthTotals(series.length === 0 ? EMPTY_PARAMS : live == null ? series[index] : lerpParams(series, live), unit);
+  return (
+    <TotalsRow>
+      <TotalItem
+        first kind="training" name="筋トレ" value={totals.volume} unit={totals.volumeUnit}
+        label={`筋トレの負荷量の累計 ${totals.volume} ${unit === 'kg' ? 'トン' : '千ポンド'}`}
+      />
+      <TotalItem kind="food" name="食事" value={totals.foodDays} unit="日" label={`食事の目標に届いた日 ${totals.foodDays}日`} />
+      <TotalItem kind="sleep" name="睡眠" value={totals.sleepDays} unit="日" label={`7時間以上眠った日 ${totals.sleepDays}日`} />
+    </TotalsRow>
   );
 }
 
