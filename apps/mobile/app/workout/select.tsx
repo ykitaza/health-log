@@ -15,12 +15,13 @@ import { formatSetShort } from '@/lib/format';
 import { lastTopSets } from '@/lib/training';
 import { colors, fonts, radius, space } from '@/theme';
 
-/** 種目の選択（検索、部位のチップ、部位ごとの一覧、前回の記録） */
+/** 種目の選択（検索、部位のチップ、部位ごとの一覧、前回の記録）。part を渡すと、その部位のチップを選んで開く */
 export default function SelectExerciseScreen() {
   const today = todayKey();
-  const { date = today } = useLocalSearchParams<{ date?: string }>();
+  // part：はじめに選んでおく部位（記録のタブの「背中の種目を選ぶ」から）
+  const { date = today, part: initialPart } = useLocalSearchParams<{ date?: string; part?: string }>();
   const [query, setQuery] = useState('');
-  const [part, setPart] = useState<string | null>(null);
+  const [part, setPart] = useState<string | null>(initialPart ?? null);
   const { data, error, reload, repos } = useFocusData(async (r) => {
     const [parts, exercises, rows, settings, day, all] = await Promise.all([
       r.catalog.listBodyParts(), r.catalog.listExercises(), r.workouts.allSetRows(), r.settings.get(), r.workouts.getDay(date),

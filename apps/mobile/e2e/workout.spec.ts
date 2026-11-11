@@ -52,7 +52,8 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
   await fillSets(page, [{ reps: '12' }]);
   await saveButton(page).click();
   await expect(see(page, '12 回', { exact: true })).toBeVisible();
-  await expect(see(page, '種目2部位胸・背中セット3合計負荷量1.12 t')).toBeVisible();
+  // 部位は総負荷量のいちばん多い部位（懸垂は体重の記録がないので 0）
+  await expect(see(page, '種目2部位胸セット3合計負荷量1.12 t')).toBeVisible();
   await expect(see(page, /推定1RM/)).toHaveCount(1);
 
   // 下のタブでホームへ
@@ -214,7 +215,8 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await saveButton(page).click();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'ベンチプレス', 'スクワット']);
   await expect(see(page, '85.0 kg × 3 回')).toBeVisible();
-  await expect(see(page, '種目3部位背中・胸 ほか1セット4')).toBeVisible();
+  // 部位は総負荷量で：胸 895（80×8 + 85×3）、脚 500 は7割未満
+  await expect(see(page, '種目3部位胸セット4')).toBeVisible();
 
   // 外すときの確認。やめるなら残る
   await button(page, 'ベンチプレスを外す').click();
@@ -229,7 +231,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await button(page.getByRole('dialog'), '外す').click();
   await expect(page.getByRole('dialog')).toBeHidden();
   await expect.poll(() => entryOrder(page)).toEqual(['デッドリフト', 'スクワット']);
-  await expect(see(page, '種目2部位背中・脚セット2合計負荷量0.86 t')).toBeVisible(); // 120×3 + 100×5
+  await expect(see(page, '種目2部位脚・背中セット2合計負荷量0.86 t')).toBeVisible(); // 120×3 + 100×5。背中 360 は脚 500 の7割以上
 
   // 最後の1つを外すと空の画面に戻り、ホームの数字も 0 に戻る
   for (const name of ['デッドリフト', 'スクワット']) {

@@ -2,7 +2,7 @@ import { expect, Locator, test } from '@playwright/test';
 import { addEntry, goTab, openApp, openTrainingTrend, see, TODAY, trendDay, button } from './helpers';
 
 // 種目の部位の札（記録のタブの種目のカードの2行目、推移で種目を選んだときの記録のカード）と、まとめの「部位」。
-// 部位の並べ方・「ほか ◯」・読み上げの文は jest（lib/__tests__/training.test.ts の dayBodyParts・entryCardLabel）。
+// 部位の決め方（総負荷量・7割）・読み上げの文は jest（lib/__tests__/training.test.ts の dayFocus・entryCardLabel）。
 // ここは画面に出ることと、412 より狭い 360 の幅で崩れないこと
 test.use({ viewport: { width: 360, height: 800 } });
 
@@ -22,12 +22,12 @@ test('360 の幅：種目のカードは1行目に順番・名前・＞、2行�
   await expect(parts).toHaveAttribute('aria-label', '部位 胸');
 
   // 名前の長い種目（部位の名前も長い）と、BIG3・推定1RM のない種目（回数だけ）を足す
-  await addEntry(page, 'ライイングトライセプスエクステンション', [{ weight: '20', reps: '10' }]);
+  await addEntry(page, 'ライイングトライセプスエクステンション', [{ weight: '50', reps: '10' }]);
   await addEntry(page, '懸垂', [{ reps: '10' }]);
   await expect(page.getByRole('button', { name: '懸垂を直す。部位 背中', exact: true })).toBeVisible();
-  // 3つ以上の部位は、先頭の2つと「ほか1」で1行に。読み上げはすべて
-  await expect(parts).toHaveText('部位胸・上腕三頭筋 ほか1');
-  await expect(parts).toHaveAttribute('aria-label', '部位 胸、上腕三頭筋、背中');
+  // 部位は総負荷量で：胸 640、上腕三頭筋 500（7割以上）で2つ。懸垂は体重の記録がないので 0
+  await expect(parts).toHaveText('部位胸・上腕三頭筋');
+  await expect(parts).toHaveAttribute('aria-label', '部位 胸、上腕三頭筋');
 
   // まとめ：4つの欄が1行に並び、重ならず、カードからはみ出さない。部位の値は1行（行の高さ 28）
   const summary = await box(page.locator('[data-testid="day-parts"]').filter({ visible: true }).locator('..'));
@@ -39,16 +39,16 @@ test('360 の幅：種目のカードは1行目に順番・名前・＞、2行�
     expect(Math.abs(b.y - boxes[0].y)).toBeLessThan(1);
     if (i > 0) expect(boxes[i - 1].x + boxes[i - 1].width).toBeLessThanOrEqual(b.x);
   }
-  expect((await box(parts.getByText('胸・上腕三頭筋 ほか1', { exact: true }))).height).toBeLessThan(32);
+  expect((await box(parts.getByText('胸・上腕三頭筋', { exact: true }))).height).toBeLessThan(32);
 
   // 種目のカード：1行目の名前は＞に重ならない。2行目は名前の位置にそろい、札は高さ 24 でカードに収まる
   const long = page.getByRole('button', { name: /^ライイングトライセプスエクステンションを直す。/ });
-  await expect(long).toHaveAccessibleName('ライイングトライセプスエクステンションを直す。部位 上腕三頭筋、推定1RM 26.7kg');
+  await expect(long).toHaveAccessibleName('ライイングトライセプスエクステンションを直す。部位 上腕三頭筋、推定1RM 66.7kg');
   const card = await box(long);
   const name = await box(long.getByText('ライイングトライセプスエクステンション', { exact: true }));
   const tags = long.getByTestId('entry-tags');
   const badge = await box(tags.getByText('上腕三頭筋', { exact: true }).locator('..'));
-  const oneRm = await box(tags.getByText('推定1RM 26.7kg', { exact: true }));
+  const oneRm = await box(tags.getByText('推定1RM 66.7kg', { exact: true }));
   expect(Math.abs((await box(tags)).x - name.x)).toBeLessThan(1);
   expect(badge.y).toBeGreaterThanOrEqual(name.y + name.height - 0.5);
   expect(Math.abs(badge.height - 24)).toBeLessThan(1);
