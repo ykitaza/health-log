@@ -1,31 +1,36 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { REPORT_CHAT_LABEL, SCHEDULE_LABEL, useChatChooser, useScheduleSheet } from '@/components/ChatSheet';
 import { LoadError } from '@/components/LoadError';
 import { easeOut, useListMotion } from '@/components/motion';
 import { ReportCard } from '@/components/reports';
+import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, ChipRow, EmptyState, Header } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, EmptyState, Fab, TabHeader } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import {
   emptyFilterText, filterReports, groupByMonth, isReportOrder, KIND_LABELS, orderToggleLabel, otherOrder, REPORT_FILTERS, REPORT_ORDER_LABELS, ReportFilter,
   ReportOrder, sortReports,
 } from '@/lib/reports';
-import { colors, space } from '@/theme';
+import { colors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 
 const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレと食事をふり返って、レポートに残して」', '「ベンチプレスが伸びない理由を分析して保存して」'];
 
 /**
- * レポートの一覧（ホームの「最新のレポート」の「すべて」と、新しいレポートのお知らせから開く）。
+ * レポートの一覧（下のタブの5つ目。ホームの「最新のレポート」の「すべて」と、新しいレポートのお知らせからもこのタブへ移る）。
  * 期間の日付（lib/reports.ts の reportDate）の新しい順（右の切り替えで古い順）に並べ、その月の見出しで区切る。
  * 上の filter chip で種類（日・週・月）に絞る。「その他」は「すべて」でだけ出す。まだ開いていないものに「新着」の札。
- * 並び順は端末に覚える。お知らせから開いたとき（order=newest）は、その回だけ新しい順にする。
- * 右上の「自動で作る」で、ChatGPT のスケジュールにまとめを作る予定を入れるシート
+ * 並び順は端末に覚える。お知らせから開いたとき（order=newest）は、種類の絞り込みを「すべて」に戻し、新しい順にする（端末には覚えない）。
+ * 中身（/reports/[id]）は、この一覧の上に開き、戻るでこの一覧へ戻る。
+ * 右上の「自動で作る」で、ChatGPT のスケジュールにまとめを作る予定を入れるシート。
+ * ホームは近道で、こちらが本体なので、ホームのレポートの操作をそろえる：いちばん上に新しいレポートのお知らせとまだのまとめのおすすめ
+ * （ホームと同じ部品。2つとも出し、新着を上に）、右下の「レポートを作る」（ホームの「チャットで作る」と同じシート。
+ * まだ作っていないまとめ（閉じていないもの）があれば、それをまとめて頼む文で開く）
  */
 export default function ReportsScreen() {
   const params = useLocalSearchParams<{ order?: string }>();
@@ -37,33 +42,55 @@ export default function ReportsScreen() {
   const chat = useChatChooser();
   const schedule = useScheduleSheet();
   const today = useToday();
+  // 押したときに読む（帯の「×」で閉じた分は入れない。帯は別の部品なので、ここで覚えた一覧は古くなる）
+  const make = async () => {
+    const items = await repos.achievements.pending().catch(() => []);
+    if (items.length > 0) chat.pending(items); else chat.report();
+  };
   const [filter, setFilter] = useState<ReportFilter>('all');
   // 選んだ順（null なら、お知らせから開いたときの順か、端末に覚えた順）
   const [picked, setPicked] = useState<ReportOrder | null>(null);
   // 開いたときはカードを順に出す。チップで切り替えたあとは、一覧の全体を 150ms でふわっと入れ替える（カードは順に出さない）
   const [switched, setSwitched] = useState(false);
   const reduced = useReducedMotion();
+  // ほかの画面から並び順を指定して移ってきたとき。受け取ったら消す（次に同じ順を渡されたときも動くように）
+  useEffect(() => {
+    if (!isReportOrder(params.order)) return;
+    setPicked(params.order);
+    setFilter('all');
+    router.setParams({ order: undefined });
+  }, [params.order]);
   const swap = switched && !reduced && Platform.OS !== 'web' ? FadeIn.duration(duration.text).easing(easeOut) : undefined;
   const header = (
-    <Header title="レポート" onBack={() => router.back()}
-      right={<Button label="自動で作る" icon="calendar" variant="text" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open}
+    <TabHeader title="レポート"
+      actions={<Button label="自動で作る" icon="calendar" variant="text" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open}
         style={{ paddingLeft: 12, paddingRight: 12 }} testID="report-schedule" />} />
   );
-  if (error) return <Screen>{header}<LoadError onRetry={reload} /></Screen>;
-  if (data == null) return <Screen>{header}</Screen>;
-  if (data.reports.length === 0) {
-    return (
-      <Screen>
+  // 上の段・お知らせの帯・右下の「レポートを作る」・シートは、どの状態でも同じ
+  const frame = (body: ReactNode) => (
+    <View style={{ flex: 1 }}>
+      <Screen tab fab bottomSpace={size.fab + space.l * 2}>
         {header}
+        {data != null && <ReportSuggestion both onSeen={reload} />}
+        {body}
+      </Screen>
+      <Fab label="レポートを作る" onPress={make} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="report-make" />
+      {chat.sheet}
+      {schedule.sheet}
+    </View>
+  );
+  if (error) return frame(<LoadError onRetry={reload} />);
+  if (data == null) return frame(null);
+  if (data.reports.length === 0) {
+    return frame(
+      <>
         <EmptyState icon="chart" title="レポートはまだありません" body="チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。"
           action={<Button label="チャットで作る" icon="chat" variant="tonal" accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report} />} />
         <Card style={{ gap: 8 }}>
           <T bold size={14} accessibilityRole="header">頼み方の例</T>
           {EXAMPLES.map((e) => <T key={e} size={14}>・{e}</T>)}
         </Card>
-        {chat.sheet}
-        {schedule.sheet}
-      </Screen>
+      </>,
     );
   }
   const order: ReportOrder = picked ?? (isReportOrder(params.order) ? params.order : data.order);
@@ -76,9 +103,8 @@ export default function ReportsScreen() {
   const shown = sortReports(filterReports(data.reports, filter), order);
   const groups = groupByMonth(shown, today);
   const empty = filter === 'all' ? null : emptyFilterText(filter);
-  return (
-    <Screen>
-      {header}
+  return frame(
+    <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
         <View style={{ flex: 1 }}>
           <ChipRow>
@@ -113,8 +139,6 @@ export default function ReportsScreen() {
           </>
         )}
       </Animated.View>
-      {chat.sheet}
-      {schedule.sheet}
-    </Screen>
+    </>,
   );
 }
