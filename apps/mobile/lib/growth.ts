@@ -159,9 +159,9 @@ export function growthScore(days: GrowthDay[], today: DateKey, weeklyTrainingGoa
 
 export type PlaybackSpeed = 1 | 2 | 4;
 
-/** 再生の長さ（秒）。1x は 日数 × 0.5秒（最短 8秒、最長 20秒）、2x は半分、4x は4分の1 */
+/** 再生の長さ（秒）。1x は 日数 × 0.5秒（最短 8秒、最長 30秒）、2x は半分、4x は4分の1 */
 export function playbackSeconds(dayCount: number, speed: PlaybackSpeed = 1): number {
-  return Math.min(20, Math.max(8, dayCount * 0.5)) / speed;
+  return Math.min(30, Math.max(8, dayCount * 0.5)) / speed;
 }
 
 export type HighlightKind = 'goalWeight' | 'big3Total' | 'trainingCount' | 'personalBest' | 'goalStreak';
@@ -282,8 +282,7 @@ export type Subtitle = Highlight & { atSec: number };
 /**
  * 再生で実際に出す字幕。startDate から totalDays 日ぶん（最初の記録の日〜今日）の再生を、speed で見るとき。
  * - 出すのは 3秒に1つまで（再生の秒で区切り、同じ3秒に重なったら優先度の高いもの。同じなら早い日）
- * - 4x では字幕を1つも出さない（subtitles は空）
- * - markDates：つまみの点を光らせる日（範囲内のハイライトの日。重ならず古い順。どの速さでも返す）
+ * - markDates：下の線に点を置く日（範囲内のハイライトの日。重ならず古い順）
  */
 export function pickSubtitles(items: Highlight[], totalDays: number, speed: PlaybackSpeed, startDate: DateKey): { subtitles: Subtitle[]; markDates: DateKey[] } {
   const inRange = items.filter((h) => {
@@ -291,7 +290,6 @@ export function pickSubtitles(items: Highlight[], totalDays: number, speed: Play
     return i >= 0 && i < totalDays;
   });
   const markDates = [...new Set(inRange.map((h) => h.date))].sort();
-  if (speed === 4) return { subtitles: [], markDates };
   const duration = playbackSeconds(totalDays, speed);
   const span = Math.max(1, totalDays - 1);
   const chosen = new Map<number, Subtitle>();
@@ -302,18 +300,4 @@ export function pickSubtitles(items: Highlight[], totalDays: number, speed: Play
     if (!cur || h.priority > cur.priority) chosen.set(bucket, { ...h, atSec });
   }
   return { subtitles: [...chosen.values()].sort((a, b) => a.atSec - b.atSec), markDates };
-}
-
-/** date より前のいちばん近いハイライトの日。なければ null */
-export function prevHighlight(items: Highlight[], date: DateKey): DateKey | null {
-  let best: DateKey | null = null;
-  for (const h of items) if (h.date < date && (best == null || h.date > best)) best = h.date;
-  return best;
-}
-
-/** date より後のいちばん近いハイライトの日。なければ null */
-export function nextHighlight(items: Highlight[], date: DateKey): DateKey | null {
-  let best: DateKey | null = null;
-  for (const h of items) if (h.date > date && (best == null || h.date < best)) best = h.date;
-  return best;
 }
