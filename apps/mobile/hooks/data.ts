@@ -3,6 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRepositories, Repositories } from '@/db';
 import type { DateKey } from '@/lib/date';
+import { loadGrowthData } from '@/lib/growthData';
 import { onRemoteChange } from '@/lib/sync/events';
 
 export function useRepos(): Repositories {
@@ -65,4 +66,9 @@ export function usePendingReports() {
   const { repos, reload } = q;
   const dismiss = useCallback(async (key: string) => { await repos.reports.dismissPending(key); await reload(); }, [repos, reload]);
   return { ...q, dismiss };
+}
+
+/** 「記録で育つ形」に要る全期間の記録（lib/growthData.ts の GrowthData）。today を渡し、日をまたいだら読み直す */
+export function useGrowthData(today: DateKey) {
+  return useFocusData((r) => loadGrowthData(r, today), today);
 }
