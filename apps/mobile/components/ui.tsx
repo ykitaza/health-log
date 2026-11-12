@@ -210,8 +210,13 @@ export function ChipRow({ children }: { children: ReactNode }) {
   );
 }
 
-/** 2〜5個の切り替え（M3 の segmented button）。見た目の高さ 40、押せる範囲 48。選んだものはチェックの印も出す */
-export function Segmented<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+/**
+ * 2〜5個の切り替え（M3 の segmented button）。見た目の高さ 40、押せる範囲 48。選んだものはチェックの印も出す。
+ * 幅が足りず文字が切れるときは、check を false にして印を出さない（選んだものは塗りと太字で分かる）
+ */
+export function Segmented<K extends string>({ options, value, onChange, check = true }: {
+  options: { key: K; label: string }[]; value: K; onChange: (k: K) => void; check?: boolean;
+}) {
   // 選んだ印は、選んだものへ横にすべる。大きさが分かるまでは、選んだものの背景に出す
   const [layouts, setLayouts] = useLayouts();
   const mark = layouts[value];
@@ -232,7 +237,7 @@ export function Segmented<K extends string>({ options, value, onChange }: { opti
             style={s.segmentItem}
           >
             <View style={[s.segmentFace, i > 0 && s.segmentDivider, active && !mark && { backgroundColor: colors.accentDark }]}>
-              {active && <Icon name="check" size={18} color={colors.onAccentDark} />}
+              {active && check && <Icon name="check" size={18} color={colors.onAccentDark} />}
               <T variant="labelL" bold={active} color={active ? colors.onAccentDark : colors.text} numberOfLines={1} style={{ flexShrink: 1 }}>{o.label}</T>
             </View>
           </Pressable>

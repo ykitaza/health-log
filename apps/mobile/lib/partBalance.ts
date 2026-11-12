@@ -1,5 +1,5 @@
 // ホームの「部位のバランス」：直近2週の、部位ごとのセット数（六角形のレーダー）
-import { addDays, DateKey } from './date';
+import { addDays, addMonths, DateKey } from './date';
 import type { TrainingSetRow } from './training';
 
 /**
@@ -63,6 +63,44 @@ export function partBalanceLabel(b: PartBalance | null): string {
   if (b == null) return '部位のバランス';
   if (b.total === 0) return `${head}まだ記録がありません`;
   return head + BALANCE_PARTS.map((p, i) => `${p} ${b.sets[i]}`).join('、');
+}
+
+/** 筋トレの推移の「部位のバランス」の期間。2週はホームと同じ、3か月は推移の折れ線（BIG3 の合計）と同じ、これまでは最初の記録から */
+export type BalanceRange = '2w' | '3m' | 'all';
+export const BALANCE_RANGES: { key: BalanceRange; label: string }[] = [
+  { key: '2w', label: '2週' }, { key: '3m', label: '3か月' }, { key: 'all', label: 'これまで' },
+];
+/** 読み上げの期間の名前 */
+const RANGE_SPOKEN: Record<BalanceRange, string> = { '2w': '直近2週', '3m': '直近3か月', all: 'これまで' };
+
+/** 覚えていた値を期間に。知らない値・覚えていないときは 2週（ホームと同じ） */
+export function parseBalanceRange(v: string | null): BalanceRange {
+  return v === '3m' || v === 'all' ? v : '2w';
+}
+
+/** 期間の始まり（今日を含む）。これまでは null（最初の記録から） */
+export function balanceRangeFrom(range: BalanceRange, today: DateKey): DateKey | null {
+  if (range === '2w') return addDays(today, -(BALANCE_DAYS - 1));
+  if (range === '3m') return addMonths(today, -3);
+  return null;
+}
+
+/** その期間の部位のバランス。これまでのときは、重ねる直近2週も */
+export function partBalanceForRange(
+  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, range: BalanceRange, today: DateKey,
+): { balance: PartBalance; recent: PartBalance | null } {
+  return {
+    balance: partBalanceBetween(rows, partName, balanceRangeFrom(range, today), today),
+    recent: range === 'all' ? partBalance(rows, partName, today) : null,
+  };
+}
+
+/** 推移の読み上げ：「部位のバランス、これまでのセット数。胸 180、…。直近2週は 胸 18、…」。その期間に記録がなければそのことを */
+export function partBalanceRangeLabel(range: BalanceRange, b: PartBalance, recent: PartBalance | null): string {
+  const list = (x: PartBalance) => BALANCE_PARTS.map((p, i) => `${p} ${x.sets[i]}`).join('、');
+  const head = `部位のバランス、${RANGE_SPOKEN[range]}のセット数。`;
+  if (b.total === 0) return `${head}この期間の記録はありません`;
+  return head + list(b) + (recent ? `。直近2週は ${recent.total === 0 ? '記録なし' : list(recent)}` : '');
 }
 
 /** i 番目の軸の向き（ラジアン）。胸が左上（−120°）で、60° ずつ時計回り */

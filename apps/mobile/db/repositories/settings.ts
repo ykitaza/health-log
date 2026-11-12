@@ -1,6 +1,7 @@
 import { Activity, isActivity, isSex, Sex } from '@/lib/autoGoal';
 import { ChatApp, isChatApp } from '@/lib/chat';
 import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS, WeeklyGoals } from '@/lib/goals';
+import { BalanceRange, parseBalanceRange } from '@/lib/partBalance';
 import type { SwipeHintKind, SwipeHintState } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
 import { serializeWrites } from '../serial';
@@ -67,6 +68,8 @@ const LAST_CHAT_APP = 'chat.last_app';
 /** 履歴の総負荷量のグラフを、週ごと・日ごとのどちらで見るか。端末だけに覚える（同期しない sync_meta に置く） */
 export type VolumeRange = 'week' | 'day';
 const VOLUME_RANGE = 'history.volume_range';
+/** 筋トレの推移の「部位のバランス」の期間（lib/partBalance.ts）。端末だけに覚える（同期しない sync_meta に置く） */
+const BALANCE_RANGE = 'history.balance_range';
 
 /**
  * 左右のスワイプのヒント（lib/swipe.ts）。出した回数は画面ごと、スワイプで日を動かしたかは全体で1つ。
@@ -166,6 +169,10 @@ export function settingsRepository(db: Db, deps: Deps) {
     volumeRange: async (): Promise<VolumeRange> => ((await meta(VOLUME_RANGE)) === 'day' ? 'day' : 'week'),
     /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
     setVolumeRange: (range: VolumeRange): Promise<void> => putMeta(VOLUME_RANGE, range),
+    /** 筋トレの推移の部位のバランスの期間。覚えていない・知らない値なら 2週 */
+    balanceRange: async (): Promise<BalanceRange> => parseBalanceRange(await meta(BALANCE_RANGE)),
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
+    setBalanceRange: (range: BalanceRange): Promise<void> => putMeta(BALANCE_RANGE, range),
 
     swipeHint,
     /** ヒントを1回出したことを数える。同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
