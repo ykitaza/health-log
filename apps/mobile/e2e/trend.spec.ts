@@ -99,6 +99,86 @@ test('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総
   await expect(see(page, 'ベンチプレスの推定1RM', { exact: true })).toBeVisible();
 });
 
+test('部位のバランス：BIG3 と総負荷量のあいだ。2週・3か月・これまでの切り替えと読み上げ（選んだ期間を覚える）', async ({ page }) => {
+  await seed(page);
+  const card = page.getByTestId('trend-part-balance').filter({ visible: true });
+  // 並び：BIG3 → 部位のバランス → 総負荷量
+  const y = async (l: ReturnType<typeof see>) => (await l.boundingBox())!.y;
+  const big3 = await y(see(page, 'BIG3 の推定1RM（合計）', { exact: true }));
+  const balance = await y(see(page, '部位のバランス', { exact: true }));
+  const volume = await y(see(page, '総負荷量', { exact: true }));
+  expect(big3).toBeLessThan(balance);
+  expect(balance).toBeLessThan(volume);
+
+  // 初めは 2週（ホームと同じ。10/26〜今日）：ベンチ 11/5 の2セットと今日の1セットで胸 3、懸垂で背中 1。軸の名前の横にセット数
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
+  await expect(card.getByText('胸 3', { exact: true })).toBeVisible();
+  await expect(card.getByText('背中 1', { exact: true })).toBeVisible();
+  await expect(card).toContainText('外周は、この期間でいちばん多い部位（胸）');
+  await expect(card.locator('svg circle')).toHaveCount(6);
+  await expect(card.locator('path[stroke-dasharray]')).toHaveCount(0);
+
+  // 3か月（8/8〜）：9/15 のベンチと 10/20 のスクワットも入る
+  await button(page, '3か月').click();
+  await expect(button(page, '3か月')).toHaveAttribute('aria-selected', 'true');
+  await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近3か月のセット数。胸 4、肩 0、背中 1、腕 0、脚 1、腹 0');
+  await expect(card.getByText('脚 1', { exact: true })).toBeVisible();
+
+  // これまで：直近2週を点線で重ね、凡例を出す
+  await button(page, 'これまで').click();
+  await expect(card).toHaveAttribute(
+    'aria-label', '部位のバランス、これまでのセット数。胸 4、肩 0、背中 1、腕 0、脚 1、腹 0。直近2週は 胸 3、肩 0、背中 1、腕 0、脚 0、腹 0',
+  );
+  await expect(card.getByText('直近2週', { exact: true })).toBeVisible();
+  await expect(card.locator('path[stroke-dasharray]')).toHaveCount(1);
+  await expect(card).toContainText('外周は、その期間でいちばん多い部位（どちらも胸）');
+
+  // 種目を選んで「すべて」に戻っても、開き直しても、これまでのまま
+  await button(page, 'ベンチプレス').click();
+  await expect(card).toHaveCount(0);
+  await button(page, 'すべて').click();
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+  await moveToDate(page, TODAY);
+  await openTrainingTrend(page);
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+  await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
+});
+
+test('部位のバランス：ホームの部位のバランスから来ると、覚えた期間に関係なく 2週。タブや BIG3 から開くと覚えた期間', async ({ page }) => {
+  await seed(page);
+  const card = page.getByTestId('trend-part-balance').filter({ visible: true });
+  const home = (id: string) => page.getByTestId(id).filter({ visible: true });
+  await button(page, 'これまで').click();
+  await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
+
+  // ホームの部位のバランスを押すと 2週（ホームと同じセット数）
+  await goTab(page, 'ホーム');
+  await home('home-part-balance').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
+
+  // 覚えた期間は書き換えない：下のタブで開き直すと、これまで
+  await goTab(page, 'ホーム');
+  await goTab(page, '筋トレ');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+
+  // 上の切り替えで記録 → 推移に移っても、これまで
+  await goTab(page, 'ホーム');
+  await home('home-part-balance').click();
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await goPane(page, '記録');
+  await goPane(page, '推移');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+
+  // BIG3 のカードから来たときも、これまで
+  await goTab(page, 'ホーム');
+  await home('home-big3').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+});
+
 test('種目を選ぶと、推定1RM の折れ線とその種目の記録（新しい順）。カードを押すと記録のタブのその日で直せる', async ({ page }) => {
   await seed(page);
   // 種目のチップは1列：すべて、記録のある種目（部位の順）。部位のチップと「記録／グラフ」の切り替えはない

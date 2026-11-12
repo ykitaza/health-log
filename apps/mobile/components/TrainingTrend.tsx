@@ -6,16 +6,20 @@ import { PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { LoadError } from './LoadError';
 import { PressableScale } from './motion';
+import { PartStackRadar } from './PartBalance';
 import { T } from './Text';
 import { Button, Card, Chip, ChipRow, EmptyState, ListRow, Segmented, SetNo } from './ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { VolumeRange } from '@/db/repositories/settings';
 import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
+import { useEntrance } from '@/hooks/entrance';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey } from '@/lib/date';
 import { BIG3_LABELS, big3Assignments, Big3Role } from '@/lib/exercises';
 import { formatSetLong } from '@/lib/format';
+import { partsNote, topPart } from '@/lib/growthRecords';
+import { BALANCE_RANGES, BalanceRange, partBalanceForRange, partBalanceRangeLabel } from '@/lib/partBalance';
 import {
   bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
   weeklySummary, weeklyVolumeByBodyPart,
@@ -31,20 +35,33 @@ const EXERCISE_MONTHS = 3;
 
 /**
  * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
- * すべてなら BIG3 の推定1RM の合計と総負荷量（週・日）、種目ごとの自己ベスト。
- * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）
+ * すべてなら BIG3 の推定1RM の合計、部位のバランス（2週・3か月・これまで）、総負荷量（週・日）、種目ごとの自己ベスト。
+ * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）。
+ * balanceOverride があれば、部位のバランスは覚えた期間の代わりにそれで見せる（ホームから来たとき。覚えた期間は書き換えない）
  */
-export function TrainingTrend({ onOpenDay }: { onOpenDay: (date: string) => void }) {
+export function TrainingTrend({ onOpenDay, balanceOverride, onBalanceChosen }: {
+  onOpenDay: (date: string) => void; balanceOverride?: BalanceRange | null; onBalanceChosen?: () => void;
+}) {
   const today = todayKey();
   const [exerciseId, setExerciseId] = useState<string>(ALL);
 
   const { data, error, reload } = useFocusData(async (r) => {
-    const [parts, exercises, rows, settings, volumeRange] = await Promise.all([
+    const [parts, exercises, rows, settings, volumeRange, balanceRange] = await Promise.all([
       r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true }), r.workouts.allSetRows(), r.settings.get(),
       r.settings.volumeRange().catch((): VolumeRange => 'week'),
+      r.settings.balanceRange().catch((): BalanceRange => '2w'),
     ]);
-    return { parts, exercises, rows, settings, volumeRange };
+    return { parts, exercises, rows, settings, volumeRange, balanceRange };
   });
+  // 部位のバランスの期間。選んだら端末に覚える。種目を選んで「すべて」に戻ったときも選んだままにするため、ここに置く
+  const repos = useRepos();
+  const [pickedBalance, setPickedBalance] = useState<BalanceRange | null>(null);
+  const balanceRange = balanceOverride ?? pickedBalance ?? data?.balanceRange ?? '2w';
+  const chooseBalance = (k: BalanceRange) => {
+    setPickedBalance(k);
+    onBalanceChosen?.();
+    repos.settings.setBalanceRange(k).catch(() => {});
+  };
   const unit = data?.settings.weightUnit ?? 'kg';
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const exercises = useMemo(() => data?.exercises ?? [], [data]);
@@ -72,7 +89,7 @@ export function TrainingTrend({ onOpenDay }: { onOpenDay: (date: string) => void
       {!data ? null : exercise ? (
         <ExerciseTrendView key={exercise.id} rows={rows} exercise={exercise} today={today} unit={unit} reloadKey={data} onOpenDay={onOpenDay} onError={reload} />
       ) : (
-        <AllGraph data={data} today={today} unit={unit} onPick={setExerciseId} />
+        <AllGraph data={data} today={today} unit={unit} onPick={setExerciseId} balanceRange={balanceRange} onBalanceRange={chooseBalance} />
       )}
     </>
   );
@@ -218,12 +235,13 @@ function Tile({ label, value }: { label: string; value: string }) {
 const DAILY_WEEKS = 4;
 const WEEKLY_WEEKS = 8;
 
-function AllGraph({ data, today, unit, onPick }: {
+function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange }: {
   data: {
     parts: { id: string; name: string }[]; exercises: Exercise[];
     rows: Parameters<typeof weeklyVolumeByBodyPart>[0]; volumeRange: VolumeRange;
   };
   today: string; unit: 'kg' | 'lb'; onPick: (exerciseId: string) => void;
+  balanceRange: BalanceRange; onBalanceRange: (k: BalanceRange) => void;
 }) {
   const repos = useRepos();
   const [range, setRange] = useState<VolumeRange>(data.volumeRange);
@@ -251,6 +269,7 @@ function AllGraph({ data, today, unit, onPick }: {
   return (
     <>
       <Big3Card rows={data.rows} exercises={data.exercises} today={today} unit={unit} />
+      <PartBalanceCard rows={data.rows} parts={data.parts} today={today} range={balanceRange} onRange={onBalanceRange} />
       <Card style={{ marginTop: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.m, marginBottom: 8 }}>
           <T variant="titleM" accessibilityRole="header">総負荷量</T>
@@ -420,6 +439,56 @@ function Big3Card({ rows, exercises, today, unit }: {
             </View>
           );
         })}
+      </View>
+    </Card>
+  );
+}
+
+/** 期間の切り替えにチェックの印を出せる幅（チェック付きの「これまで」が切れない 108dp × 3。360 の幅の画面では足りないので印を出さない） */
+const CHECK_MIN_WIDTH = 324;
+
+/**
+ * 部位のバランス（Figma 筋トレ 1-4-2）。ホームの右列のレーダーを大きくしたもの。期間は 2週（ホームと同じ）・3か月・これまで。
+ * 軸の名前の横に、その期間のセット数。これまでのときは直近2週を点線で重ねる（成長を見るの⑤と同じ部品）。
+ * 画面に入ったとき・期間を変えたときに中心から広がる（1200ms、ease-out。動きを減らす設定ならすぐ）
+ */
+function PartBalanceCard({ rows, parts, today, range, onRange }: {
+  rows: TrainingSetRow[]; parts: { id: string; name: string }[]; today: string; range: BalanceRange; onRange: (k: BalanceRange) => void;
+}) {
+  const { balance, recent } = useMemo(() => {
+    const names = new Map(parts.map((p) => [p.id, p.name]));
+    return partBalanceForRange(rows, (id) => names.get(id) ?? '', range, today);
+  }, [rows, parts, range, today]);
+  // 期間を変えたら、形が同じでも中心から広げ直す（記録が直近2週だけなら、どの期間も同じ形になる）
+  const sig = `${range}:${balance.sets.join(',')}:${recent?.sets.join(',') ?? ''}`;
+  const { token } = useEntrance(balance, sig);
+  const [width, setWidth] = useState(0);
+  const top = topPart(balance);
+  const note = recent ? partsNote(balance, recent) : top && `外周は、この期間でいちばん多い部位（${top}）`;
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <T variant="titleM" accessibilityRole="header">部位のバランス</T>
+        <T variant="bodyS" color={colors.sub}>セット数</T>
+      </View>
+      <View style={{ marginTop: space.s }}>
+        <Segmented options={BALANCE_RANGES} value={range} onChange={onRange} check={width === 0 || width >= CHECK_MIN_WIDTH} />
+      </View>
+      <View accessible accessibilityLabel={partBalanceRangeLabel(range, balance, recent)} testID="trend-part-balance" style={{ marginTop: space.s, gap: space.s }}>
+        {recent && balance.total > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 20, height: 0, borderTopWidth: 2, borderColor: colors.accent }} />
+            <T variant="labelS" bold={false}>これまで</T>
+            <View style={{ width: 20, height: 0, borderTopWidth: 2, borderColor: colors.text, borderStyle: 'dashed', marginLeft: space.l }} />
+            <T variant="labelS" bold={false}>直近2週</T>
+          </View>
+        )}
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+          {width > 0 && <PartStackRadar all={balance} recent={recent} width={width} token={token} fillId="trendPartFill" testID="trend-part-radar" />}
+        </View>
+        <T variant="labelS" bold={false} color={colors.sub}>
+          {balance.total === 0 ? 'この期間の記録はありません（胸・肩・背中・腕・脚・腹のセット数を数えます）' : note}
+        </T>
       </View>
     </Card>
   );

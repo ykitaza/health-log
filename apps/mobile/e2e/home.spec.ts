@@ -113,9 +113,13 @@ test('BIG3 推定1RM 合計：先月との差と折れ線。押すと筋トレ�
   // 部位のバランスも、押すと筋トレの推移（部位ごとの総負荷量の棒がある）
   await page.getByRole('tab', { name: '記録', exact: true }).filter({ visible: true }).click();
   await goTab(page, 'ホーム');
+  await expect(visible(page, 'home-part-balance')).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 0、肩 0、背中 0、腕 0、脚 1、腹 0。筋トレの推移を開く');
   await visible(page, 'home-part-balance').click();
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+  // 移った先にも部位のバランス。初めは 2週で、ホームと同じセット数
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await expect(visible(page, 'trend-part-balance')).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 0、肩 0、背中 0、腕 0、脚 1、腹 0');
 });
 
 test('「記録する」のシート：食事は時刻から区分を決め、体重はからだのタブで計測のシートを開く。食事の点・目標体重まで', async ({ page }) => {

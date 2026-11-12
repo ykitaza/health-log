@@ -1,4 +1,7 @@
-import { axisAngle, BALANCE_PARTS, balanceAxisOf, partBalance, partBalanceLabel } from '../partBalance';
+import {
+  axisAngle, BALANCE_PARTS, BALANCE_RANGES, balanceAxisOf, balanceRangeFrom, parseBalanceRange, partBalance, partBalanceForRange, partBalanceLabel,
+  partBalanceRangeLabel,
+} from '../partBalance';
 import type { TrainingSetRow } from '../training';
 
 const NAMES: Record<string, string> = {
@@ -71,5 +74,65 @@ describe('部位のバランス（直近2週のセット数）', () => {
     expect(at(2)).toEqual({ x: 1, y: 0 });
     expect(at(4)).toEqual({ x: -0.5, y: 0.87 });
     expect(at(5)).toEqual({ x: -1, y: 0 });
+  });
+});
+
+describe('筋トレの推移の部位のバランス（期間：2週・3か月・これまで）', () => {
+  test('期間の並びと名前（切り替えのボタン）', () => {
+    expect(BALANCE_RANGES).toEqual([{ key: '2w', label: '2週' }, { key: '3m', label: '3か月' }, { key: 'all', label: 'これまで' }]);
+  });
+
+  test('覚えていた値：知らない値・覚えていないときは 2週（ホームと同じ）', () => {
+    expect(parseBalanceRange('3m')).toBe('3m');
+    expect(parseBalanceRange('all')).toBe('all');
+    expect(parseBalanceRange('2w')).toBe('2w');
+    expect(parseBalanceRange(null)).toBe('2w');
+    expect(parseBalanceRange('week')).toBe('2w');
+  });
+
+  test('期間の始まり：2週は今日を含む14日（ホームと同じ）、3か月は3か月前の同じ日（推移の折れ線と同じ）、これまでは最初から', () => {
+    expect(balanceRangeFrom('2w', '2026-11-12')).toBe('2026-10-30');
+    expect(balanceRangeFrom('3m', '2026-11-12')).toBe('2026-08-12');
+    // 月末は、その月の最後の日に寄せる
+    expect(balanceRangeFrom('3m', '2026-05-31')).toBe('2026-02-28');
+    expect(balanceRangeFrom('all', '2026-11-12')).toBeNull();
+  });
+
+  const data = [
+    ...rows('2026-11-12', 'chest', 3), // 今日
+    row('2026-10-30', 'back'), // 2週の最初の日
+    row('2026-10-29', 'legs'), // 2週の外、3か月の中
+    row('2026-08-12', 'abs'), // 3か月の最初の日
+    row('2026-08-11', 'shoulder'), // 3か月の外
+    row('2026-11-13', 'chest'), // 明日：どの期間も数えない
+  ];
+
+  test('期間ごとのセット数。2週はホームの部位のバランスと同じ数。これまでのときだけ直近2週を重ねる', () => {
+    const w = partBalanceForRange(data, nameOf, '2w', '2026-11-12');
+    expect(w.balance).toEqual(partBalance(data, nameOf, '2026-11-12'));
+    expect(w.balance.sets).toEqual([3, 0, 1, 0, 0, 0]);
+    expect(w.recent).toBeNull();
+    const m = partBalanceForRange(data, nameOf, '3m', '2026-11-12');
+    expect(m.balance.sets).toEqual([3, 0, 1, 0, 1, 1]);
+    expect(m.recent).toBeNull();
+    const a = partBalanceForRange(data, nameOf, 'all', '2026-11-12');
+    expect(a.balance.sets).toEqual([3, 1, 1, 0, 1, 1]);
+    expect(a.recent?.sets).toEqual([3, 0, 1, 0, 0, 0]);
+  });
+
+  test('読み上げ：期間とセット数。これまでは直近2週も。その期間に記録がなければそのことを', () => {
+    const w = partBalanceForRange(data, nameOf, '2w', '2026-11-12');
+    expect(partBalanceRangeLabel('2w', w.balance, w.recent)).toBe('部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
+    const m = partBalanceForRange(data, nameOf, '3m', '2026-11-12');
+    expect(partBalanceRangeLabel('3m', m.balance, m.recent)).toBe('部位のバランス、直近3か月のセット数。胸 3、肩 0、背中 1、腕 0、脚 1、腹 1');
+    const a = partBalanceForRange(data, nameOf, 'all', '2026-11-12');
+    expect(partBalanceRangeLabel('all', a.balance, a.recent)).toBe(
+      '部位のバランス、これまでのセット数。胸 3、肩 1、背中 1、腕 0、脚 1、腹 1。直近2週は 胸 3、肩 0、背中 1、腕 0、脚 0、腹 0',
+    );
+    // 直近2週に記録がない
+    const old = partBalanceForRange([row('2026-09-01', 'chest')], nameOf, 'all', '2026-11-12');
+    expect(partBalanceRangeLabel('all', old.balance, old.recent)).toBe('部位のバランス、これまでのセット数。胸 1、肩 0、背中 0、腕 0、脚 0、腹 0。直近2週は 記録なし');
+    const empty = partBalanceForRange([row('2026-09-01', 'chest')], nameOf, '2w', '2026-11-12');
+    expect(partBalanceRangeLabel('2w', empty.balance, empty.recent)).toBe('部位のバランス、直近2週のセット数。この期間の記録はありません');
   });
 });

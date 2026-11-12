@@ -130,6 +130,20 @@ describe('設定', () => {
     expect(await r.settings.volumeRange()).toBe('week');
   });
 
+  test('筋トレの推移の部位のバランスの期間は端末だけに覚え、同期に載せない。初めは 2週', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.balanceRange()).toBe('2w');
+    await r.settings.setBalanceRange('all');
+    expect(await r.settings.balanceRange()).toBe('all');
+    await r.settings.setBalanceRange('3m');
+    expect(await r.settings.balanceRange()).toBe('3m');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    // 知らない値は 2週
+    db.raw.prepare("UPDATE sync_meta SET value = 'year' WHERE key = 'history.balance_range'").run();
+    expect(await r.settings.balanceRange()).toBe('2w');
+  });
+
   test('スワイプのヒントは端末だけに覚え、同期に載せない。出した回数は画面ごと、スワイプで動かしたかは全体で1つ', async () => {
     const { r, db } = await setup();
     expect(await r.settings.swipeHint('meal-day')).toEqual({ shown: 0, used: false });
