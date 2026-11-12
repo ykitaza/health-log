@@ -1,7 +1,7 @@
 import { addDays } from '../date';
 import {
-  growthScore, GrowthDay, growthSeries, Highlight, highlights, isTrainingCountMilestone, mealGoalReached, nextHighlight, pickSubtitles,
-  playbackSeconds, prevHighlight, satellites,
+  growthScore, GrowthDay, growthSeries, Highlight, highlights, isTrainingCountMilestone, mealGoalReached, pickSubtitles,
+  playbackSeconds, satellites,
 } from '../growth';
 import type { TrainingSetRow } from '../training';
 
@@ -145,60 +145,33 @@ describe('growthScore', () => {
 });
 
 describe('playbackSeconds', () => {
-  test('1x は 日数 × 0.5秒、最短 8秒・最長 20秒', () => {
+  test('日数 × 0.5秒、最短 8秒・最長 30秒', () => {
     expect(playbackSeconds(20, 1)).toBe(10);
     expect(playbackSeconds(16, 1)).toBe(8); // 8秒ちょうど
     expect(playbackSeconds(15, 1)).toBe(8); // 7.5 → 8
     expect(playbackSeconds(1, 1)).toBe(8);
-    expect(playbackSeconds(40, 1)).toBe(20); // 20秒ちょうど
-    expect(playbackSeconds(41, 1)).toBe(20);
-    expect(playbackSeconds(1000, 1)).toBe(20);
-  });
-  test('2x は半分、4x は4分の1（最短・最長は 1x で決めてから割る）', () => {
-    expect(playbackSeconds(20, 2)).toBe(5);
-    expect(playbackSeconds(20, 4)).toBe(2.5);
-    expect(playbackSeconds(1000, 2)).toBe(10);
-    expect(playbackSeconds(1000, 4)).toBe(5);
-    expect(playbackSeconds(1, 4)).toBe(2);
+    expect(playbackSeconds(60, 1)).toBe(30); // 30秒ちょうど
+    expect(playbackSeconds(61, 1)).toBe(30);
+    expect(playbackSeconds(1000, 1)).toBe(30);
   });
 });
 
 describe('pickSubtitles', () => {
-  // 41日 → 1x は 20秒。1日あたり 0.5秒、3秒は 6日ぶん
+  // 61日 → 30秒。1日あたり 0.5秒、3秒は 6日ぶん
   const start = '2026-01-01';
   const at = (n: number) => addDays(start, n);
   test('同じ3秒に重なったら、優先度の高いものを出す', () => {
-    const { subtitles } = pickSubtitles([hl(at(1), 1), hl(at(2), 5), hl(at(3), 3)], 41, 1, start);
+    const { subtitles } = pickSubtitles([hl(at(1), 1), hl(at(2), 5), hl(at(3), 3)], 61, 1, start);
     expect(subtitles.map((s) => s.date)).toEqual([at(2)]);
   });
   test('優先度が同じなら早い日。3秒をまたげば別々に出る', () => {
-    expect(pickSubtitles([hl(at(2), 3), hl(at(1), 3)], 41, 1, start).subtitles.map((s) => s.date)).toEqual([at(1)]);
+    expect(pickSubtitles([hl(at(2), 3), hl(at(1), 3)], 61, 1, start).subtitles.map((s) => s.date)).toEqual([at(1)]);
     // 日 5 は 2.5秒、日 6 は 3.0秒 → 別の枠
-    expect(pickSubtitles([hl(at(5), 1), hl(at(6), 1)], 41, 1, start).subtitles).toHaveLength(2);
+    expect(pickSubtitles([hl(at(5), 1), hl(at(6), 1)], 61, 1, start).subtitles).toHaveLength(2);
   });
-  test('2x は再生が短くなるので、枠あたりの日数が倍になる', () => {
-    // 2x は 10秒で、1日 0.25秒。日 11 は 2.75秒（枠 0）、日 12 は 3.0秒（枠 1）
-    expect(pickSubtitles([hl(at(10), 1), hl(at(11), 2)], 41, 2, start).subtitles.map((s) => s.date)).toEqual([at(11)]);
-    expect(pickSubtitles([hl(at(11), 1), hl(at(12), 1)], 41, 2, start).subtitles).toHaveLength(2);
-  });
-  test('4x は字幕を1つも出さず、つまみの点の日付だけ返す（範囲外は外す。重複なし、古い順）', () => {
-    const r = pickSubtitles([hl(at(30), 1), hl(at(30), 4), hl(at(5), 2), hl(at(41), 5), hl(addDays(start, -1), 5)], 41, 4, start);
-    expect(r.subtitles).toEqual([]);
+  test('markDates：下の線の点の日付（範囲外は外す。重複なし、古い順）', () => {
+    const r = pickSubtitles([hl(at(30), 1), hl(at(30), 4), hl(at(5), 2), hl(at(61), 5), hl(addDays(start, -1), 5)], 61, 1, start);
     expect(r.markDates).toEqual([at(5), at(30)]);
-  });
-  test('字幕のときも markDates を返す', () => {
-    expect(pickSubtitles([hl(at(3), 1)], 41, 1, start).markDates).toEqual([at(3)]);
-  });
-});
-
-describe('prevHighlight / nextHighlight', () => {
-  const list = [hl('2026-03-01', 1), hl('2026-02-01', 1), hl('2026-04-01', 1)];
-  test('その日より前・後のいちばん近い日。その日自身は含まない。なければ null', () => {
-    expect(prevHighlight(list, '2026-03-01')).toBe('2026-02-01');
-    expect(nextHighlight(list, '2026-03-01')).toBe('2026-04-01');
-    expect(prevHighlight(list, '2026-02-01')).toBeNull();
-    expect(nextHighlight(list, '2026-04-01')).toBeNull();
-    expect(nextHighlight([], '2026-04-01')).toBeNull();
   });
 });
 

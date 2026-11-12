@@ -1,19 +1,15 @@
 import { GrowthParams, Highlight, Subtitle } from '../growth';
 import {
-  canPlay, dateAt, dayIndexAt, formatFullDate, growthTotals, highlightsInRange, indexAtX, lastPosition, lerpParams, nextSpeed,
-  playLabel, ratioAt, remainingMs, scrubberLabels, secondsAt, speedLabel,
-  subtitleOn, subtitlePassed,
+  approachTotal, canPlay, claimsDrag, dateAt, dayIndexAt, dpPerDay, dragDays, dragIndex, formatFullDate, growthTotals, highlightsInRange,
+  indexAtX, isTap, lastPosition, lerpParams, MARK_HIT_DP, ratioAt, remainingMs, scrubberLabels, secondsAt, seekIndexAtX,
+  showsTimelapseHint, startsAtEdge, subtitleOn, subtitlePassed, totalKeys, totalsLabel, totalsText, totalValues,
 } from '../growthPlayer';
+import { fmt1 } from '../units';
 
 const P = (volumeKg: number, foodDays: number, sleepDays: number, days: number): GrowthParams => ({ volumeKg, foodDays, sleepDays, days });
 const hl = (date: string, priority: number, text = date): Highlight => ({ date, kind: 'goalStreak', text, priority });
 
-describe('速さと再生の位置', () => {
-  test('速さは 1x → 2x → 4x → 1x', () => {
-    expect(nextSpeed(1)).toBe(2);
-    expect(nextSpeed(2)).toBe(4);
-    expect(nextSpeed(4)).toBe(1);
-  });
+describe('再生の位置', () => {
   test('再生できるのは、記録が2日以上で、動きを減らす設定がオフのとき', () => {
     expect(canPlay(0, false)).toBe(false);
     expect(canPlay(1, false)).toBe(false);
@@ -21,18 +17,17 @@ describe('速さと再生の位置', () => {
     expect(canPlay(100, true)).toBe(false);
   });
   test('位置 → 再生の秒（等速。最後の位置が再生の長さ）', () => {
-    // 100日：1x は 20秒（50秒を最長 20秒に）、2x は 10秒
+    // 100日：50秒を最長 30秒に
     expect(lastPosition(100)).toBe(99);
     expect(lastPosition(0)).toBe(0);
-    expect(secondsAt(99, 100, 1)).toBeCloseTo(20);
-    expect(secondsAt(49.5, 100, 1)).toBeCloseTo(10);
-    expect(secondsAt(99, 100, 2)).toBeCloseTo(10);
+    expect(secondsAt(99, 100)).toBeCloseTo(30);
+    expect(secondsAt(49.5, 100)).toBeCloseTo(15);
   });
   test('残りの時間：途中からは残りの分だけ。最後なら 0', () => {
-    expect(remainingMs(0, 100, 1)).toBeCloseTo(20000);
-    expect(remainingMs(49.5, 100, 4)).toBeCloseTo(2500);
-    expect(remainingMs(99, 100, 1)).toBe(0);
-    expect(remainingMs(120, 100, 1)).toBe(0);
+    expect(remainingMs(0, 100)).toBeCloseTo(30000);
+    expect(remainingMs(49.5, 100)).toBeCloseTo(15000);
+    expect(remainingMs(99, 100)).toBe(0);
+    expect(remainingMs(120, 100)).toBe(0);
   });
   test('位置 → 日の番号は切り捨てで、範囲に収める', () => {
     expect(dayIndexAt(0, 10)).toBe(0);
@@ -86,7 +81,7 @@ describe('字幕', () => {
   });
 });
 
-describe('つまみ', () => {
+describe('下の線', () => {
   test('横の位置 → いちばん近い日（1日単位）。範囲に収める', () => {
     expect(indexAtX(0, 300, 101)).toBe(0);
     expect(indexAtX(150, 300, 101)).toBe(50);
@@ -105,10 +100,120 @@ describe('つまみ', () => {
     expect(ratioAt(3, 1)).toBe(0);
     expect(ratioAt(3, 0)).toBe(0);
   });
+  test('帯を押した位置 → いちばん近い点の日。点から遠ければ押した位置の日', () => {
+    // 幅 300・101日：日 10 の点は x=30、日 12 の点は x=36、日 80 の点は x=240
+    const marks = [10, 12, 80];
+    expect(seekIndexAtX(31, 300, 101, marks)).toBe(10);
+    expect(seekIndexAtX(34, 300, 101, marks)).toBe(12); // 近いほう
+    expect(seekIndexAtX(240 + MARK_HIT_DP, 300, 101, marks)).toBe(80); // ちょうど届く距離
+    expect(seekIndexAtX(240 + MARK_HIT_DP + 1, 300, 101, marks)).toBe(88); // 届かない → 押した位置の日（265 → 88.3）
+    expect(seekIndexAtX(150, 300, 101, [])).toBe(50);
+  });
   test('左右の日付。最初の記録の日が今日か、記録がなければ「今日」だけ', () => {
     expect(scrubberLabels('2026-06-07', '2026-11-11')).toEqual({ left: '6月7日', right: '11月11日' });
     expect(scrubberLabels('2026-11-11', '2026-11-11')).toEqual({ left: '今日', right: null });
     expect(scrubberLabels(null, '2026-11-11')).toEqual({ left: '今日', right: null });
+  });
+});
+
+describe('画面全体の指の操作', () => {
+  test('タップは縦横とも 10dp 未満で放したとき', () => {
+    expect(isTap(0, 0)).toBe(true);
+    expect(isTap(9, -9)).toBe(true);
+    expect(isTap(10, 0)).toBe(false);
+    expect(isTap(0, -10)).toBe(false);
+  });
+  test('日を移す動きとして受けるのは、横に 10dp 以上で、縦以上のとき', () => {
+    expect(claimsDrag(10, 0)).toBe(true);
+    expect(claimsDrag(-30, 20)).toBe(true);
+    expect(claimsDrag(9, 0)).toBe(false);
+    expect(claimsDrag(20, 30)).toBe(false);
+  });
+  test('左右の端（24dp）から始まる指は使わない', () => {
+    expect(startsAtEdge(0, 412)).toBe(true);
+    expect(startsAtEdge(23, 412)).toBe(true);
+    expect(startsAtEdge(24, 412)).toBe(false);
+    expect(startsAtEdge(388, 412)).toBe(false);
+    expect(startsAtEdge(389, 412)).toBe(true);
+  });
+  test('感度：画面の幅で全期間を基本に、1日あたり 3〜40dp に収める', () => {
+    expect(dpPerDay(400, 101)).toBe(4); // 400dp で 100日
+    expect(dpPerDay(412, 3)).toBe(40); // 日が少ないときは 1日 40dp
+    expect(dpPerDay(412, 366)).toBe(3); // 日が多いときは 1日 3dp（全期間は幅より長い）
+    expect(dpPerDay(412, 1)).toBe(40);
+  });
+  test('指の動き → 日数（右が先の日。1日単位）。押し始めの日から動かし、範囲に収める', () => {
+    expect(dragDays(0, 400, 101)).toBe(0);
+    expect(dragDays(5, 400, 101)).toBe(1);
+    expect(dragDays(-1, 400, 101)).toBe(0);
+    expect(dragDays(-41, 400, 101)).toBe(-10);
+    expect(dragIndex(50, 41, 400, 101)).toBe(60);
+    expect(dragIndex(50, -1000, 400, 101)).toBe(0);
+    expect(dragIndex(50, 1000, 400, 101)).toBe(100);
+    expect(dragIndex(0, 100, 400, 1)).toBe(0);
+  });
+});
+
+describe('初回のヒント', () => {
+  test('まだ見せていなくて、それまでに触っていないときだけ出す', () => {
+    expect(showsTimelapseHint(false, false)).toBe(true);
+    expect(showsTimelapseHint(true, false)).toBe(false); // 2回目からは出さない
+    expect(showsTimelapseHint(false, true)).toBe(false); // なぞってから止めた・触ってから終わった
+  });
+});
+
+describe('数え上がる累計', () => {
+  /** 本当の値に届くまで approachTotal を繰り返した、途中の値 */
+  const run = (from: number, to: number, step: number) => {
+    const out: number[] = [];
+    let v = from;
+    for (let k = 0; k < 1000 && v !== to; k++) {
+      v = approachTotal(v, to, step);
+      out.push(v);
+    }
+    return out;
+  };
+
+  test('差が1単位以内なら、本当の値にぴったり合わせる', () => {
+    expect(approachTotal(1, 1.05, 0.1)).toBe(1.05);
+    expect(approachTotal(3, 4, 1)).toBe(4);
+    expect(approachTotal(4, 3, 1)).toBe(3);
+    expect(approachTotal(5, 5, 1)).toBe(5);
+  });
+  test('小さい差は1単位ずつ全部見える（0.0 → 0.8 t、日数の +1）', () => {
+    expect(run(0, 0.8, 0.1).map((v) => fmt1(v))).toEqual(['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8']);
+    expect(run(3, 4, 1)).toEqual([4]);
+    expect(run(3, 6, 1)).toEqual([4, 5, 6]);
+  });
+  test('大きい差は速く進み、近づくほどゆっくり。行き過ぎず、本当の値で止まる', () => {
+    const steps = run(0, 412.6, 0.1);
+    expect(steps.length).toBeLessThan(80);
+    expect(steps.at(-1)).toBe(412.6);
+    for (const v of steps) expect(v).toBeLessThanOrEqual(412.6);
+    const moves = steps.map((v, k) => v - (k === 0 ? 0 : steps[k - 1]));
+    for (let k = 1; k < moves.length; k++) expect(moves[k]).toBeLessThanOrEqual(moves[k - 1] + 1e-9);
+    // 最初の1フレームは差の 18% を 0.1 単位に切り捨て
+    expect(steps[0]).toBeCloseTo(74.2);
+  });
+  test('減る向きも同じ（もう一度で最初に戻るとき）', () => {
+    const steps = run(96, 0, 1);
+    expect(steps.at(-1)).toBe(0);
+    for (const v of steps) expect(v).toBeGreaterThanOrEqual(0);
+    expect(steps[0]).toBe(79); // 96 − floor(96 × 0.18)
+    expect(run(0.8, 0, 0.1).map((v) => fmt1(v))).toEqual(['0.7', '0.6', '0.5', '0.4', '0.3', '0.2', '0.1', '0.0']);
+  });
+  test('本当の値が日の途中の値でも、行き過ぎずにぴったり止まる', () => {
+    const steps = run(2, 2.35, 0.1);
+    expect(steps.at(-1)).toBe(2.35);
+    expect(steps.map((v) => fmt1(v))).toEqual(['2.1', '2.2', '2.3', '2.4']);
+  });
+  test('文字にする値：負荷量は 0.1 単位の四捨五入、日数は切り捨て。fmt1 と同じ文字', () => {
+    const k = totalKeys(totalValues(P(287_049, 58.7, 44, 100), 1));
+    expect(k).toEqual({ volume: 2870, food: 58, sleep: 44 });
+    expect(totalsText(k, 'kg')).toEqual({ volume: '287.0', volumeUnit: 't', foodDays: '58', sleepDays: '44' });
+    for (const kg of [0, 49, 50, 149, 150, 1234, 98_765, 287_060]) {
+      expect(totalsText(totalKeys(totalValues(P(kg, 0, 0, 1), 1)), 'kg').volume).toBe(fmt1(kg / 1000));
+    }
   });
 });
 
@@ -121,19 +226,13 @@ describe('文字', () => {
     expect(growthTotals(P(287_049, 58, 44, 100), 'kg')).toEqual({ volume: '287.0', volumeUnit: 't', foodDays: '58', sleepDays: '44' });
     expect(growthTotals(P(287_060, 0, 0, 1), 'kg').volume).toBe('287.1');
     expect(growthTotals(P(0, 0, 0, 0), 'kg')).toEqual({ volume: '0.0', volumeUnit: 't', foodDays: '0', sleepDays: '0' });
-    // 再生中の日と日のあいだの値：筋トレは 0.1 ずつ進み、日数は次の日に届くまで切り捨てる
+    // 日と日のあいだの値：日数は次の日に届くまで切り捨てる
     expect(growthTotals(lerpParams([P(1000, 3, 2, 1), P(2000, 4, 2, 2)], 0.5), 'kg')).toEqual({ volume: '1.5', volumeUnit: 't', foodDays: '3', sleepDays: '2' });
-    expect(growthTotals(lerpParams([P(1000, 3, 2, 1), P(2000, 4, 2, 2)], 1), 'kg')).toMatchObject({ volume: '2.0', foodDays: '4' });
     // 1000 kg ≒ 2204.6 lb → 2.2 k lb
     expect(growthTotals(P(1000, 0, 0, 1), 'lb')).toMatchObject({ volume: '2.2', volumeUnit: 'k lb' });
   });
-  test('ボタンの読み上げ。使えないときは理由を入れる', () => {
-    expect(speedLabel(1)).toBe('再生の速さ 1倍。押すと2倍');
-    expect(speedLabel(4)).toBe('再生の速さ 4倍。押すと1倍');
-    expect(playLabel({ playing: true, dayCount: 10, reduced: false })).toBe('一時停止');
-    expect(playLabel({ playing: false, dayCount: 10, reduced: false })).toBe('再生');
-    expect(playLabel({ playing: false, dayCount: 0, reduced: false })).toContain('記録がまだない');
-    expect(playLabel({ playing: false, dayCount: 1, reduced: false })).toContain('2日以上');
-    expect(playLabel({ playing: false, dayCount: 10, reduced: true })).toContain('動きを減らす設定');
+  test('累計の1行の読み上げ', () => {
+    expect(totalsLabel(growthTotals(P(1300, 2, 1, 3), 'kg'), 'kg')).toBe('累計。筋トレの負荷量 1.3 トン、食事の目標に届いた日 2日、7時間以上眠った日 1日');
+    expect(totalsLabel(growthTotals(P(1000, 0, 0, 1), 'lb'), 'lb')).toContain('2.2 千ポンド');
   });
 });
