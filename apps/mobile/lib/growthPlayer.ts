@@ -182,6 +182,8 @@ export function scrubberLabels(startDate: DateKey | null, today: DateKey): { lef
 
 /** 再生中に、日の数字を描き直す間隔（ms） */
 export const LIVE_UPDATE_MS = 33;
+/** 再生中に、左上の式の番号と値を描き直す間隔（ms。1秒に約9回） */
+export const FORMULA_UPDATE_MS = 110;
 
 // 下の累計（数え上がる表示）
 

@@ -161,6 +161,28 @@ test('動きを減らす設定：自動で再生せず今日の姿。タップ�
   await expect(day(page)).toHaveAttribute('aria-label', 'DAY 2、2026年11月7日（土）');
 });
 
+test('左上の数式：題・式・定数・値・番号が出る（記録がまだないので値 0.000、番号 0）。形を木に変えると題と式が変わる', async ({ page }) => {
+  // 飾りなので読み上げには出さない（aria-hidden）。web では形を描かないが、文字の行は出す。下付きは別の文字の部品なので、続けて読むと xn+1
+  const formula = page.getByTestId('growth-formula').filter({ visible: true });
+  await openApp(page);
+  await openGrowth(page);
+  await expect(formula).toHaveAttribute('aria-hidden', 'true');
+  await expect(formula).toContainText('CLIFFORD ATTRACTOR');
+  await expect(formula).toContainText('xn+1 = sin(a·yn) + c·cos(a·xn)');
+  await expect(formula).toContainText('yn+1 = sin(b·xn) + d·cos(b·yn)');
+  await expect(formula).toContainText('a = −1.7   b = 1.8   c = −1.9   d = −0.4');
+  await expect(formula).toContainText(/x\s+0\.000\s+y\s+0\.000/);
+  await expect(formula).toContainText('point 0 / 6,000');
+
+  await button(page, '形を選ぶ').click();
+  await page.getByTestId('shape-picker').filter({ visible: true }).getByRole('radio', { name: /^木。/ }).click();
+  await expect(formula).toContainText('BRANCHING TREE');
+  await expect(formula).not.toContainText('CLIFFORD ATTRACTOR');
+  await expect(formula).toContainText('Lk+1 = 0.72·Lk');
+  await expect(formula).toContainText('θk+1 = θk ± 0.55');
+  await expect(formula).toContainText('point 0 / 4,900');
+});
+
 test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって閉じる。開き直しても、ホームに戻っても木のまま', async ({ page }) => {
   await openApp(page);
   await button(page, '成長を見る').click();

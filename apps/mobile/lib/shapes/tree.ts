@@ -17,11 +17,11 @@ export const TREE_POINTS = BRANCH_POINTS + ROOT_POINTS + LEAF_POINTS + SPARK_POI
 /** 枝分かれの段の数（幹が 0）、幹の長さ、子の枝の長さの比、幹の太さ */
 const DEPTH = 5;
 const TRUNK_LENGTH = 0.8;
-const LENGTH_RATIO = 0.72;
+export const LENGTH_RATIO = 0.72;
 const TRUNK_THICKNESS = 0.06;
 /** 枝が親から開く角度（ラジアン）。幹からの1段目は大きく開いて、上で広がる樹冠にする */
 const FIRST_ANGLE = 0.8;
-const ANGLE = 0.55;
+export const ANGLE = 0.55;
 /** 枝先の葉と光の粒の、枝先からの散らばり */
 const LEAF_SPREAD = 0.06;
 const SPARK_SPREAD = 0.1;

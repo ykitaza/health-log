@@ -19,10 +19,11 @@ export const SLEEP_SCALE_DAYS = 60;
 export const SEED_RAMP_DAYS = 3;
 
 // Clifford のアトラクタの係数（x, y）と、高さ（z）を作る係数。乱数は使わず、始まりの点も固定
-const A = -1.7;
-const B = 1.8;
-const C = -1.9;
-const D = -0.4;
+// A〜D は成長を見る画面の左上の式（lib/shapes/formula.ts）にも出す
+export const A = -1.7;
+export const B = 1.8;
+export const C = -1.9;
+export const D = -0.4;
 const E = 1.3;
 const F = 0.9;
 /** 始めの数回は、点がアトラクタに落ち着くまでの道のりなので捨てる */
@@ -33,6 +34,16 @@ const BURN_IN = 200;
  * （軌道を順にたどった並びなので、点を増やすと形が埋まっていく）
  */
 export function attractorPoints(count: number = MAX_POINTS): Float32Array {
+  const { points: out, max } = cliffordOrbit(count);
+  for (let i = 0; i < out.length; i++) out[i] /= max || 1;
+  return out;
+}
+
+/**
+ * 正規化する前の点の並び（x, y は Clifford の式そのものの値。z は高さ）と、正規化の倍率（いちばん遠い点の距離）。
+ * attractorPoints はこれを max で割ったもの。成長を見る画面の左上の式の値に使う
+ */
+export function cliffordOrbit(count: number = MAX_POINTS): { points: Float32Array; max: number } {
   const out = new Float32Array(count * 3);
   let x = 0.1;
   let y = 0.1;
@@ -49,8 +60,7 @@ export function attractorPoints(count: number = MAX_POINTS): Float32Array {
     out[i * 3 + 2] = z;
     max = Math.max(max, Math.hypot(x, y, z));
   }
-  for (let i = 0; i < out.length; i++) out[i] /= max || 1;
-  return out;
+  return { points: out, max };
 }
 
 /**
