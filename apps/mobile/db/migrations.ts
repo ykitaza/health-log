@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -377,6 +377,43 @@ DELETE FROM sync_held WHERE entity_type = 'report';
         }
       }
       await db.execAsync(`DELETE FROM sync_meta WHERE key = 'home.weekly_todo';`);
+    },
+  },
+  {
+    // ケガの記録（injuries）と、その後の振り返り（injury_reviews）。docs/sync-design.md の「対象」の注。
+    // 列の名前は同期の項目（services/training/training/infrastructure/sync_entities.py）と同じ。値の確かめ（部位のコード・状態・結果）は
+    // サーバーと lib/injuries.ts で行い、表には CHECK を付けない（MCP が書いた値でも当てはめを止めないため。版7と同じ）。
+    // 文字の項目は NOT NULL DEFAULT ''（受け取った create は、要る項目の occurred_on・site・status だけのこともある）。
+    // 版12までの端末は、知らない種類（injury・injury_review）を飛ばして受け取りの位置だけ進めていたので、位置を消して、
+    // 次の同期でスナップショットを1回取り直す（版7と同じ。飛ばしたものは sync_seen・sync_held に残っていない）
+    version: 13,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE injuries (
+  id TEXT PRIMARY KEY NOT NULL,
+  occurred_on TEXT NOT NULL,
+  site TEXT NOT NULL,
+  side TEXT,
+  exercise_id TEXT REFERENCES exercises(id),
+  phase TEXT NOT NULL DEFAULT '',
+  symptom TEXT NOT NULL DEFAULT '',
+  cause TEXT NOT NULL DEFAULT '',
+  fix TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL,
+  fixed_on TEXT,${SYNC_COLUMNS}
+);
+CREATE TABLE injury_reviews (
+  id TEXT PRIMARY KEY NOT NULL,
+  injury_id TEXT NOT NULL REFERENCES injuries(id),
+  date TEXT NOT NULL,
+  result TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  exercise_id TEXT REFERENCES exercises(id),${SYNC_COLUMNS}
+);
+CREATE INDEX injury_reviews_injury ON injury_reviews (injury_id);
+DELETE FROM sync_meta WHERE key = 'cursor';
+`);
+      for (const spec of INJURY_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];

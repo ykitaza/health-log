@@ -174,8 +174,8 @@ export async function controlDb(page: Page) {
 /** ホームの小さなカード（今日のトレーニング・食事・体調） */
 export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
-/** タブの中の切り替え（筋トレの「記録」「推移」、食事の「記録」「推移」、からだの「今日」「推移」） */
-export async function goPane(page: Page, name: '今日' | '記録' | '推移') {
+/** タブの中の切り替え（筋トレの「記録」「推移」「ケガ」、食事の「記録」「推移」、からだの「今日」「推移」） */
+export async function goPane(page: Page, name: '今日' | '記録' | '推移' | 'ケガ') {
   const t = page.getByRole('tab', { name, exact: true }).filter({ visible: true });
   await t.click();
   await expect(t).toHaveAttribute('aria-selected', 'true');

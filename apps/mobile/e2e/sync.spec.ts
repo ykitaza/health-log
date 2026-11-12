@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, expectTrainingDay, goTab, homeCard, homeIcon, openApp, openSettings, recordToday, see } from './helpers';
+import { button, expectTrainingDay, goPane, goTab, homeCard, homeIcon, openApp, openSettings, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -81,6 +81,10 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   await expectTrainingDay(page, '11月7日（土）');
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
   await expect(page.getByRole('button', { name: '懸垂を直す' })).toBeVisible();
+  // MCP で記録したケガ（record_injury・add_injury_review）が「ケガ」に出る
+  await goPane(page, 'ケガ');
+  await expect(page.getByRole('button', { name: /^右肩、直している途中/ }).filter({ visible: true })).toContainText('振り返り 1回');
+  await goPane(page, '記録');
   await goTab(page, 'からだ');
   await button(page, '前の日').click();
   await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('71.3');

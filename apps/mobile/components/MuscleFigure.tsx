@@ -1,79 +1,143 @@
-import Svg, { Path } from 'react-native-svg';
-import { Muscle, muscleFigureFor, MuscleView } from '@/lib/muscleFigure';
-import { colors, figureColors } from '@/theme';
+import { useEffect, useRef } from 'react';
+import { Pressable, View, ViewInstance } from 'react-native';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
+import type { InjuryStatus, Side } from '@/lib/injuries';
+import {
+  FIGURE_PIECES, FigurePiece, FigureTarget, jointPoints, JOINT_RADIUS, markPoint, muscleFigureFor, MuscleView, piecesFor, pickTarget,
+} from '@/lib/muscleFigure';
+import { BODY } from '@/lib/muscleFigurePaths';
+import { colors, figureColors, toneColors } from '@/theme';
 
-// 形は Figma「部品案：筋肉の図（前・後ろ、胸・背中・脚・肩・腕）」の 100×200 の体のパス（左右をつなげたもの）
-const HEAD = 'M58.5 12C58.5 17.8 54.69 22.5 50 22.5C45.31 22.5 41.5 17.8 41.5 12C41.5 6.2 45.31 1.5 50 1.5C54.69 1.5 58.5 6.2 58.5 12Z';
-const HANDS = 'M18 99C18.8 98.2 21.2 98.2 22 99C22.8 99.8 23.3 102.5 23 104C22.7 105.5 21 108 20 108C19 108 17.3 105.5 17 104C16.7 102.5 17.2 99.8 18 99Z'
-  + 'M82 99C81.2 98.2 78.8 98.2 78 99C77.2 99.8 76.7 102.5 77 104C77.3 105.5 79 108 80 108C81 108 82.7 105.5 83 104C83.3 102.5 82.8 99.8 82 99Z';
-const FEET = 'M38 186C39.3 184.8 42.7 184.8 44 186C45.3 187.2 47.3 191.8 46 193C44.7 194.2 37.3 194.2 36 193C34.7 191.8 36.7 187.2 38 186Z'
-  + 'M62 186C60.7 184.8 57.3 184.8 56 186C54.7 187.2 52.7 191.8 54 193C55.3 194.2 62.7 194.2 64 193C65.3 191.8 63.3 187.2 62 186Z';
-const NECK = 'M45 23C46.8 21.7 53.2 21.7 55 23C56.8 24.3 57.8 29.7 56 31C54.2 32.3 45.8 32.3 44 31C42.2 29.7 43.2 24.3 45 23Z';
-const FOREARM = 'M22 74C23.3 72.7 25.8 73.2 27 74C28.2 74.8 29.2 75.7 29 79C28.8 82.3 27.3 90.8 26 94C24.7 97.2 22.3 98.3 21 98C19.7 97.7 18.3 94.7 18 92C17.7 89.3 18.3 85 19 82C19.7 79 20.7 75.3 22 74Z'
-  + 'M78 74C76.7 72.7 74.2 73.2 73 74C71.8 74.8 70.8 75.7 71 79C71.2 82.3 72.7 90.8 74 94C75.3 97.2 77.7 98.3 79 98C80.3 97.7 81.7 94.7 82 92C82.3 89.3 81.7 85 81 82C80.3 79 79.3 75.3 78 74Z';
+/** ケガの印の色。直している途中は琥珀色（責める感じにしない。レポートの「気をつけたい」と同じ）、直せたは控えめな緑 */
+export const INJURY_AMBER = toneColors.caution.accent;
+const FIXED_RING = colors.accentMuted;
 
-/** 頭・首・手・足（筋肉でない所。いつも暗い色） */
-const BODY: Record<MuscleView, string> = { front: HEAD + NECK + HANDS + FEET, back: HEAD + HANDS + FEET };
+/** 脈打つ印の周期（直している途中のケガだけ。ゆっくり） */
+export const PULSE_MS = 2000;
 
-const MUSCLES: Record<MuscleView, Partial<Record<Muscle, string>>> = {
-  front: {
-    trapezius: 'M45 28C43.7 27.8 37.8 32 38 33C38.2 34 44.8 34.8 46 34C47.2 33.2 46.3 28.2 45 28Z'
-      + 'M55 28C56.3 27.8 62.2 32 62 33C61.8 34 55.2 34.8 54 34C52.8 33.2 53.7 28.2 55 28Z',
-    deltoid: 'M36 33C35 32.2 31 33.3 29 35C27 36.7 24.8 40.3 24 43C23.2 45.7 23 50.2 24 51C25 51.8 28.2 49.8 30 48C31.8 46.2 34 42.5 35 40C36 37.5 37 33.8 36 33Z'
-      + 'M64 33C65 32.2 69 33.3 71 35C73 36.7 75.2 40.3 76 43C76.8 45.7 77 50.2 76 51C75 51.8 71.8 49.8 70 48C68.2 46.2 66 42.5 65 40C64 37.5 63 33.8 64 33Z',
-    pecs: 'M38 36C40.7 34.8 47.2 33.3 49 36C50.8 38.7 50.2 48.8 49 52C47.8 55.2 44.3 55 42 55C39.7 55 36.5 54 35 52C33.5 50 32.5 45.7 33 43C33.5 40.3 35.3 37.2 38 36Z'
-      + 'M62 36C59.3 34.8 52.8 33.3 51 36C49.2 38.7 49.8 48.8 51 52C52.2 55.2 55.7 55 58 55C60.3 55 63.5 54 65 52C66.5 50 67.5 45.7 67 43C66.5 40.3 64.7 37.2 62 36Z',
-    biceps: 'M25 54C26.2 51.7 28.8 50.5 30 51C31.2 51.5 31.8 54.2 32 57C32.2 59.8 31.8 65.5 31 68C30.2 70.5 28.3 72.5 27 72C25.7 71.5 23.3 68 23 65C22.7 62 23.8 56.3 25 54Z'
-      + 'M75 54C73.8 51.7 71.2 50.5 70 51C68.8 51.5 68.2 54.2 68 57C67.8 59.8 68.2 65.5 69 68C69.8 70.5 71.7 72.5 73 72C74.3 71.5 76.7 68 77 65C77.3 62 76.2 56.3 75 54Z',
-    forearm: FOREARM,
-    abs: 'M43.5 57C44.5 55.7 48.4 55.7 49.4 57C50.4 58.3 50.4 63.7 49.4 65C48.4 66.3 44.5 66.3 43.5 65C42.5 63.7 42.5 58.3 43.5 57Z'
-      + 'M56.5 57C55.5 55.7 51.6 55.7 50.6 57C49.6 58.3 49.6 63.7 50.6 65C51.6 66.3 55.5 66.3 56.5 65C57.5 63.7 57.5 58.3 56.5 57Z'
-      + 'M43.5 66.5C44.5 65.1 48.4 65.1 49.4 66.5C50.4 67.9 50.4 73.6 49.4 75C48.4 76.4 44.5 76.4 43.5 75C42.5 73.6 42.5 67.9 43.5 66.5Z'
-      + 'M56.5 66.5C55.5 65.1 51.6 65.1 50.6 66.5C49.6 67.9 49.6 73.6 50.6 75C51.6 76.4 55.5 76.4 56.5 75C57.5 73.6 57.5 67.9 56.5 66.5Z'
-      + 'M44 76.5C44.9 74.9 48.5 74.9 49.4 76.5C50.3 78.1 50.3 84.4 49.4 86C48.5 87.6 44.9 87.6 44 86C43.1 84.4 43.1 78.1 44 76.5Z'
-      + 'M56 76.5C55.1 74.9 51.5 74.9 50.6 76.5C49.7 78.1 49.7 84.4 50.6 86C51.5 87.6 55.1 87.6 56 86C56.9 84.4 56.9 78.1 56 76.5Z'
-      + 'M44.5 87.5C45 86.3 48.6 85.9 49.4 87.5C50.2 89.1 49.9 95.8 49.4 97C48.9 98.3 47.3 96.6 46.5 95C45.7 93.4 44 88.8 44.5 87.5Z'
-      + 'M55.5 87.5C55 86.3 51.4 85.9 50.6 87.5C49.8 89.1 50.1 95.8 50.6 97C51.1 98.3 52.7 96.6 53.5 95C54.3 93.4 56 88.8 55.5 87.5Z',
-    obliques: 'M36 56C37.3 55 41 53 42 58C43 63 42.7 80.7 42 86C41.3 91.3 39.2 91.3 38 90C36.8 88.7 35.7 82.3 35 78C34.3 73.7 33.8 67.7 34 64C34.2 60.3 34.7 57 36 56Z'
-      + 'M64 56C62.7 55 59 53 58 58C57 63 57.3 80.7 58 86C58.7 91.3 60.8 91.3 62 90C63.2 88.7 64.3 82.3 65 78C65.7 73.7 66.2 67.7 66 64C65.8 60.3 65.3 57 64 56Z',
-    quads: 'M37 99C39.3 98.2 47.2 97.8 49 101C50.8 104.2 48.5 111.8 48 118C47.5 124.2 47 134 46 138C45 142 43.5 142 42 142C40.5 142 38.3 141.7 37 138C35.7 134.3 34.3 125.3 34 120C33.7 114.7 34.5 109.5 35 106C35.5 102.5 34.7 99.8 37 99Z'
-      + 'M63 99C60.7 98.2 52.8 97.8 51 101C49.2 104.2 51.5 111.8 52 118C52.5 124.2 53 134 54 138C55 142 56.5 142 58 142C59.5 142 61.7 141.7 63 138C64.3 134.3 65.7 125.3 66 120C66.3 114.7 65.5 109.5 65 106C64.5 102.5 65.3 99.8 63 99Z',
-    shins: 'M37 147C38.3 144.8 41.7 144.8 43 147C44.3 149.2 45 154.7 45 160C45 165.3 43.8 175.2 43 179C42.2 182.8 41 183.2 40 183C39 182.8 37.8 181.8 37 178C36.2 174.2 35 165.2 35 160C35 154.8 35.7 149.2 37 147Z'
-      + 'M63 147C61.7 144.8 58.3 144.8 57 147C55.7 149.2 55 154.7 55 160C55 165.3 56.2 175.2 57 179C57.8 182.8 59 183.2 60 183C61 182.8 62.2 181.8 63 178C63.8 174.2 65 165.2 65 160C65 154.8 64.3 149.2 63 147Z',
-  },
-  back: {
-    trapezius: 'M45 24C46.8 23 53.2 23 55 24C56.8 25 54.2 28.2 56 30C57.8 31.8 66 33.3 66 35C66 36.7 58.3 36.3 56 40C53.7 43.7 53.3 54.2 52 57C50.7 59.8 49.3 59.8 48 57C46.7 54.2 46.3 43.7 44 40C41.7 36.3 34 36.7 34 35C34 33.3 42.2 31.8 44 30C45.8 28.2 43.2 25 45 24Z',
-    deltoid: 'M34 35C32.5 34.7 28.7 35.3 27 37C25.3 38.7 24.5 42.5 24 45C23.5 47.5 22.8 51.8 24 52C25.2 52.2 29 48.2 31 46C33 43.8 35.5 40.8 36 39C36.5 37.2 35.5 35.3 34 35Z'
-      + 'M66 35C67.5 34.7 71.3 35.3 73 37C74.7 38.7 75.5 42.5 76 45C76.5 47.5 77.2 51.8 76 52C74.8 52.2 71 48.2 69 46C67 43.8 64.5 40.8 64 39C63.5 37.2 64.5 35.3 66 35Z',
-    lats: 'M37 41C38.8 39.5 42.2 40 44 43C45.8 46 47.5 53.8 48 59C48.5 64.2 48 70.2 47 74C46 77.8 43.7 82.7 42 82C40.3 81.3 38.5 75 37 70C35.5 65 33 56.8 33 52C33 47.2 35.2 42.5 37 41Z'
-      + 'M63 41C61.2 39.5 57.8 40 56 43C54.2 46 52.5 53.8 52 59C51.5 64.2 52 70.2 53 74C54 77.8 56.3 82.7 58 82C59.7 81.3 61.5 75 63 70C64.5 65 67 56.8 67 52C67 47.2 64.8 42.5 63 41Z',
-    erectors: 'M45 73C45.9 68.2 48.7 57.8 49.4 61C50.1 64.2 50.3 87.2 49.4 92C48.5 96.8 44.7 93.2 44 90C43.3 86.8 44.1 77.8 45 73Z'
-      + 'M55 73C54.1 68.2 51.3 57.8 50.6 61C49.9 64.2 49.7 87.2 50.6 92C51.5 96.8 55.3 93.2 56 90C56.7 86.8 55.9 77.8 55 73Z',
-    triceps: 'M25 54C26.3 51.5 29.8 48.3 31 49C32.2 49.7 32.2 54.5 32 58C31.8 61.5 31 67.7 30 70C29 72.3 27.2 73 26 72C24.8 71 23.2 67 23 64C22.8 61 23.7 56.5 25 54Z'
-      + 'M75 54C73.7 51.5 70.2 48.3 69 49C67.8 49.7 67.8 54.5 68 58C68.2 61.5 69 67.7 70 70C71 72.3 72.8 73 74 72C75.2 71 76.8 67 77 64C77.2 61 76.3 56.5 75 54Z',
-    forearm: FOREARM,
-    glutes: 'M37 93C39.4 91.8 47.3 91.8 49.4 95C51.5 98.2 50.3 108.5 49.4 112C48.5 115.5 46.1 115.8 44 116C41.9 116.2 38.5 115.3 37 113C35.5 110.7 35 105.3 35 102C35 98.7 34.6 94.2 37 93Z'
-      + 'M63 93C60.6 91.8 52.7 91.8 50.6 95C48.5 98.2 49.7 108.5 50.6 112C51.5 115.5 53.9 115.8 56 116C58.1 116.2 61.5 115.3 63 113C64.5 110.7 65 105.3 65 102C65 98.7 65.4 94.2 63 93Z',
-    hamstrings: 'M36 117C38.2 114.8 46.2 115.5 48 119C49.8 122.5 47.7 133.8 47 138C46.3 142.2 45.3 143 44 144C42.7 145 40.5 146 39 144C37.5 142 35.5 136.5 35 132C34.5 127.5 33.8 119.2 36 117Z'
-      + 'M64 117C61.8 114.8 53.8 115.5 52 119C50.2 122.5 52.3 133.8 53 138C53.7 142.2 54.7 143 56 144C57.3 145 59.5 146 61 144C62.5 142 64.5 136.5 65 132C65.5 127.5 66.2 119.2 64 117Z',
-    calves: 'M36 148C37.7 146 42.3 146 44 148C45.7 150 46.2 155.7 46 160C45.8 164.3 44 170.3 43 174C42 177.7 41.2 182.3 40 182C38.8 181.7 37 175.7 36 172C35 168.3 34 164 34 160C34 156 34.3 150 36 148Z'
-      + 'M64 148C62.3 146 57.7 146 56 148C54.3 150 53.8 155.7 54 160C54.2 164.3 56 170.3 57 174C58 177.7 58.8 182.3 60 182C61.2 181.7 63 175.7 64 172C65 168.3 66 164 66 160C66 156 65.7 150 64 148Z',
-  },
+/** 図に付けるケガの印 */
+export type FigureMark = { key: string; site: string; side: Side | null; status: InjuryStatus };
+
+type Props = {
+  /** 部位の名前（最近の流れ：その部位の筋肉を緑で塗る）。view を渡したときは使わない */
+  name?: string;
+  /** ケガの図：前か後ろ */
+  view?: MuscleView;
+  width: number;
+  height: number;
+  /** ケガの印（この図に置くものだけを描く。lib/muscleFigure.ts の markPoint） */
+  marks?: FigureMark[];
+  /** 選んだ部位（琥珀色で塗る） */
+  selected?: { site: string; side: Side | null } | null;
+  /** 押して部位を選ぶ（押した点のいちばん近い部位。体の外なら null）。渡すと関節の押せる点も出す */
+  onPick?: (target: FigureTarget | null, point: { x: number; y: number }) => void;
+  testID?: string;
 };
 
 /**
- * 筋肉の図（100×200 の体）：体の前か後ろを筋肉ごとのパーツで描き、その部位の筋肉だけをアクセントの緑で塗る。
- * 向きと塗る筋肉は lib/muscleFigure.ts（背中は後ろ姿、ほかは前。知らない部位は前でどこも塗らない）
+ * 筋肉の図（100×200 の体）：体の前か後ろを、左右に分けた筋肉の片で描く。
+ * - name を渡すと（最近の流れ）、その部位の筋肉だけをアクセントの緑で塗る。向きと塗る筋肉は lib/muscleFigure.ts の muscleFigureFor
+ * - view を渡すとケガの図：選んだ部位を琥珀色で塗り、ケガの印（直している途中は琥珀色の塗りと二重の輪・光、直せたは緑の中抜きの輪）を置く。
+ *   onPick を渡すと、図を押して部位を選べる（関節の点も出す）。図の上の部位は小さいので、画面には近くの部位のチップを添える（48dp）
+ * 前の図は画面の左が本人の右、後ろの図は画面の左が本人の左
  */
-export function MuscleFigure({ name, width, height }: { name: string; width: number; height: number }) {
-  const { view, muscles } = muscleFigureFor(name);
-  const painted = new Set(muscles);
-  return (
+export function MuscleFigure({ name, view: injuryView, width, height, marks = [], selected, onPick, testID }: Props) {
+  const box = useRef<ViewInstance>(null);
+  const spec = name != null && injuryView == null ? muscleFigureFor(name) : null;
+  const view = injuryView ?? spec?.view ?? 'front';
+  const painted = new Set(spec?.muscles ?? []);
+  const chosen = new Set(selected ? piecesFor(view, selected.site, selected.side) : []);
+  const placed = marks.map((m) => ({ m, at: markPoint(m.site, m.side) })).filter(({ at }) => at?.view === view);
+  const scale = width / 100;
+  const pieceFill = (p: FigurePiece) => (chosen.has(p) ? INJURY_AMBER : painted.has(p.muscle) ? colors.accent : figureColors.muscle);
+  // 直している途中のケガの筋肉は琥珀色で塗る（関節は点で示す）
+  const hurt = new Set(placed.filter(({ m }) => m.status === 'fixing').flatMap(({ m }) => piecesFor(view, m.site, m.side)));
+
+  const svg = (
     <Svg width={width} height={height} viewBox="0 0 100 200">
+      <Defs>
+        <ClipPath id={`fig-left-${view}`}><Rect x={0} y={0} width={50} height={200} /></ClipPath>
+        <ClipPath id={`fig-right-${view}`}><Rect x={50} y={0} width={50} height={200} /></ClipPath>
+      </Defs>
       <Path d={BODY[view]} fill={figureColors.body} />
-      {(Object.entries(MUSCLES[view]) as [Muscle, string][]).map(([m, d]) => (
-        <Path key={m} d={d} fill={painted.has(m) ? colors.accent : figureColors.muscle} />
+      {FIGURE_PIECES[view].map((p) => (
+        <G key={`${p.muscle}-${p.side}-${p.clip ?? ''}`} clipPath={p.clip ? `url(#fig-${p.clip}-${view})` : undefined}>
+          <Path d={p.d} fill={hurt.has(p) && !chosen.has(p) ? INJURY_AMBER : pieceFill(p)} fillOpacity={hurt.has(p) && !chosen.has(p) ? 0.85 : 1} />
+        </G>
       ))}
+      {onPick && jointPoints(view).map((j) => {
+        const on = selected && j.site === selected.site && (selected.side == null || j.side == null || j.side === selected.side);
+        return (
+          <Circle key={`${j.site}-${j.side}`} cx={j.center.x} cy={j.center.y} r={JOINT_RADIUS - 0.8}
+            fill={on ? INJURY_AMBER : colors.bg} stroke={on ? INJURY_AMBER : colors.sub} strokeWidth={0.8} />
+        );
+      })}
+      {placed.map(({ m, at }) => (m.status === 'fixing' ? (
+        <G key={m.key}>
+          <Circle cx={at!.point.x} cy={at!.point.y} r={9} fill={INJURY_AMBER} fillOpacity={0.18} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={2.4} fill={INJURY_AMBER} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={4.5} fill="none" stroke={INJURY_AMBER} strokeWidth={1} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={7} fill="none" stroke={INJURY_AMBER} strokeWidth={0.6} strokeOpacity={0.6} />
+        </G>
+      ) : (
+        <Circle key={m.key} cx={at!.point.x} cy={at!.point.y} r={3.5} fill="none" stroke={FIXED_RING} strokeWidth={1.2} />
+      )))}
     </Svg>
+  );
+
+  const pulses = placed.filter(({ m }) => m.status === 'fixing').map(({ m, at }) => (
+    <Pulse key={m.key} x={at!.point.x * scale} y={at!.point.y * scale} size={14 * scale} />
+  ));
+
+  if (!onPick) {
+    return (
+      <View style={{ width, height }} testID={testID} pointerEvents="none">
+        {svg}
+        {pulses}
+      </View>
+    );
+  }
+  // 図は押した点で部位を決める（Pressable の中の位置を図の座標に直す）。読み上げでは使えないので、画面に一覧から選ぶ入口を置く
+  return (
+    <Pressable
+      testID={testID}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      ref={box}
+      onPress={(e) => {
+        // 押した位置は画面の座標から図の左上を引いて求める（locationX は、web では押した中の要素（筋肉のパス）からの位置になるため）
+        const { pageX, pageY } = e.nativeEvent;
+        box.current?.measure((_x, _y, _w, _h, left, top) => {
+          const p = { x: (pageX - left) / scale, y: (pageY - top) / scale };
+          onPick(pickTarget(view, p), p);
+        });
+      }}
+      style={{ width, height }}
+    >
+      <View pointerEvents="none">
+        {svg}
+        {pulses}
+      </View>
+    </Pressable>
+  );
+}
+
+/** 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定なら出さない */
+function Pulse({ x, y, size }: { x: number; y: number; size: number }) {
+  const reduced = useReducedMotion();
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    t.set(withRepeat(withTiming(1, { duration: PULSE_MS, easing: Easing.out(Easing.quad) }), -1, false));
+    return () => cancelAnimation(t);
+  }, [reduced, t]);
+  const style = useAnimatedStyle(() => ({ opacity: 0.6 * (1 - t.get()), transform: [{ scale: 0.6 + t.get() * 0.9 }] }));
+  if (reduced) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size, borderRadius: size / 2, borderWidth: 1.5, borderColor: INJURY_AMBER }, style]}
+    />
   );
 }

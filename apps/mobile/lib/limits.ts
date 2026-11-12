@@ -69,6 +69,21 @@ export function parseInRange(text: string, limit: Limit, unit: WeightUnit = 'kg'
   return { value };
 }
 
+/**
+ * ケガの記録の上限（文字はコードポイントで数える。前後の空白を取ってから）。同期のサーバーの
+ * services/training/training/domain/injury.py の MAX_… と同じ（lib/__tests__/server-limits.test.ts で突き合わせる）。
+ * 件数（injuries・reviewsPerInjury）はサーバーが MCP の書き込みでだけ確かめるので、アプリも書くときに確かめる
+ */
+export const INJURY_LIMITS = {
+  phase: 100,
+  symptom: 500,
+  cause: 500,
+  fix: 500,
+  reviewNote: 500,
+  injuries: 200,
+  reviewsPerInjury: 100,
+} as const;
+
 /** フォームの動画のリンクの長さの上限（コードポイント）。同期のサーバーの exercise.form_video_url（FormVideoUrl の max_length）と同じ */
 export const FORM_VIDEO_URL_MAX_LENGTH = 2000;
 /** フォームの動画のリンクの形：https:// で始まり、空白を含まない。サーバーの FormVideoUrl の pattern と同じ */

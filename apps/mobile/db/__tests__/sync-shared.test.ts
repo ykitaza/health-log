@@ -187,6 +187,13 @@ describe('mcp_pull.json：MCP で記録したもの（サーバーの pytest が
       ['懸垂', [[null, 12]]],
     ]);
     expect(await d.r.body.getDay('2026-11-07')).toMatchObject({ weightKg: 71.3, bodyFatPct: 17.5 });
+    // ケガと振り返り（版13から当てはめる）
+    const [injury] = await d.r.injuries.list();
+    expect(injury).toMatchObject({
+      occurredOn: '2026-11-07', site: 'shoulder_front', side: 'right', exerciseName: 'ベンチプレス', phase: '2セット目の下ろすとき',
+      cause: '肘が開いていた', fix: '肘を45度にたたむ', status: 'fixing', reviewCount: 1, lastReview: { date: '2026-11-08', result: 'not_yet' },
+    });
+    expect((await d.r.injuries.reviews(injury.id)).map((r) => [r.date, r.result, r.note])).toEqual([['2026-11-08', 'not_yet', '少し違和感']]);
     expect(d.outbox()).toEqual([]);
   });
 });

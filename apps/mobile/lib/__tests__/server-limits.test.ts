@@ -4,7 +4,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN, STEPS_MAX, STEPS_MIN } from '../healthConnect/importer';
-import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
+import { SITE_CODES, SITES } from '../injuries';
+import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, INJURY_LIMITS, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -79,6 +80,32 @@ describe('同期のサーバーの決まりと合っている', () => {
     const name = fieldArgs(entities, null, 'Name');
     expect(name.min_length).toBe(1);
     expect(name.max_length).toBeGreaterThanOrEqual(NAME_MAX_LENGTH);
+  });
+
+  test('ケガの記録の上限（場面・症状・原因・直し方・振り返りのメモ、件数）は、サーバーの injury.py と同じ', () => {
+    const injury = read('services/training/training/domain/injury.py');
+    const constant = (name: string) => {
+      const m = new RegExp(`^${name} = (\\d+)\\b`, 'm').exec(injury);
+      if (!m) throw new Error(`${name} がない`);
+      return Number(m[1]);
+    };
+    expect({
+      phase: constant('MAX_PHASE'), symptom: constant('MAX_SYMPTOM'), cause: constant('MAX_CAUSE'), fix: constant('MAX_FIX'),
+      reviewNote: constant('MAX_REVIEW_NOTE'), injuries: constant('MAX_INJURIES'), reviewsPerInjury: constant('MAX_REVIEWS_PER_INJURY'),
+    }).toEqual(INJURY_LIMITS);
+    // 同期の項目も同じ定数を使う（Field(max_length=MAX_…)）
+    for (const [field, name] of [['phase', 'MAX_PHASE'], ['symptom', 'MAX_SYMPTOM'], ['cause', 'MAX_CAUSE'], ['fix', 'MAX_FIX']]) {
+      expect(entities).toMatch(new RegExp(`^class InjuryFields[\\s\\S]*?^\\s+${field}: Annotated\\[str, Field\\(max_length=${name}\\)\\]`, 'm'));
+    }
+    expect(entities).toMatch(/^class InjuryReviewFields[\s\S]*?^\s+note: Annotated\[str, Field\(max_length=MAX_REVIEW_NOTE\)\]/m);
+  });
+
+  test('ケガの部位のコード・名前・左右の有無は、サーバーの SITES と同じ', () => {
+    const injury = read('services/training/training/domain/injury.py');
+    const server = [...injury.matchAll(/^\s+"(\w+)": Site\("([^"]+)", "(muscle|joint)", (True|False)\),$/gm)]
+      .map(([, code, name, kind, sided]) => ({ code, name, kind, sided: sided === 'True' }));
+    expect(server.length).toBeGreaterThan(0);
+    expect(SITE_CODES.map((code) => ({ code, name: SITES[code].name, kind: SITES[code].kind, sided: SITES[code].sided }))).toEqual(server);
   });
 
   test('設定の値（身長・目標体重などを文字にしたもの）は、サーバーの上限に収まる', () => {
