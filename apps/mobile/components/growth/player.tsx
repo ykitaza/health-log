@@ -1,5 +1,5 @@
 // 「成長を見る」画面（app/growth.tsx）の部品：画面全体の指の操作、下の線、一時停止の印、下の累計の1行、左上の数式
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn, FadeOut, SharedValue, useAnimatedReaction, useAnimatedStyle, useFrameCallback, useSharedValue,
@@ -263,19 +263,16 @@ function FormulaRow({ line, readout }: { line: FormulaLine; readout?: boolean })
 /**
  * 形の左上に出す、形を描いている数式。題・式・定数は動かさず、下の2行（いまの点の値と、点の番号 / 上限）だけが更新される。
  * 番号はいま打った点の番号（出している点の数）。再生中は再生の位置から FORMULA_UPDATE_MS ごとに描き直し（この部品だけ）、
- * 止まっているときはその日の値で止める。番号は mark にも書き、形の上の光る点を同じ点に置く。飾りなので読み上げない
+ * 止まっているときはその日の値で止める。飾りなので読み上げない
  */
-export function FormulaReadout({ shape, pos, playing, index, series, mark }: {
+export function FormulaReadout({ shape, pos, playing, index, series }: {
   shape: ShapeKind; pos: SharedValue<number>; playing: boolean; /** 止まっているときに出す日の番号 */ index: number;
-  series: GrowthParams[]; mark: SharedValue<number>;
+  series: GrowthParams[];
 }) {
   const live = useLivePos(pos, playing, FORMULA_UPDATE_MS);
   const p = live == null ? series[Math.min(index, series.length - 1)] ?? ZERO : lerpParams(series, live);
   const n = Math.min(SHAPES[shape].maxPoints, pointNumber(SHAPES[shape].layout(p).count));
   const values = useMemo(() => formulaValues(shape), [shape]);
-  useEffect(() => {
-    mark.set(n);
-  }, [n, mark]);
   const f = formula(shape, n, pointValue(values, n));
   return (
     <View style={s.formula} pointerEvents="none" importantForAccessibility="no-hide-descendants" aria-hidden testID="growth-formula">
