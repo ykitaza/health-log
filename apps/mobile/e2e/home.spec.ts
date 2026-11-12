@@ -22,7 +22,9 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   // 今週の目標（設定の初期値：筋トレ 3回、食事の記録 5日）
   await expect(visible(page, 'goal-training')).toContainText('0／3 回');
   await expect(visible(page, 'goal-meals')).toContainText('0／5 日');
-  await expect(see(page, '食事の記録', { exact: true })).toHaveCount(2); // 今週の目標と、カレンダーの凡例
+  await expect(see(page, '食事の記録', { exact: true })).toHaveCount(1); // 今週の目標（カレンダーの凡例は出さない）
+  // 凡例の代わりに、カレンダーの読み上げで印の意味を伝える
+  await expect(visible(page, 'home-calendar')).toHaveAttribute('aria-label', 'カレンダー。緑の丸の枠は筋トレ、白い点は食事の記録');
   // 週のまとめがなければ、今週やることは出さない。RM計算機の入口はホームにない
   await expect(visible(page, 'weekly-todo')).toHaveCount(0);
   await expect(button(page, 'RM計算機')).toHaveCount(0);
@@ -124,7 +126,7 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await button(page, '記録する').click();
   await expect(homeCard(page, 'meals')).toContainText('312 kcal');
 
-  // カレンダーの点と読み上げ、凡例。今週の目標の食事の記録
+  // カレンダーの点と読み上げ。今週の目標の食事の記録
   await expect(page.getByTestId(`meal-dot-${TODAY}`).filter({ visible: true })).toBeVisible();
   await expect(day(page, TODAY)).toHaveAttribute('aria-label', '11月8日（日） 今日 食事の記録あり');
   await expect(visible(page, 'goal-meals')).toContainText('1／5 日');

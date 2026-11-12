@@ -3,7 +3,7 @@ import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Sparkline } from '@/components/charts';
 import { PartBadge } from '@/components/ExerciseFields';
-import { CalendarLegend, GrowthStage, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
+import { GrowthStage, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
@@ -99,8 +99,9 @@ export default function HomeScreen() {
           <MonthCalendar
             year={year} month={month} today={today} marked={new Set(dates)} dotted={data?.mealDates} cell={26} rowGap={8} divider testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
+            // 凡例は出さない（Figma ホーム 1-17）。印の意味は読み上げで伝える
+            accessibilityLabel="カレンダー。緑の丸の枠は筋トレ、白い点は食事の記録"
           />
-          <CalendarLegend />
           {flow && partDays && (
             <RecentPartFlow past={flow.past} today={flow.today} suggest={flow.today ? null : todaySuggestion(partDays, today).suggest?.name ?? null} />
           )}

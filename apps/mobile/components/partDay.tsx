@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 import { PartBadge } from './ExerciseFields';
-import { PartIcon } from './Icon';
+import { MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
 import { Button, Card } from './ui';
 import type { Repositories } from '@/db';
@@ -130,8 +130,8 @@ export function todaySuggestionSpoken(s: ReturnType<typeof todaySuggestion>): st
 
 /**
  * ホームのカレンダーの下の「最近の流れ」：直近3回の筋トレの日の部位（古い順）→ 今日。
- * 今日がまだなら今日のおすすめを点線の枠で薄く、今日やっていれば今日の部位を普通の枠で。部位はその日のいちばん多い部位のアイコン。
- * 前の日も今日のおすすめもなければ出さない
+ * 今日がまだなら今日のおすすめを点線の枠で薄く、今日やっていれば今日の部位を普通の枠で。部位はその日のいちばん多い部位を
+ * 筋肉の図（縦長の四角 31×51 の中に、その部位の筋肉を緑で塗った体）で。前の日も今日のおすすめもなければ出さない
  */
 export function RecentPartFlow({ past, today, suggest }: { past: { date: DateKey; parts: string[] }[]; today: string[] | null; suggest: string | null }) {
   const last = today ? { parts: today, planned: false } : suggest ? { parts: [suggest], planned: true } : null;
@@ -151,12 +151,13 @@ export function RecentPartFlow({ past, today, suggest }: { past: { date: DateKey
           <View
             testID={it.planned ? 'recent-flow-planned' : 'recent-flow-day'}
             style={{
-              width: 32, flexShrink: 1, minWidth: 26, aspectRatio: 1, borderRadius: radius.s, alignItems: 'center', justifyContent: 'center',
+              // 幅が足りなければ幅だけ縮める（360 の幅など）。図の幅 23.5 は残す
+              width: 31, height: 51, flexShrink: 1, minWidth: 24, borderRadius: radius.s, alignItems: 'center', justifyContent: 'center',
               backgroundColor: it.planned ? undefined : colors.input,
               borderWidth: it.planned ? 1 : 0, borderColor: colors.outline, borderStyle: 'dashed', opacity: it.planned ? 0.6 : 1,
             }}
           >
-            <PartIcon name={it.parts[0]} size={22} />
+            <MuscleFigure name={it.parts[0]} width={23.5} height={47} />
           </View>
         </View>
       ))}

@@ -1,4 +1,4 @@
-// ホームの部品：形の段、今週の目標、カレンダーの凡例、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
+// ホームの部品：形の段、今週の目標、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
@@ -212,22 +212,6 @@ function GoalRow({ testID, name, unit, p }: { testID: string; name: string; unit
       </View>
       <View style={s.track}>
         <GrowBar ratio={p ? goalRatio(p) : 0} style={s.fill} />
-      </View>
-    </View>
-  );
-}
-
-/** カレンダーの凡例：○ 筋トレ ・ 食事の記録（形でも分かるように、丸の枠と点） */
-export function CalendarLegend() {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.l, marginTop: space.s }} accessible accessibilityLabel="凡例。緑の丸の枠は筋トレ、白い点は食事の記録">
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.accent }} />
-        <T variant="bodyS" color={colors.sub}>筋トレ</T>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.text }} />
-        <T variant="bodyS" color={colors.sub}>食事の記録</T>
       </View>
     </View>
   );

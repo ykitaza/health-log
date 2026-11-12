@@ -44,11 +44,17 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   await expect(flow.getByTestId('recent-flow-day')).toHaveCount(3);
   await expect(flow.getByTestId('recent-flow-planned')).toHaveCount(1);
   const flowBox = await box(flow);
-  expect(flowBox.height).toBeLessThanOrEqual(32.5); // 「最近」も1行
+  expect(flowBox.height).toBeLessThanOrEqual(51.5); // 「最近」も1行（縦長の四角の高さ 51）
   const calendar = await box(visible(page.getByTestId('home-calendar')));
   expect(flowBox.x + flowBox.width).toBeLessThanOrEqual(calendar.x + calendar.width + 0.5);
-  expect((await box(flow.getByTestId('recent-flow-day').first())).width).toBeGreaterThanOrEqual(24);
-  expect((await box(flow.getByTestId('recent-flow-day').first())).height).toBeLessThanOrEqual(32.5);
+  // 四角は幅だけ縮み（筋肉の図の幅 23.5 は残す）、高さは 51 のまま
+  const dayBox = await box(flow.getByTestId('recent-flow-day').first());
+  expect(dayBox.width).toBeGreaterThanOrEqual(24);
+  expect(dayBox.height).toBeCloseTo(51, 0);
+  // 左の列（MONTHLY ARCHIVE）と右の列（今週の目標）の下の端がそろう
+  const archive = await box(visible(page.getByTestId('archive')));
+  const goals = await box(visible(page.getByTestId('weekly-goals')));
+  expect(Math.abs(archive.y + archive.height - (goals.y + goals.height))).toBeLessThan(1);
 
   // 押すと筋トレの記録のタブ：今日は空なので「部位ごとの前回」と、その下に前回のメニュー
   await card.click();
@@ -120,7 +126,7 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   await expect(flow.getByTestId('recent-flow-planned')).toHaveCount(0);
 });
 
-test('背中・脚・胸以外の日はダンベル。過去の日のまとめも総負荷量の部位', async ({ page }) => {
+test('背中・脚・胸以外の日（肩）：おすすめは出さない。過去の日のまとめも総負荷量の部位', async ({ page }) => {
   await openApp(page, '2026-11-06');
   await recordOn(page, '2026-11-06', [{ exercise: 'ショルダープレス', sets: [{ weight: '40', reps: '10' }] }]);
   await moveToDate(page, TODAY);
