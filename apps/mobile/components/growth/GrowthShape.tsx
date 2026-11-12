@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { ReactNode, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import {
-  Atlas, BlurMask, Canvas, Circle, DashPathEffect, FilterMode, Group, MipmapMode, Oval, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
+  Atlas, Blur, BlurMask, Canvas, Circle, DashPathEffect, FilterMode, Group, MipmapMode, Oval, Paint, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
 } from '@shopify/react-native-skia';
 import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
@@ -31,6 +31,11 @@ export type GrowthShapeProps = {
   paused?: boolean;
   /** 読み上げの名前。渡さなければ飾りとして扱い、読み上げに出さない */
   accessibilityLabel?: string;
+  /**
+   * 形全体のぼかし（Skia の Blur の半径）。渡したときだけ、形を1枚の層にまとめてぼかす（成長を見る画面で、カードの後ろに回すとき）。
+   * 0 のときも層は作るので、ぼかさないあいだは渡さない
+   */
+  blur?: SharedValue<number>;
 };
 
 /** Y 軸まわりに1周する秒数 */
@@ -62,7 +67,7 @@ const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
  * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
  * 点の位置は UI スレッドで毎フレーム計算する（JS スレッドを使わない）。動きを減らす設定なら止まった形を出す
  */
-export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel }: GrowthShapeProps) {
+export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel, blur }: GrowthShapeProps) {
   const def = SHAPES[shape];
   const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => shapeBuild(shape), [shape]);
   const layout = def.layout;
@@ -178,29 +183,37 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
       importantForAccessibility={accessibilityLabel != null ? 'yes' : 'no-hide-descendants'}
     >
       <Canvas style={{ width, height }}>
-        {sats && ORBITS.map((o) => (
-          <OrbitLine key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} />
-        ))}
-        <Group opacity={glow}>
-          <Circle cx={cx} cy={cy} r={haloR}>
-            <RadialGradient c={vec(cx, cy)} r={haloR} colors={[withAlpha(growthColors.training, 0.16), withAlpha(growthColors.training, 0)]} />
-          </Circle>
-        </Group>
-        <Group opacity={seedOpacity} transform={seedTransform}>
-          <Circle cx={cx} cy={cy} r={20}>
-            <RadialGradient c={vec(cx, cy)} r={20} colors={[withAlpha(growthColors.training, 0.45), withAlpha(growthColors.training, 0)]} />
-          </Circle>
-          <Circle cx={cx} cy={cy} r={2.5} color="#FFFFFF" />
-        </Group>
-        <Group opacity={glow}>
-          <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" sampling={SAMPLING} />
-        </Group>
-        {sats && ORBITS.map((o) => (
-          <Satellite key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} seconds={seconds} />
-        ))}
+        <Layer blur={blur}>
+          {sats && ORBITS.map((o) => (
+            <OrbitLine key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} />
+          ))}
+          <Group opacity={glow}>
+            <Circle cx={cx} cy={cy} r={haloR}>
+              <RadialGradient c={vec(cx, cy)} r={haloR} colors={[withAlpha(growthColors.training, 0.16), withAlpha(growthColors.training, 0)]} />
+            </Circle>
+          </Group>
+          <Group opacity={seedOpacity} transform={seedTransform}>
+            <Circle cx={cx} cy={cy} r={20}>
+              <RadialGradient c={vec(cx, cy)} r={20} colors={[withAlpha(growthColors.training, 0.45), withAlpha(growthColors.training, 0)]} />
+            </Circle>
+            <Circle cx={cx} cy={cy} r={2.5} color="#FFFFFF" />
+          </Group>
+          <Group opacity={glow}>
+            <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" sampling={SAMPLING} />
+          </Group>
+          {sats && ORBITS.map((o) => (
+            <Satellite key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} seconds={seconds} />
+          ))}
+        </Layer>
       </Canvas>
     </View>
   );
+}
+
+/** blur を渡したときだけ、中身を1枚の層にまとめてぼかす（渡さなければ、そのまま描く） */
+function Layer({ blur, children }: { blur?: SharedValue<number>; children: ReactNode }) {
+  if (!blur) return <>{children}</>;
+  return <Group layer={<Paint><Blur blur={blur} mode="decal" /></Paint>}>{children}</Group>;
 }
 
 type OrbitProps = { orbit: Orbit; state: SatState; outer: number; cx: number; cy: number };

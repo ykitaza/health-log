@@ -108,7 +108,23 @@ type ScoreCore = Omit<GrowthScore, 'diffFromLastWeek'>;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-function scoreAt(byDate: Map<DateKey, GrowthDay>, end: DateKey, weeklyTarget: number): ScoreCore {
+/**
+ * スコアの計算の途中の値（成長を見る画面の「成長スコアの内訳」のカードに、柱ごとの数え方として出す）。
+ * volumeRatio は前4週の週平均に対する直近7日の負荷量の割合（上限 1）。前4週に負荷量がなければ null（回数の割合で代える）。
+ * sleepAvgMin は記録のある日の平均（分、四捨五入しない）。記録がなければ null
+ */
+export type ScoreDetail = {
+  trainDays: number;
+  weeklyTarget: number;
+  countPoints: number;
+  volumeRatio: number | null;
+  volumePoints: number;
+  mealDays: number;
+  mealGoalDays: number;
+  sleepAvgMin: number | null;
+};
+
+function scoreAt(byDate: Map<DateKey, GrowthDay>, end: DateKey, weeklyTarget: number): ScoreCore & { detail: ScoreDetail } {
   const range = (from: DateKey, to: DateKey) => {
     const out: GrowthDay[] = [];
     for (let d = from; d <= to; d = addDays(d, 1)) { const x = byDate.get(d); if (x) out.push(x); }
@@ -123,15 +139,19 @@ function scoreAt(byDate: Map<DateKey, GrowthDay>, end: DateKey, weeklyTarget: nu
   const before = range(addDays(end, -(SCORE_DAYS - 1) - BASELINE_WEEKS * 7), addDays(end, -SCORE_DAYS));
   const baseline = before.reduce((a, d) => a + d.volumeKg, 0) / BASELINE_WEEKS;
   const volumeRatio = baseline > 0 ? clamp01(weekVolume / baseline) : countRatio;
-  const training = SCORE_MAX.training / 2 * countRatio + SCORE_MAX.training / 2 * volumeRatio;
+  const countPoints = SCORE_MAX.training / 2 * countRatio;
+  const volumePoints = SCORE_MAX.training / 2 * volumeRatio;
+  const training = countPoints + volumePoints;
 
   // 食事 30点：記録のある日のうち、目標に届いた日の割合（記録のない日は外す）
   const meals = week.filter((d) => d.mealRecorded);
-  const meal = meals.length === 0 ? null : (meals.filter((d) => d.mealGoalReached).length / meals.length) * SCORE_MAX.meal;
+  const mealGoalDays = meals.filter((d) => d.mealGoalReached).length;
+  const meal = meals.length === 0 ? null : (mealGoalDays / meals.length) * SCORE_MAX.meal;
 
   // 睡眠 30点：記録のある日の平均 ÷ 7時間（上限 1）
   const sleeps = week.flatMap((d) => (d.sleepMin == null ? [] : [d.sleepMin]));
-  const sleep = sleeps.length === 0 ? null : clamp01(sleeps.reduce((a, b) => a + b, 0) / sleeps.length / LONG_SLEEP_MIN) * SCORE_MAX.sleep;
+  const sleepAvgMin = sleeps.length === 0 ? null : sleeps.reduce((a, b) => a + b, 0) / sleeps.length;
+  const sleep = sleepAvgMin == null ? null : clamp01(sleepAvgMin / LONG_SLEEP_MIN) * SCORE_MAX.sleep;
 
   const pillars = [
     { points: training, max: SCORE_MAX.training },
@@ -140,7 +160,39 @@ function scoreAt(byDate: Map<DateKey, GrowthDay>, end: DateKey, weeklyTarget: nu
   ];
   const live = pillars.filter((p) => p.points != null);
   const total = Math.round((live.reduce((a, p) => a + p.points!, 0) / live.reduce((a, p) => a + p.max, 0)) * 100);
-  return { total, training: pillars[0], meal: pillars[1], sleep: pillars[2] };
+  return {
+    total, training: pillars[0], meal: pillars[1], sleep: pillars[2],
+    detail: {
+      trainDays, weeklyTarget, countPoints, volumeRatio: baseline > 0 ? volumeRatio : null, volumePoints,
+      mealDays: meals.length, mealGoalDays, sleepAvgMin,
+    },
+  };
+}
+
+const weeklyTargetOf = (goal: number | null) => (goal != null && goal > 0 ? goal : DEFAULT_WEEKLY_TRAINING);
+
+/** 直近7日（today を含む）のスコアの、柱ごとの数え方（growthScore と同じ計算） */
+export function scoreDetail(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null = null): ScoreDetail {
+  return scoreAt(new Map(days.map((d) => [d.date, d])), today, weeklyTargetOf(weeklyTrainingGoal)).detail;
+}
+
+/** 週ごとの点数の1本。start〜end の7日（end で終わる）の成長スコア */
+export type WeekScore = { start: DateKey; end: DateKey; total: number };
+
+/**
+ * 週ごとの点数の推移：today で終わる7日を、7日ずつさかのぼって計算する（growthScore と同じ計算）。古い順。
+ * 7日の終わりが最初の記録の日以降の週だけ（始めた週から今週まで）。記録が1つもなければ空
+ */
+export function weeklyScores(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null = null): WeekScore[] {
+  const first = firstRecordDate(days, today);
+  if (first == null) return [];
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const target = weeklyTargetOf(weeklyTrainingGoal);
+  const out: WeekScore[] = [];
+  for (let end = today; end >= first; end = addDays(end, -SCORE_DAYS)) {
+    out.push({ start: addDays(end, -(SCORE_DAYS - 1)), end, total: scoreAt(byDate, end, target).total });
+  }
+  return out.reverse();
 }
 
 /**
@@ -149,12 +201,12 @@ function scoreAt(byDate: Map<DateKey, GrowthDay>, end: DateKey, weeklyTarget: nu
  */
 export function growthScore(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null = null): GrowthScore {
   const byDate = new Map(days.map((d) => [d.date, d]));
-  const target = weeklyTrainingGoal != null && weeklyTrainingGoal > 0 ? weeklyTrainingGoal : DEFAULT_WEEKLY_TRAINING;
-  const now = scoreAt(byDate, today, target);
+  const target = weeklyTargetOf(weeklyTrainingGoal);
+  const { total, training, meal, sleep } = scoreAt(byDate, today, target);
   const lastWeekEnd = addDays(today, -7);
   const first = firstRecordDate(days, today);
-  const diffFromLastWeek = first != null && first <= lastWeekEnd ? now.total - scoreAt(byDate, lastWeekEnd, target).total : null;
-  return { ...now, diffFromLastWeek };
+  const diffFromLastWeek = first != null && first <= lastWeekEnd ? total - scoreAt(byDate, lastWeekEnd, target).total : null;
+  return { total, training, meal, sleep, diffFromLastWeek };
 }
 
 export type PlaybackSpeed = 1 | 2 | 4;
@@ -240,22 +292,9 @@ export function highlights(input: HighlightInput): Highlight[] {
     if (isTrainingCountMilestone(i + 1)) add(date, 'trainingCount', `筋トレ ${i + 1}回目`);
   });
 
-  // 自己ベスト：その日の種目の最高の推定1RM が、前の最高を超えた日。前に記録がない種目は数えない（lib/goals.ts の dailyAchievement と同じ）
-  const byDate = new Map<DateKey, Map<string, number>>();
-  for (const s of sets) {
-    const e = estimated1RM(s.weightKg, s.reps);
-    if (e <= 0) continue;
-    const day = byDate.get(s.date) ?? new Map<string, number>();
-    day.set(s.exerciseId, Math.max(day.get(s.exerciseId) ?? 0, e));
-    byDate.set(s.date, day);
-  }
-  const best = new Map<string, number>();
-  for (const date of [...byDate.keys()].sort()) {
-    for (const [id, e] of byDate.get(date)!) {
-      const prev = best.get(id);
-      if (prev != null && e > prev + EPS) add(date, 'personalBest', `${exerciseNames.get(id) ?? '種目'} 自己ベスト ${w(e)}`);
-      if (prev == null || e > prev) best.set(id, e);
-    }
+  // 自己ベスト：その日の種目の最高の推定1RM が、前の最高を超えた日
+  for (const pb of personalBestEvents(sets, today)) {
+    add(pb.date, 'personalBest', `${exerciseNames.get(pb.exerciseId) ?? '種目'} 自己ベスト ${w(pb.e1rm)}`);
   }
 
   // 目標の連続達成：週の終わり（今週は today）に、連続の週数が節目になった日
@@ -272,6 +311,51 @@ export function highlights(input: HighlightInput): Highlight[] {
   }
 
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : b.priority - a.priority));
+}
+
+/** 自己ベストを更新した1回。weightKg × reps はその日の推定1RM が最高のセット（同じ値なら先に記録したセット） */
+export type PersonalBestEvent = { date: DateKey; exerciseId: string; weightKg: number; reps: number; e1rm: number };
+
+/**
+ * 自己ベストを更新した日の一覧（古い順。同じ日は記録の順）。その日の種目の最高の推定1RM が、前の日までの最高を超えた日。
+ * 前に記録がない種目（その種目の最初の日）は数えない（lib/goals.ts の dailyAchievement、再生の字幕と同じ）。today より後は見ない
+ */
+export function personalBestEvents(sets: TrainingSetRow[], today: DateKey): PersonalBestEvent[] {
+  const byDate = new Map<DateKey, Map<string, PersonalBestEvent>>();
+  for (const s of sets) {
+    if (s.date > today) continue;
+    const e = estimated1RM(s.weightKg, s.reps);
+    if (e <= 0) continue;
+    const day = byDate.get(s.date) ?? new Map<string, PersonalBestEvent>();
+    const cur = day.get(s.exerciseId);
+    if (!cur || e > cur.e1rm) day.set(s.exerciseId, { date: s.date, exerciseId: s.exerciseId, weightKg: s.weightKg!, reps: s.reps!, e1rm: e });
+    byDate.set(s.date, day);
+  }
+  const out: PersonalBestEvent[] = [];
+  const best = new Map<string, number>();
+  for (const date of [...byDate.keys()].sort()) {
+    for (const [id, ev] of byDate.get(date)!) {
+      const prev = best.get(id);
+      if (prev != null && ev.e1rm > prev + EPS) out.push(ev);
+      if (prev == null || ev.e1rm > prev) best.set(id, ev.e1rm);
+    }
+  }
+  return out;
+}
+
+/**
+ * いちばん長く続いた連続：筋トレした日（セットの記録がある日）が、暦の上で1日も空かずに続いた最長の日数。
+ * 同じ日が何度あっても1日と数える。today より後は見ない。記録がなければ 0
+ */
+export function longestTrainingStreak(dates: DateKey[], today: DateKey): number {
+  const sorted = [...new Set(dates.filter((d) => d <= today))].sort();
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    run = i > 0 && daysBetween(sorted[i - 1], sorted[i]) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  return best;
 }
 
 /** 字幕を出す間隔（再生の秒）。この間に1つまで */

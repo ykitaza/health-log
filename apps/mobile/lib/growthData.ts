@@ -22,6 +22,12 @@ export type GrowthData = {
   exerciseNames: Map<string, string>;
   big3: Partial<Record<Big3Role, string>>;
   weights: { date: DateKey; weightKg: number }[];
+  /** 日ごとの体脂肪率（%。記録のある日だけ）。成長の記録の「体の変化」に使う */
+  bodyFats: { date: DateKey; pct: number }[];
+  /** 記録した食事の数（today まで。1回の食事を1と数える） */
+  mealCount: number;
+  /** 部位の ID → 名前（非表示の部位も）。成長の記録の「部位の積み重ね」に使う */
+  partNames: Map<string, string>;
   goalWeightKg: number | null;
   weeklyGoals: WeeklyGoals;
   /** 週の目標の筋トレの回数（growthScore に渡す） */
@@ -52,15 +58,16 @@ export function mergeGrowthDays(input: {
 
 /**
  * 全期間の記録を読む。重くしないため、どの表も1回ずつ読み、日ごとの集計は1回の走査で行う
- * （筋トレ：allSetRows、食事：listRange と日の種類・筋トレの日、睡眠：sleepDays、体重：listDaily）
+ * （筋トレ：allSetRows、食事：listRange と日の種類・筋トレの日、睡眠：sleepDays、体重と体脂肪率：listDaily、部位：listBodyParts）
  */
 export async function loadGrowthData(r: Repositories, today: DateKey): Promise<GrowthData> {
-  const [sets, settings, meals, chosen, trained, goalSummary, sleep, weights, exercises] = await Promise.all([
+  const [sets, settings, meals, chosen, trained, goalSummary, sleep, weights, exercises, parts] = await Promise.all([
     r.workouts.allSetRows(), r.settings.get(), r.meals.listRange(EARLIEST, today),
     r.meals.chosenDayTypes(EARLIEST, today), r.meals.trainingDays(EARLIEST, today), r.meals.summaries(today, today),
     r.health.sleepDays(EARLIEST, today), r.body.listDaily(),
     // BIG3 の割り当て（ホームと同じく、非表示の種目も）
     r.catalog.listExercises({ includeHidden: true }),
+    r.catalog.listBodyParts({ includeHidden: true }),
   ]);
   const goal = goalSummary.goal;
 
@@ -87,6 +94,9 @@ export async function loadGrowthData(r: Repositories, today: DateKey): Promise<G
     exerciseNames: new Map(exercises.map((e) => [e.id, e.name])),
     big3: big3Assignments(exercises),
     weights: weights.flatMap((d) => (d.weightKg == null ? [] : [{ date: d.date, weightKg: d.weightKg }])),
+    bodyFats: weights.flatMap((d) => (d.bodyFatPct == null || d.date > today ? [] : [{ date: d.date, pct: d.bodyFatPct }])),
+    mealCount: meals.length,
+    partNames: new Map(parts.map((p) => [p.id, p.name])),
     goalWeightKg: settings.goalWeightKg,
     weeklyGoals: weeklyGoalsOf(settings),
     weeklyTrainingGoal: settings.weeklyGoalTrainingDays,

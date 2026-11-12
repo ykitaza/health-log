@@ -3,12 +3,14 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
-  cancelAnimation, Easing, FadeIn, FadeOut, SharedValue, useAnimatedReaction, useReducedMotion, useSharedValue, withTiming,
+  cancelAnimation, Easing, FadeIn, FadeOut, interpolate, SharedValue, useAnimatedReaction, useAnimatedScrollHandler, useAnimatedStyle,
+  useDerivedValue, useReducedMotion, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { GrowthShape } from '@/components/growth/GrowthShape';
 import { FormulaReadout, PauseMark, TimelineBar, TotalsLine, useDayGesture, useLivePos } from '@/components/growth/player';
+import { GrowthRecords, RECORDS_HEAD_OFFSET } from '@/components/growth/records';
 import { LoadError } from '@/components/LoadError';
 import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
@@ -50,11 +52,34 @@ const BELOW_SHAPE_H = CAPTION_H + DAY_H + TOTALS_H + TIMELINE_H + BOTTOM_PAD;
 /** 形の箱の高さの下限（小さい画面・横向き） */
 const MIN_SHAPE_H = 160;
 
+// 下の「成長の記録」へのスクロール（Figma 成長 11-1〜11-3）。1画面目＝タイムラプス、その下にカード
+/** 止まったとき、DAY から線までの段を上げる量（dp）。空いた所に「↑ 成長の記録」と①のカードの頭がのぞく */
+const PEEK_SHIFT = 72;
+/** 「↑ 成長の記録」の行の高さ（線の下。カードの頭はこの下から） */
+const HINT_SPACE = 24;
+/** カードがこの割合（1画面の高さに対して）までスクロールしたら、再生を止めて形を回すのも止める */
+const COVER_RATIO = 0.5;
+/** 1画面分スクロールしたときの、後ろの形（Figma 11-2：不透明度 0.5・ぼかし 6・上へ約 0.22 画面） */
+const BG_MIN_OPACITY = 0.5;
+const BG_MAX_BLUR = 6;
+const BG_SHIFT_RATIO = 0.22;
+/** 下の段（字幕・DAY・累計・線）が消えきるスクロール（1画面の高さに対して） */
+const ROWS_FADE_RATIO = 0.3;
+/** 「成長の記録」の見出しが出始める・出きるスクロール（1画面の高さに対して）。下の段が消えてから出す（止まったときは線に重なるため） */
+const HEADING_FROM_RATIO = 0.3;
+const HEADING_TO_RATIO = 0.45;
+/** 上のバーの地の濃さ（1画面分スクロールしたとき。画面の色の 92%） */
+const BAR_MAX_OPACITY = 0.92;
+/** 動きを減らす設定で、後ろの形を最後の姿に切り替えるスクロール（1画面の高さに対して） */
+const REDUCED_SWITCH_RATIO = 0.25;
+
 /**
  * 成長を見る：最初の記録の日から今日までの「記録で育つ形」の育ち方を、タイムラプスのように再生する。
  * 画面のどこかを1回押すと再生と一時停止、左右になぞると日を移す（左右の端から始まる指は、Android の「戻る」のために使わない）。
  * 形の値は再生の位置（日の番号の小数）から UI スレッドで毎フレーム決める（React は描き直さない）。
- * 日の数字・日付は日が変わったときだけ描き直し（間引く）、下の累計は表示の値が本当の値を追いかけて数え上がる
+ * 日の数字・日付は日が変わったときだけ描き直し（間引く）、下の累計は表示の値が本当の値を追いかけて数え上がる。
+ * 1画面目の下に「成長の記録」のカード（components/growth/records.tsx）。上にスクロールするとカードがせり上がり、形は暗く・ぼけて背景に残る。
+ * カードが半分ほど上がったら再生を止める。再生中は下の手がかり（「↑ 成長の記録」と①の頭）を隠し、止まったらのぞかせる
  */
 export default function GrowthScreen() {
   const today = useToday();
@@ -62,7 +87,10 @@ export default function GrowthScreen() {
   const reduced = useReducedMotion();
   const { width, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const shapeHeight = Math.max(MIN_SHAPE_H, windowHeight - insets.top - insets.bottom - size.topBar - BELOW_SHAPE_H);
+  // 1画面目の高さ＝スクロールの枠の高さ（測るまでは画面の大きさから見積もる）
+  const [measured, setMeasured] = useState<number | null>(null);
+  const pageH = measured ?? windowHeight - insets.top - insets.bottom;
+  const shapeHeight = Math.max(MIN_SHAPE_H, pageH - size.topBar - BELOW_SHAPE_H);
 
   const model = useMemo(() => {
     if (!data) return null;
@@ -85,6 +113,12 @@ export default function GrowthScreen() {
   const [index, setIndex] = useState(0);
   const [subtitle, setSubtitle] = useState<{ id: number; text: string } | null>(null);
   const [hint, setHint] = useState(false);
+  // 開いて最初の再生を始めた（それまでは、下の手がかりを出さない）
+  const [begun, setBegun] = useState(false);
+  // カードが上がって、形を背景に回した（再生と回転を止める）
+  const [covered, setCovered] = useState(false);
+  // 横になぞっているあいだは、縦のスクロールを止める
+  const [dragLock, setDragLock] = useState(false);
   const picked = useMemo(
     () => (start == null || !model ? { subtitles: [], markDates: [] } : pickSubtitles(model.items, n, 1, start)),
     [model, n, start],
@@ -206,9 +240,12 @@ export default function GrowthScreen() {
   };
 
   const playable = canPlay(n, reduced);
-  /** 1回押す：再生 ↔ 一時停止。終わり（今日）で押したら最初から。動きを減らす設定・記録が2日未満なら何もしない */
+  /**
+   * 1回押す：再生 ↔ 一時停止。終わり（今日）で押したら最初から。動きを減らす設定・記録が2日未満なら何もしない。
+   * カードが半分以上上がっている（形を背景に回している）ときも何もしない（見えている1画面目の残りを押しても再生しない）
+   */
   const togglePlay = () => {
-    if (!playable) return;
+    if (!playable || covered) return;
     if (playingRef.current) {
       pause();
       maybeHint();
@@ -222,6 +259,7 @@ export default function GrowthScreen() {
     startPlayback(from);
   };
   const replay = () => {
+    if (covered) return;
     touch();
     indexRef.current = -1;
     startPlayback(0);
@@ -232,6 +270,7 @@ export default function GrowthScreen() {
   useEffect(() => {
     if (started.current || !model) return;
     started.current = true;
+    setBegun(true);
     if (canPlay(model.series.length, reduced)) {
       indexRef.current = -1;
       startPlayback(0);
@@ -254,6 +293,58 @@ export default function GrowthScreen() {
   useEffect(() => {
     if (!visible && playingRef.current) pause();
   }, [visible, pause]);
+  // カードが半分ほど上がったら止める（一番上に戻しても止まったまま。押せば再生）
+  useEffect(() => {
+    if (covered && playingRef.current) pause();
+  }, [covered, pause]);
+
+  // スクロールの量（UI スレッド）。後ろの形の暗さ・ぼかし・ずれ、下の段、上のバーの地、カードののぞきを決める
+  const scrollY = useSharedValue(0);
+  const pageSV = useSharedValue(pageH);
+  useEffect(() => { pageSV.set(pageH); }, [pageH, pageSV]);
+  const onScroll = useAnimatedScrollHandler((e) => { scrollY.set(e.contentOffset.y); });
+  useAnimatedReaction(() => scrollY.get() > pageSV.get() * COVER_RATIO, (c, prev) => {
+    if (c !== prev) scheduleOnRN(setCovered, c);
+  });
+  // ぼかしの層は、少しでもスクロールしたときだけ作る（再生中の形に余計な層をかけない）
+  const [blurOn, setBlurOn] = useState(false);
+  useAnimatedReaction(() => scrollY.get() > 1, (on, prev) => {
+    if (on !== prev) scheduleOnRN(setBlurOn, on);
+  });
+  // 後ろに回す進み（0＝画面いっぱい、1＝1画面分スクロール）。動きを減らす設定なら途中を見せず、決まった所で切り替える
+  const back = useDerivedValue(() => {
+    const y = scrollY.get();
+    const h = Math.max(1, pageSV.get());
+    if (reduced) return y > h * REDUCED_SWITCH_RATIO ? 1 : 0;
+    return Math.min(1, Math.max(0, y / h));
+  });
+  const blur = useDerivedValue(() => Math.max(0.01, back.get() * BG_MAX_BLUR));
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(back.get(), [0, 1], [1, BG_MIN_OPACITY]),
+    transform: [{ translateY: reduced ? 0 : -back.get() * pageSV.get() * BG_SHIFT_RATIO }],
+  }));
+  const barStyle = useAnimatedStyle(() => ({ opacity: back.get() * BAR_MAX_OPACITY }));
+
+  // 下の手がかり（「↑ 成長の記録」と①の頭）：再生中は隠し、止まったら下からのぞかせる（出る 250ms・消える 150ms）
+  const peekOn = begun && !playing;
+  const peek = useSharedValue(0);
+  useEffect(() => {
+    const to = peekOn ? 1 : 0;
+    if (reduced) peek.set(to);
+    else peek.set(withTiming(to, { duration: peekOn ? duration.enter : duration.exit, easing: peekOn ? easeOut : easeIn }));
+  }, [peekOn, reduced, peek]);
+  // スクロールした分も上げる（スクロールの途中で止まっても、カードが跳ねない）
+  const lift = useDerivedValue(() => Math.max(peek.get(), Math.min(1, scrollY.get() / PEEK_SHIFT)));
+  const rowsStyle = useAnimatedStyle(() => ({
+    opacity: 1 - Math.min(1, scrollY.get() / Math.max(1, pageSV.get() * ROWS_FADE_RATIO)),
+    transform: [{ translateY: -PEEK_SHIFT * lift.get() }],
+  }));
+  const hintStyle = useAnimatedStyle(() => ({ opacity: peek.get() }));
+  const headingStyle = useAnimatedStyle(() => {
+    const h = pageSV.get();
+    return { opacity: interpolate(scrollY.get(), [h * HEADING_FROM_RATIO, h * HEADING_TO_RATIO], [0, 1], 'clamp') };
+  });
+  const cardsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: PEEK_SHIFT * (1 - lift.get()) }] }));
   useEffect(() => () => cancelAnimation(pos), [pos]);
 
   // 字幕は 2秒ほど出して消す（再生は止めない）
@@ -277,6 +368,7 @@ export default function GrowthScreen() {
   // 画面全体の指の操作（ボタン・線の帯は自分で先に受け取る）
   const gesture = useDayGesture({
     disabled: empty, edges: true, screenWidth: width, dayCount: n, currentIndex, onTap: togglePlay, onSeek: goTo,
+    scrollable: true, onDragging: setDragLock,
   });
 
   // 左上に「戻る」、右上に「形を選ぶ」
@@ -293,7 +385,7 @@ export default function GrowthScreen() {
     </View>
   );
   if (error) return <Screen>{header}<LoadError onRetry={reload} /></Screen>;
-  if (!model) return <Screen>{header}</Screen>;
+  if (!model || !data) return <Screen>{header}</Screen>;
 
   const i = Math.min(index, span);
   const date = start == null ? today : dateAt(start, i);
@@ -305,14 +397,14 @@ export default function GrowthScreen() {
 
   return (
     <Screen scroll={false}>
-      <View style={s.root} {...gesture}>
-        {header}
-        {/* 計算した高さが実際とずれても、箱が伸び縮みして下の段を下に付ける（大きいときは切る） */}
-        <View style={[s.shapeBox, { height: shapeHeight }]}>
+      <View style={s.root}>
+        {/* 後ろの形と数式（画面に固定）。スクロールにつれて暗く・ぼけて、少し上へずれる */}
+        <Animated.View style={[s.background, { top: size.topBar, height: shapeHeight }, bgStyle]} pointerEvents="none">
           {/* 形を変えたら作り直す（形ごとに点の数がちがう） */}
           {shape != null && (
             <GrowthShape
-              key={shape} shape={shape} params={params} width={width} height={shapeHeight} paused={!visible} spin={playing ? PLAYING_SPIN : 1}
+              key={shape} shape={shape} params={params} width={width} height={shapeHeight} paused={!visible || covered}
+              spin={playing ? PLAYING_SPIN : 1} blur={blurOn ? blur : undefined}
               accessibilityLabel={growthShapeLabel(shape, dayNumber)}
             />
           )}
@@ -320,70 +412,104 @@ export default function GrowthScreen() {
           {shape != null && (
             <FormulaReadout shape={shape} pos={pos} playing={playing} index={i} series={series} />
           )}
-          {held && !ended && playable && <PauseMark motion={motionOn} />}
-          {/* 終わったときの、読み上げ用の「もう一度」（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
-          {ended && (
-            <View
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="もう一度"
-              accessibilityHint="最初からもう一度再生します"
-              accessibilityActions={[{ name: 'activate' }]}
-              onAccessibilityAction={replay}
-              testID="growth-replay"
-            />
-          )}
-          {/* 読み上げ用の再生・一時停止のボタン（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
-          {playable && !ended && (
-            <View
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={playing ? '一時停止' : '再生'}
-              accessibilityActions={[{ name: 'activate' }]}
-              onAccessibilityAction={togglePlay}
-              testID="growth-toggle"
-            />
-          )}
-        </View>
+        </Animated.View>
 
-        <View style={s.caption}>
-          <View style={s.captionText} accessibilityLiveRegion="polite" testID="growth-subtitle">
-            {caption != null && (
-              <Animated.View
-                key={subtitle?.id ?? caption}
-                entering={motionOn ? FadeIn.duration(duration.enter).easing(easeOut) : undefined}
-                // web（E2E）は消える動きに対応していないので付けない（components/motion.tsx の useListMotion と同じ）
-                exiting={motionOn && Platform.OS !== 'web' ? FadeOut.duration(duration.exit).easing(easeIn) : undefined}
-              >
-                <T
-                  variant={empty || subtitle ? 'bodyL' : 'bodyM'} color={caption === REPLAY_TEXT ? REPLAY_COLOR : SUBTITLE_COLOR}
-                  align="center" numberOfLines={1}
-                >
-                  {caption}
-                </T>
-              </Animated.View>
-            )}
+        <Animated.ScrollView
+          onScroll={onScroll} scrollEventThrottle={16} scrollEnabled={!dragLock} showsVerticalScrollIndicator={false}
+          onLayout={(e) => setMeasured(e.nativeEvent.layout.height)} testID="growth-scroll"
+        >
+          {/* 1画面目：タイムラプス。どこかを1回押すと再生・一時停止、左右になぞると日を移す（ボタン・線の帯は自分で先に受け取る） */}
+          <View style={{ height: pageH }} {...gesture}>
+            <View style={{ height: size.topBar }} />
+            <View style={[s.shapeBox, { height: shapeHeight }]}>
+              {held && !ended && playable && <PauseMark motion={motionOn} />}
+              {/* 終わったときの、読み上げ用の「もう一度」（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
+              {ended && (
+                <View
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel="もう一度"
+                  accessibilityHint="最初からもう一度再生します"
+                  accessibilityActions={[{ name: 'activate' }]}
+                  onAccessibilityAction={replay}
+                  testID="growth-replay"
+                />
+              )}
+              {/* 読み上げ用の再生・一時停止のボタン（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
+              {playable && !ended && (
+                <View
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={playing ? '一時停止' : '再生'}
+                  accessibilityActions={[{ name: 'activate' }]}
+                  onAccessibilityAction={togglePlay}
+                  testID="growth-toggle"
+                />
+              )}
+            </View>
+
+            {/* 字幕・DAY・累計・線。止まったら上げて、下に手がかりとカードの頭をのぞかせる。スクロールにつれて消える */}
+            <Animated.View style={[s.rows, rowsStyle]}>
+              <View style={s.caption}>
+                <View style={s.captionText} accessibilityLiveRegion="polite" testID="growth-subtitle">
+                  {caption != null && (
+                    <Animated.View
+                      key={subtitle?.id ?? caption}
+                      entering={motionOn ? FadeIn.duration(duration.enter).easing(easeOut) : undefined}
+                      // web（E2E）は消える動きに対応していないので付けない（components/motion.tsx の useListMotion と同じ）
+                      exiting={motionOn && Platform.OS !== 'web' ? FadeOut.duration(duration.exit).easing(easeIn) : undefined}
+                    >
+                      <T
+                        variant={empty || subtitle ? 'bodyL' : 'bodyM'} color={caption === REPLAY_TEXT ? REPLAY_COLOR : SUBTITLE_COLOR}
+                        align="center" numberOfLines={1}
+                      >
+                        {caption}
+                      </T>
+                    </Animated.View>
+                  )}
+                </View>
+              </View>
+
+              <DayReadout pos={pos} playing={playing} index={i} dayCount={n} start={start} today={today} />
+
+              <View style={s.totalsRow}>
+                <TotalsLine pos={pos} playing={playingSV} index={i} series={series} unit={model.unit} running={visible} instant={reduced} />
+              </View>
+
+              <TimelineBar
+                pos={pos} dayCount={n} index={i} disabled={empty || n < 2}
+                markIndexes={marks}
+                labels={scrubberLabels(start, today)} screenWidth={width} currentIndex={currentIndex}
+                onPressAt={(x, w) => goTo(seekIndexAtX(x, w, n, marks))}
+                onSeek={goTo}
+                valueText={`DAY ${dayNumber}、${formatFullDate(date)}`}
+              />
+              {/* 止まっているときだけ、下にカードがあることを知らせる（再生中は出さない） */}
+              {peekOn && (
+                <Animated.View style={[s.hint, hintStyle]} pointerEvents="none" testID="growth-records-hint">
+                  <T variant="labelS" bold={false} color={colors.sub} align="center" accessibilityLabel="上にスクロールで成長の記録">
+                    ↑  成長の記録
+                  </T>
+                </Animated.View>
+              )}
+            </Animated.View>
           </View>
+
+          {/* 成長の記録。止まっているときは、頭が1画面目の下にのぞく（再生中は画面の外） */}
+          <Animated.View style={[s.records, cardsStyle]} pointerEvents="box-none">
+            <GrowthRecords data={data} headingStyle={headingStyle} />
+          </Animated.View>
+        </Animated.ScrollView>
+
+        {/* 上のバー（戻る・形を選ぶ）は固定。カードがこの下をくぐるので、スクロールしたら画面の色の地を敷く */}
+        <View style={s.bar} pointerEvents="box-none">
+          <Animated.View style={[StyleSheet.absoluteFill, s.barBg, barStyle]} pointerEvents="none" />
+          {header}
         </View>
-
-        <DayReadout pos={pos} playing={playing} index={i} dayCount={n} start={start} today={today} />
-
-        <View style={s.totalsRow}>
-          <TotalsLine pos={pos} playing={playingSV} index={i} series={series} unit={model.unit} running={visible} instant={reduced} />
-        </View>
-
-        <TimelineBar
-          pos={pos} dayCount={n} index={i} disabled={empty || n < 2}
-          markIndexes={marks}
-          labels={scrubberLabels(start, today)} screenWidth={width} currentIndex={currentIndex}
-          onPressAt={(x, w) => goTo(seekIndexAtX(x, w, n, marks))}
-          onSeek={goTo}
-          valueText={`DAY ${dayNumber}、${formatFullDate(date)}`}
-        />
       </View>
     </Screen>
   );
@@ -414,10 +540,17 @@ const SUBTITLE_COLOR = 'rgba(243,245,247,0.7)';
 const REPLAY_COLOR = 'rgba(243,245,247,0.45)';
 
 const s = StyleSheet.create({
-  // 画面全体で指を受けるため、左右の余白の外（画面の端）まで広げる
-  root: { flex: 1, marginHorizontal: -space.screen, paddingHorizontal: space.screen },
+  // 画面全体で指を受け、カードを左右の端まで流すため、左右の余白の外（画面の端）まで広げる
+  root: { flex: 1, marginHorizontal: -space.screen },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: size.topBar, marginHorizontal: -12 },
-  shapeBox: { marginHorizontal: -space.screen, flexGrow: 1, flexShrink: 1, overflow: 'hidden', justifyContent: 'center' },
+  bar: { position: 'absolute', top: 0, left: 0, right: 0, height: size.topBar, paddingHorizontal: space.screen },
+  barBg: { backgroundColor: colors.bg },
+  background: { position: 'absolute', left: 0, right: 0, overflow: 'hidden', justifyContent: 'center' },
+  shapeBox: { overflow: 'hidden' },
+  rows: { paddingHorizontal: space.screen },
+  hint: { position: 'absolute', left: 0, right: 0, top: '100%', height: HINT_SPACE, justifyContent: 'center' },
+  // ①の頭は、上げた段（PEEK_SHIFT）のうち、手がかりの行の下から（見出しはその上に重なり、スクロールしてから見せる）
+  records: { marginTop: -(PEEK_SHIFT - HINT_SPACE) - RECORDS_HEAD_OFFSET, paddingBottom: space.xl },
   caption: { height: CAPTION_H, alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
   captionText: { minHeight: 24, justifyContent: 'center' },
   day: { height: DAY_H, justifyContent: 'flex-end' },

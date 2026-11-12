@@ -40,10 +40,16 @@ export type PartBalance = {
  * partName は部位の ID から名前を引く（非表示の部位も）
  */
 export function partBalance(rows: TrainingSetRow[], partName: (bodyPartId: string) => string, today: DateKey): PartBalance {
-  const from = addDays(today, -(BALANCE_DAYS - 1));
+  return partBalanceBetween(rows, partName, addDays(today, -(BALANCE_DAYS - 1)), today);
+}
+
+/** from〜today の、軸ごとのセット数（数え方は partBalance と同じ）。from が null なら最初の記録から（これまでの累計） */
+export function partBalanceBetween(
+  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, from: DateKey | null, today: DateKey,
+): PartBalance {
   const sets = BALANCE_PARTS.map(() => 0);
   for (const r of rows) {
-    if (r.date < from || r.date > today) continue;
+    if ((from != null && r.date < from) || r.date > today) continue;
     const axis = balanceAxisOf(partName(r.bodyPartId));
     if (axis) sets[BALANCE_PARTS.indexOf(axis)] += 1;
   }
