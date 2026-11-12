@@ -14,6 +14,7 @@ import { colors, fonts, radius, space, toneColors } from '@/theme';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
+import { InjuryBodyMap3D } from './InjuryBodyMap3D';
 import { Input } from './Input';
 import { LoadError } from './LoadError';
 import { PressableScale, Sheet } from './motion';
@@ -194,6 +195,24 @@ function Callout({ injury, number, style }: { injury: Injury; number: string; st
   );
 }
 
+/**
+ * 3D の体の図の横に出す吹き出し（INJ の番号・部位と日付・種目と場面・状態）。引き出し線で部位とつなぐ。
+ * align は文字を寄せる側（図の左の吹き出しは右寄せ）
+ */
+export function SideCallout({ injury, number, align, style }: { injury: Injury; number: string; align: 'left' | 'right'; style: object }) {
+  const fixing = injury.status === 'fixing';
+  const tone = fixing ? INJURY_AMBER : colors.sub;
+  return (
+    <View style={[{ position: 'absolute', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
+      <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
+      <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)} <T num size={13} color={colors.sub}>{dotDate(injury.occurredOn)}</T></T>
+      {whereText(injury) !== '' && <T size={11} color={colors.sub} numberOfLines={1} align={align}>{whereText(injury)}</T>}
+      {/* 図の横は狭い（360 の幅で 90 ほど）ので、状態は短く 1 行。札と読み上げは正式な名前 */}
+      <T variant="labelS" color={fixing ? INJURY_AMBER : colors.accent} numberOfLines={1} align={align}>{fixing ? '● 直し中' : '○ 直せた'}</T>
+    </View>
+  );
+}
+
 /** 直している途中のケガのカード（左に琥珀色の帯）。次の直し方（NEXT）と振り返りの回数・最後の結果 */
 export function ActiveInjuryCard({ injury }: { injury: Injury }) {
   const label = siteLabel(injury.site, injury.side);
@@ -363,7 +382,8 @@ export function InjuryListContent() {
   const fixed = data.filter((i) => i.status === 'fixed');
   return (
     <View style={{ marginTop: space.l }}>
-      <InjuryBodyMap injuries={data} numbers={numbers} />
+      {/* Android は 3D の体（描けないときは 2D）。web（e2e）は 2D */}
+      {InjuryBodyMap3D ? <InjuryBodyMap3D injuries={data} numbers={numbers} /> : <InjuryBodyMap injuries={data} numbers={numbers} />}
       {active.length > 0 && (
         <>
           <InjurySectionTitle title="直している途中" en="ACTIVE" count={active.length} />
