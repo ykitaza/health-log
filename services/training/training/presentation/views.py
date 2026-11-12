@@ -319,3 +319,37 @@ def injury(i: Injury, reviews: list[InjuryReview], catalog: Catalog) -> dict:
 
 def injury_list(records: list[InjuryRecord], catalog: Catalog, limit: int) -> dict:
     return {"injuries": [injury(r.injury, r.reviews, catalog) for r in records[:limit]], "total": len(records)}
+
+
+def period_injuries(records: list[InjuryRecord], catalog: Catalog, start: str, end: str,
+                    max_injuries: int, max_reviews: int) -> dict:
+    """期間（start〜end、両端を含む）の材料に入れるケガ。文は本人の言葉のまま（推測で埋めない）。
+
+    occurred：期間に痛めたもの。reviewed：期間に振り返りを書いたもの（その振り返りだけを新しい順に max_reviews 件まで）。
+    fixing：end の時点で直している途中のもの（end より後に直せたにしたものも含む。end より後に痛めたものは含まない）。
+    どれも新しい順に max_injuries 件まで。全部の数は *_total。records は新しい順（TrainingQueries.injuries）。
+    """
+    def fields(i: Injury) -> dict:
+        return {"injury_id": i.id, "occurred_on": i.occurred_on, "site_name": site_label(i.site, i.side),
+                "exercise": _exercise_name(catalog, i.exercise_id), "phase": i.phase, "symptom": i.symptom,
+                "cause": i.cause, "fix": i.fix, "status": i.status, "fixed_on": i.fixed_on}
+
+    occurred = [r for r in records if start <= r.injury.occurred_on <= end]
+    fixing = [r for r in records if r.injury.occurred_on <= end
+              and (r.injury.status == "fixing" or (r.injury.fixed_on is not None and r.injury.fixed_on > end))]
+    reviewed = []
+    for r in records:
+        in_period = sorted((x for x in r.reviews if start <= x.date <= end), key=lambda x: (x.date, x.created_at, x.id),
+                           reverse=True)
+        if in_period:
+            reviewed.append((in_period[0].date, r, in_period))
+    reviewed.sort(key=lambda t: t[0], reverse=True)  # 同じ日なら、ケガの新しい順のまま
+    return {
+        "occurred": [fields(r.injury) for r in occurred[:max_injuries]], "occurred_total": len(occurred),
+        "reviewed": [{**fields(r.injury), "review_count": len(rs),
+                      "reviews": [{"date": x.date, "result": x.result, "note": x.note,
+                                   "exercise": _exercise_name(catalog, x.exercise_id)} for x in rs[:max_reviews]]}
+                     for _, r, rs in reviewed[:max_injuries]],
+        "reviewed_total": len(reviewed),
+        "fixing": [fields(r.injury) for r in fixing[:max_injuries]], "fixing_total": len(fixing),
+    }

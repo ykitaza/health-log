@@ -272,6 +272,75 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
     assert week["last_app_sync_at"] is not None  # アプリから同期した記録がある
 
 
+def test_期間の材料に_ケガの記録が本人の言葉のまま入る_期間外は入らず_ケガがなければ空(server):
+    def injury(client, **extra):
+        return client.call_tool("record_injury", {"site": "shoulder_front", "side": "right", "exercise": "ベンチプレス",
+                                                  "phase": "3セット目", "symptom": "肩の前がピリッとした",
+                                                  "cause": "肘が開いていた", "fix": "肘を45度にたたむ", **extra})
+
+    async def body(client):
+        empty = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))["injuries"]
+        in_week = data(await injury(client, day="2026-11-04"))["recorded"]  # 期間に痛め、直している途中
+        before = data(await injury(client, day="2026-10-20", site="elbow", side="left", cause="", fix=""))["recorded"]
+        fixed_before = data(await injury(client, day="2026-10-01", site="wrist", side="left"))["recorded"]
+        data(await client.call_tool("mark_injury_fixed", {"injury_id": fixed_before["injury_id"], "day": "2026-10-10"}))
+        fixed_after = data(await injury(client, day="2026-11-03", site="knee", side="right"))["recorded"]
+        data(await client.call_tool("mark_injury_fixed", {"injury_id": fixed_after["injury_id"], "day": "2026-11-08"}))
+        future = data(await injury(client, day="2026-11-08", site="neck", side=None))["recorded"]
+        for day, result in [("2026-11-05", "not_yet"), ("2026-11-06", "pain"), ("2026-11-07", "fixed")]:
+            data(await client.call_tool("add_injury_review", {
+                "injury_id": before["injury_id"], "day": day, "result": result, "note": f"{day}のメモ"}))
+        data(await client.call_tool("add_injury_review", {"injury_id": before["injury_id"], "day": "2026-10-25",
+                                                          "result": "pain"}))  # 期間の外の振り返り
+        mid = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-05"}))["injuries"]
+        week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))["injuries"]
+        return empty, in_week, before, fixed_after, future, mid, week
+
+    empty, in_week, before, fixed_after, future, mid, week = run(server, ALL_SCOPES, body)
+    assert empty == {"occurred": [], "occurred_total": 0, "reviewed": [], "reviewed_total": 0, "fixing": [],
+                     "fixing_total": 0}
+    assert [i["injury_id"] for i in week["occurred"]] == [future["injury_id"], in_week["injury_id"],
+                                                          fixed_after["injury_id"]]
+    assert week["occurred_total"] == 3
+    shoulder = next(i for i in week["occurred"] if i["injury_id"] == in_week["injury_id"])
+    assert shoulder == {
+        "injury_id": in_week["injury_id"], "occurred_on": "2026-11-04", "site_name": "右の三角筋（前）",
+        "exercise": "ベンチプレス", "phase": "3セット目", "symptom": "肩の前がピリッとした",
+        "cause": "肘が開いていた", "fix": "肘を45度にたたむ", "status": "fixing", "fixed_on": None}
+    # 期間に振り返りを書いたケガ：期間の中の振り返りだけを新しい順に（期間外の 10-25 は入らない）
+    assert [i["injury_id"] for i in week["reviewed"]] == [before["injury_id"]] and week["reviewed_total"] == 1
+    reviewed = week["reviewed"][0]
+    assert (reviewed["site_name"], reviewed["cause"], reviewed["fix"], reviewed["review_count"]) == ("左の肘", "", "", 3)
+    assert [(r["date"], r["result"], r["note"], r["exercise"]) for r in reviewed["reviews"]] == [
+        ("2026-11-07", "fixed", "2026-11-07のメモ", None), ("2026-11-06", "pain", "2026-11-06のメモ", None),
+        ("2026-11-05", "not_yet", "2026-11-05のメモ", None)]
+    # 期間の終わりの時点で直している途中：期間より前に痛めて今も途中、end より後に直せたにしたもの。end より後に痛めたもの、
+    # end より前に直せたものは入らない
+    assert {i["injury_id"] for i in mid["fixing"]} == {before["injury_id"], in_week["injury_id"], fixed_after["injury_id"]}
+    assert mid["fixing_total"] == 3 and [i["injury_id"] for i in mid["occurred"]] == [in_week["injury_id"],
+                                                                                    fixed_after["injury_id"]]
+    assert mid["reviewed_total"] == 1  # 11-05 までの期間には、その日の振り返りだけが入る
+    assert [r["date"] for r in mid["reviewed"][0]["reviews"]] == ["2026-11-05"] and mid["reviewed"][0]["review_count"] == 1
+    assert {i["injury_id"] for i in week["fixing"]} == {before["injury_id"], in_week["injury_id"], future["injury_id"]}
+
+
+def test_期間の材料のケガは_件数の上限で切り_全部の数を返す(server):
+    async def body(client):
+        for n in range(12):
+            injury = data(await client.call_tool("record_injury", {"site": "knee", "day": f"2026-11-{n + 1:02d}"}))
+            for m in range(7):
+                data(await client.call_tool("add_injury_review", {
+                    "injury_id": injury["recorded"]["injury_id"], "day": f"2026-11-{m + 1:02d}", "result": "not_yet"}))
+        return data(await client.call_tool("period_overview", {"start": "2026-11-01", "end": "2026-11-08"}))["injuries"]
+
+    injuries = run(server, ALL_SCOPES, body)
+    assert (injuries["occurred_total"], len(injuries["occurred"])) == (8, 8)  # 痛めた日が期間の中の8件
+    assert (injuries["fixing_total"], len(injuries["fixing"])) == (8, 8)
+    assert (injuries["reviewed_total"], len(injuries["reviewed"])) == (12, 10)
+    assert injuries["reviewed"][0]["review_count"] == 7 and len(injuries["reviewed"][0]["reviews"]) == 5
+    assert injuries["reviewed"][0]["reviews"][0]["date"] == "2026-11-07"
+
+
 def test_週のまとめの材料に_前の週のまとめの次の一歩とアプリのチェックが出る(server):
     steps = ["脚の日を2回入れる", "たんぱく質を毎日130gとる", "0時までに寝る日を4日つくる"]
 

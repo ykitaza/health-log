@@ -52,6 +52,7 @@ JST = timezone(timedelta(hours=9))
 INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
+ケガ（period_overview の injuries）は、本人の分析（原因 cause・直し方 fix）をそのまま使って振り返り、原因を推測しない。直し方を守れたか（振り返りの結果）は、週のまとめの振り返りに入れてよい。診断や治療の助言はしない。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 

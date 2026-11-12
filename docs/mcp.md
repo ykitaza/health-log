@@ -162,6 +162,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | `heart_rate` | `days_recorded`、`average_resting_bpm`、`days`（安静時心拍がある日の `date`・`resting_bpm`） |
 | `steps` | `days_recorded`、`average_steps`（記録がある日の平均。整数）、`days`（記録がある日の `date`・`steps`。1日の合計） |
 | `goals` | `meals`（食事の目標。`today_status` の `goal` と同じ形。なければ null）、`goal_weight_kg`（アプリの設定の目標体重。なければ食事の目標の目標体重）、`weekly`（今週の目標：`training_days`・`meal_days`・`sleep_days`。週の日数で 0〜7、0 は「切」、未設定は null） |
+| `injuries` | ケガの記録（本人の言葉のまま。原因は推測しない）：`occurred`（期間に痛めたもの）、`reviewed`（期間に振り返りを書いたもの。`reviews` はその期間の振り返りだけで、`date`・`result`・`note`・`exercise`、新しい順に5件まで。`review_count` は期間の振り返りの数）、`fixing`（`to` の時点で直している途中のもの。`to` より後に直せたにしたものも含む）。各ケガは `injury_id`・`occurred_on`・`site_name`（左右つき）・`exercise`・`phase`・`symptom`・`cause`・`fix`・`status`・`fixed_on`。それぞれ新しい順に10件まで、全部の数は `occurred_total`・`reviewed_total`・`fixing_total`。ケガの読み出しは `list_injuries` と同じ `TrainingQueries.injuries`。レポートの `highlights` の分野には入れない |
 | `previous_next_steps` | 前の週のまとめ（`start` の7日前〜前の日に終わる `weekly`。いくつかあればいちばん新しいもの）の次の一歩：`report_id`・`title`・`period_start`・`period_end`・`steps`（`text`・`done`。`done` は利用者がアプリでチェックしたか）・`done_count`・`note`。次の一歩のあるまとめがなければ null。食事の `weekly_review` も同じものを返す |
 | `last_app_sync_at` | ほかのツールと同じ |
 

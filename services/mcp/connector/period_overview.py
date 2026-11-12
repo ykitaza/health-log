@@ -2,7 +2,7 @@
 
 筋トレ・食事・体組成・睡眠・心拍・歩数と目標をまとめるので、どのコンテキストにも属さない。中身は各コンテキストのユースケースと出力の形を使い、
 ここでは期間を確かめて並べるだけにする（つなぐのは services/mcp/main.py）。
-返す量が大きくなりすぎないよう、期間は31日まで、種目は推定1RM の大きい順に20件まで、体組成は体重と体脂肪率だけにする。
+返す量が大きくなりすぎないよう、期間は31日まで、種目は推定1RM の大きい順に20件まで、ケガは10件・振り返りは1件あたり5件まで、体組成は体重と体脂肪率だけにする。
 """
 
 from __future__ import annotations
@@ -25,6 +25,8 @@ from training.presentation import views as training_views
 
 MAX_DAYS = 31  # 1か月が入る長さ
 MAX_EXERCISES = 20
+MAX_INJURIES = 10  # ケガの一覧（痛めた・振り返った・直している途中）それぞれの件数
+MAX_INJURY_REVIEWS = 5  # ケガ1件に付ける期間の振り返りの数（新しい順）
 
 
 class Settings(Protocol):
@@ -66,6 +68,10 @@ def register_overview_tools(
         - steps：日ごとの歩数の合計と、記録がある日の平均（Health Connect の取り込み。記録がない日は含めない）
         - goals：食事の目標（meals）、目標体重（goal_weight_kg）、今週の目標（weekly。筋トレの回数・食事を記録する日数・
           7時間以上寝る日数。週の日数で、0 は目標を切っている、null は未設定）
+        - injuries：ケガの記録（本人の分析をそのまま）。occurred（期間に痛めたもの）、reviewed（期間に振り返りを書いたもの。
+          その振り返りの日付・結果 fixed 直せた・not_yet まだ・pain 痛んだ・メモ・種目）、fixing（end の時点で直している途中のもの）。
+          各ケガに部位の名前（左右つき）・種目・場面・症状・原因（cause）・直し方（fix）・状態・直せた日。
+          新しい順に10件まで（全部の数は *_total）。原因は推測せず、本人の cause・fix をそのまま使う。診断や治療の助言はしない
         - previous_next_steps：前の週のまとめ（start の7日前〜前の日に終わる weekly）の次の一歩と、利用者がアプリでチェックしたか
           （done）。なければ null。週のまとめは、これを先に振り返ってから次の一歩を書く
         数字はこの結果の値だけを使い、推測で作らない。達成の数字（目標に対する回数など）はアプリが記録から計算して見せるので、
@@ -90,6 +96,8 @@ def register_overview_tools(
         nutrition_goal = meals.pop("goal")
         for key in ("from", "to"):
             meals.pop(key)
+        injuries = training_views.period_injuries(
+            await training.injuries(sub), catalog, s, e, MAX_INJURIES, MAX_INJURY_REVIEWS)
         eater = EaterId(sub)
         goal_weight = (await settings.goal_settings(eater)).goal_weight_kg
         return {
@@ -109,6 +117,7 @@ def register_overview_tools(
                 else (nutrition_goal or {}).get("target_weight_kg"),
                 "weekly": await settings.weekly_goals(eater),
             },
+            "injuries": injuries,
             "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
             "last_app_sync_at": await sync_status.last_app_sync_at(sub),
         }
