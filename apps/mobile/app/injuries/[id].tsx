@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useChatChooser } from '@/components/ChatSheet';
 import { Mono, ReviewDraft, ReviewSheet, ScanFrame, StatusBadge } from '@/components/injuries';
 import { LoadError } from '@/components/LoadError';
 import { INJURY_AMBER, MuscleFigure } from '@/components/MuscleFigure';
@@ -26,7 +27,7 @@ const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
 /**
  * ケガの1件（Figma「ケガ 2. 1件の詳細」）。どこで（種目・場面）・何が起きた・原因（自分の分析）・次はこう直す（緑の枠）・
  * やってみた結果（縦の年表。✓直せた △まだ ！痛んだ）。下に「振り返りを足す」と「直せたにする」（直せたものは「直している途中に戻す」）。
- * 振り返りで「直せた」を選んだら、ケガを直せたにするかを聞く（自動では閉じない）。右上に「編集」と「消す」（振り返りも一緒に消える）
+ * 振り返りのシートからは「AI で書く」でチャット（add_injury_review）にも頼める。振り返りで「直せた」を選んだら、ケガを直せたにするかを聞く（自動では閉じない）。右上に「編集」と「消す」（振り返りも一緒に消える）
  */
 export default function InjuryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,6 +41,7 @@ export default function InjuryScreen() {
   const [askFixed, setAskFixed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, run } = useBusy();
+  const chat = useChatChooser();
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/training?view=injury'));
   if (error) return <Screen><Header title="ケガ" onBack={back} /><LoadError onRetry={reload} /></Screen>;
@@ -170,8 +172,10 @@ export default function InjuryScreen() {
         busy={busy}
         onClose={() => setDraft(null)}
         onSave={saveReview}
+        onAi={() => { setDraft(null); chat.record({ kind: 'injury-review', occurredOn: injury.occurredOn, today }); }}
       />
 
+      {chat.sheet}
       <ConfirmDialog
         visible={askFixed}
         title="このケガを直せたにしますか？"

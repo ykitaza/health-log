@@ -24,14 +24,22 @@ async function openInjuries(page: Page) {
   await goPane(page, 'ケガ');
 }
 
+/** 右下の「ケガを記録」→ 記録の方法のシートで「自分で入力」 */
+async function newInjury(page: Page) {
+  await page.getByTestId('injury-new').click();
+  await page.getByTestId('injury-new-manual').filter({ visible: true }).click();
+}
+
 test('ケガを記録して、一覧と1件で見る。振り返りで直せたを選ぶと直せたにするか聞き、直せたにして、消す', async ({ page }) => {
   await openApp(page);
   await openInjuries(page);
   await expect(see(page, 'ケガの記録はありません', { exact: true })).toBeVisible();
 
   // 記録する：前の図の画面の左の肩（本人の右肩）を押す
-  await page.getByTestId('injury-new').click();
-  await expect(see(page, 'ケガを記録', { exact: true })).toBeVisible();
+  await newInjury(page);
+  // 記録する画面の見出し（右下の FAB も「ケガを記録」なので、見出しで確かめる）
+  await expect(page.getByRole('heading', { name: 'ケガを記録', exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('injury-new')).toBeHidden();
   const front = page.getByTestId('injury-figure-front').filter({ visible: true });
   const box = (await front.boundingBox())!;
   await front.click({ position: { x: box.width * 0.27, y: box.height * 0.22 } });
@@ -62,7 +70,7 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await expect(card).toContainText('振り返り 0回');
 
   // 2件目は一覧から選ぶ（読み上げでも選べる入口）。左右のない部位
-  await page.getByTestId('injury-new').click();
+  await newInjury(page);
   await button(page, '一覧から選ぶ').click();
   await button(page, '腰').click();
   await expect(page.getByTestId('injury-selected').filter({ visible: true })).toHaveText('腰');
@@ -136,7 +144,7 @@ test.describe('動きを減らす設定がオフ', () => {
     page.on('pageerror', (e) => errors.push(e.message));
     await openApp(page);
     await openInjuries(page);
-    await page.getByTestId('injury-new').click();
+    await newInjury(page);
     await button(page, '一覧から選ぶ').click();
     await button(page, 'ひざ').click();
     await page.getByTestId('injury-save').filter({ visible: true }).click();
@@ -152,7 +160,7 @@ test.describe('狭い画面（360）', () => {
   test('記録する画面の図と選んだ部位が枠に収まる', async ({ page }) => {
     await openApp(page);
     await openInjuries(page);
-    await page.getByTestId('injury-new').click();
+    await newInjury(page);
     await button(page, '一覧から選ぶ').click();
     await button(page, '肩の関節').click();
     const frame = (await page.getByTestId('injury-site').filter({ visible: true }).boundingBox())!;

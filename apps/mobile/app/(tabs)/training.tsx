@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { DateSwitcher, DayPickerSheet, NotTodayRow, SwipeArea, usePageSlide } from '@/components/DayPicker';
-import { InjuryListContent } from '@/components/injuries';
+import { InjuryListContent, useInjuryAddSheet } from '@/components/injuries';
 import { Screen } from '@/components/Screen';
 import { TrainingTrend } from '@/components/TrainingTrend';
 import { Fab, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
@@ -20,7 +20,7 @@ const paneOf = (v: string | undefined): Pane | null =>
   v === 'record' || v === 'today' ? 'record' : v === 'trend' || v === 'history' ? 'trend' : v === 'injury' ? 'injury' : null;
 
 /**
- * 筋トレのタブ。上の切り替え（M3 の primary tabs）で「記録」と「推移」（グラフ）と「ケガ」（ケガの記録の一覧。右下に「ケガを記録」）を分ける。
+ * 筋トレのタブ。上の切り替え（M3 の primary tabs）で「記録」と「推移」（グラフ）と「ケガ」（ケガの記録の一覧。右下に「ケガを記録」。押すと AI で記録か自分で入力かを選ぶ）を分ける。
  * 記録は、上の日付の切り替え（前の日・次の日、日付を押すと「日を選ぶ」のシート、左右のスワイプ）で選んだ日のトレーニングを見て直す。
  * 未来の日へは進めない。ほかの画面から date を渡して開くと、その日の記録になる（/workout?date= もここへ移る）。右上に RM計算機の入口
  */
@@ -49,6 +49,7 @@ export default function TrainingScreen() {
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(view !== 'record' || date === today, () => goTo(today));
   const openDay = (d: string) => { setDate(d); setView('record'); };
+  const adding = useInjuryAddSheet();
 
   const injury = view === 'injury';
   return (
@@ -83,7 +84,8 @@ export default function TrainingScreen() {
         )}
         <DayPickerSheet visible={picking} kind="training" value={date} today={today} onClose={() => setPicking(false)} onPick={goTo} />
       </Screen>
-      {injury && <Fab label="ケガを記録" onPress={() => router.push('/injuries/new')} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="injury-new" />}
+      {injury && <Fab label="ケガを記録" onPress={adding.open} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="injury-new" />}
+      {adding.sheet}
     </View>
   );
 }
