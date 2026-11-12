@@ -17,6 +17,7 @@ import { Icon } from './Icon';
 import { Input } from './Input';
 import { LoadError } from './LoadError';
 import { PressableScale, Sheet } from './motion';
+import { InjuryBodyMap3D } from './InjuryBodyMap3D';
 import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
 import { Button, Chip, EmptyState, ListRow, Segmented } from './ui';
@@ -167,7 +168,7 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
   );
 }
 
-function Callout({ injury, number, align, style }: { injury: Injury; number: string; align: 'left' | 'right'; style: object }) {
+export function Callout({ injury, number, align, style }: { injury: Injury; number: string; align: 'left' | 'right'; style: object }) {
   const fixing = injury.status === 'fixing';
   const tone = fixing ? INJURY_AMBER : colors.sub;
   return (
@@ -350,7 +351,8 @@ export function InjuryListContent() {
   const fixed = data.filter((i) => i.status === 'fixed');
   return (
     <View style={{ marginTop: space.l }}>
-      <InjuryBodyMap injuries={data} numbers={numbers} />
+      {/* Android は 3D の体（描けないときは 2D）。web（e2e）は 2D */}
+      {InjuryBodyMap3D ? <InjuryBodyMap3D injuries={data} numbers={numbers} /> : <InjuryBodyMap injuries={data} numbers={numbers} />}
       {active.length > 0 && (
         <>
           <InjurySectionTitle title="直している途中" en="ACTIVE" count={active.length} />

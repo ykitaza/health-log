@@ -8,6 +8,9 @@ const config = getDefaultConfig(__dirname);
 // expo-sqlite の web 版は SQLite の wasm を読み込む
 config.resolver.assetExts.push('wasm');
 
+// ケガの画面の 3D の体（assets/models/body.glb）
+config.resolver.assetExts.push('glb');
+
 // SharedArrayBuffer を使うために、開発サーバー（npx expo start --web）で COEP と COOP のヘッダーを付ける。
 // 書き出したもの（npx expo export --platform web）の配信では、e2e/serve.mjs が同じヘッダーを付ける
 config.server.enhanceMiddleware = (middleware) => {
