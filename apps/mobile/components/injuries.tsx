@@ -174,7 +174,8 @@ function Callout({ injury, number, align, style }: { injury: Injury; number: str
       <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
       <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)} <T num size={13} color={colors.sub}>{dotDate(injury.occurredOn)}</T></T>
       {whereText(injury) !== '' && <T size={11} color={colors.sub} numberOfLines={1} align={align}>{whereText(injury)}</T>}
-      <T variant="labelS" color={fixing ? INJURY_AMBER : colors.accent} numberOfLines={2} align={align}>{`${fixing ? '●' : '○'} ${STATUS_NAMES[injury.status]}`}</T>
+      {/* 図の横は狭い（360 の幅で 90 ほど）ので、状態は短く 1 行（「直している途中」は 2 行に折り返して窮屈だった）。札と読み上げは正式な名前 */}
+      <T variant="labelS" color={fixing ? INJURY_AMBER : colors.accent} numberOfLines={1} align={align}>{fixing ? '● 直し中' : '○ 直せた'}</T>
     </View>
   );
 }

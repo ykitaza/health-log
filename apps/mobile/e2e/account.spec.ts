@@ -163,14 +163,21 @@ test('「別のアカウントにする」：ログアウトの確認のあと�
   await expect(see(page, 'ログイン中', { exact: true })).toBeVisible();
   expect(await opened(page)).toHaveLength(1);
 
-  await button(page, '別のアカウントにする ログアウトして、別のアカウントでログインし直します').click();
-  await expect(see(page, 'ログアウトしますか？')).toBeVisible();
+  // ログイン直後は、同期の結果などで画面が組み直されて、押しが空振りすることがある。確認が出るまで押し直す
+  const askSignOut = () => expect(async () => {
+    if (!(await see(page, 'ログアウトしますか？').isVisible())) {
+      await button(page, '別のアカウントにする ログアウトして、別のアカウントでログインし直します').click({ timeout: 2000 });
+    }
+    await expect(see(page, 'ログアウトしますか？')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+  await askSignOut();
   // やめると何もしない
   await page.getByRole('button', { name: 'やめる', exact: true }).last().click();
+  await expect(see(page, 'ログアウトしますか？')).toHaveCount(0);
   await expect(page.getByTestId('account-status').filter({ visible: true })).toHaveText('ログインしています');
   expect(await opened(page)).toHaveLength(1);
 
-  await button(page, '別のアカウントにする ログアウトして、別のアカウントでログインし直します').click();
+  await askSignOut();
   await page.getByRole('button', { name: 'ログアウト', exact: true }).last().click();
   // ログインの画面をもう一度開く（偽物はすぐ同じアカウントで戻るので、ログインし直した状態になる）
   await expect.poll(async () => (await opened(page)).length).toBe(2);
