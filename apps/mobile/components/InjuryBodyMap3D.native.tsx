@@ -141,7 +141,6 @@ class BodyScene {
   readonly scanRing = new THREE.LineLoop(circle(0.36, 64), lineMat(0));
   readonly glowGroup = new THREE.Group();
   private pickables: THREE.Mesh[] = [];
-  private skins: THREE.Mesh[] = [];
   private byName: Record<string, THREE.Mesh> = {};
   private glows: { mesh: THREE.Mesh; anchor: THREE.Vector3 }[] = [];
   private selected: THREE.Mesh | null = null;
@@ -169,10 +168,14 @@ class BodyScene {
     this.ticks = ticks;
   }
 
-  /** 読み込んだ体に材質を付ける（1回だけ） */
-  setModel(root: THREE.Object3D) {
-    if (this.loaded === root) return;
-    this.loaded = root;
+  /**
+   * 読み込んだ体に材質を付ける（1回だけ）。読み込んだ形は画面を開き直しても使い回されるので、写しに付ける
+   * （形のデータは写しと元で共有する）
+   */
+  setModel(loaded: THREE.Object3D) {
+    if (this.loaded === loaded) return;
+    this.loaded = loaded;
+    const root = loaded.clone(true);
     const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4 });
     const skinWire = new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.012, blending: THREE.AdditiveBlending, depthWrite: false });
     root.traverse((o: THREE.Object3D) => {
@@ -183,7 +186,6 @@ class BodyScene {
       if (core) {
         o.add(new THREE.LineSegments(new THREE.WireframeGeometry(o.geometry), skinWire));
         o.renderOrder = 2;
-        this.skins.push(o);
       } else {
         // 部品によって面の向きがそろっていないので両面。奥の筋肉が透けて重なると読めないので、
         // 先に筋肉の奥行きだけを書き、いちばん手前の筋肉の面だけを光らせる（皮膚は透ける）
