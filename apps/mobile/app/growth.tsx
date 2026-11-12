@@ -8,7 +8,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { GrowthShape } from '@/components/growth/GrowthShape';
-import { PauseMark, TimelineBar, TotalsLine, useDayGesture, useLivePos } from '@/components/growth/player';
+import { FormulaReadout, PauseMark, TimelineBar, TotalsLine, useDayGesture, useLivePos } from '@/components/growth/player';
 import { LoadError } from '@/components/LoadError';
 import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
@@ -98,6 +98,8 @@ export default function GrowthScreen() {
   const playingSV = useSharedValue(false);
   const lastSent = useSharedValue(-1);
   const lastAt = useSharedValue(0);
+  // 左上の式の番号（いま打った点の番号）。形の上の光る点もこの点に置く
+  const markPoint = useSharedValue(0);
   // 指の操作や UI スレッドからの知らせの中で読む、いまの値（描き直しを待たない）
   const playingRef = useRef(false);
   const indexRef = useRef(0);
@@ -312,8 +314,12 @@ export default function GrowthScreen() {
           {shape != null && (
             <GrowthShape
               key={shape} shape={shape} params={params} width={width} height={shapeHeight} paused={!visible} spin={playing ? PLAYING_SPIN : 1}
-              accessibilityLabel={growthShapeLabel(shape, dayNumber)}
+              accessibilityLabel={growthShapeLabel(shape, dayNumber)} markPoint={markPoint}
             />
+          )}
+          {/* 左上の数式（いま打った点の番号と値）。形の上の光る点と同じ点を指す */}
+          {shape != null && (
+            <FormulaReadout shape={shape} pos={pos} playing={playing} index={i} series={series} mark={markPoint} />
           )}
           {held && !ended && playable && <PauseMark motion={motionOn} />}
           {/* 読み上げ用の再生・一時停止のボタン（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}

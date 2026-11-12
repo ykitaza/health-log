@@ -1,37 +1,40 @@
-// 「成長を見る」画面（app/growth.tsx）の部品：画面全体の指の操作、下の線、一時停止の印、下の累計の1行
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, StyleSheet, View } from 'react-native';
+// 「成長を見る」画面（app/growth.tsx）の部品：画面全体の指の操作、下の線、一時停止の印、下の累計の1行、左上の数式
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn, FadeOut, SharedValue, useAnimatedReaction, useAnimatedStyle, useFrameCallback, useSharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GrowthParams } from '@/lib/growth';
 import {
-  approachTotal, claimsDrag, dayIndexAt, dragIndex, growthTotals, isTap, lerpParams, LIVE_UPDATE_MS, ratioAt, startsAtEdge,
+  approachTotal, claimsDrag, dayIndexAt, dragIndex, FORMULA_UPDATE_MS, growthTotals, isTap, lerpParams, LIVE_UPDATE_MS, ratioAt, startsAtEdge,
   TOTAL_STEPS, totalKeys, totalsLabel, totalsText, TotalValues, totalValues,
 } from '@/lib/growthPlayer';
+import { formula, formulaValues, pointNumber, pointValue } from '@/lib/shapes/formula';
+import type { ShapeKind } from '@/lib/shapes/types';
 import { kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, growthColors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { easeIn, easeOut } from '../motion';
 import { T } from '../Text';
+import { SHAPES } from './shapes';
 
 type MarkKind = 'training' | 'food' | 'sleep';
 
 /**
- * 再生中の位置（日の番号の小数）を、細かい間隔（33ms）で React に渡す。日の数字を、再生の位置にそのまま合わせるため。
+ * 再生中の位置（日の番号の小数）を、細かい間隔（既定 33ms。intervalMs）で React に渡す。日の数字を、再生の位置にそのまま合わせるため。
  * 再生していないあいだは null（止まったときの値は、画面が持つ日の番号から出す）。この値を使う小さな部品だけが描き直される
  */
-export function useLivePos(pos: SharedValue<number>, playing: boolean): number | null {
+export function useLivePos(pos: SharedValue<number>, playing: boolean, intervalMs: number = LIVE_UPDATE_MS): number | null {
   const [live, setLive] = useState<number | null>(null);
   const lastAt = useSharedValue(0);
   useAnimatedReaction(() => pos.get(), (p) => {
     if (!playing) return;
     const now = Date.now();
-    if (now - lastAt.get() < LIVE_UPDATE_MS) return;
+    if (now - lastAt.get() < intervalMs) return;
     lastAt.set(now);
     scheduleOnRN(setLive, p);
-  }, [playing]);
+  }, [playing, intervalMs]);
   return playing ? live : null;
 }
 const MARK = 10;
@@ -231,6 +234,48 @@ export function TotalsLine({ pos, playing, index, series, unit, running, instant
 
 const ZERO: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
 
+/** 式の文字の大きさ（sp）。412dp の画面の、左右 24dp の内側（364dp）に1行で収まる大きさ */
+const FORMULA_SIZE = 14;
+/** 右はしの値の幅（dp）。6文字（符号＋0.000）が入る幅にし、右に寄せて符号の有無で位置がずれないようにする */
+const VALUE_W = Math.ceil(FORMULA_SIZE * 0.62 * 6);
+/** 等幅の書体（端末の書体）。下付きの番号は書体に頼らず、小さい文字で下に寄せて描く */
+const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
+/** 式の色（白の約45%）と、題の色（約32%）。飾りなので色で区別しない */
+const FORMULA_COLOR = 'rgba(243,245,247,0.45)';
+const FORMULA_TITLE_COLOR = 'rgba(243,245,247,0.32)';
+
+/**
+ * 形の左上に出す、形を描いている数式（題と2行）。番号はいま打った点の番号（出している点の数）、右はしはその点の値。
+ * 再生中は再生の位置から FORMULA_UPDATE_MS ごとに描き直し（この部品だけ）、止まっているときはその日の値で止める。
+ * 番号は mark にも書き、形の上の光る点を同じ点に置く。飾りなので読み上げない
+ */
+export function FormulaReadout({ shape, pos, playing, index, series, mark }: {
+  shape: ShapeKind; pos: SharedValue<number>; playing: boolean; /** 止まっているときに出す日の番号 */ index: number;
+  series: GrowthParams[]; mark: SharedValue<number>;
+}) {
+  const live = useLivePos(pos, playing, FORMULA_UPDATE_MS);
+  const p = live == null ? series[Math.min(index, series.length - 1)] ?? ZERO : lerpParams(series, live);
+  const n = Math.min(SHAPES[shape].maxPoints, pointNumber(SHAPES[shape].layout(p).count));
+  const values = useMemo(() => formulaValues(shape), [shape]);
+  useEffect(() => {
+    mark.set(n);
+  }, [n, mark]);
+  const f = formula(shape, n, pointValue(values, n));
+  return (
+    <View style={s.formula} pointerEvents="none" importantForAccessibility="no-hide-descendants" aria-hidden testID="growth-formula">
+      {/* 飾りの式は、文字の大きさの設定で大きくしない（値の幅をそろえ、1行に収めるため） */}
+      <Text allowFontScaling={false} style={[s.mono, s.formulaTitle]}>{f.title}</Text>
+      {f.lines.map((line, li) => (
+        <View key={li} style={s.formulaLine}>
+          {line.map((part, pi) => (
+            <Text key={pi} allowFontScaling={false} style={[s.mono, part.sub ? s.formulaSub : part.value ? s.formulaValue : null]}>{part.text}</Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** 累計1つ（「● 筋トレ 287.0 t」） */
 function TotalItem({ kind, name, value }: { kind: MarkKind; name: string; value: string }) {
   return (
@@ -252,4 +297,10 @@ const s = StyleSheet.create({
   pauseBar: { width: BAR_W, height: BAR_H, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.6)' },
   totals: { flexDirection: 'row', alignItems: 'center', gap: space.l, flexWrap: 'wrap' },
   total: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  formula: { position: 'absolute', top: space.s, left: space.xl, right: space.xl },
+  mono: { fontFamily: MONO, fontSize: FORMULA_SIZE, lineHeight: 22, color: FORMULA_COLOR, includeFontPadding: false },
+  formulaTitle: { fontSize: 11, lineHeight: 16, letterSpacing: 1.5, color: FORMULA_TITLE_COLOR, marginBottom: space.xs },
+  formulaLine: { flexDirection: 'row', alignItems: 'baseline' },
+  formulaSub: { fontSize: 10, transform: [{ translateY: 4 }] },
+  formulaValue: { width: VALUE_W, textAlign: 'right' },
 });
