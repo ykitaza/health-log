@@ -12,6 +12,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   // 不安定なテストを隠さないよう、やり直しはしない
   retries: 0,
+  // 画面の待ちの上限。CI の遅いマシンで、最初の読み込み・同期の反映が 5 秒を超えても落ちないようにする（test の 60 秒の中）
+  expect: { timeout: 10_000 },
   // GitHub のマシンは4コア。4 並びで流す
   workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],

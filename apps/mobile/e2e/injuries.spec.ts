@@ -9,6 +9,16 @@ const shot = async (page: Page, name: string) => {
   if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png`, fullPage: true });
 };
 
+/** 図の横の吹き出しの状態（「● 直し中」）が 1 行（2 行に折り返さない） */
+async function expectCalloutStatusOneLine(page: Page) {
+  const status = see(page.getByTestId('injury-map'), '● 直し中');
+  await expect(status).toHaveCount(2);
+  for (const i of [0, 1]) {
+    const box = (await status.nth(i).boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(17); // labelS の行の高さは 16
+  }
+}
+
 async function openInjuries(page: Page) {
   await goTab(page, '筋トレ');
   await goPane(page, 'ケガ');
@@ -60,6 +70,7 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await page.getByTestId('injury-save').filter({ visible: true }).click();
   await expect(see(page, 'ACTIVE 02 / CLEARED 00')).toBeVisible();
   await shot(page, 'injury-list');
+  await expectCalloutStatusOneLine(page);
 
   // 1件：振り返りを足す（まだ）→ もう1つ（直せた）で、直せたにするか聞く
   await card.click();

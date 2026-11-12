@@ -116,10 +116,15 @@ test.describe('動きを減らす設定がオフ', () => {
 
     // 一番上に戻しても止まったまま。押すと再生
     await scrollBy(page, -2000);
+    // ホイールのスクロールは少しずつ戻る。一番上（scrollTop 0）まで戻って、「半分以上上がっている」の状態が外れるのを待つ
+    await expect.poll(() => page.getByTestId('growth-scroll').evaluate((el) => el.scrollTop)).toBe(0);
     await expect(day(page)).toBeInViewport();
     await expect(button(page, '再生')).toHaveCount(1);
-    await tapScreen(page);
-    await expect(button(page, '一時停止')).toHaveCount(1);
+    // 「半分以上上がっている」の状態は UI スレッドからあとで React に届く。届く前の押しは何もしないので、再生するまで押し直す
+    await expect(async () => {
+      await tapScreen(page);
+      await expect(button(page, '一時停止')).toHaveCount(1, { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
   });
 
   test('開くと自動で再生。タップで一時停止（初回はヒント）と再生、点の帯で日へ飛ぶ、終わると「もう一度」', async ({ page }) => {

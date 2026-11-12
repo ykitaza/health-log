@@ -40,6 +40,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 const opened = (page: Page) => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
+// 押したあと、URL を開くのは非同期（最後に選んだアプリを保存してから）。開いた数がそろうのを待ってから読む
+const waitOpened = (page: Page, count: number) => expect.poll(async () => (await opened(page)).length).toBe(count);
 const sheet = (page: Page) => page.getByTestId('chat-sheet').filter({ visible: true });
 const appRows = (page: Page) => sheet(page).getByRole('button', { name: /で開く（外のアプリ）$/ });
 
@@ -52,6 +54,7 @@ test('筋トレの「AI で記録」：選んだアプリを今日の文で開�
   await expect(appRows(page)).toHaveText(['ChatGPT で開く', 'Claude で開く']);
   await button(page, 'Claude で開く（外のアプリ）').click();
   await expect(sheet(page)).toBeHidden();
+  await waitOpened(page, 1);
   expect((await opened(page)).map(parse)).toEqual([{ app: CLAUDE, q: training('今日（11月8日）', '2026-11-08') }]);
 
   await button(page, AI_RECORD).click();
@@ -63,6 +66,7 @@ test('過去の日の筋トレは、その日付を文に入れる', async ({ pa
   await page.goto('/workout?date=2026-11-06');
   await button(page, AI_RECORD).click();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  await waitOpened(page, 1);
   expect((await opened(page)).map(parse)).toEqual([{ app: CHATGPT, q: training('11月6日', '2026-11-06') }]);
 });
 
@@ -75,6 +79,7 @@ test('食事の記録の方法に「AI で記録」があり、食事の文で�
   // 区分を選んでいるので、決まった形で区分を入れる
   await expect(see(sheet(page), '今日の朝食を記録するための文を入れて開きます')).toBeVisible();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  await waitOpened(page, 1);
   expect((await opened(page)).map(parse)).toEqual([{ app: CHATGPT, q: meal('今日（11月8日）の朝食', 'date=2026-11-08、slot=breakfast', '2026-11-08') }]);
 });
 
@@ -85,12 +90,14 @@ test('食事のタブの下の「AI で記録」：今日は「今日（11月8�
   await expect(see(sheet(page), '今日の食事を記録するための文を入れて開きます')).toBeVisible();
   await button(page, 'Claude で開く（外のアプリ）').click();
   await expect(sheet(page)).toBeHidden();
+  await waitOpened(page, 1);
   expect((await opened(page)).map(parse)).toEqual([{ app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08', '2026-11-08') }]);
 
   await button(page, '前の日').click();
   await button(page, '前の日').click();
   await button(page, AI_RECORD).click();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  await waitOpened(page, 2);
   expect((await opened(page)).map(parse)).toEqual([
     { app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08', '2026-11-08') },
     { app: CHATGPT, q: meal('11月6日の食事', 'date=2026-11-06', '2026-11-06') },
@@ -104,6 +111,7 @@ test('レポートの「チャットで作る」：期間を選んでから開�
   await button(sheet(page), '今月').click();
   await expect(see(sheet(page), '今月のまとめを作るための文を入れて開きます')).toBeVisible();
   await button(page, 'Claude で開く（外のアプリ）').click();
+  await waitOpened(page, 1);
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CLAUDE);
   expect(q).toContain(`${C}で今月（11月1日〜今日（11月8日））のまとめを作ってください。`);
@@ -127,6 +135,7 @@ test('ホームのおすすめ：まだ作っていないまとめの件数と�
   await expect(see(sheet(page), 'まだのまとめ 3 件を作るための文を入れて開きます')).toBeVisible();
   await button(page, 'Claude で開く（外のアプリ）').click();
   await expect(sheet(page)).toBeHidden();
+  await waitOpened(page, 1);
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CLAUDE);
   expect(q).toBe(`${C}で、まだ作っていないまとめを1件ずつ作り、save_report で保存してください。`
@@ -159,6 +168,7 @@ test('レポートのタブ：おすすめの帯と右下の「レポートを�
   await expect(see(sheet(page), 'まだのまとめ 3 件を作るための文を入れて開きます')).toBeVisible();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
   await expect(sheet(page)).toBeHidden();
+  await waitOpened(page, 1);
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CHATGPT);
   expect(q).toContain('対象は3件：weekly(2026-11-02..2026-11-08), daily(2026-11-06), daily(2026-11-07)。');
@@ -193,6 +203,7 @@ test('設定の「チャットとの連携」：つなぎ方と、アプリを�
   await expect(see(page, 'コネクタのつなぎ方', { exact: true })).toBeVisible();
   await button(page, 'Claude を開く').click();
   await button(page, 'ChatGPT を開く').click();
+  await waitOpened(page, 2);
   expect(await opened(page)).toEqual(['https://claude.ai/new', 'https://chatgpt.com/']);
 });
 
@@ -209,6 +220,7 @@ test('自動で作る：設定の「チャットとの連携」からシート�
   await expect(see(schedule, /^前回/)).toHaveCount(0); // まだ頼んでいない
   await button(schedule, 'ChatGPT で設定する（外のアプリ）').click();
   await expect(schedule).toBeHidden();
+  await waitOpened(page, 1);
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CHATGPT);
   expect(q).toContain(`${C}で、まとめのスケジュールを3つ入れてください。hlog のまとめのタスクがもうあれば、作らず教えてください。`);
