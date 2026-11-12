@@ -202,11 +202,13 @@ export function totalValues(p: GrowthParams, perKg: number): TotalValues {
  * 表示の値を本当の値（target）へ1フレーム分近づける。進む量は差の CHASE_RATIO 倍を単位（step）の整数倍に切り捨てたもの（単位で1つ以上）。
  * 差が1単位以内なら target にぴったり合わせる（行き過ぎない・はね返らない）。増える向きも減る向きも同じ
  */
-export function approachTotal(current: number, target: number, step: number, ratio = CHASE_RATIO): number {
+export function approachTotal(current: number, target: number, step: number, ratio?: number): number {
   'worklet';
+  // 既定値を引数の既定値（ratio = CHASE_RATIO）にすると、UI スレッドへ持ち込まれず ReferenceError で落ちる（実機）。本体で読む
+  const r = ratio ?? CHASE_RATIO;
   const d = target - current;
   if (Math.abs(d) <= step * (1 + 1e-9)) return target;
-  const units = Math.max(1, Math.floor((Math.abs(d) * ratio) / step));
+  const units = Math.max(1, Math.floor((Math.abs(d) * r) / step));
   return current + Math.sign(d) * units * step;
 }
 
