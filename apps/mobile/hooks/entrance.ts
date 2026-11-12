@@ -31,11 +31,12 @@ export function useCountTo(value: number | null): number | null {
   const { token, prev, focused } = useEntrance(value, value == null ? null : String(value));
   const [now, setNow] = useState<number | null>(reduced || value == null ? value : 0);
   const nowRef = useRef(now);
-  // 合図が来たとき、0 から数えるなら描く前に 0 に戻す（最後の値が一瞬見えないように）
+  // 合図が来たとき、0 から数えるなら描く前に 0 に戻す（最後の値が一瞬見えないように）。
+  // nowRef は書かない：0 から数えるときは下の効果が nowRef を読まず（from = 0）、最初のコマで書き換わる
   const [seen, setSeen] = useState(token);
   if (seen !== token) {
     setSeen(token);
-    if (prev == null && !reduced) { nowRef.current = 0; setNow(0); }
+    if (prev == null && !reduced) setNow(0);
   }
   useEffect(() => {
     if (reduced || value == null) {
