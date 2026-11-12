@@ -31,11 +31,6 @@ export type GrowthShapeProps = {
   paused?: boolean;
   /** 読み上げの名前。渡さなければ飾りとして扱い、読み上げに出さない */
   accessibilityLabel?: string;
-  /**
-   * 白い光る点の印を付ける点の番号（並びの先頭から 1 始まり。成長を見る画面の左上の式の番号）。
-   * 渡さなければ（ホーム）、または 0 以下なら描かない
-   */
-  markPoint?: SharedValue<number>;
 };
 
 /** Y 軸まわりに1周する秒数 */
@@ -57,10 +52,6 @@ const FADE_POINTS = 60;
 const FADE_FILL = 0.04;
 /** 形を箱に収めるときの、箱の端との余白（dp。点の半径） */
 const FIT_MARGIN = DOT_DP / 2;
-/** いま打った点の印の、点の半径・薄い光の半径・輪の半径（dp） */
-const MARK_R = 4;
-const MARK_GLOW_R = 10;
-const MARK_RING_R = 11;
 
 const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
 const NO_FILLS: readonly number[] = [];
@@ -71,7 +62,7 @@ const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
  * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
  * 点の位置は UI スレッドで毎フレーム計算する（JS スレッドを使わない）。動きを減らす設定なら止まった形を出す
  */
-export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel, markPoint }: GrowthShapeProps) {
+export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel }: GrowthShapeProps) {
   const def = SHAPES[shape];
   const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => def.build(), [def]);
   const layout = def.layout;
@@ -174,30 +165,6 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const seedP = 1 / (1 - seedY * tiltSin * PERSPECTIVE);
   const seedTransform = useDerivedValue(() => [{ translateY: seedY * tiltCos * seedP * view.get().unit }]);
 
-  // 印を付ける点の、画面の上の位置（transforms と同じ写し方）。番号が 0 以下・並びの外なら出さない
-  const mark = useDerivedValue(() => {
-    'worklet';
-    const i = (markPoint == null ? 0 : Math.floor(markPoint.get())) - 1;
-    if (i < 0 || i >= maxPoints) return { x: cx, y: cy, on: 0 };
-    const v = view.get();
-    const x = points[i * 3];
-    const y = points[i * 3 + 1];
-    const z = points[i * 3 + 2];
-    const x1 = x * v.cos + z * v.sin;
-    const z1 = z * v.cos - x * v.sin;
-    const y2 = y * tiltCos - z1 * tiltSin;
-    const z2 = y * tiltSin + z1 * tiltCos;
-    const p = 1 / (1 - z2 * PERSPECTIVE);
-    return { x: cx + x1 * v.unit * p, y: cy + y2 * v.unit * p, on: 1 };
-  });
-  const markTransform = useDerivedValue(() => {
-    'worklet';
-    return [{ translateX: mark.get().x }, { translateY: mark.get().y }];
-  });
-  const markOpacity = useDerivedValue(() => {
-    'worklet';
-    return mark.get().on;
-  });
 
   return (
     <View
@@ -226,16 +193,6 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
         <Group opacity={glow}>
           <Atlas image={texture} sprites={sprites} transforms={transforms} colors={colors} colorBlendMode="modulate" blendMode="plus" sampling={SAMPLING} />
         </Group>
-        {/* いま打った点の印：白い小さな光る点と、まわりの細い輪 */}
-        {markPoint != null && (
-          <Group transform={markTransform} opacity={markOpacity}>
-            <Circle cx={0} cy={0} r={MARK_GLOW_R}>
-              <RadialGradient c={vec(0, 0)} r={MARK_GLOW_R} colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} />
-            </Circle>
-            <Circle cx={0} cy={0} r={MARK_R} color="#FFFFFF" />
-            <Circle cx={0} cy={0} r={MARK_RING_R} color="rgba(255,255,255,0.35)" style="stroke" strokeWidth={1} />
-          </Group>
-        )}
         {sats && ORBITS.map((o) => (
           <Satellite key={o.key} orbit={o} state={sats[o.key]} outer={outer} cx={cx} cy={cy + orbitY} seconds={seconds} />
         ))}
