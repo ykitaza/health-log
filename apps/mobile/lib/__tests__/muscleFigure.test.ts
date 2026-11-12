@@ -1,5 +1,5 @@
 import { SITE_CODES } from '../injuries';
-import { FIGURE_PIECES, FIGURE_TARGETS, markPoint, muscleFigureFor, pickTarget, sideAt, subpaths, targetsNear } from '../muscleFigure';
+import { FIGURE_PIECES, FIGURE_TARGETS, markPoint, muscleFigureFor, musclesForParts, pickTarget, sideAt, subpaths, targetsNear } from '../muscleFigure';
 import { SEED_BODY_PARTS } from '@/db/seed';
 
 describe('ケガの部位：図の左右と、押して選ぶ', () => {
@@ -91,5 +91,14 @@ describe('muscleFigureFor（最近の流れの筋肉の図：部位 → 向き�
     expect(muscleFigureFor(' 背中 ').view).toBe('back');
     expect(muscleFigureFor('下半身')).toEqual({ view: 'front', muscles: [] });
     expect(muscleFigureFor('')).toEqual({ view: 'front', muscles: [] });
+  });
+});
+
+describe('musclesForParts（記録の画面：その日に鍛えた部位の筋肉）', () => {
+  test('部位ごとの筋肉を合わせ、重ねない。知らない部位は塗らない', () => {
+    expect(musclesForParts(['胸', '肩'])).toEqual(['pecs', 'deltoid']);
+    expect(musclesForParts(['上腕二頭筋', '腕', '腹筋'])).toEqual(['biceps', 'forearm', 'abs', 'obliques']);
+    expect(musclesForParts(['背中', 'ふくらはぎ'])).toEqual(['trapezius', 'lats', 'erectorsUpper', 'erectorsLower']);
+    expect(musclesForParts([])).toEqual([]);
   });
 });

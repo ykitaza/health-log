@@ -20,6 +20,8 @@ test('360 の幅：種目のカードは1行目に順番・名前・＞、2行�
   const parts = visible(page.getByTestId('day-parts'));
   await expect(parts).toHaveText('部位胸');
   await expect(parts).toHaveAttribute('aria-label', '部位 胸');
+  // まとめの下に、鍛えた部位の図（前と後ろ。鍛えた筋肉を塗る）
+  await expect(visible(page.getByTestId('day-parts-figure'))).toHaveAttribute('aria-label', '鍛えた部位の図 胸');
 
   // 名前の長い種目（部位の名前も長い）と、BIG3・推定1RM のない種目（回数だけ）を足す
   await addEntry(page, 'ライイングトライセプスエクステンション', [{ weight: '50', reps: '10' }]);

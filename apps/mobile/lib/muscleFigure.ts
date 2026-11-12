@@ -33,6 +33,14 @@ export function muscleFigureFor(part: string): MuscleFigureSpec {
   return PART_MUSCLES[part.trim()] ?? { view: 'front', muscles: [] };
 }
 
+/**
+ * その日に鍛えた部位の筋肉（記録の画面の、前と後ろの図で塗る）。部位ごとの筋肉を合わせ、重ねない。
+ * 図の向きは決めず、前の図・後ろの図のそれぞれで、その図にある筋肉を塗る（三角筋・前腕は両方に出る）
+ */
+export function musclesForParts(parts: string[]): Muscle[] {
+  return [...new Set(parts.flatMap((p) => muscleFigureFor(p).muscles))];
+}
+
 // ---- ケガの部位を図で選ぶ・印を付ける（lib/injuries.ts の部位のコード） ----
 
 /** 図の中の点（100×200 の座標） */
