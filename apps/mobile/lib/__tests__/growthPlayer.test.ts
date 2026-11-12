@@ -6,7 +6,7 @@ import {
 } from '../growthPlayer';
 import { fmt1 } from '../units';
 
-const P = (volumeKg: number, foodDays: number, sleepDays: number, days: number): GrowthParams => ({ volumeKg, foodDays, sleepDays, days });
+const P = (volumeKg: number, foodDays: number, sleepDays: number, days: number): GrowthParams => ({ volumeKg, foodDays, sleepDays, days, partSets: [0, 0, 0, 0, 0, 0] });
 const hl = (date: string, priority: number, text = date): Highlight => ({ date, kind: 'goalStreak', text, priority });
 
 describe('再生の位置', () => {
@@ -55,6 +55,12 @@ describe('lerpParams（前後の日の値をつなぐ）', () => {
     expect(lerpParams(series, -3)).toEqual(series[0]);
     expect(lerpParams(series, 7)).toEqual(series[2]);
     expect(lerpParams([], 0)).toEqual(P(0, 0, 0, 0));
+  });
+  test('部位ごとのセット数も、進み具合でまっすぐにつなぐ（タイムラプスで木の枝・銀河の腕がその日の時点の累計で育つ）', () => {
+    const a = { ...P(0, 0, 0, 1), partSets: [0, 10, 0, 0, 0, 0] };
+    const b = { ...P(0, 0, 0, 2), partSets: [4, 10, 2, 0, 0, 0] };
+    expect(lerpParams([a, b], 0.5).partSets).toEqual([2, 10, 1, 0, 0, 0]);
+    expect(lerpParams([a, b], 1).partSets).toEqual(b.partSets);
   });
 });
 

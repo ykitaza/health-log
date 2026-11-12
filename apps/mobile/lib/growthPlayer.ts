@@ -1,10 +1,10 @@
 // 「成長を見る」画面（app/growth.tsx）の決まり。どれも純粋な関数（'worklet' のものは UI スレッドでも呼ぶ。
 // jest ではただの関数として動く）。再生の位置は「日の番号の小数」で、0 が最初の記録の日、dayCount − 1 が今日
 import { addDays, DateKey, daysBetween, formatJpDate, formatMonthDay } from './date';
-import { GrowthParams, Highlight, playbackSeconds, Subtitle } from './growth';
+import { GrowthParams, Highlight, NO_PART_SETS, playbackSeconds, Subtitle } from './growth';
 import { kgToUnit, WeightUnit } from './units';
 
-export const EMPTY_PARAMS: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+export const EMPTY_PARAMS: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [...NO_PART_SETS] };
 
 /** 日の数字・日付・字幕を描き直す間隔の下限（ms）。これより細かくは描き直さない */
 export const DAY_UPDATE_MS = 66;
@@ -41,17 +41,20 @@ export function dayIndexAt(pos: number, dayCount: number): number {
 export function lerpParams(series: GrowthParams[], pos: number): GrowthParams {
   'worklet';
   const n = series.length;
-  if (n === 0) return { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+  if (n === 0) return { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [0, 0, 0, 0, 0, 0] };
   const p = Math.min(n - 1, Math.max(0, pos));
   const i = Math.floor(p);
   const t = p - i;
   const a = series[i];
   const b = series[Math.min(n - 1, i + 1)];
+  const partSets: number[] = [];
+  for (let k = 0; k < a.partSets.length; k++) partSets.push(a.partSets[k] + ((b.partSets[k] ?? a.partSets[k]) - a.partSets[k]) * t);
   return {
     volumeKg: a.volumeKg + (b.volumeKg - a.volumeKg) * t,
     foodDays: a.foodDays + (b.foodDays - a.foodDays) * t,
     sleepDays: a.sleepDays + (b.sleepDays - a.sleepDays) * t,
     days: a.days + (b.days - a.days) * t,
+    partSets,
   };
 }
 

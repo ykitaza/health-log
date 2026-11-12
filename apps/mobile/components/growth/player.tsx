@@ -249,7 +249,7 @@ export function TotalsLine({ pos, playing, index, series, unit, running, instant
   );
 }
 
-const ZERO: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+const ZERO: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [0, 0, 0, 0, 0, 0] };
 
 /** 式の文字の大きさ（sp）と、値・番号の行の大きさ（sp） */
 const FORMULA_SIZE = 15;

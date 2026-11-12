@@ -39,16 +39,24 @@ describe('growthSeries', () => {
       day('2026-11-08', { volumeKg: 100, mealRecorded: true, mealGoalReached: true, sleepMin: 420 }),
       day('2026-11-10', { volumeKg: 50, mealRecorded: true, sleepMin: 419 }),
     ], '2026-11-11');
+    const none = [0, 0, 0, 0, 0, 0];
     expect(s).toEqual([
-      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 1 },
-      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 2 }, // 休んだ日
-      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 3 }, // 目標に届かない食事、7時間未満の睡眠は数えない
-      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 4 },
+      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 1, partSets: none },
+      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 2, partSets: none }, // 休んだ日
+      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 3, partSets: none }, // 目標に届かない食事、7時間未満の睡眠は数えない
+      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 4, partSets: none },
     ]);
   });
   test('食事は記録がなければ、届いた印があっても数えない。睡眠の記録がない日は数えない', () => {
     const s = growthSeries([day('2026-11-10', { mealRecorded: false, mealGoalReached: true, sleepMin: null })], '2026-11-10');
-    expect(s).toEqual([{ volumeKg: 0, foodDays: 0, sleepDays: 0, days: 1 }]);
+    expect(s).toEqual([{ volumeKg: 0, foodDays: 0, sleepDays: 0, days: 1, partSets: [0, 0, 0, 0, 0, 0] }]);
+  });
+  test('部位ごとのセット数を、その日までの累計にする（BALANCE_PARTS の順。休んだ日も減らない。前の日の配列を書き換えない）', () => {
+    const s = growthSeries([
+      day('2026-11-08', { volumeKg: 100, partSets: [3, 0, 2, 0, 0, 1] }),
+      day('2026-11-10', { volumeKg: 50, partSets: [0, 4, 0, 0, 5, 0] }),
+    ], '2026-11-10');
+    expect(s.map((p) => p.partSets)).toEqual([[3, 0, 2, 0, 0, 1], [3, 0, 2, 0, 0, 1], [3, 4, 2, 0, 5, 1]]);
   });
 });
 

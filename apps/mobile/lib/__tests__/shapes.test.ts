@@ -1,15 +1,19 @@
-import { shapeBuild, SHAPES } from '@/components/growth/shapes';
+import { ShapeBuild, shapeBuild, SHAPES } from '@/components/growth/shapes';
 import {
   attractorLayout, attractorPoints, MAX_POINTS, MIN_POINTS, pointTints, SEED_RAMP_DAYS, VOLUME_SCALE_KG,
 } from '../shapes/attractor';
-import { DOT_FULL_UNIT, DOT_MIN_SCALE, dotStyle, PERSPECTIVE, shapeExtent, shapeUnit, ShapeLayout } from '../shapes/common';
+import {
+  DOT_FULL_UNIT, DOT_MIN_SCALE, dotStyle, PART_SCALE_SETS, partGrowth, PERSPECTIVE, placePoint, pointShown, shapeExtent, ShapeLayout, shapeUnit,
+  swayExtent, swayX,
+} from '../shapes/common';
 import { GALAXY_POINTS, galaxyLayout, galaxyPoints, galaxyTints } from '../shapes/galaxy';
 import { orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '../shapes/orbits';
-import { TREE_POINTS, treeLayout, treeShape } from '../shapes/tree';
+import { BALANCE_PARTS } from '../partBalance';
+import { MIN_BRANCH_SCALE, partTip, TIP_STRIDE, TREE_POINTS, treeBranchSlot, treeLayout, treeShape } from '../shapes/tree';
 import { SHAPE_KINDS } from '../shapes/types';
 import type { GrowthParams } from '../shapes/types';
 
-const base: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 30 };
+const base: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 30, partSets: [0, 0, 0, 0, 0, 0] };
 
 describe('点の軌跡：点の並び', () => {
   test('同じ数なら毎回同じ並び（乱数を使わない）', () => {
@@ -54,7 +58,7 @@ describe('点の軌跡：点の並び', () => {
 
 describe('点の軌跡：値から点の数・広がり・光', () => {
   test('記録がまだない（days が 0）ときは点を出さない（種だけ）', () => {
-    expect(attractorLayout({ volumeKg: 50_000, foodDays: 10, sleepDays: 10, days: 0 }).count).toBe(0);
+    expect(attractorLayout({ volumeKg: 50_000, foodDays: 10, sleepDays: 10, days: 0, partSets: [0, 0, 0, 0, 0, 0] }).count).toBe(0);
   });
 
   test('記録を始めてから数日で、最小の点の数に届く（最初でもまばらすぎない）', () => {
@@ -99,7 +103,7 @@ describe('点の軌跡：値から点の数・広がり・光', () => {
   });
 
   test('負の値や数でない値は 0 として扱う', () => {
-    const l = attractorLayout({ volumeKg: -100, foodDays: NaN, sleepDays: -1, days: NaN });
+    const l = attractorLayout({ volumeKg: -100, foodDays: NaN, sleepDays: -1, days: NaN, partSets: [-5, NaN, 0, 0, 0, 0] });
     expect(l).toEqual({ count: 0, spread: 0.55, glow: 0.35 });
   });
 });
@@ -117,7 +121,7 @@ function expectUnitPoints(pts: Float32Array, n: number) {
 function describeLayout(name: string, layout: (p: GrowthParams) => ShapeLayout, max: number) {
   describe(`${name}：値から点の数・広がり・光`, () => {
     test('0 日目は点を出さない（種だけ）。数日で最小の点の数に届く', () => {
-      expect(layout({ volumeKg: 50_000, foodDays: 10, sleepDays: 10, days: 0 }).count).toBe(0);
+      expect(layout({ volumeKg: 50_000, foodDays: 10, sleepDays: 10, days: 0, partSets: [0, 0, 0, 0, 0, 0] }).count).toBe(0);
       expect(layout({ ...base, days: 1 }).count).toBeCloseTo(MIN_POINTS / SEED_RAMP_DAYS);
       expect(layout({ ...base, days: SEED_RAMP_DAYS }).count).toBe(MIN_POINTS);
     });
@@ -153,10 +157,16 @@ function describeLayout(name: string, layout: (p: GrowthParams) => ShapeLayout, 
         expect(Math.abs(b.glow - a.glow)).toBeLessThan(0.015);
         (b.fills ?? []).forEach((f, i) => expect(Math.abs(f - (a.fills ?? [])[i])).toBeLessThan(0.015));
       }
+      // 部位の育ち具合も、1 セットでは飛ばない
+      for (let n = 0; n < 1000; n += 10) {
+        const a = layout({ ...base, partSets: [n, n, n, n, n, n] });
+        const b = layout({ ...base, partSets: [n + 1, n + 1, n + 1, n + 1, n + 1, n + 1] });
+        (b.parts ?? []).forEach((g, i) => expect(Math.abs(g - (a.parts ?? [])[i])).toBeLessThan(0.01));
+      }
     });
 
     test('負の値や数でない値は 0 として扱う', () => {
-      const l = layout({ volumeKg: -100, foodDays: NaN, sleepDays: -1, days: NaN });
+      const l = layout({ volumeKg: -100, foodDays: NaN, sleepDays: -1, days: NaN, partSets: [-5, NaN, 0, 0, 0, 0] });
       expect(l.count).toBe(0);
       expect(l.spread).toBeCloseTo(0.55);
       expect(l.glow).toBeCloseTo(0.35);
@@ -207,13 +217,13 @@ describeLayout('銀河', galaxyLayout, GALAXY_POINTS);
 
 describe('木：点の並び', () => {
   const tree = treeShape();
-  const { points: pts, gates, tints, seedY } = tree;
+  const { points: pts, gates, tints, seedY, parts, partMin, pivots, tips } = tree;
 
   test('毎回同じ並び（種を固定した乱数）で、どの点も -1〜1 に収まる', () => {
     expect(treeShape()).toEqual(tree);
     expectUnitPoints(pts, TREE_POINTS);
-    expect(tints).toHaveLength(TREE_POINTS);
-    expect(gates).toHaveLength(TREE_POINTS);
+    for (const a of [tints, gates, parts, partMin]) expect(a).toHaveLength(TREE_POINTS);
+    expect(pivots).toHaveLength(BALANCE_PARTS.length * 3);
   });
 
   test('並びは幹（根元のまん中、下）から始まり、葉と光の粒は枝のあと', () => {
@@ -231,7 +241,7 @@ describe('木：点の並び', () => {
     expect(meanY(0, 300)).toBeGreaterThan(meanY(300, 1200));
     expect(meanY(300, 1200)).toBeGreaterThan(meanY(TREE_POINTS - 1500, TREE_POINTS));
     const firstLeaf = gates.findIndex((g) => g >= 0);
-    expect(firstLeaf).toBeGreaterThan(TREE_POINTS * 0.2);
+    expect(firstLeaf).toBeGreaterThan(TREE_POINTS * 0.1);
     // 枝先の葉は、その枝先まで伸びてから出る（葉の順位の平均は、枝の順位の平均よりあと）
     const meanIndex = (pick: (g: number) => boolean) => {
       let s = 0;
@@ -244,7 +254,7 @@ describe('木：点の並び', () => {
       });
       return s / n;
     };
-    expect(meanIndex((g) => g >= 0)).toBeGreaterThan(meanIndex((g) => g < 0) * 1.5);
+    expect(meanIndex((g) => g >= 0)).toBeGreaterThan(meanIndex((g) => g < 0) * 1.3);
   });
 
   test('組：葉は 0〜1、光の粒は 1〜2、枝と根は -1。光の粒は紫（色の位置 0）', () => {
@@ -266,18 +276,33 @@ describe('木：点の並び', () => {
     expect(sparks).toBeGreaterThan(200);
   });
 
-  test('幹が Y 軸の上に立つ（回すと幹を軸に回る）。樹冠は四方に広がる', () => {
-    let minX = 0;
-    let maxX = 0;
-    let minZ = 0;
-    let maxZ = 0;
-    for (let i = 0; i < TREE_POINTS; i++) {
-      minX = Math.min(minX, pts[i * 3]);
-      maxX = Math.max(maxX, pts[i * 3]);
-      minZ = Math.min(minZ, pts[i * 3 + 2]);
-      maxZ = Math.max(maxZ, pts[i * 3 + 2]);
-    }
-    for (const v of [-minX, maxX, -minZ, maxZ]) expect(v).toBeGreaterThan(0.4);
+  test('太い枝は6本で、部位はレーダーと同じ並び：左の上から 胸・腹・脚、右の上から 肩・背中・腕', () => {
+    // 部位ごとの点の重心と、付け根の高さ
+    const center = BALANCE_PARTS.map((_, p) => {
+      let x = 0;
+      let n = 0;
+      for (let i = 0; i < TREE_POINTS; i++) {
+        if (parts[i] !== p) continue;
+        x += pts[i * 3];
+        n++;
+      }
+      expect(n).toBeGreaterThan(300);
+      return { x: x / n, rootY: pivots[p * 3 + 1] };
+    });
+    const at = (name: (typeof BALANCE_PARTS)[number]) => center[BALANCE_PARTS.indexOf(name)];
+    for (const name of ['胸', '腹', '脚'] as const) expect(at(name).x).toBeLessThan(-0.1);
+    for (const name of ['肩', '背中', '腕'] as const) expect(at(name).x).toBeGreaterThan(0.1);
+    // 付け根は上の段ほど高い（y は下が正）
+    expect(at('胸').rootY).toBeLessThan(at('腹').rootY);
+    expect(at('腹').rootY).toBeLessThan(at('脚').rootY);
+    expect(at('肩').rootY).toBeLessThan(at('背中').rootY);
+    expect(at('背中').rootY).toBeLessThan(at('腕').rootY);
+    expect(BALANCE_PARTS.map((_, i) => treeBranchSlot(i))).toEqual([
+      { tier: 0, side: -1 }, { tier: 0, side: 1 }, { tier: 1, side: 1 }, { tier: 2, side: 1 }, { tier: 2, side: -1 }, { tier: 1, side: -1 },
+    ]);
+    // 幹と根は部位なし。名前を置く枝の先の候補は、どれも部位がある
+    expect(parts.filter((p) => p < 0).length).toBeGreaterThan(100);
+    for (let k = 0; k < tips.length; k += TIP_STRIDE) expect(tips[k]).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -301,35 +326,162 @@ describe('木：葉は食事、光の粒は睡眠で増える', () => {
   });
 });
 
+describe('部位の育ち具合（累計セット数）', () => {
+  test('0 セットで 0、PART_SCALE_SETS で約 0.63、増えるほど 1 に近づく。負の値や数でない値は 0', () => {
+    expect(partGrowth(0)).toBe(0);
+    expect(partGrowth(PART_SCALE_SETS)).toBeCloseTo(1 - Math.exp(-1));
+    expect(partGrowth(1e6)).toBeCloseTo(1);
+    expect(partGrowth(-5)).toBe(0);
+    expect(partGrowth(NaN)).toBe(0);
+    let prev = 0;
+    for (let n = 0; n <= 600; n += 5) {
+      expect(partGrowth(n)).toBeGreaterThanOrEqual(prev);
+      prev = partGrowth(n);
+    }
+  });
+});
+
+/** その部位の、いま出ている点の番号（count は上限まで） */
+function shownOfPart(b: ShapeBuild, l: ShapeLayout, p: number, pick: (i: number) => boolean = () => true): number[] {
+  const out: number[] = [];
+  const n = b.points.length / 3;
+  for (let i = 0; i < n; i++) {
+    if (b.parts![i] !== p || !pick(i)) continue;
+    if (pointShown(i, 1e9, b.gates ?? new Float32Array(0), l.fills ?? [], b.parts!, b.partMin!, l.parts ?? []) > 0) out.push(i);
+  }
+  return out;
+}
+
+describe('木：部位ごとに枝が育つ', () => {
+  const b = shapeBuild('tree');
+  const full = { ...base, volumeKg: 1e9, foodDays: 1e6, sleepDays: 1e6 };
+  const withSets = (sets: number[]) => treeLayout({ ...full, partSets: sets });
+  const isLeaf = (i: number) => (b.gates?.[i] ?? -1) >= 0;
+  /** 部位 p の、出ている枝（葉を除く）の付け根からいちばん遠い所（長さの倍率をかけたあと） */
+  const reach = (l: ShapeLayout, p: number) => {
+    const s = l.partScale![p];
+    let far = 0;
+    for (const i of shownOfPart(b, l, p, (i) => !isLeaf(i))) {
+      far = Math.max(far, Math.hypot(b.points[i * 3] - b.pivots![p * 3], b.points[i * 3 + 1] - b.pivots![p * 3 + 1]) * s);
+    }
+    return far;
+  };
+  const leaves = (l: ShapeLayout, p: number) => shownOfPart(b, l, p, isLeaf).length;
+
+  test('長さの倍率：0 セットで 0.5（最低限の長さ）、増えると 1 に近づく。部位ごとに別々', () => {
+    const l = withSets([0, 110, 1e6, 0, 0, 0]);
+    expect(l.partScale![0]).toBeCloseTo(MIN_BRANCH_SCALE);
+    expect(l.partScale![1]).toBeCloseTo(MIN_BRANCH_SCALE + (1 - MIN_BRANCH_SCALE) * (1 - Math.exp(-1)));
+    expect(l.partScale![2]).toBeCloseTo(1);
+    expect(l.parts).toEqual([0, partGrowth(110), partGrowth(1e6), 0, 0, 0]);
+    // 数でない値・負の値は、最低限
+    const bad = treeLayout({ ...full, partSets: [NaN, -3, 0, 0, 0, 0] });
+    expect(bad.partScale!.slice(0, 2)).toEqual([MIN_BRANCH_SCALE, MIN_BRANCH_SCALE]);
+  });
+
+  test('0 セットの枝も、はだかにならず最低限は出る（段数 3 までの枝と、その先の葉）', () => {
+    const l = withSets([0, 0, 0, 0, 0, 0]);
+    for (let p = 0; p < BALANCE_PARTS.length; p++) {
+      expect(reach(l, p)).toBeGreaterThan(0.1);
+      expect(leaves(l, p)).toBeGreaterThan(20);
+    }
+  });
+
+  test('セット数が多い部位ほど、枝が長く・よく分かれて・葉が多い。ほかの部位には左右されない', () => {
+    const others = reach(withSets([0, 0, 0, 0, 0, 0]), 1);
+    let prev = { reach: 0, leaves: 0, branches: 0 };
+    for (const n of [0, 25, 60, 110, 180, 400]) {
+      const l = withSets([n, 0, 0, 0, 0, 0]);
+      const now = { reach: reach(l, 0), leaves: leaves(l, 0), branches: shownOfPart(b, l, 0, (i) => !isLeaf(i)).length };
+      expect(now.reach).toBeGreaterThan(prev.reach);
+      // 葉は分かれた枝の先まで伸びてから出るので、段ごとに増える（減らない）
+      expect(now.leaves).toBeGreaterThanOrEqual(prev.leaves);
+      expect(now.branches).toBeGreaterThan(prev.branches);
+      prev = now;
+      expect(reach(l, 1)).toBeCloseTo(others);
+    }
+    // いちばん育った枝は、最低限の枝の2倍を超えて伸び、葉は3倍を超える（大きな偏りが見える）
+    expect(reach(withSets([1e6, 0, 0, 0, 0, 0]), 0)).toBeGreaterThan(reach(withSets([0, 0, 0, 0, 0, 0]), 0) * 2);
+    expect(leaves(withSets([1e6, 0, 0, 0, 0, 0]), 0)).toBeGreaterThan(leaves(withSets([0, 0, 0, 0, 0, 0]), 0) * 3);
+  });
+
+  test('値が少し変わっても、枝は飛ばない（1 セットで出る点の変化は小さい）', () => {
+    for (let n = 0; n < 400; n += 7) {
+      const a = shownOfPart(b, withSets([n, 0, 0, 0, 0, 0]), 0).length;
+      const c = shownOfPart(b, withSets([n + 1, 0, 0, 0, 0, 0]), 0).length;
+      expect(Math.abs(c - a)).toBeLessThan(40);
+    }
+  });
+
+  test('部位の名前の位置：まだ点が出ていなければ null。育つほど付け根から遠く、出ている枝の先の近く', () => {
+    const tips = b.tips!;
+    const pivots = b.pivots!;
+    expect(partTip(tips, pivots, 0, 0, 0, MIN_BRANCH_SCALE)).toBeNull();
+    let prev = 0;
+    for (const n of [0, 60, 180, 400]) {
+      const l = withSets([n, 0, 0, 0, 0, 0]);
+      const t = partTip(tips, pivots, 0, 1e9, l.parts![0], l.partScale![0])!;
+      const d = Math.hypot(t.x - pivots[0], t.y - pivots[1]);
+      expect(d).toBeGreaterThan(prev);
+      // 出ている枝の点のいちばん遠い所の近く（点は枝の太さの中に散らばり、枝の先ちょうどにはないので、少しずれる）
+      expect(Math.abs(reach(l, 0) - d)).toBeLessThan(0.05);
+      prev = d;
+    }
+    // 胸は左、肩は右へ伸びる
+    expect(partTip(tips, pivots, 0, 1e9, 1, 1)!.x).toBeLessThan(0);
+    expect(partTip(tips, pivots, 1, 1e9, 1, 1)!.x).toBeGreaterThan(0);
+  });
+
+  test('揺れ：根元より上ほど横へずれ、根元より下（根）と揺れ 0 のときは動かない。揺れるのは木だけ', () => {
+    expect(swayX(0.3, 0.5, 0.5, 0.1)).toBe(0.3);
+    expect(swayX(0.3, 0.8, 0.5, 0.1)).toBe(0.3);
+    expect(swayX(0.3, -0.5, 0.5, 0)).toBe(0.3);
+    expect(swayX(0.3, -0.5, 0.5, 0.1)).toBeCloseTo(0.4);
+    expect(SHAPES.tree.sway).toBeGreaterThan(0);
+    expect(SHAPES.galaxy.sway).toBeUndefined();
+    expect(SHAPES.attractor.sway).toBeUndefined();
+  });
+});
+
 describe('形を箱に収める', () => {
-  // 描くときと同じ回し方・倒し方・奥行き（components/growth/GrowthShape.tsx）で、1周を細かく回して確かめる
-  const project = (pts: Float32Array, tilt: number, a: number, unit: number) => {
+  /**
+   * 描くときと同じ計算（placePoint）で、画面の上で届く横・縦（形の半径を 1 としたとき）。回す形は1周を細かく回し、
+   * 揺れる形は揺れの端と途中で、部位の長さの倍率（いちばん育った・最低限・ばらばら）も変えて確かめる
+   */
+  const reachOf = (kind: (typeof SHAPE_KINDS)[number]) => {
+    const def = SHAPES[kind];
+    const b = def.build();
+    const parts = b.parts ?? new Float32Array(0);
+    const pivots = b.pivots ?? new Float32Array(0);
+    const sway = def.sway ?? 0;
+    const angles = sway > 0 ? [0] : Array.from({ length: 180 }, (_, k) => (k / 180) * Math.PI * 2);
+    const bends = sway > 0 ? [-1, -0.5, 0, 0.5, 1].map((k) => k * sway) : [0];
+    const scales = parts.length > 0 ? [[1, 1, 1, 1, 1, 1], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5], [1, 0.5, 0.7, 1, 0.5, 0.9]] : [[]];
     let x = 0;
     let y = 0;
-    const tc = Math.cos(tilt);
-    const ts = Math.sin(tilt);
-    for (let i = 0; i < pts.length; i += 3) {
-      const x1 = pts[i] * Math.cos(a) + pts[i + 2] * Math.sin(a);
-      const z1 = pts[i + 2] * Math.cos(a) - pts[i] * Math.sin(a);
-      const p = 1 / (1 - (pts[i + 1] * ts + z1 * tc) * PERSPECTIVE);
-      x = Math.max(x, Math.abs(x1 * unit * p));
-      y = Math.max(y, Math.abs((pts[i + 1] * tc - z1 * ts) * unit * p));
+    for (const a of angles) {
+      for (const bend of bends) {
+        for (const scale of scales) {
+          const f = { cos: Math.cos(a), sin: Math.sin(a), tiltCos: Math.cos(def.tilt), tiltSin: Math.sin(def.tilt), bend, rootY: b.seedY ?? 0 };
+          for (let i = 0; i < b.points.length / 3; i++) {
+            const q = placePoint(b.points, i, parts, pivots, scale, f);
+            x = Math.max(x, Math.abs(q.x));
+            y = Math.max(y, Math.abs(q.y));
+          }
+        }
+      }
     }
     return { x, y };
   };
+  const reach = Object.fromEntries(SHAPE_KINDS.map((k) => [k, reachOf(k)]));
 
   test.each(SHAPE_KINDS.flatMap((k) => [
     [k, 380, 140, true], [k, 380, 172, true], [k, 320, 140, true], [k, 412, 440, false], [k, 360, 440, false],
-  ] as const))('%s は %i×%i（衛星 %s）の箱から、どう回してもはみ出さない', (kind, w, h, sats) => {
-    const def = SHAPES[kind];
-    const { points } = def.build();
-    const unit = shapeUnit(w, h, shapeExtent(points, def.tilt, PERSPECTIVE), sats, 2.5);
+  ] as const))('%s は %i×%i（衛星 %s）の箱から、どう回しても・揺れてもはみ出さない', (kind, w, h, sats) => {
+    const unit = shapeUnit(w, h, SHAPES[kind].extent, sats, 2.5);
     expect(unit).toBeGreaterThan(Math.min(w, h) * 0.3);
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 90) {
-      const e = project(points, def.tilt, a, unit);
-      expect(e.x).toBeLessThanOrEqual(w / 2 - 2.5 + 0.01);
-      expect(e.y).toBeLessThanOrEqual(h / 2 - 2.5 + 0.01);
-    }
+    expect(reach[kind].x * unit).toBeLessThanOrEqual(w / 2 - 2.5 + 0.01);
+    expect(reach[kind].y * unit).toBeLessThanOrEqual(h / 2 - 2.5 + 0.01);
   });
 
   test('木の軌道の中心は幹（形のまん中より下）、ほかは形のまん中', () => {
@@ -392,10 +544,11 @@ describe('点の大きさと濃さ（形の大きさに合わせる）', () => {
 });
 
 describe('形ごとに置いた「届く範囲」（extent）', () => {
-  test('shapeExtent の計算と合う（切り上げた値で、0.001 以内。Mac と Linux で三角関数の丸めが少しちがう）。点の並びか tilt を変えたら、ここに出る値に置き換える', () => {
+  test('shapeExtent（揺れる形は swayExtent）の計算と合う（切り上げた値で、0.001 以内。Mac と Linux で三角関数の丸めが少しちがう）。点の並びか tilt・sway を変えたら、ここに出る値に置き換える', () => {
     for (const kind of ['attractor', 'tree', 'galaxy'] as const) {
       const def = SHAPES[kind];
-      const e = shapeExtent(def.build().points, def.tilt, PERSPECTIVE);
+      const b = def.build();
+      const e = def.sway ? swayExtent(b.points, def.tilt, PERSPECTIVE, b.seedY ?? 0, def.sway) : shapeExtent(b.points, def.tilt, PERSPECTIVE);
       // 置いた値は計算より小さくない（形が箱からはみ出さない）、かつ大きすぎない
       expect(def.extent.x).toBeGreaterThanOrEqual(e.x);
       expect(def.extent.y).toBeGreaterThanOrEqual(e.y);

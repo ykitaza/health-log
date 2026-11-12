@@ -38,9 +38,10 @@ test('全期間の記録を日ごとにまとめる：負荷量・筋トレの�
 
   const g = await loadGrowthData(r, '2026-11-10');
   expect(g.days).toEqual([
-    { date: '2026-11-01', trained: true, volumeKg: 1100, mealRecorded: false, mealGoalReached: false, sleepMin: null },
+    // partSets：部位ごとのセット数（ベンチプレスは胸。BALANCE_PARTS の順）
+    { date: '2026-11-01', trained: true, volumeKg: 1100, mealRecorded: false, mealGoalReached: false, sleepMin: null, partSets: [2, 0, 0, 0, 0, 0] },
     { date: '2026-11-08', trained: false, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: 420 },
-    { date: '2026-11-09', trained: true, volumeKg: 300, mealRecorded: true, mealGoalReached: true, sleepMin: 400 },
+    { date: '2026-11-09', trained: true, volumeKg: 300, mealRecorded: true, mealGoalReached: true, sleepMin: 400, partSets: [1, 0, 0, 0, 0, 0] },
     { date: '2026-11-10', trained: false, volumeKg: 0, mealRecorded: true, mealGoalReached: false, sleepMin: null },
   ]);
   expect(g.sets).toHaveLength(3);
@@ -53,7 +54,7 @@ test('全期間の記録を日ごとにまとめる：負荷量・筋トレの�
   // 形の入力にそのまま使える：最初の記録の日（11/1）から今日まで 10日
   const series = growthSeries(g.days, g.today);
   expect(series).toHaveLength(10);
-  expect(series[9]).toEqual({ volumeKg: 1400, foodDays: 1, sleepDays: 1, days: 10 });
+  expect(series[9]).toEqual({ volumeKg: 1400, foodDays: 1, sleepDays: 1, days: 10, partSets: [3, 0, 0, 0, 0, 0] });
 });
 
 test('今日より後の記録は入れない。記録が何もなければ空', async () => {

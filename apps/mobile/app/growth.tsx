@@ -27,6 +27,7 @@ import {
   canPlay, dateAt, DAY_UPDATE_MS, dayIndexAt, EMPTY_PARAMS, formatFullDate, highlightsInRange, lastPosition, lerpParams,
   remainingMs, scrubberLabels, seekIndexAtX, showsTimelapseHint, subtitleOn, subtitlePassed, REPLAY_TEXT, TIMELAPSE_HINT_KEY, TIMELAPSE_HINT_TEXT,
 } from '@/lib/growthPlayer';
+import { BALANCE_PARTS } from '@/lib/partBalance';
 import { growthShapeLabel } from '@/lib/shapes/labels';
 import { colors, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
@@ -406,6 +407,8 @@ export default function GrowthScreen() {
               key={shape} shape={shape} params={params} width={width} height={shapeHeight} paused={!visible || covered}
               spin={playing ? PLAYING_SPIN : 1} blur={blurOn ? blur : undefined}
               accessibilityLabel={growthShapeLabel(shape, dayNumber)}
+              // 木の太い枝の先に部位の名前（この画面でだけ。ホームでは出さない）
+              partNames={BALANCE_PARTS}
             />
           )}
           {/* 左上の数式（いま打った点の番号と値）。形の上の光る点と同じ点を指す */}

@@ -231,7 +231,7 @@ describe('形の段：形の値・今日の衛星・成長スコア', () => {
   });
   test('記録がまだないときは、形の値は全部 0（種だけ）、衛星はなし、スコアは出せない', () => {
     expect(homeGrowth([], '2026-11-08', null)).toEqual({
-      params: { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 },
+      params: { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [0, 0, 0, 0, 0, 0] },
       sats: { training: 'none', food: 'none', sleep: 'none' },
       score: null,
     });
@@ -243,7 +243,7 @@ describe('形の段：形の値・今日の衛星・成長スコア', () => {
       gday('2026-11-01', { trained: true, volumeKg: 1000 }),
       gday('2026-11-08', { trained: true, volumeKg: 500, mealRecorded: true, mealGoalReached: false, sleepMin: 480 }),
     ], '2026-11-08', 3);
-    expect(g.params).toEqual({ volumeKg: 1500, foodDays: 0, sleepDays: 1, days: 8 });
+    expect(g.params).toEqual({ volumeKg: 1500, foodDays: 0, sleepDays: 1, days: 8, partSets: [0, 0, 0, 0, 0, 0] });
     expect(g.sats).toEqual({ training: 'bright', food: 'dim', sleep: 'bright' });
     expect(g.score?.total).toEqual(expect.any(Number));
   });
