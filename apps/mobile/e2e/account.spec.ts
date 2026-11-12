@@ -59,6 +59,8 @@ test('表示名を変えると、アカウントの画面と設定の行に出�
   await expect(accountRow(page)).toContainText('たろう');
 
   await accountRow(page).click();
+  // 置いた表示名が欄に出てから消す
+  await expect(page.getByRole('textbox', { name: '表示名' })).toHaveValue('たろう');
   await enter(page, '表示名', '');
   await expect(page.getByTestId('account-name').filter({ visible: true })).toHaveText('アカウント');
   await button(page, '戻る').click();

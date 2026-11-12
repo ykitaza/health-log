@@ -205,10 +205,13 @@ export default function AccountScreen() {
 
       <SectionTitle title="プロフィール" />
       <Card style={{ gap: space.l }}>
-        <Field
-          label="表示名" value={name ?? profile.displayName ?? ''} shake={0} onChange={setName} onDone={saveName}
-          keyboardType="default" maxLength={DISPLAY_NAME_MAX}
-        />
+        {/* 置いた表示名を読み終えてから出す（読み終える前に打つと、あとから届いた値で上書きされる） */}
+        {profile.loaded && (
+          <Field
+            label="表示名" value={name ?? profile.displayName ?? ''} shake={0} onChange={setName} onDone={saveName}
+            keyboardType="default" maxLength={DISPLAY_NAME_MAX}
+          />
+        )}
         <T variant="bodyS" color={colors.sub}>{PROFILE_NOTE}</T>
       </Card>
 
