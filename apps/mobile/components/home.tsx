@@ -93,7 +93,7 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
           accessibilityRole="button" accessibilityLabel={scoreA11yLabel(score)} scaleTo={0.96} onPress={() => setOpen(true)} style={s.score} testID="growth-score"
         >
           {/* 数え上げる（点が出せないときは「—」） */}
-          <CountToText countKey="home-growth-score" value={score ? score.total : null} format={(v) => (v == null ? '—' : String(Math.round(v)))} num bold size={28} />
+          <CountToText value={score ? score.total : null} format={(v) => (v == null ? '—' : String(Math.round(v)))} num bold size={28} />
           <View>
             <T variant="labelS" bold={false} color={colors.sub}>成長スコア</T>
             {diff && <T variant="labelS" color={diffColor(diff.dir)}>{diff.text}</T>}

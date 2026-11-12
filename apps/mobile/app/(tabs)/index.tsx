@@ -116,13 +116,13 @@ export default function HomeScreen() {
               <T num bold size={15} style={{ lineHeight: 14 }}>{'MONTHLY\nARCHIVE'}</T>
               <View style={{ width: 2, height: 30, backgroundColor: colors.text }} />
               {/* 数字は数え上げる（読み込む前は 0 のまま動かさない） */}
-              <CountToText countKey="home-archive-month" value={data ? daysInMonth(dates, year, month) : null} format={(v) => String(Math.round(v ?? 0))} num bold size={36} />
+              <CountToText value={data ? daysInMonth(dates, year, month) : null} format={(v) => String(Math.round(v ?? 0))} num bold size={36} />
               <T num size={15}>days</T>
             </View>
             <View style={{ alignItems: 'center' }}>
               <T num bold size={12}>TOTAL</T>
               <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 6 }}>
-                <CountToText countKey="home-archive-total" value={data ? dates.length : null} format={(v) => `${Math.round(v ?? 0)} days`} num bold size={18} color={colors.onAccent} />
+                <CountToText value={data ? dates.length : null} format={(v) => `${Math.round(v ?? 0)} days`} num bold size={18} color={colors.onAccent} />
               </View>
             </View>
           </View>
@@ -261,9 +261,9 @@ function Big3Card({ rows, assignments, today, unit }: {
   const change = big3?.diffKg != null ? signedChange(kgToUnit(big3.diffKg, unit)) : null;
   const changeColor = change?.dir === 'down' ? colors.danger : colors.accent;
   const points = big3 ? datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today) : null;
-  // 折れ線は、初めて見せるときと形が変わったときだけ左から描く（タブの行き来や同じ値の読み直しでは描き直さない）
+  // 折れ線は、ホームが見えるたびと、形が変わったときに左から描く（見えているあいだの同じ値の読み直しでは描き直さない）
   const lineSig = points ? points.map((p) => `${p.x.toFixed(4)}:${p.y}`).join(',') : null;
-  const line = useEntrance('home-big3-line', points, lineSig);
+  const line = useEntrance(points, lineSig);
   const label = assignments == null ? 'BIG3 推定1RM 合計'
     : total == null || !big3 ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
     : `BIG3 推定1RM 合計 ${total}${unit}。${big3.note ? `${big3.note}。` : ''}${change ? `${big3.diffText} ${change.text}${unit}` : big3.noDiffText}`;
@@ -276,7 +276,7 @@ function Big3Card({ rows, assignments, today, unit }: {
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {total != null ? (
           <>
-            <CountToText countKey="home-big3" value={big3 ? kgToUnit(big3.totalKg, unit) : null} format={(v) => fmt1(v ?? 0)} num bold size={20} />
+            <CountToText value={big3 ? kgToUnit(big3.totalKg, unit) : null} format={(v) => fmt1(v ?? 0)} num bold size={20} />
             <T variant="labelS" color={colors.sub}>{unit}</T>
           </>
         ) : <T num bold size={20}>—</T>}
@@ -284,7 +284,7 @@ function Big3Card({ rows, assignments, today, unit }: {
       {big3?.note != null && <T variant="labelS" bold={false} color={colors.sub}>{big3.note}</T>}
       {big3 ? (
         <>
-          {points && <Sparkline points={points} height={34} animKey={lineSig ?? undefined} still={!line.fresh} />}
+          {points && <Sparkline points={points} height={34} animKey={String(line.token)} />}
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, flexWrap: 'wrap' }} testID="home-big3-change">
             {change ? (
               <>
@@ -310,12 +310,12 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready }: {
       <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {/* 数え上げる。読み込みが終わる前（ready でない）は 0 のまま動かさない */}
-        <CountToText countKey={`${testID}-t`} value={ready ? kg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={20} />
+        <CountToText value={ready ? kg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={20} />
         <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
-        <CountToText countKey={`${testID}-ratio`} value={ready ? kg : null} format={(v) => `× ${vehicleRatio(v ?? 0, vehicle).toFixed(1)}`} num bold size={13} color={colors.accent} />
+        <CountToText value={ready ? kg : null} format={(v) => `× ${vehicleRatio(v ?? 0, vehicle).toFixed(1)}`} num bold size={13} color={colors.accent} />
       </View>
     </View>
   );
