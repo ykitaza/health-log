@@ -5,7 +5,7 @@ import {
 } from '@shopify/react-native-skia';
 import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
-import { PERSPECTIVE, shapeExtent, shapeUnit } from '@/lib/shapes/common';
+import { dotStyle, PERSPECTIVE, shapeExtent, shapeUnit } from '@/lib/shapes/common';
 import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
 import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
 import { growthColors } from '@/theme';
@@ -108,7 +108,9 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
 
   const tiltCos = Math.cos(tilt);
   const tiltSin = Math.sin(tilt);
-  const dotScale = DOT_DP / SPRITE;
+  // 点の大きさと濃さは、形の大きさに合わせる（小さい形で点が重なり、線が太くにじんで見えないように）
+  const dot = dotStyle(baseUnit);
+  const dotScale = (DOT_DP * dot.size) / SPRITE;
   const half = SPRITE / 2;
   // 点ごとの位置と大きさ。並びの先頭から count 個だけ出し、残りは大きさ 0 にする
   const transforms = useRSXformBuffer(maxPoints, (val, i) => {
@@ -141,8 +143,8 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const sprites = useMemo(() => Array.from({ length: maxPoints }, () => rect(0, 0, SPRITE, SPRITE)), [maxPoints]);
   const palette = def.palette;
   const colors = useMemo(
-    () => Array.from(tints, (t) => Skia.Color(mixPalette(palette, t, POINT_ALPHA))),
-    [tints, palette],
+    () => Array.from(tints, (t) => Skia.Color(mixPalette(palette, t, POINT_ALPHA * dot.alpha))),
+    [tints, palette, dot.alpha],
   );
   // 白い光る点の絵（中心が明るく、まわりへ薄れる）。色は点ごとに掛け合わせる
   const texture = useTexture(
