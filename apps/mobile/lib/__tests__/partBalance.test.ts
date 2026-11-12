@@ -22,7 +22,7 @@ describe('部位のバランス（直近2週のセット数）', () => {
     expect(balanceAxisOf('')).toBeNull();
   });
 
-  test('1行が1セット。最大の軸を 1 にそろえる', () => {
+  test('1行が1セット。頂点の長さはセット数の平方根で、最大の軸を 1 にそろえる', () => {
     const b = partBalance([
       ...rows('2026-11-12', 'chest', 18), ...rows('2026-11-10', 'back', 9), ...rows('2026-11-05', 'shoulder', 12),
       ...rows('2026-11-01', 'biceps', 6), ...rows('2026-11-01', 'triceps', 4), ...rows('2026-11-03', 'abs', 3),
@@ -31,8 +31,15 @@ describe('部位のバランス（直近2週のセット数）', () => {
     expect(b.sets).toEqual([18, 12, 9, 10, 14, 3]);
     expect(b.total).toBe(66);
     expect(b.ratios[0]).toBe(1);
-    expect(b.ratios[2]).toBeCloseTo(0.5);
-    expect(b.ratios[5]).toBeCloseTo(3 / 18);
+    expect(b.ratios[2]).toBeCloseTo(Math.sqrt(0.5));
+    expect(b.ratios[5]).toBeCloseTo(Math.sqrt(3 / 18));
+  });
+
+  test('平方根：18 と 2 なら 1 と 1/3、0 は 0 のまま', () => {
+    const b = partBalance([...rows('2026-11-12', 'chest', 18), ...rows('2026-11-12', 'shoulder', 2)], nameOf, '2026-11-12');
+    expect(b.ratios[0]).toBe(1);
+    expect(b.ratios[1]).toBeCloseTo(1 / 3);
+    expect(b.ratios[2]).toBe(0);
   });
 
   test('今日を含む14日だけ（15日前と、今日より後は数えない）', () => {

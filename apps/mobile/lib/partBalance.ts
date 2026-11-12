@@ -29,7 +29,7 @@ export function balanceAxisOf(partName: string): BalancePart | null {
 export type PartBalance = {
   /** 軸ごとのセット数（BALANCE_PARTS の順） */
   sets: number[];
-  /** 軸ごとの、最大の軸を 1 とした割合（記録がなければすべて 0） */
+  /** 軸ごとの頂点の長さ。セット数の平方根を、最大の軸の平方根で割ったもの（最大が 1、0 セットは 0。少ないセットも見えるように平方根にする。記録がなければすべて 0） */
   ratios: number[];
   /** 数えたセットの合計（0 なら記録なし） */
   total: number;
@@ -48,7 +48,7 @@ export function partBalance(rows: TrainingSetRow[], partName: (bodyPartId: strin
     if (axis) sets[BALANCE_PARTS.indexOf(axis)] += 1;
   }
   const max = Math.max(...sets);
-  return { sets, ratios: sets.map((n) => (max > 0 ? n / max : 0)), total: sets.reduce((a, n) => a + n, 0) };
+  return { sets, ratios: sets.map((n) => (max > 0 ? Math.sqrt(n) / Math.sqrt(max) : 0)), total: sets.reduce((a, n) => a + n, 0) };
 }
 
 /** 読み上げ：「部位のバランス、直近2週のセット数。胸 18、背中 9、…」。記録がなければそのことを */
