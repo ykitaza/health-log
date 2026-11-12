@@ -74,7 +74,7 @@ test('記録したあとの今週の負荷量のカード、カレンダーの�
   await expect(visible(page, 'archive')).toContainText('TOTAL2 days');
   // 部位のバランス：直近2週のセット数（脚 3、胸 3。懸垂は背中 1）。最大の軸を外周に、面と点が出る
   const balance = visible(page, 'home-part-balance');
-  await expect(balance).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、背中 1、肩 0、腕 0、腹 0、脚 3。筋トレの推移を開く');
+  await expect(balance).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 3、腹 0。筋トレの推移を開く');
   await expect(visible(page, 'home-part-balance-empty')).toHaveCount(0);
   await expect(balance.locator('svg circle')).toHaveCount(6);
 

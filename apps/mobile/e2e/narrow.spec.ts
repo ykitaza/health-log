@@ -16,7 +16,7 @@ test('360 の幅でも、ホームのカレンダーが負荷量のカードに�
   expect(Math.abs(sat.width - sat.height)).toBeLessThan(1);
   // 右の列の部位のバランスの軸の名前が、カードからはみ出さない。左右の列の下の端がそろう
   const balance = (await page.getByTestId('home-part-balance').boundingBox())!;
-  for (const name of ['脚', '肩']) {
+  for (const name of ['背中', '腹']) {
     const label = (await page.getByTestId('home-part-balance').locator('text', { hasText: name }).boundingBox())!;
     expect(label.x).toBeGreaterThanOrEqual(balance.x);
     expect(label.x + label.width).toBeLessThanOrEqual(balance.x + balance.width);

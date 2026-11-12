@@ -2,8 +2,11 @@
 import { addDays, DateKey } from './date';
 import type { TrainingSetRow } from './training';
 
-/** レーダーの6軸（Figma ホーム 1-23 の並び。左上の胸から時計回り） */
-export const BALANCE_PARTS = ['胸', '背中', '肩', '腕', '腹', '脚'] as const;
+/**
+ * レーダーの6軸（左上の胸から時計回り）。BIG3（胸・背中・脚）はよくやるので隣り合わせず1つ飛ばし（0・2・4番目）に置く。
+ * ほかの部位をやっていなくても、形が三角に広がる
+ */
+export const BALANCE_PARTS = ['胸', '肩', '背中', '腕', '脚', '腹'] as const;
 export type BalancePart = (typeof BALANCE_PARTS)[number];
 
 /** 数える日数（今日を含む直近14日） */

@@ -14,8 +14,9 @@ import { T } from './Text';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-/** 六角形のまわりの余白（左右は軸の名前の分、上下は名前の高さの半分ほど。Figma の 140×115 で外周の半径 56） */
-const PAD_X = 14;
+/** 六角形のまわりの余白（左右は軸の名前の分、上下は名前の高さの半分ほど）。右の端の軸は「背中」（2文字）、左の端は「腹」（1文字） */
+const PAD_L = 14;
+const PAD_R = 27;
 const PAD_Y = 9;
 /** 目盛りの段（外周を 1 として） */
 const RINGS = [1 / 3, 2 / 3, 1];
@@ -42,7 +43,7 @@ export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
         <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>2週</T>
       </View>
       <View style={{ flex: 1, minHeight: 96 }} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-        {size && size.w > PAD_X * 2 && (
+        {size && size.w > PAD_L + PAD_R && (
           <Radar width={size.w} height={size.h} to={ratios} from={fresh ? prev ?? ZEROS : ratios} animate={fresh} />
         )}
       </View>
@@ -57,8 +58,8 @@ export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
 
 function Radar({ width, height, from, to, animate }: { width: number; height: number; from: number[] | null; to: number[] | null; animate: boolean }) {
   const reduced = useReducedMotion();
-  const R = Math.max(0, Math.min((width - PAD_X * 2) / 2, (height - PAD_Y * 2) / Math.sqrt(3)));
-  const cx = width / 2, cy = height / 2;
+  const R = Math.max(0, Math.min((width - PAD_L - PAD_R) / 2, (height - PAD_Y * 2) / Math.sqrt(3)));
+  const cx = PAD_L + (width - PAD_L - PAD_R) / 2, cy = height / 2;
   const at = (i: number, r: number) => ({ x: cx + r * COS[i], y: cy + r * SIN[i] });
   const ring = (k: number) => `${BALANCE_PARTS.map((_, i) => { const p = at(i, R * k); return `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`; }).join('')}Z`;
   const axes = BALANCE_PARTS.map((_, i) => { const p = at(i, R); return `M${cx},${cy}L${p.x},${p.y}`; }).join('');

@@ -9,8 +9,8 @@ const row = (date: string, bodyPartId: string): TrainingSetRow => ({ date, exerc
 const rows = (date: string, part: string, n: number) => Array.from({ length: n }, () => row(date, part));
 
 describe('部位のバランス（直近2週のセット数）', () => {
-  test('軸は胸・背中・肩・腕・腹・脚の順', () => {
-    expect([...BALANCE_PARTS]).toEqual(['胸', '背中', '肩', '腕', '腹', '脚']);
+  test('軸は胸・肩・背中・腕・脚・腹の順（BIG3 は1つ飛ばし）', () => {
+    expect([...BALANCE_PARTS]).toEqual(['胸', '肩', '背中', '腕', '脚', '腹']);
   });
 
   test('上腕二頭筋・上腕三頭筋は腕、腹筋は腹。知らない部位は数えない', () => {
@@ -28,11 +28,11 @@ describe('部位のバランス（直近2週のセット数）', () => {
       ...rows('2026-11-01', 'biceps', 6), ...rows('2026-11-01', 'triceps', 4), ...rows('2026-11-03', 'abs', 3),
       ...rows('2026-11-08', 'legs', 14), ...rows('2026-11-08', 'calf', 5),
     ], nameOf, '2026-11-12');
-    expect(b.sets).toEqual([18, 9, 12, 10, 3, 14]);
+    expect(b.sets).toEqual([18, 12, 9, 10, 14, 3]);
     expect(b.total).toBe(66);
     expect(b.ratios[0]).toBe(1);
-    expect(b.ratios[1]).toBeCloseTo(0.5);
-    expect(b.ratios[4]).toBeCloseTo(3 / 18);
+    expect(b.ratios[2]).toBeCloseTo(0.5);
+    expect(b.ratios[5]).toBeCloseTo(3 / 18);
   });
 
   test('今日を含む14日だけ（15日前と、今日より後は数えない）', () => {
@@ -42,7 +42,7 @@ describe('部位のバランス（直近2週のセット数）', () => {
       row('2026-11-12', 'back'),
       row('2026-11-13', 'back'), // 明日：数えない
     ], nameOf, '2026-11-12');
-    expect(b.sets).toEqual([1, 1, 0, 0, 0, 0]);
+    expect(b.sets).toEqual([1, 0, 1, 0, 0, 0]);
   });
 
   test('記録がなければ、割合はすべて 0', () => {
@@ -53,12 +53,12 @@ describe('部位のバランス（直近2週のセット数）', () => {
 
   test('読み上げ', () => {
     const b = partBalance([...rows('2026-11-12', 'chest', 18), ...rows('2026-11-12', 'back', 9)], nameOf, '2026-11-12');
-    expect(partBalanceLabel(b)).toBe('部位のバランス、直近2週のセット数。胸 18、背中 9、肩 0、腕 0、腹 0、脚 0');
+    expect(partBalanceLabel(b)).toBe('部位のバランス、直近2週のセット数。胸 18、肩 0、背中 9、腕 0、脚 0、腹 0');
     expect(partBalanceLabel(partBalance([], nameOf, '2026-11-12'))).toBe('部位のバランス、直近2週のセット数。まだ記録がありません');
     expect(partBalanceLabel(null)).toBe('部位のバランス');
   });
 
-  test('軸の向き：胸が左上、肩が右、脚が左', () => {
+  test('軸の向き：胸が左上、背中が右、脚が左下、腹が左', () => {
     const at = (i: number) => ({ x: Math.round(Math.cos(axisAngle(i)) * 100) / 100, y: Math.round(Math.sin(axisAngle(i)) * 100) / 100 });
     expect(at(0)).toEqual({ x: -0.5, y: -0.87 });
     expect(at(2)).toEqual({ x: 1, y: 0 });
