@@ -148,7 +148,7 @@ test('目標の自動で計算：足りない項目を入れる → 値が入る
   await goTab(page, '食事');
   await button(page, '食事の目標を見る・決める').click();
 
-  // 性別・生まれた年・活動の量がないので、先に入れてもらう（身長は設定にある）
+  // 性別・生まれた年・活動の量がないので、先に入れてもらう（身長はアカウントの画面で入れてある）
   await button(page, '自動で計算').click();
   await expect(see(page, '計算に使う項目を入れてください')).toBeVisible();
   await expect(field(page, '身長')).toHaveCount(0);

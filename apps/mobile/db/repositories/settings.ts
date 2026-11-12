@@ -54,6 +54,13 @@ const AUTO_GOAL_WEIGHT = 'goal.auto_weight_kg';
 /** アカウントを切り替えて端末の記録を消すときに、いっしょに消す（db/repositories/sync.ts の switchAccount） */
 export const SQL_DELETE_PROFILE = `DELETE FROM sync_meta WHERE key IN ('${PROFILE_KEYS.sex}', '${PROFILE_KEYS.birthYear}', '${AUTO_GOAL_WEIGHT}')`;
 
+/**
+ * アカウントの画面の表示名と写真（アプリの中の保存場所にコピーしたファイルの URI）。性別・生まれた年と同じく、同期しない sync_meta に置き、
+ * サーバーには送らない。端末の持ち主のものなので、ログアウトしても、アカウントを切り替えて端末の記録を消しても消さない
+ */
+export type AccountProfile = { displayName: string | null; photoUri: string | null };
+const ACCOUNT_KEYS = { displayName: 'account.display_name', photoUri: 'account.photo_uri' } as const;
+
 /** 最後に選んだチャットのアプリ。端末だけに覚える（同期しない sync_meta に置く） */
 const LAST_CHAT_APP = 'chat.last_app';
 
@@ -142,6 +149,17 @@ export function settingsRepository(db: Db, deps: Deps) {
     async setProfile(patch: Partial<Profile>): Promise<void> {
       if (patch.sex !== undefined) await putMeta(PROFILE_KEYS.sex, patch.sex);
       if (patch.birthYear !== undefined) await putMeta(PROFILE_KEYS.birthYear, patch.birthYear == null ? null : String(patch.birthYear));
+    },
+
+    /** 表示名と写真（端末だけ。同期しない） */
+    async accountProfile(): Promise<AccountProfile> {
+      return { displayName: await meta(ACCOUNT_KEYS.displayName), photoUri: await meta(ACCOUNT_KEYS.photoUri) };
+    },
+
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない。null で消す */
+    async setAccountProfile(patch: Partial<AccountProfile>): Promise<void> {
+      if (patch.displayName !== undefined) await putMeta(ACCOUNT_KEYS.displayName, patch.displayName);
+      if (patch.photoUri !== undefined) await putMeta(ACCOUNT_KEYS.photoUri, patch.photoUri);
     },
 
     /** 履歴の総負荷量のグラフの「週・日」。覚えていない・知らない値なら週 */

@@ -165,6 +165,17 @@ describe('設定', () => {
     expect((await r.settings.profile()).sex).toBeNull();
     expect((await r.settings.get()).activity).toBeNull();
   });
+
+  test('表示名と写真は端末だけに覚え、同期に載せない。null で消す', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.accountProfile()).toEqual({ displayName: null, photoUri: null });
+    await r.settings.setAccountProfile({ displayName: 'たろう', photoUri: 'file:///data/profile/photo-1.jpg' });
+    expect(await r.settings.accountProfile()).toEqual({ displayName: 'たろう', photoUri: 'file:///data/profile/photo-1.jpg' });
+    await r.settings.setAccountProfile({ photoUri: null });
+    expect(await r.settings.accountProfile()).toEqual({ displayName: 'たろう', photoUri: null });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM sync_outbox').get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+  });
 });
 
 describe('種目と部位', () => {

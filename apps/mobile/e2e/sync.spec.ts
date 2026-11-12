@@ -43,7 +43,7 @@ async function signIn(page: Page, context: BrowserContext, accessToken = ACCESS)
 
 async function openAccount(page: Page) {
   await openSettings(page);
-  await page.getByRole('button', { name: /^ログイン ログイン/ }).click();
+  await page.getByTestId('settings-account').click();
   await expect(see(page, 'アカウント', { exact: true }).first()).toBeVisible();
 }
 
@@ -97,7 +97,7 @@ test('ログインすると同期し、MCP で記録した筋トレと体組成�
   expect(seen.every((r) => r.authorization === `Bearer ${ACCESS}` && !r.url.includes(ACCESS))).toBe(true);
   await openSettings(page);
   await expect(see(page, '記録はこの端末に保存し、サーバーと同期します。', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: /^ログイン ログイン/ }).click();
+  await page.getByTestId('settings-account').click();
   await expect(status(page, 'sync-pending')).toHaveText('0件');
 });
 
@@ -142,7 +142,7 @@ test('サーバーに断られた変更の件数と説明を出す（飛ばし�
   await openApp(page);
   await openSettings(page);
   await button(page, 'lb').click();
-  await page.getByRole('button', { name: /^ログイン ログイン/ }).click();
+  await page.getByTestId('settings-account').click();
   await button(page, 'パスキーでログイン').click();
   await expect(see(page, 'ログインしています', { exact: true })).toBeVisible();
   await expect(status(page, 'sync-rejected')).toHaveText('1件');

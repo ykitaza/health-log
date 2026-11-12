@@ -322,9 +322,10 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
 }
 
 /** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印。badge は題の横の印 */
-export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, testID, label, badge }: {
+export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, left, testID, label, badge }: {
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
-  /** 左のアイコン */ icon?: IconName; testID?: string; /** 読み上げの名前（ないときは中の文字） */ label?: string; badge?: ReactNode;
+  /** 左のアイコン */ icon?: IconName; /** 左に置くもの（アイコンの代わりの写真など） */ left?: ReactNode;
+  testID?: string; /** 読み上げの名前（ないときは中の文字） */ label?: string; badge?: ReactNode;
 }) {
   return (
     <PressableScale
@@ -337,6 +338,7 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
       style={[s.row, { minHeight: subtitle ? 72 : 56 }, !first && s.rowLine]}
     >
       {icon && <Icon name={icon} color={colors.sub} size={24} />}
+      {left}
       <View style={{ flex: 1, opacity: dim ? DISABLED_OPACITY : 1 }}>
         {badge ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>

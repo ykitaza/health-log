@@ -69,8 +69,8 @@ test('身長がないとき BMI は「—」。不正な値は保存せずエラ
   await openApp(page);
   await openBody(page);
   await enterBody(page, { weight: '70', bodyFat: '20' });
-  await expect(button(page, 'BMI なし（設定で身長を入れると出ます）。BMIの推移を見る')).toBeVisible();
-  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
+  await expect(button(page, 'BMI なし（アカウントの画面で身長を入れると出ます）。BMIの推移を見る')).toBeVisible();
+  await expect(see(page, 'BMI は、アカウントの画面で身長を入れると出ます')).toBeVisible();
 
   await openBodySheet(page);
   await field(page, '体重').fill('abc');
@@ -102,9 +102,9 @@ test('身長がないとき BMI は「—」。不正な値は保存せずエラ
   await expect(summary(page)).toHaveCount(0);
 
   // 推移の画面でも、BMI は身長がないと出ない
-  await button(page, 'BMI なし（設定で身長を入れると出ます）。BMIの推移を見る').click();
+  await button(page, 'BMI なし（アカウントの画面で身長を入れると出ます）。BMIの推移を見る').click();
   await expect(see(page, 'BMI の推移', { exact: true })).toBeVisible();
-  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
+  await expect(see(page, 'BMI は、アカウントの画面で身長を入れると出ます')).toBeVisible();
   await expect(see(page, 'この期間の記録がありません')).toBeVisible();
 });
 

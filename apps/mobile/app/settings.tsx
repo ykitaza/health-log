@@ -1,44 +1,30 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Updates from 'expo-updates';
-import { useEffect, useRef, useState } from 'react';
-import { LayoutChangeEvent, Platform, Pressable, ScrollViewInstance, Share, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { LayoutChangeEvent, Platform, Pressable, ScrollViewInstance, Share, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
-import { ActivityChoice, SexChoice } from '@/components/GoalProfile';
-import { Input } from '@/components/Input';
-import { Shake } from '@/components/motion';
+import { Avatar } from '@/components/Avatar';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useFocusData } from '@/hooks/data';
+import { useProfile } from '@/hooks/profile';
 import { versionLines } from '@/lib/appVersion';
-import { parseBirthYear } from '@/lib/autoGoal';
 import { workoutCsv } from '@/lib/csv';
 import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS } from '@/lib/goals';
 import { WEEKLY_GOALS_SECTION } from '@/lib/home';
-import { LIMITS, parseInRange } from '@/lib/limits';
-import { kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
-import { colors, fonts, radius, space } from '@/theme';
+import { accountTitle } from '@/lib/profile';
+import { WeightUnit } from '@/lib/units';
+import { colors, space } from '@/theme';
 
 export default function SettingsScreen() {
   const { data: settings, error, reload, repos } = useFocusData((r) => r.settings.get());
-  // 性別と生まれた年は端末だけ（同期しない）
-  const { data: profile, reload: reloadProfile } = useFocusData((r) => r.settings.profile());
-  const [birthYear, setBirthYear] = useState<string | null>(null);
   const { status: authStatus } = useAuth();
-  const [height, setHeight] = useState('');
-  const [goal, setGoal] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  // 間違いのある欄と、間違えた回数（そのたびに欄を揺らす）
-  const [bad, setBad] = useState<{ field: 'height' | 'goal' | 'birthYear'; count: number } | null>(null);
-  const fail = (field: 'height' | 'goal' | 'birthYear', error: string) => { setMessage(error); setBad((b) => ({ field, count: (b?.count ?? 0) + 1 })); };
-  const ok = () => { setMessage(null); setBad(null); };
+  const profile = useProfile();
   const [exportError, setExportError] = useState<string | null>(null);
-  // 打ったが、まだ保存していない欄。Android では、入力中に単位を押しても欄を離れない（onBlur が起きない）ため、
-  // 単位を変える前に、これを今の単位で保存する
-  const editing = useRef(new Set<'height' | 'goal'>());
   // ホームの今週の目標のカードから開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
   const { section } = useLocalSearchParams<{ section?: string }>();
   const scrollRef = useRef<ScrollViewInstance>(null);
@@ -52,50 +38,8 @@ export default function SettingsScreen() {
   };
 
   const unit = settings?.weightUnit ?? 'kg';
-  // 入力欄は、読み込んだときと単位を変えたときだけ保存済みの値で埋める（入力中の値を消さない）
-  const shownUnit = useRef<WeightUnit | null>(null);
-  useEffect(() => {
-    if (!settings || shownUnit.current === settings.weightUnit) return;
-    shownUnit.current = settings.weightUnit;
-    setHeight(settings.heightCm == null ? '' : trimNumber(settings.heightCm));
-    setGoal(settings.goalWeightKg == null ? '' : trimNumber(kgToUnit(settings.goalWeightKg, settings.weightUnit)));
-  }, [settings]);
-
   const save = async (patch: Parameters<typeof repos.settings.update>[0]) => { await repos.settings.update(patch); reload(); };
-
-  const saveHeight = () => {
-    editing.current.delete('height');
-    const parsed = parseInRange(height, LIMITS.height);
-    if ('error' in parsed) { fail('height', parsed.error); return; }
-    ok();
-    save({ heightCm: parsed.value });
-  };
-  const saveGoal = () => {
-    editing.current.delete('goal');
-    // 出した値のままなら保存しない（lb で出した目標体重を kg に戻すと、丸めで値が変わるため）
-    const saved = settings?.goalWeightKg;
-    if (goal.trim() === (saved == null ? '' : trimNumber(kgToUnit(saved, unit)))) { ok(); return; }
-    const parsed = parseInRange(goal, LIMITS.goalWeight, unit);
-    if ('error' in parsed) { fail('goal', parsed.error); return; }
-    ok();
-    save({ goalWeightKg: parsed.value });
-  };
-
-  const saveBirthYear = async () => {
-    if (birthYear == null) return;
-    const parsed = parseBirthYear(birthYear, new Date().getFullYear());
-    if ('error' in parsed) { fail('birthYear', parsed.error); return; }
-    ok();
-    await repos.settings.setProfile({ birthYear: parsed.value });
-    reloadProfile();
-  };
-  const shownBirthYear = birthYear ?? (profile?.birthYear == null ? '' : String(profile.birthYear));
-
-  const changeUnit = (u: WeightUnit) => {
-    if (editing.current.has('height')) saveHeight();
-    if (editing.current.has('goal')) saveGoal();
-    save({ weightUnit: u });
-  };
+  const changeUnit = (u: WeightUnit) => { save({ weightUnit: u }); };
 
   const exportCsv = async () => {
     setExportError(null);
@@ -117,18 +61,21 @@ export default function SettingsScreen() {
 
       <SectionTitle title="アカウント" />
       <Card style={{ padding: 0 }}>
+        {/* 表示名と写真（なければアプリのアイコン）。押すとアカウントの画面（体の情報・ログインと同期もそこ） */}
         <ListRow
           first
-          title="ログイン"
+          left={<Avatar uri={profile.photoUri} size={40} />}
+          title={accountTitle(profile.displayName)}
           subtitle={authStatus === 'signedIn' ? 'ログインしています' : 'ログインしていません（任意）'}
           right={authStatus === 'signedIn' ? <Badge label="ログイン中" /> : undefined}
           onPress={() => router.push('/account')}
+          testID="settings-account"
         />
         <ListRow title="Health Connect" subtitle="体重・体脂肪率・睡眠・心拍・歩数の取り込み（Android）" onPress={() => router.push('/health-connect')} />
         <ListRow title="チャットとの連携" subtitle="Claude・ChatGPT のつなぎ方と、開くボタン" onPress={() => router.push('/chat')} />
       </Card>
 
-      {/* 記録の初期値（重さの単位・セット数・休憩のタイマー）と今週の目標。種目の管理は「筋トレ」の節（体の情報の下） */}
+      {/* 記録の初期値（重さの単位・セット数・休憩のタイマー）と今週の目標。種目の管理は「筋トレ」の節。体の情報はアカウントの画面 */}
       <SectionTitle title="記録の初期値" />
       <Card style={{ gap: space.l }}>
         <View style={{ gap: space.s }}>
@@ -171,18 +118,6 @@ export default function SettingsScreen() {
           />
         </Card>
       </View>
-
-      <SectionTitle title="体の情報" />
-      <Card style={{ gap: space.l }}>
-        <Field label="身長" unit="cm" shake={bad?.field === 'height' ? bad.count : 0} value={height} onChange={(t) => { editing.current.add('height'); setHeight(t); }} onDone={saveHeight} />
-        <Field label="目標体重" unit={unit} shake={bad?.field === 'goal' ? bad.count : 0} value={goal} onChange={(t) => { editing.current.add('goal'); setGoal(t); }} onDone={saveGoal} />
-        <SexChoice value={profile?.sex ?? null} onChange={async (sex) => { await repos.settings.setProfile({ sex }); reloadProfile(); }} />
-        <Field label="生まれた年" unit="年" shake={bad?.field === 'birthYear' ? bad.count : 0} value={shownBirthYear} onChange={setBirthYear} onDone={saveBirthYear} />
-        <ActivityChoice value={settings?.activity ?? null} onChange={(activity) => save({ activity })} />
-        {message && <T variant="bodyS" color={colors.danger}>{message}</T>}
-        <T variant="bodyS" color={colors.sub}>身長はからだの自動計算（BMI など）に、目標体重はからだの「目標体重まで」に使います。身長・目標体重・性別・生まれた年・活動の量は、食事の目標の自動計算にも使います。空にすると消えます。</T>
-        <T variant="bodyS" color={colors.sub}>性別と生まれた年はこの端末の中だけに置き、サーバーには送りません。</T>
-      </Card>
 
       <SectionTitle title="筋トレ" />
       <Card style={{ padding: 0 }}>
@@ -227,41 +162,6 @@ function Choices({ title, description, options, value, label, onChange }: {
     </View>
   );
 }
-
-/** M3 の outlined text field（高さ 56、枠 3.7:1、ラベルは枠の上）。選んでいるときは緑の 2px、間違いは赤の 2px */
-function Field({ label, unit, value, shake, onChange, onDone }: {
-  label: string; unit: string; value: string; shake: number; onChange: (t: string) => void; onDone: () => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  const tone = shake > 0 ? colors.danger : focused ? colors.accent : null;
-  return (
-    <Shake trigger={shake}>
-      <View style={[s.field, tone != null && { borderColor: tone, borderWidth: 2 }]}>
-        <Input
-          value={value}
-          onChangeText={onChange}
-          onFocus={() => setFocused(true)}
-          onBlur={() => { setFocused(false); onDone(); }}
-          onSubmitEditing={onDone}
-          keyboardType="decimal-pad"
-          placeholder="未設定"
-          accessibilityLabel={label}
-          style={s.fieldInput}
-        />
-        <T variant="bodyM" color={colors.sub}>{unit}</T>
-        <View style={s.fieldLabel} pointerEvents="none">
-          <T variant="bodyS" color={tone ?? colors.sub}>{label}</T>
-        </View>
-      </View>
-    </Shake>
-  );
-}
-
-const s = StyleSheet.create({
-  field: { flexDirection: 'row', alignItems: 'center', height: 56, borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, paddingHorizontal: space.l, gap: space.s },
-  fieldInput: { flex: 1, minWidth: 0, height: 52, color: colors.text, fontFamily: fonts.regular, fontSize: 16 },
-  fieldLabel: { position: 'absolute', top: -9, left: 12, paddingHorizontal: 4, backgroundColor: colors.card },
-});
 
 /** アプリの版とアップデートの情報。長押しで共有のメニューに出す（不具合の報告用） */
 function AppVersion() {
