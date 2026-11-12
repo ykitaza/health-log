@@ -28,7 +28,7 @@ describe('形ごとの題と式', () => {
     const f = formula('galaxy', 1234, { x: 0.5, y: -0.25 });
     expect(f.title).toBe('LOGARITHMIC SPIRAL');
     expect(f.equations.map(text)).toEqual(['r = a·e^(bθ)', 'x = r·cos θ', 'y = r·sin θ']);
-    expect(f.constants).toBe('a = 0.1   b = 0.36');
+    expect(f.constants).toBe('a = 0.1   b = 0.7');
     expect(text(f.values)).toBe('x  0.500   y −0.250');
     expect(f.point).toBe('point 1,234 / 6,000');
   });
@@ -36,9 +36,9 @@ describe('形ごとの題と式', () => {
   test('木：枝分かれの決まり（tree.ts の長さの比と開く角度）。定数の行はなし', () => {
     const f = formula('tree', 1234, v);
     expect(f.title).toBe('BRANCHING TREE');
-    expect(f.equations.map(text)).toEqual(['Lₖ₊₁ = 0.72·Lₖ', 'θₖ₊₁ = θₖ ± 0.55']);
+    expect(f.equations.map(text)).toEqual(['Lₖ₊₁ = 0.7·Lₖ', 'θₖ₊₁ = θₖ ± 0.3']);
     expect(f.constants).toBeNull();
-    expect(f.point).toBe('point 1,234 / 4,900');
+    expect(f.point).toBe('point 1,234 / 5,500');
   });
 
   test('式と定数は番号・値で変わらない（下の2行だけが変わる）', () => {
@@ -63,7 +63,7 @@ describe('形ごとの題と式', () => {
   test('記録がまだないとき：題と式は出し、番号は 0、値は 0.000', () => {
     for (const kind of SHAPE_KINDS) {
       const values = formulaValues(kind);
-      const n = pointNumber(SHAPES[kind].layout({ volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 }).count);
+      const n = pointNumber(SHAPES[kind].layout({ volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [0, 0, 0, 0, 0, 0] }).count);
       expect(n).toBe(0);
       const f = formula(kind, n, pointValue(values, n));
       expect(f.title.length).toBeGreaterThan(0);
@@ -95,7 +95,7 @@ describe('いま打った点の番号', () => {
 
   test('いちばん育っても、点の数の上限（4桁）を超えない', () => {
     for (const kind of SHAPE_KINDS) {
-      const n = pointNumber(SHAPES[kind].layout({ volumeKg: 1e9, foodDays: 1e6, sleepDays: 1e6, days: 1e6 }).count);
+      const n = pointNumber(SHAPES[kind].layout({ volumeKg: 1e9, foodDays: 1e6, sleepDays: 1e6, days: 1e6, partSets: [1e6, 1e6, 1e6, 1e6, 1e6, 1e6] }).count);
       expect(n).toBeLessThanOrEqual(SHAPES[kind].maxPoints);
       expect(String(n)).toHaveLength(4);
     }

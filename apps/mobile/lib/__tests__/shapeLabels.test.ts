@@ -18,16 +18,16 @@ describe('選んだ形の保存の値の読み方', () => {
 describe('形の名前と説明', () => {
   test('3つの形の名前と説明', () => {
     expect(SHAPE_KINDS.map((k) => SHAPE_LABELS[k])).toEqual([
-      { name: '点の軌跡', description: '点が増えて形が浮かび、広がる' },
-      { name: '木', description: '枝が伸び、葉が増え、光の粒が増える' },
-      { name: '銀河', description: '腕が伸び、星が増え、中心が光る' },
+      { name: '点の軌跡', description: '記録の全体で点が増え、形が浮かぶ' },
+      { name: '木', description: '部位ごとに枝が伸び、葉と光の粒が増える' },
+      { name: '銀河', description: '部位ごとに腕が伸び、星が増え、中心が光る' },
     ]);
   });
 });
 
 describe('読み上げの文', () => {
   test('シートの行は、名前と説明', () => {
-    expect(shapeOptionLabel('tree')).toBe('木。枝が伸び、葉が増え、光の粒が増える');
+    expect(shapeOptionLabel('tree')).toBe('木。部位ごとに枝が伸び、葉と光の粒が増える');
   });
 
   test('成長を見る画面の形と、ホームの段は、選んだ形の名前を入れる', () => {

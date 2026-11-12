@@ -270,9 +270,9 @@ test('左上の数式：題・式・定数・値・番号が出る（記録が�
   await page.getByTestId('shape-picker').filter({ visible: true }).getByRole('radio', { name: /^木。/ }).click();
   await expect(formula).toContainText('BRANCHING TREE');
   await expect(formula).not.toContainText('CLIFFORD ATTRACTOR');
-  await expect(formula).toContainText('Lk+1 = 0.72·Lk');
-  await expect(formula).toContainText('θk+1 = θk ± 0.55');
-  await expect(formula).toContainText('point 0 / 4,900');
+  await expect(formula).toContainText('Lk+1 = 0.7·Lk');
+  await expect(formula).toContainText('θk+1 = θk ± 0.3');
+  await expect(formula).toContainText('point 0 / 5,500');
 });
 
 test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって閉じる。開き直しても、ホームに戻っても木のまま', async ({ page }) => {
@@ -284,12 +284,12 @@ test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって�
   await button(page, '形を選ぶ').click();
   const sheet = page.getByTestId('shape-picker').filter({ visible: true });
   await expect(see(sheet, '形を選ぶ', { exact: true })).toBeVisible();
-  await expect(see(sheet, 'どの形でも、育ち方と衛星の意味は同じです')).toBeVisible();
+  await expect(see(sheet, 'どの形でも、衛星の意味は同じです')).toBeVisible();
   const radios = sheet.getByRole('radio');
   await expect(radios).toHaveCount(3);
-  const attractor = sheet.getByRole('radio', { name: '点の軌跡。点が増えて形が浮かび、広がる', exact: true });
-  const tree = sheet.getByRole('radio', { name: '木。枝が伸び、葉が増え、光の粒が増える', exact: true });
-  const galaxy = sheet.getByRole('radio', { name: '銀河。腕が伸び、星が増え、中心が光る', exact: true });
+  const attractor = sheet.getByRole('radio', { name: '点の軌跡。記録の全体で点が増え、形が浮かぶ', exact: true });
+  const tree = sheet.getByRole('radio', { name: '木。部位ごとに枝が伸び、葉と光の粒が増える', exact: true });
+  const galaxy = sheet.getByRole('radio', { name: '銀河。部位ごとに腕が伸び、星が増え、中心が光る', exact: true });
   await expect(attractor).toHaveAttribute('aria-checked', 'true');
   await expect(tree).toHaveAttribute('aria-checked', 'false');
   await expect(galaxy).toHaveAttribute('aria-checked', 'false');

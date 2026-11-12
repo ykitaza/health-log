@@ -7,6 +7,7 @@ import { big3Assignments, Big3Role } from './exercises';
 import { WeeklyGoals } from './goals';
 import { GrowthDay, mealGoalReached } from './growth';
 import { daySummary, resolveDayType } from './meals';
+import { BALANCE_PARTS, balanceAxisOf } from './partBalance';
 import { setVolume, TrainingSetRow } from './training';
 import type { WeightUnit } from './units';
 
@@ -43,6 +44,8 @@ export function mergeGrowthDays(input: {
   /** 食事を記録した日と、目標に届いたか */
   meals: Map<DateKey, boolean>;
   sleep: { date: DateKey; asleepMin: number }[];
+  /** 日ごとの部位ごとのセット数（BALANCE_PARTS の順）。筋トレの日だけ入る */
+  partSetsByDate?: Map<DateKey, number[]>;
 }): GrowthDay[] {
   const sleepByDate = new Map(input.sleep.map((s) => [s.date, s.asleepMin]));
   const dates = new Set<DateKey>([...input.volumeByDate.keys(), ...input.meals.keys(), ...sleepByDate.keys()]);
@@ -53,7 +56,28 @@ export function mergeGrowthDays(input: {
     mealRecorded: input.meals.has(date),
     mealGoalReached: input.meals.get(date) ?? false,
     sleepMin: sleepByDate.get(date) ?? null,
+    ...(input.partSetsByDate?.has(date) ? { partSets: input.partSetsByDate.get(date) } : {}),
   }));
+}
+
+/**
+ * 日ごとの、部位ごとのセット数（BALANCE_PARTS の順）。1行が1セット。数え方は lib/partBalance.ts の partBalanceBetween と同じ
+ * （全期間を1回だけ走査する。日ごとに partBalanceBetween を呼ぶと、日数×セット数の計算になる）。today より後と、知らない部位は数えない
+ */
+export function partSetsByDate(rows: TrainingSetRow[], partName: (bodyPartId: string) => string, today: DateKey): Map<DateKey, number[]> {
+  const out = new Map<DateKey, number[]>();
+  for (const r of rows) {
+    if (r.date > today) continue;
+    const axis = balanceAxisOf(partName(r.bodyPartId));
+    if (!axis) continue;
+    let day = out.get(r.date);
+    if (!day) {
+      day = BALANCE_PARTS.map(() => 0);
+      out.set(r.date, day);
+    }
+    day[BALANCE_PARTS.indexOf(axis)] += 1;
+  }
+  return out;
 }
 
 /**
@@ -87,16 +111,19 @@ export async function loadGrowthData(r: Repositories, today: DateKey): Promise<G
     mealDays.set(date, mealGoalReached(daySummary(date, resolveDayType(chosen.get(date) ?? null, trained.has(date)), list, goal)));
   }
 
+  const partNames = new Map(parts.map((p) => [p.id, p.name]));
+  const partSets = partSetsByDate(sets, (id) => partNames.get(id) ?? '', today);
+
   return {
     today,
-    days: mergeGrowthDays({ today, volumeByDate, meals: mealDays, sleep }),
+    days: mergeGrowthDays({ today, volumeByDate, meals: mealDays, sleep, partSetsByDate: partSets }),
     sets,
     exerciseNames: new Map(exercises.map((e) => [e.id, e.name])),
     big3: big3Assignments(exercises),
     weights: weights.flatMap((d) => (d.weightKg == null ? [] : [{ date: d.date, weightKg: d.weightKg }])),
     bodyFats: weights.flatMap((d) => (d.bodyFatPct == null || d.date > today ? [] : [{ date: d.date, pct: d.bodyFatPct }])),
     mealCount: meals.length,
-    partNames: new Map(parts.map((p) => [p.id, p.name])),
+    partNames,
     goalWeightKg: settings.goalWeightKg,
     weeklyGoals: weeklyGoalsOf(settings),
     weeklyTrainingGoal: settings.weeklyGoalTrainingDays,

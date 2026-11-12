@@ -80,18 +80,22 @@ export function StatusBadge({ status }: { status: InjuryStatus }) {
 /** 「ベンチプレス・ラックアップ」（種目と場面。ないものは省く） */
 export const whereText = (i: Pick<Injury, 'exerciseName' | 'phase'>) => [i.exerciseName, i.phase].filter(Boolean).join('・');
 
-/** 図の横に吹き出しを出す数（左右それぞれ）。直している途中を先に、痛めた日の新しい順 */
+/** 図に札を出す数（左右それぞれ）。直している途中を先に、痛めた日の新しい順 */
 const CALLOUTS_PER_SIDE = 2;
-const FIG_H = 164;
-const FIG_W = FIG_H / 2;
+/** 図の幅の上限（高さはこの 2 倍。Figma「ケガ 1-2」：412・360 の幅とも 128×256。前は 82×164 で、札に場所を取られて小さかった） */
+const FIG_W_MAX = 128;
 const FIG_GAP = 8;
-const CALLOUT_H = 80;
+/** 札の高さ（INJ の番号と部位の 2 行。上下 6 の余白） */
+const CALLOUT_H = 48;
+/** 図の下の「R FRONT L」の行 */
+const FIG_LABEL_H = 20;
 
 type Placed = { injury: Injury; view: MuscleView; x: number; y: number };
 
 /**
  * 一覧の上の体の図（BODY MAP // SCAN）。前と後ろの図に、ケガの印（直している途中は琥珀色で脈打つ、直せたは緑の輪）。
- * 吹き出し（INJ の番号・部位と日付・種目と場面・状態）は、前の図のものを左、後ろの図のものを右に、それぞれ2つまで出す
+ * 図を大きくするため（Figma「ケガ 1-2」）、札は INJ の番号と部位だけにして、半透明の地で図に重ねる（日付・種目・状態は下のカードと行）。
+ * 前の図のものを左の端、後ろの図のものを右の端に、それぞれ2つまで、印の少し上に出す
  * （200件まで持てるので全部は出さない。直している途中を先に、痛めた日の新しい順）。読み上げでは件数だけを読む
  */
 export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbers: Map<string, string> }) {
@@ -99,76 +103,103 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
   const active = injuries.filter((i) => i.status === 'fixing').length;
   const cleared = injuries.length - active;
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: i.status }));
-  // 図の置き場所：まん中に前と後ろ。左右の余りに吹き出し
-  const figsW = FIG_W * 2 + FIG_GAP;
-  const left = Math.max(0, (width - figsW) / 2);
+  // 図の大きさと置き場所：幅いっぱいに近い大きさで、まん中に前と後ろ
+  const figW = Math.max(0, Math.min(FIG_W_MAX, Math.floor((width - FIG_GAP) / 2)));
+  const figH = figW * 2;
+  const left = Math.max(0, (width - (figW * 2 + FIG_GAP)) / 2);
+  const backLeft = left + figW + FIG_GAP;
   const placed: Placed[] = injuries.flatMap((injury) => {
     const at = markPoint(injury.site, injury.side);
     if (!at) return [];
-    const x0 = at.view === 'front' ? left : left + FIG_W + FIG_GAP;
-    return [{ injury, view: at.view, x: x0 + at.point.x * (FIG_W / 100), y: at.point.y * (FIG_H / 200) }];
+    const x0 = at.view === 'front' ? left : backLeft;
+    return [{ injury, view: at.view, x: x0 + at.point.x * (figW / 100), y: at.point.y * (figH / 200) }];
   });
   const pick = (view: MuscleView) => placed
     .filter((p) => p.view === view)
     .sort((a, b) => Number(a.injury.status === 'fixed') - Number(b.injury.status === 'fixed') || (a.injury.occurredOn < b.injury.occurredOn ? 1 : -1))
     .slice(0, CALLOUTS_PER_SIDE)
     .sort((a, b) => a.y - b.y);
-  // 吹き出しの高さの位置：印の高さに合わせ、重ならないように下へずらす
+  // 札の高さの位置：印の少し上（印を隠さない）。図の中に収め、重ならないように、上から順に下へ、下から順に上へずらす
   const stack = (ps: Placed[]) => {
+    const tops: number[] = [];
     let next = 0;
-    return ps.map((p) => {
-      const top = Math.min(Math.max(next, p.y - 16), FIG_H - CALLOUT_H + 24);
-      next = top + CALLOUT_H + 4;
-      return { ...p, top };
-    });
+    for (const p of ps) {
+      const top = Math.max(next, p.y - CALLOUT_H - space.s);
+      tops.push(top);
+      next = top + CALLOUT_H + space.xs;
+    }
+    let limit = figH - CALLOUT_H;
+    for (let i = tops.length - 1; i >= 0; i--) {
+      tops[i] = Math.max(0, Math.min(tops[i], limit));
+      limit = tops[i] - CALLOUT_H - space.xs;
+    }
+    return ps.map((p, i) => ({ ...p, top: tops[i] }));
   };
   const leftOnes = stack(pick('front'));
   const rightOnes = stack(pick('back'));
-  const calloutW = Math.max(0, left - space.s);
+  // 札の幅は左右それぞれ半分まで（いちばん長い「右のふくらはぎ」でも 360 の幅で切れない）
+  const calloutMax = width / 2 - FIG_GAP;
+  // 引き出し線は札の外側寄りの下（印より下に札があるときは上）から印へ
+  const lineFrom = (p: Placed & { top: number }, x: number) => ({ x, y: p.top + CALLOUT_H <= p.y ? p.top + CALLOUT_H : p.top });
 
   return (
     <ScanFrame strong style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
       <View accessible accessibilityLabel={`体の図。直している途中 ${active}件、直せた ${cleared}件`} style={{ gap: space.s }}>
-        <View style={s.mapHead}>
+        <View style={[s.mapHead, { alignItems: 'flex-start' }]}>
           <Mono color={colors.accent}>BODY MAP // SCAN</Mono>
-          <Mono>{`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`}</Mono>
+          {/* ALERT は件数の下（図の下の行に置くと、360 の幅で「L BACK R」と重なる） */}
+          <View style={{ alignItems: 'flex-end' }}>
+            <Mono>{`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`}</Mono>
+            {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
+          </View>
         </View>
-        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: FIG_H + 8 }}>
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: figH + FIG_LABEL_H }}>
           {width > 0 && (
             <>
-              <View style={{ position: 'absolute', left, top: 0, flexDirection: 'row', gap: FIG_GAP }}>
-                <MuscleFigure view="front" width={FIG_W} height={FIG_H} marks={marks} />
-                <MuscleFigure view="back" width={FIG_W} height={FIG_H} marks={marks} />
+              <View style={{ position: 'absolute', left, top: 0, flexDirection: 'row', gap: FIG_GAP }} testID="injury-map-figures">
+                <MuscleFigure view="front" width={figW} height={figH} marks={marks} />
+                <MuscleFigure view="back" width={figW} height={figH} marks={marks} />
               </View>
-              {/* 吹き出しと印をつなぐ線（吹き出しが入らない狭い画面では、線も出さない） */}
-              {calloutW >= 64 && (<Svg width={width} height={FIG_H + 8} style={StyleSheet.absoluteFill} pointerEvents="none">
-                {[...leftOnes.map((p) => ({ p, from: calloutW })), ...rightOnes.map((p) => ({ p, from: width - calloutW }))].map(({ p, from }) => (
-                  <Line key={p.injury.id} x1={from} y1={p.top + 8} x2={p.x} y2={p.y}
+              <View style={[s.figLabel, { left, width: figW, top: figH }]}><Mono>R FRONT L</Mono></View>
+              <View style={[s.figLabel, { left: backLeft, width: figW, top: figH }]}><Mono>L BACK R</Mono></View>
+              {/* 札と印をつなぐ線 */}
+              <Svg width={width} height={figH} style={StyleSheet.absoluteFill} pointerEvents="none">
+                {[...leftOnes.map((p) => ({ p, from: lineFrom(p, space.l) })), ...rightOnes.map((p) => ({ p, from: lineFrom(p, width - space.l) }))].map(({ p, from }) => (
+                  <Line key={p.injury.id} x1={from.x} y1={from.y} x2={p.x} y2={p.y}
                     stroke={p.injury.status === 'fixing' ? INJURY_AMBER : colors.sub} strokeWidth={1} strokeOpacity={0.7} />
                 ))}
-              </Svg>)}
-              {calloutW >= 64 && leftOnes.map((p) => (
-                <Callout key={p.injury.id} injury={p.injury} number={numbers.get(p.injury.id) ?? ''} align="right" style={{ left: 0, top: p.top, width: calloutW }} />
+              </Svg>
+              {leftOnes.map((p) => (
+                <Callout key={p.injury.id} injury={p.injury} number={numbers.get(p.injury.id) ?? ''} style={{ left: 0, top: p.top, maxWidth: calloutMax, alignItems: 'flex-start' }} />
               ))}
-              {calloutW >= 64 && rightOnes.map((p) => (
-                <Callout key={p.injury.id} injury={p.injury} number={numbers.get(p.injury.id) ?? ''} align="left" style={{ right: 0, top: p.top, width: calloutW }} />
+              {rightOnes.map((p) => (
+                <Callout key={p.injury.id} injury={p.injury} number={numbers.get(p.injury.id) ?? ''} style={{ right: 0, top: p.top, maxWidth: calloutMax, alignItems: 'flex-end' }} />
               ))}
             </>
           )}
-        </View>
-        <View style={s.mapHead}>
-          <View style={{ flexDirection: 'row', gap: space.l, marginLeft: left - space.s }}>
-            <Mono>R FRONT L</Mono>
-            <Mono>L BACK R</Mono>
-          </View>
-          {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
         </View>
       </View>
     </ScanFrame>
   );
 }
 
-export function Callout({ injury, number, align, style }: { injury: Injury; number: string; align: 'left' | 'right'; style: object }) {
+/** 図に重ねる札：INJ の番号と部位だけ。半透明の地で、下の図が透ける。直している途中は琥珀色の枠と ▲（色だけにしない） */
+function Callout({ injury, number, style }: { injury: Injury; number: string; style: object }) {
+  const fixing = injury.status === 'fixing';
+  const tone = fixing ? INJURY_AMBER : colors.sub;
+  return (
+    <View style={[s.callout, { borderColor: tone }, style]} testID="injury-callout">
+      <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
+      <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)}</T>
+    </View>
+  );
+}
+
+/**
+ * 3D の体の図の横に出す吹き出し（INJ の番号・部位と日付・種目と場面・状態）。引き出し線で部位とつなぐ。
+ * align は文字を寄せる側（図の左の吹き出しは右寄せ）
+ */
+export function SideCallout({ injury, number, align, style }: { injury: Injury; number: string; align: 'left' | 'right'; style: object }) {
   const fixing = injury.status === 'fixing';
   const tone = fixing ? INJURY_AMBER : colors.sub;
   return (
@@ -176,7 +207,7 @@ export function Callout({ injury, number, align, style }: { injury: Injury; numb
       <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
       <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)} <T num size={13} color={colors.sub}>{dotDate(injury.occurredOn)}</T></T>
       {whereText(injury) !== '' && <T size={11} color={colors.sub} numberOfLines={1} align={align}>{whereText(injury)}</T>}
-      {/* 図の横は狭い（360 の幅で 90 ほど）ので、状態は短く 1 行（「直している途中」は 2 行に折り返して窮屈だった）。札と読み上げは正式な名前 */}
+      {/* 図の横は狭い（360 の幅で 90 ほど）ので、状態は短く 1 行。札と読み上げは正式な名前 */}
       <T variant="labelS" color={fixing ? INJURY_AMBER : colors.accent} numberOfLines={1} align={align}>{fixing ? '● 直し中' : '○ 直せた'}</T>
     </View>
   );
@@ -413,6 +444,12 @@ const s = StyleSheet.create({
   fixedList: { backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   frame: { borderWidth: 1, borderRadius: radius.l, backgroundColor: colors.card, overflow: 'hidden' },
   mapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  figLabel: { position: 'absolute', height: FIG_LABEL_H, alignItems: 'center', justifyContent: 'flex-end' },
+  // 半透明の地（85%）。図が少し透けて、文字は背景に対して十分な濃さ
+  callout: {
+    position: 'absolute', height: CALLOUT_H, justifyContent: 'center', paddingHorizontal: space.s, borderWidth: 1, borderRadius: radius.s,
+    backgroundColor: `${colors.bg}D9`,
+  },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   activeCard: {

@@ -16,7 +16,7 @@ import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, CALLOUT_H, CAMERA, facingOf, layoutCallouts, partsFor, siteOfPart, Vec3 } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
 import { colors, space } from '@/theme';
-import { Callout, InjuryBodyMap, Mono, ScanFrame } from './injuries';
+import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
 import { T } from './Text';
 
@@ -439,7 +439,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
               {places.map((p) => {
                 const injury = injuries.find((i) => i.id === p.id)!;
                 return (
-                  <Callout key={p.id} injury={injury} number={numbers.get(p.id) ?? ''} align={p.side === 'left' ? 'right' : 'left'}
+                  <SideCallout key={p.id} injury={injury} number={numbers.get(p.id) ?? ''} align={p.side === 'left' ? 'right' : 'left'}
                     style={{ [p.side]: space.l, top: p.top, width: CALLOUT_W, maxHeight: CALLOUT_H }} />
                 );
               })}

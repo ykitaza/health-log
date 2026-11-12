@@ -14,6 +14,13 @@ export type ShapeLayout = {
    * 組を使わない形では省く
    */
   fills?: readonly number[];
+  /**
+   * 部位ごとの育ち具合（0〜1。partGrowth の値）。点の並びの parts（どの部位の点か）と partMin（その点が出る最小の育ち具合）と比べる
+   * （木の枝・銀河の腕）。部位を使わない形では省く
+   */
+  parts?: readonly number[];
+  /** 部位ごとの大きさの倍率（木の太い枝の長さ。その部位の付け根 pivots を中心に縮める）。省けば 1 */
+  partScale?: readonly number[];
 };
 
 /** 0 から始まり、scale のとき約 0.63、増えるほど 1 に近づく。負の値や数でない値は 0 として扱う */
@@ -27,6 +34,52 @@ export function grow(value: number, scale: number): number {
 export function seedRamp(days: number, rampDays: number): number {
   'worklet';
   return Number.isFinite(days) ? Math.min(1, Math.max(0, days / rampDays)) : 0;
+}
+
+/** 部位のセット数の育ち方の目安（このセット数で約 0.63） */
+export const PART_SCALE_SETS = 110;
+
+/** 部位の累計セット数 → 育ち具合（0〜1）。セット数が多いほど 1 に近づく */
+export function partGrowth(sets: number): number {
+  'worklet';
+  return grow(sets, PART_SCALE_SETS);
+}
+
+/** 出す点の数・組・部位の端で、なめらかに現れる幅（点の数・割合・育ち具合） */
+export const FADE_POINTS = 60;
+export const FADE_FILL = 0.04;
+export const FADE_PART = 0.05;
+
+/**
+ * 点 i をどれだけ出すか（1 以上ならそのまま、0 以下なら出さない。あいだは小さく描いて、なめらかに現れる）。
+ * 確かめ（jest・見た目の画像）で使う。描くとき（GrowthShape）は、同じ計算を1つにまとめた placeDot を使う。
+ * - 並びの先頭から count 個（筋トレの量）
+ * - 組のある点（gates）は、その組の出す割合（fills）が順位を超えたら（木の葉は食事、光の粒は睡眠）
+ * - 部位のある点（parts）は、その部位の育ち具合（growth）が、その点の出る最小の育ち具合（partMin）を超えたら
+ */
+export function pointShown(
+  i: number, count: number, gates: Float32Array, fills: readonly number[], parts: Float32Array, partMin: Float32Array, growth: readonly number[],
+): number {
+  'worklet';
+  let k = Math.min(1, (count - i) / FADE_POINTS);
+  if (k <= 0) return k;
+  const g = i < gates.length ? gates[i] : -1;
+  if (g >= 0) {
+    const c = Math.floor(g);
+    k = Math.min(k, ((fills[c] ?? 1) - (g - c)) / FADE_FILL);
+  }
+  const p = i < parts.length ? parts[i] : -1;
+  if (p >= 0) k = Math.min(k, ((growth[p] ?? 1) - partMin[i]) / FADE_PART + 1);
+  return k;
+}
+
+/**
+ * 揺れ（木）：根元（y = rootY。y は下が正）より上の点を、高さの2乗に比べて横へずらす。bend は揺れの量（左右の向きで符号）
+ */
+export function swayX(x: number, y: number, rootY: number, bend: number): number {
+  'worklet';
+  const h = Math.max(0, rootY - y);
+  return x + bend * h * h;
 }
 
 export function smoothstep(a: number, b: number, v: number): number {
@@ -54,6 +107,131 @@ export function gaussian(rand: () => number): number {
 
 /** 奥行きの強さ（手前の点を少し大きく、奥を少し小さく） */
 export const PERSPECTIVE = 0.22;
+
+/** placePoint で、点ごとに変わらない値（毎フレーム1回だけ決める） */
+export type PlaceFrame = {
+  /** Y 軸まわりの回転の cos・sin（揺れる形は 1・0） */
+  cos: number;
+  sin: number;
+  /** 手前に倒す傾きの cos・sin */
+  tiltCos: number;
+  tiltSin: number;
+  /** 揺れの量（swayX の bend）と、揺れの根元の y（回す形は bend を 0） */
+  bend: number;
+  rootY: number;
+};
+
+/** 1つの点（x, y, z）を揺らし、回して倒し、奥行きをつける（placePoint の後半。部位の名前の位置にも使う） */
+export function projectPoint(x: number, y: number, z: number, f: PlaceFrame): { x: number; y: number; p: number } {
+  'worklet';
+  const xs = f.bend === 0 ? x : swayX(x, y, f.rootY, f.bend);
+  const x1 = xs * f.cos + z * f.sin;
+  const z1 = z * f.cos - xs * f.sin;
+  const y2 = y * f.tiltCos - z1 * f.tiltSin;
+  const z2 = y * f.tiltSin + z1 * f.tiltCos;
+  const p = 1 / (1 - z2 * PERSPECTIVE);
+  return { x: x1 * p, y: y2 * p, p };
+}
+
+/**
+ * 点 i の画面の上の位置（形の半径を 1、中心を 0 としたとき。y は下が正）と、奥行きの倍率 p。
+ * 部位のある点は、その部位の付け根（pivots）を中心に partScale 倍に縮め、揺らし、Y 軸まわりに回してから X 軸まわりに倒す。
+ * 見た目の確かめで使う。描くとき（GrowthShape）は、同じ計算を1つにまとめた placeDot を使う
+ */
+export function placePoint(
+  points: Float32Array, i: number, parts: Float32Array, pivots: Float32Array, partScale: readonly number[], f: PlaceFrame,
+): { x: number; y: number; p: number } {
+  'worklet';
+  let x = points[i * 3];
+  let y = points[i * 3 + 1];
+  let z = points[i * 3 + 2];
+  const part = i < parts.length ? parts[i] : -1;
+  if (part >= 0 && part < partScale.length && part * 3 + 2 < pivots.length) {
+    const s = partScale[part];
+    const px = pivots[part * 3];
+    const py = pivots[part * 3 + 1];
+    const pz = pivots[part * 3 + 2];
+    x = px + (x - px) * s;
+    y = py + (y - py) * s;
+    z = pz + (z - pz) * s;
+  }
+  return projectPoint(x, y, z, f);
+}
+
+/**
+ * 部位ごとの縮め方（placePoint の、付け根 pivots を中心に partScale 倍に縮める）を、x' = x·s + o の形にした表。
+ * 部位 p につき4つ（s、ox、oy、oz）。毎フレーム1回だけ作り、点ごとには付け根を読まない（placeDot）。付け根のない形では空
+ */
+export function partFrame(pivots: Float32Array, partScale: readonly number[]): number[] {
+  'worklet';
+  const out: number[] = [];
+  for (let p = 0; p < partScale.length && p * 3 + 2 < pivots.length; p++) {
+    const s = partScale[p];
+    out.push(s, pivots[p * 3] * (1 - s), pivots[p * 3 + 1] * (1 - s), pivots[p * 3 + 2] * (1 - s));
+  }
+  return out;
+}
+
+/** placeDot で、毎フレーム1回だけ決める値（view の値） */
+export type DotFrame = {
+  count: number; fills: readonly number[]; growth: readonly number[];
+  /** partFrame の表 */
+  partXf: readonly number[];
+  frame: PlaceFrame;
+  /** 形の半径（dp） */
+  unit: number;
+};
+
+/** 点の絵の置き方を書き込む先（Skia の RSXform の set と同じ形） */
+export type XformTarget = { set: (scos: number, ssin: number, tx: number, ty: number) => void };
+
+/**
+ * 点 i を描く位置と大きさを val に書く（出さない点は大きさ 0）。pointShown と placePoint と同じ計算を、
+ * 毎フレーム数千回呼ぶので、関数を重ねず・途中の値の箱を作らずに1つにまとめたもの（GrowthShape で使う。
+ * 同じ結果になることを lib/__tests__/shapes.test.ts で確かめる）。
+ * 点の画面の位置は (cx, cy) を中心に unit 倍、大きさは dotScale 倍（奥行きで 0.75〜1 倍）で、絵の半分 half だけ左上へずらす
+ */
+export function placeDot(
+  val: XformTarget, i: number, points: Float32Array, gates: Float32Array, parts: Float32Array, partMin: Float32Array,
+  v: DotFrame, cx: number, cy: number, dotScale: number, half: number,
+): void {
+  'worklet';
+  let k = Math.min(1, (v.count - i) / FADE_POINTS);
+  const g = i < gates.length ? gates[i] : -1;
+  if (k > 0 && g >= 0) {
+    const c = Math.floor(g);
+    k = Math.min(k, ((v.fills[c] ?? 1) - (g - c)) / FADE_FILL);
+  }
+  const part = i < parts.length ? parts[i] : -1;
+  if (k > 0 && part >= 0) k = Math.min(k, ((v.growth[part] ?? 1) - partMin[i]) / FADE_PART + 1);
+  if (k <= 0) {
+    val.set(0, 0, 0, 0);
+    return;
+  }
+  let x = points[i * 3];
+  let y = points[i * 3 + 1];
+  let z = points[i * 3 + 2];
+  const xf = v.partXf;
+  if (part >= 0 && part * 4 + 3 < xf.length) {
+    const s = xf[part * 4];
+    x = x * s + xf[part * 4 + 1];
+    y = y * s + xf[part * 4 + 2];
+    z = z * s + xf[part * 4 + 3];
+  }
+  const f = v.frame;
+  if (f.bend !== 0) {
+    const h = Math.max(0, f.rootY - y);
+    x += f.bend * h * h;
+  }
+  const x1 = x * f.cos + z * f.sin;
+  const z1 = z * f.cos - x * f.sin;
+  const y2 = y * f.tiltCos - z1 * f.tiltSin;
+  const z2 = y * f.tiltSin + z1 * f.tiltCos;
+  const p = 1 / (1 - z2 * PERSPECTIVE);
+  const s = dotScale * k * (0.75 + 0.25 * p);
+  val.set(s, 0, cx + x1 * p * v.unit - s * half, cy + y2 * p * v.unit - s * half);
+}
+
 /** 広がりが最大のとき、形の半径はいちばん外の軌道のこの割合 */
 export const SHAPE_RATIO = 0.75;
 /** 衛星を描かないとき、広がりが最大の形の半径は、箱の短い辺の半分のこの割合 */
@@ -87,6 +265,23 @@ export function dotStyle(unit: number): { size: number; alpha: number } {
   return { size, alpha: 0.55 + 0.45 * size };
 }
 
+/**
+ * 揺れる形（回さない形）が、画面の上で中心から横・縦にどこまで届くか。揺れのいちばん端（左右）と、揺れていないときで調べる。
+ * 回す形の shapeExtent と同じ使い方
+ */
+export function swayExtent(points: Float32Array, tilt: number, perspective: number, rootY: number, bend: number): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  for (const b of [-bend, 0, bend]) {
+    const moved = new Float32Array(points);
+    for (let i = 0; i < moved.length; i += 3) moved[i] = swayX(points[i], points[i + 1], rootY, b);
+    const e = projectedExtent(moved, tilt, perspective, [0]);
+    x = Math.max(x, e.x);
+    y = Math.max(y, e.y);
+  }
+  return { x: x * EXTENT_MARGIN, y: y * EXTENT_MARGIN };
+}
+
 /** shapeExtent で調べる回転の向きの数と、そのあいだを見落とす分の上乗せ */
 const EXTENT_STEPS = 72;
 const EXTENT_MARGIN = 1.01;
@@ -97,12 +292,18 @@ const EXTENT_MARGIN = 1.01;
  * （components/growth/GrowthShape.tsx）。形を箱に収める大きさを決めるのに使う
  */
 export function shapeExtent(points: Float32Array, tilt: number, perspective: number): { x: number; y: number } {
+  const angles = Array.from({ length: EXTENT_STEPS }, (_, k) => (k / EXTENT_STEPS) * Math.PI * 2);
+  const e = projectedExtent(points, tilt, perspective, angles);
+  return { x: e.x * EXTENT_MARGIN, y: e.y * EXTENT_MARGIN };
+}
+
+/** 点の並びを Y 軸まわりに angles の向きへ回して倒したとき、画面の上で届く横・縦（上乗せなし） */
+function projectedExtent(points: Float32Array, tilt: number, perspective: number, angles: number[]): { x: number; y: number } {
   const tc = Math.cos(tilt);
   const ts = Math.sin(tilt);
   let x = 0;
   let y = 0;
-  for (let k = 0; k < EXTENT_STEPS; k++) {
-    const a = (k / EXTENT_STEPS) * Math.PI * 2;
+  for (const a of angles) {
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     for (let i = 0; i < points.length; i += 3) {
@@ -115,5 +316,5 @@ export function shapeExtent(points: Float32Array, tilt: number, perspective: num
       y = Math.max(y, Math.abs(y2 * p));
     }
   }
-  return { x: x * EXTENT_MARGIN, y: y * EXTENT_MARGIN };
+  return { x, y };
 }
