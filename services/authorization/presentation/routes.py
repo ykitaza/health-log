@@ -3,6 +3,7 @@
 /authorize で要求を確かめて保存 → Cognito でログイン → 同意画面 → /consent で Authlib が認可コードを出す。
 """
 
+import re
 from typing import Protocol
 
 from authlib.common.errors import AuthlibBaseError as LoginError
@@ -14,7 +15,8 @@ from oauth.models import Client, Subject
 from oauth.server import AuthorizationServer, TokenRevocationEndpoint, new_id, use_client
 from oauth.store import Store
 from presentation.pages import (
-    CONTENT_SECURITY_POLICY, render_consent_page, render_error_page, render_logged_out_page, render_privacy_page,
+    CONTENT_SECURITY_POLICY, render_consent_page, render_error_page, render_logged_out_page, render_open_app_page,
+    render_privacy_page,
 )
 
 # ブラウザのセッション（署名付き Cookie）に、進行中の認可リクエストの ID を入れておく
@@ -22,6 +24,9 @@ SESSION_KEY = "authorization_request_id"
 REQUEST_TTL_SECONDS = 600
 NOT_FOUND = "認可リクエストが見つかりません（最初からやり直してください）"
 EXPIRED = "認可リクエストが見つかりません（期限切れの可能性があります）"
+# アプリへ戻る案内（/open/<画面>）で開ける画面と、ページに出す名前。ほかの値は受け付けない（リンクに入る値を決まったものだけにする）
+OPEN_TARGETS = {"meals": "食事の記録", "training": "筋トレの記録", "reports": "レポート"}
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 class LoginGateway(Protocol):
@@ -178,6 +183,15 @@ def create_blueprint(
     @bp.get("/.well-known/jwks.json")
     def jwks():
         return jsonify(server.jwks())
+
+    @bp.get("/open/<target>")
+    def open_app(target: str):
+        """チャットの返事のリンクから、アプリの画面へ戻る案内。決まった画面と、決まった形の日付だけを使う。セッションは使わない。"""
+        if target not in OPEN_TARGETS:
+            return Response(render_error_page("このリンクは使えません。"), status=404, mimetype="text/html")
+        date = request.args.get("date", "")
+        path = f"{target}?date={date}" if target != "reports" and DATE.fullmatch(date) else target
+        return Response(render_open_app_page(path, OPEN_TARGETS[target]), mimetype="text/html")
 
     @bp.get("/privacy")
     def privacy():

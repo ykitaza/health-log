@@ -1,6 +1,16 @@
 import { addDays } from '../date';
-import { ChatPrompt, chatUrl, MAX_URL_LENGTH, openChat, openFailedMessage, orderedApps, pendingPrompt, promptSummary, promptText, REPORT_SCHEDULES } from '../chat';
+import {
+  ChatPrompt, chatUrl as chatUrlWith, MAX_URL_LENGTH, OPEN_BASE, openChat, openFailedMessage, orderedApps, pendingPrompt as pendingPromptWith, promptSummary,
+  promptText as promptTextWith, REPORT_SCHEDULES,
+} from '../chat';
 import type { PendingReport } from '../reports';
+
+// 戻るリンクの行き先（認可サーバー。lib/auth/config.ts の authzUrl）
+const OPEN = OPEN_BASE;
+const promptText = (p: ChatPrompt) => promptTextWith(p, OPEN);
+const chatUrl = (app: Parameters<typeof chatUrlWith>[0], p?: ChatPrompt) => chatUrlWith(app, p, OPEN);
+const pendingPrompt = (items: PendingReport[]) => pendingPromptWith(items, OPEN);
+const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
 
 const TODAY = '2026-11-09';
 const C = 'hlog（健康記録の MCP コネクタ）';
@@ -13,7 +23,7 @@ describe('まとめの文', () => {
       + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使い推測で補わないでください。達成の数字はアプリが出します。'
       + '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ、責めない言い方で書き、'
       + 'save_report(kind=daily, period_start=2026-11-09, period_end=2026-11-09)で保存してください。'
-      + '保存したら、画面を下に引っぱって同期すると見られると添えてください。');
+      + '保存したら、' + back('reports', 'hlog で見る'));
   });
 
   test('週：月曜から今日まで（アプリの「今週の目標」と同じ区切り）。つながり（links）と来週の一歩', () => {
@@ -56,7 +66,7 @@ describe('まだのまとめを、まとめて作る文', () => {
       + '期間ごとに period_overview を読み、数字は記録の値だけを使ってください。'
       + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで。'
       + '記録がない期間は作らず、そう伝えてください。'
-      + '終わったら、アプリに戻ると自動で取り込まれると添えてください。');
+      + '終わったら、' + back('reports'));
     expect(promptSummary({ kind: 'pending', items: FIG })).toBe('まだのまとめ 3 件を作る');
   });
 
@@ -118,7 +128,8 @@ describe('筋トレの文', () => {
     expect(promptText({ kind: 'training', date: TODAY, today: TODAY })).toBe(
       `${C}に今日（11月9日）の筋トレを記録してください。`
       + 'これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout（day=2026-11-09）で保存してください。'
-      + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED);
+      + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED
+      + back('training?date=2026-11-09'));
   });
 
   test('過去の日は「11月6日」、決まった形でない日付は今日として扱う', () => {
@@ -135,7 +146,8 @@ describe('食事の文', () => {
     expect(promptText({ kind: 'meal', date: TODAY, today: TODAY, slot: 'dinner' })).toBe(
       `${C}に今日（11月9日）の夕食を記録してください。`
       + 'これから送る写真や説明から品目と量を推定してカロリーと PFC を出し、量が分からなければ先に1つだけ質問してください。'
-      + '推定を見せて了承を得たら record_meal（date=2026-11-09、slot=dinner）で保存し、推定の根拠を basis に書いてください。' + SAVED);
+      + '推定を見せて了承を得たら record_meal（date=2026-11-09、slot=dinner）で保存し、推定の根拠を basis に書いてください。' + SAVED
+      + back('meals?date=2026-11-09'));
     const past = promptText({ kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'breakfast' });
     expect(past).toContain(`${C}に11月6日の朝食を記録してください。`);
     expect(past).toContain('record_meal（date=2026-11-06、slot=breakfast）');
@@ -238,5 +250,19 @@ describe('開く', () => {
     expect(orderedApps(null)).toEqual(['chatgpt', 'claude']);
     expect(orderedApps('chatgpt')).toEqual(['chatgpt', 'claude']);
     expect(orderedApps('claude')).toEqual(['claude', 'chatgpt']);
+  });
+});
+
+
+describe('戻るリンク', () => {
+  test('行き先（認可サーバーの URL）がなければ、リンクを添えてもらう文を入れない', () => {
+    for (const p of [
+      { kind: 'meal', date: TODAY, today: TODAY }, { kind: 'training', date: TODAY, today: TODAY },
+      { kind: 'report', span: 'week', today: TODAY },
+    ] as ChatPrompt[]) {
+      const text = promptTextWith(p, '');
+      expect(text).not.toContain('/open/');
+      expect(text).not.toContain('リンク');
+    }
   });
 });

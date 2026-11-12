@@ -2,6 +2,7 @@ import { Linking } from 'react-native';
 import { weekOf } from './goals';
 import { SLOT_LABELS, SLOTS, Slot } from './meals';
 import type { PendingReport } from './reports';
+import { authzUrl } from './auth/config';
 
 /**
  * チャット（ChatGPT・Claude）を開くショートカット。https の URL を開くだけ（Android の App Links で、
@@ -53,6 +54,23 @@ const CONNECTOR = 'hlog（健康記録の MCP コネクタ）';
 const FACTS_ONLY = '数字は記録の値だけを使い推測で補わないでください';
 const AFTER_SAVE = '保存したら、記録した内容を短く見せてください。';
 
+/**
+ * チャットの返事に添えてもらう「戻る」リンクの行き先。認可サーバーの案内のページ（/open/…）で、押すと「hlog で開く」から
+ * アプリ（torelog://…。app/+native-intent.tsx が画面の道に変える）を開く。チャットのアプリの中のブラウザは torelog:// を直接は開けないため
+ */
+export const OPEN_BASE = authzUrl;
+
+/**
+ * チャットの返事の最後に、アプリへ戻るリンクを添えてもらう文。path はアプリの中の道（'meals?date=2026-11-12' など）。
+ * base（認可サーバーの URL）がなければ、何も添えてもらわない
+ */
+function backLink(path: string, base: string, label = 'hlog に戻る'): string {
+  return base ? `最後に [${label}](${base}/open/${path}) を押せるリンクの形で添えてください。` : '';
+}
+
+/** その日の画面へ戻る道（日付が決まった形でなければ、日付を付けない） */
+const dayPath = (tab: 'meals' | 'training', date: string | null) => (date ? `${tab}?date=${date}` : tab);
+
 /** URL の長さの上限（エンコードしたあと。BASE のどちらでも） */
 export const MAX_URL_LENGTH = 2000;
 
@@ -80,7 +98,7 @@ const WRITE: Record<ReportKind, string> = {
 const ACHIEVED_BY_APP = '達成の数字はアプリが出します。';
 const KIND_OF_SPAN: Record<ReportSpan, ReportKind> = { day: 'daily', week: 'weekly', month: 'monthly' };
 
-function reportText(span: ReportSpan, rawToday: string): string {
+function reportText(span: ReportSpan, rawToday: string, base: string): string {
   const today = validDate(rawToday);
   const kind = KIND_OF_SPAN[span];
   // 週は月曜から（アプリの「今週の目標」と同じ区切り）、月はその月の1日から、どちらも今日まで
@@ -91,7 +109,7 @@ function reportText(span: ReportSpan, rawToday: string): string {
   return `${CONNECTOR}で${period}のまとめを作ってください。`
     + `${call('period_overview', [['start', start], ['end', today]])}を読み、${FACTS_ONLY}。${ACHIEVED_BY_APP}`
     + `${WRITE[kind]}、責めない言い方で書き、${call('save_report', [['kind', kind], ['period_start', start], ['period_end', today]])}で保存してください。`
-    + '保存したら、画面を下に引っぱって同期すると見られると添えてください。';
+    + (base ? `保存したら、${backLink('reports', base, 'hlog で見る')}` : '');
 }
 
 /**
@@ -112,7 +130,7 @@ function pendingItem(p: PendingReport): string | null {
   return start === end ? `${p.kind}(${start})` : `${p.kind}(${start}..${end})`;
 }
 
-function pendingText(items: PendingReport[], rest: number): string {
+function pendingText(items: PendingReport[], rest: number, base: string): string {
   const list = items.map(pendingItem).filter((x): x is string => x !== null);
   const kinds = (['daily', 'weekly', 'monthly'] as const).filter((k) => items.some((p) => p.kind === k));
   return `${CONNECTOR}で、まだ作っていないまとめを1件ずつ作り、save_report で保存してください。`
@@ -121,7 +139,7 @@ function pendingText(items: PendingReport[], rest: number): string {
     + `${kinds.map((k) => BATCH_WRITE[k]).join('、')}。`
     + '記録がない期間は作らず、そう伝えてください。'
     + (rest > 0 ? `残りの${rest}件は次に頼みます。` : '')
-    + '終わったら、アプリに戻ると自動で取り込まれると添えてください。';
+    + (base ? `終わったら、${backLink('reports', base)}` : '');
 }
 
 /** 長いほうの BASE で、エンコードした URL の長さ */
@@ -131,14 +149,14 @@ const urlLength = (text: string) => Math.max(...CHAT_APPS.map((a) => BASE[a].len
  * まだ作っていないまとめを、まとめて頼む文。古い期間から並べ、URL の上限に収まる件数まで入れる（残りは「次に」と書く）。
  * 収まった件（included）を返す
  */
-export function pendingPrompt(items: PendingReport[]): { text: string; included: PendingReport[] } {
+export function pendingPrompt(items: PendingReport[], base: string = OPEN_BASE): { text: string; included: PendingReport[] } {
   const sorted = items.filter((p) => pendingItem(p) !== null)
     .sort((a, b) => (a.periodStart === b.periodStart ? a.periodEnd.localeCompare(b.periodEnd) : a.periodStart.localeCompare(b.periodStart)));
   for (let n = sorted.length; n > 1; n--) {
-    const text = pendingText(sorted.slice(0, n), sorted.length - n);
+    const text = pendingText(sorted.slice(0, n), sorted.length - n, base);
     if (urlLength(text) <= MAX_URL_LENGTH) return { text, included: sorted.slice(0, n) };
   }
-  return { text: pendingText(sorted.slice(0, 1), sorted.length - 1), included: sorted.slice(0, 1) };
+  return { text: pendingText(sorted.slice(0, 1), sorted.length - 1, base), included: sorted.slice(0, 1) };
 }
 
 /**
@@ -168,10 +186,10 @@ function scheduleText(): string {
 }
 
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
-export function promptText(p: ChatPrompt): string {
-  if (p.kind === 'report') return reportText(p.span, p.today);
+export function promptText(p: ChatPrompt, base: string = OPEN_BASE): string {
+  if (p.kind === 'report') return reportText(p.span, p.today, base);
   if (p.kind === 'schedule') return scheduleText();
-  if (p.kind === 'pending') return pendingPrompt(p.items).text;
+  if (p.kind === 'pending') return pendingPrompt(p.items, base).text;
   // 決まった形でない日付は、今日として扱う
   const today = validDate(p.today);
   const date = validDate(p.date) ?? today;
@@ -182,12 +200,12 @@ export function promptText(p: ChatPrompt): string {
     return `${CONNECTOR}に${when}の${slot ? SLOT_LABELS[slot] : '食事'}を記録してください。`
       + 'これから送る写真や説明から品目と量を推定してカロリーと PFC を出し、量が分からなければ先に1つだけ質問してください。'
       + `推定を見せて了承を得たら record_meal${args([['date', date], ['slot', slot]]) || ' '}で保存し、推定の根拠を basis に書いてください。`
-      + AFTER_SAVE;
+      + AFTER_SAVE + backLink(dayPath('meals', date), base);
   }
   return `${CONNECTOR}に${when}の筋トレを記録してください。`
     + `これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout${args([['day', date]]) || ' '}で保存してください。`
     + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。'
-    + AFTER_SAVE;
+    + AFTER_SAVE + backLink(dayPath('training', date), base);
 }
 
 /** シートに出す短い説明（URL には入れない） */
@@ -202,8 +220,8 @@ export function promptSummary(p: ChatPrompt): string {
 }
 
 /** 開く URL。prompt がなければ、アプリを開くだけ */
-export function chatUrl(app: ChatApp, prompt?: ChatPrompt): string {
-  return prompt ? `${BASE[app]}?q=${encodeURIComponent(promptText(prompt))}` : BASE[app];
+export function chatUrl(app: ChatApp, prompt?: ChatPrompt, base: string = OPEN_BASE): string {
+  return prompt ? `${BASE[app]}?q=${encodeURIComponent(promptText(prompt, base))}` : BASE[app];
 }
 
 /** 開けなかったときの案内 */
