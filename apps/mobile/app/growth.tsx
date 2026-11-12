@@ -14,7 +14,7 @@ import { easeIn, easeOut } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { ShapePickerSheet } from '@/components/growth/ShapePickerSheet';
-import { Button, Chip, IconButton } from '@/components/ui';
+import { Chip, IconButton } from '@/components/ui';
 import { syncStore } from '@/db/repositories/sync';
 import { useGrowthData } from '@/hooks/data';
 import { useGrowthShape } from '@/hooks/growthShape';
@@ -23,7 +23,7 @@ import { DateKey, daysBetween } from '@/lib/date';
 import { firstRecordDate, GrowthParams, growthSeries, highlights, pickSubtitles } from '@/lib/growth';
 import {
   canPlay, dateAt, DAY_UPDATE_MS, dayIndexAt, EMPTY_PARAMS, formatFullDate, highlightsInRange, lastPosition, lerpParams,
-  remainingMs, scrubberLabels, seekIndexAtX, showsTimelapseHint, subtitleOn, subtitlePassed, TIMELAPSE_HINT_KEY, TIMELAPSE_HINT_TEXT,
+  remainingMs, scrubberLabels, seekIndexAtX, showsTimelapseHint, subtitleOn, subtitlePassed, REPLAY_TEXT, TIMELAPSE_HINT_KEY, TIMELAPSE_HINT_TEXT,
 } from '@/lib/growthPlayer';
 import { growthShapeLabel } from '@/lib/shapes/labels';
 import { colors, size, space } from '@/theme';
@@ -300,7 +300,8 @@ export default function GrowthScreen() {
   const dayNumber = empty ? 0 : i + 1;
   const motionOn = !reduced;
   const ended = playable && !playing && i >= span;
-  const caption = empty ? '記録を始めると、ここから育ちます' : subtitle?.text ?? (hint && !playing ? TIMELAPSE_HINT_TEXT : null);
+  const caption = empty ? '記録を始めると、ここから育ちます'
+    : subtitle?.text ?? (hint && !playing ? TIMELAPSE_HINT_TEXT : ended ? REPLAY_TEXT : null);
 
   return (
     <Screen scroll={false}>
@@ -320,6 +321,20 @@ export default function GrowthScreen() {
             <FormulaReadout shape={shape} pos={pos} playing={playing} index={i} series={series} />
           )}
           {held && !ended && playable && <PauseMark motion={motionOn} />}
+          {/* 終わったときの、読み上げ用の「もう一度」（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
+          {ended && (
+            <View
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="もう一度"
+              accessibilityHint="最初からもう一度再生します"
+              accessibilityActions={[{ name: 'activate' }]}
+              onAccessibilityAction={replay}
+              testID="growth-replay"
+            />
+          )}
           {/* 読み上げ用の再生・一時停止のボタン（見た目はなく、指の操作は通す。指では画面のどこかを1回押す） */}
           {playable && !ended && (
             <View
@@ -344,11 +359,15 @@ export default function GrowthScreen() {
                 // web（E2E）は消える動きに対応していないので付けない（components/motion.tsx の useListMotion と同じ）
                 exiting={motionOn && Platform.OS !== 'web' ? FadeOut.duration(duration.exit).easing(easeIn) : undefined}
               >
-                <T variant={empty || subtitle ? 'bodyL' : 'bodyM'} color={SUBTITLE_COLOR} align="center" numberOfLines={1}>{caption}</T>
+                <T
+                  variant={empty || subtitle ? 'bodyL' : 'bodyM'} color={caption === REPLAY_TEXT ? REPLAY_COLOR : SUBTITLE_COLOR}
+                  align="center" numberOfLines={1}
+                >
+                  {caption}
+                </T>
               </Animated.View>
             )}
           </View>
-          {ended && <Button label="もう一度" icon="replay" variant="outline" small onPress={replay} />}
         </View>
 
         <DayReadout pos={pos} playing={playing} index={i} dayCount={n} start={start} today={today} />
@@ -391,6 +410,8 @@ function DayReadout({ pos, playing, index, dayCount, start, today }: LiveProps &
 
 /** 字幕の色（白の約7割の濃さ。地に対して 4.5:1 以上） */
 const SUBTITLE_COLOR = 'rgba(243,245,247,0.7)';
+/** 終わったときの「タップでもう一度」の色（字幕より薄く。白の約45%） */
+const REPLAY_COLOR = 'rgba(243,245,247,0.45)';
 
 const s = StyleSheet.create({
   // 画面全体で指を受けるため、左右の余白の外（画面の端）まで広げる

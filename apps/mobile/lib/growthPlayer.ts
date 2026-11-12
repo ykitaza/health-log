@@ -159,6 +159,8 @@ export function dragIndex(startIndex: number, dx: number, screenWidth: number, d
 /** ヒントを出したことを置く場所（sync_meta。同期しない。端末だけ） */
 export const TIMELAPSE_HINT_KEY = 'growth.timelapse_hint_seen';
 export const TIMELAPSE_HINT_TEXT = 'タップで再生・左右になぞると日を移せます';
+/** 終わり（今日の姿で止まった）ときの、字幕の位置の薄い文字。画面のどこを押しても最初から再生する（ボタンは置かない） */
+export const REPLAY_TEXT = 'タップでもう一度';
 
 /**
  * ヒントを出すか。タップで一時停止したとき・再生が終わったときに呼ぶ。

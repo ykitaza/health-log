@@ -98,17 +98,20 @@ test.describe('動きを減らす設定がオフ', () => {
 
     // 続きを再生すると、終わりまで行って今日の姿で止まり、「もう一度」が出る（3日は 8秒）
     await tapScreen(page);
-    await expect(button(page, 'もう一度')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('タップでもう一度').filter({ visible: true })).toBeVisible({ timeout: 15_000 });
+    // 見た目のボタンはなく、読み上げ用の「もう一度」だけがある
+    await expect(button(page, 'もう一度')).toHaveCount(1);
     await expect(day(page)).toHaveAttribute('aria-label', 'DAY 3、2026年11月8日（日）');
     // 累計は本当の値まで数え上がって止まる（640 kg ＋ 680 kg）
     await expect(totals(page)).toHaveAttribute('aria-label', totalsLabel('1.3', 0, 0));
     await expect(pausedMark(page)).toHaveCount(0);
     for (const name of ['再生', '一時停止']) await expect(button(page, name)).toHaveCount(0);
 
-    // 「もう一度」で最初から
-    await button(page, 'もう一度').click();
+    // 画面を押すと最初から
+    await tapScreen(page);
     await expect(button(page, '一時停止')).toHaveCount(1);
     await expect(button(page, 'もう一度')).toHaveCount(0);
+    await expect(page.getByText('タップでもう一度').filter({ visible: true })).toHaveCount(0);
 
     // 再生中に「形を選ぶ」を押すと、一時停止してシートを出す
     await button(page, '形を選ぶ').click();
