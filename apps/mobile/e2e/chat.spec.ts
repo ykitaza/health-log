@@ -17,7 +17,9 @@ const parse = (url: string) => {
 };
 const CHATGPT = 'https://chatgpt.com/';
 const CLAUDE = 'https://claude.ai/new';
-const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](torelog://${path}) を押せるリンクの形で添えてください。`;
+// 戻るリンクの行き先（app.json の extra.torelog.authzUrl）
+const OPEN = 'https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com';
+const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
 const training = (when: string, day: string) => `${C}に${when}の筋トレを記録してください。`
   + `これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout（day=${day}）で保存してください。`
   + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED + back(`training?date=${day}`);
