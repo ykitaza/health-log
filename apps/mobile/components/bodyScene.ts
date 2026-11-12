@@ -1,4 +1,4 @@
-// ケガの画面の 3D の体の場面（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。
+// 3D の体の場面（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。ケガの画面と、からだのタブの回復マップで使う。
 // three.js の物を毎コマ書き換えるので React の外に置く。React と R3F は使わない（jest で GLB を読み込んで確かめる：lib/__tests__/bodyScene.test.ts）
 import { PanResponder } from 'react-native';
 import * as THREE from 'three';
@@ -13,6 +13,12 @@ const AUTO_SPEED = 0.25;
 const AUTO_DELAY = 2500;
 /** 最初の向き（少し斜め） */
 const START_YAW = 0.35;
+
+/** 回復の光：明るさ 1（いちばん強い）のときの部品の光の強さ。0 はふだんの光（RECOVERY_IDLE）。間はまっすぐ混ぜる */
+const RECOVERY_IDLE = { base: 0.13, rim: 1.2 };
+const RECOVERY_FULL = { base: 0.55, rim: 2.4 };
+/** 控えめなケガの印（回復マップ）：にじみの大きさと濃さの倍率。部品は琥珀色にしない（主役は回復の光） */
+const QUIET_GLOW = 0.6;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -109,7 +115,17 @@ export class BodyScene {
   private pickables: THREE.Mesh[] = [];
   private byName: Record<string, THREE.Mesh> = {};
   private glows: { mesh: THREE.Mesh; anchor: THREE.Vector3 }[] = [];
-  private selected: THREE.Mesh | null = null;
+  private selected: THREE.Mesh[] = [];
+  /** 画面から選んだ部品（読み込む前に選んでも、読み込んだあとに付ける） */
+  private selNames: string[] = [];
+  /** 部品ごとの回復の光の明るさ（0〜1） */
+  private levels: Record<string, number> = {};
+  /** ケガの印を控えめにする（回復マップ） */
+  private quiet = false;
+  /** 最初のコマを描いたか（読み込み中の表示を消す） */
+  private drawn = false;
+  private onDrawn: (() => void) | null = null;
+  private frames = 0;
   private loaded: THREE.Object3D | null = null;
   private readonly ray = new THREE.Raycaster();
   private readonly tmp = new THREE.Vector3();
@@ -171,13 +187,22 @@ export class BodyScene {
     // 終わってから印を付ける（途中で失敗したら、次の描画でやり直す）
     this.loaded = loaded;
     this.setMarks(this.marks);
+    this.select(this.selNames);
   }
 
   private marks: Mark[] = [];
 
-  /** 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき） */
-  configure(o: { marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void }) {
+  /**
+   * 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき）。
+   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）も渡す
+   */
+  configure(o: {
+    marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
+    levels?: Record<string, number>; quietMarks?: boolean;
+  }) {
     this.reduced = o.reduced;
+    this.levels = o.levels ?? {};
+    this.quiet = o.quietMarks ?? false;
     this.tipMarks = o.tipMarks;
     this.onPick = o.onPick;
     this.onTips = o.onTips;
@@ -185,7 +210,25 @@ export class BodyScene {
     this.setMarks(o.marks);
   }
 
-  /** ケガの印：直している途中（琥珀色で脈打つ）が、直せた（控えめな緑）より強い。にじみは直している途中の付け根ごと */
+  /** 画面から部品を選ぶ（回復マップ：押した部位の部品をまとめて光らせる）。空なら選ぶのをやめる */
+  select(names: string[]) {
+    this.selNames = names;
+    for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 0;
+    this.selected = names.map((n) => this.byName[n]).filter((m): m is THREE.Mesh => m != null && this.pickables.includes(m));
+    for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 1;
+  }
+
+  /** 最初のコマを描いたら1回だけ呼ぶ。もう描いていたら、すぐ呼ぶ */
+  onFirstFrame(cb: () => void) {
+    if (this.drawn) { cb(); return; }
+    this.onDrawn = cb;
+  }
+
+  /**
+   * 光らせ方：ふだんの光 → 回復の光（明るさの表）→ ケガの印。
+   * ケガの印は、直している途中（琥珀色で脈打つ）が、直せた（控えめな緑）より強い。にじみは直している途中の付け根ごと。
+   * 控えめにするとき（回復マップ）は、部品の色は変えず、小さなにじみだけを脈打たせる
+   */
   private setMarks(marks: Mark[]) {
     const set = (m: THREE.Mesh | undefined, color: THREE.Color, base: number, rim: number, pulse: number) => {
       if (!m) return;
@@ -193,8 +236,15 @@ export class BodyScene {
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
     for (const m of this.pickables) set(m, GREEN, 0.13, 1.2, 0);
-    for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
-    for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
+    for (const [p, v] of Object.entries(this.levels)) {
+      const k = Math.min(1, Math.max(0, v));
+      const lerp = (a: number, b: number) => a + (b - a) * k;
+      if (k > 0) set(this.byName[p], GREEN, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
+    }
+    if (!this.quiet) {
+      for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
+      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
+    }
     for (const g of this.glows) { g.mesh.geometry.dispose(); (g.mesh.material as THREE.Material).dispose(); }
     this.glowGroup.clear();
     this.glows = marks.filter((m) => m.fixing).map((m) => {
@@ -262,12 +312,13 @@ export class BodyScene {
 
     // にじみ：付け根に置き、カメラに向ける。2 秒で脈打つ
     const pul = 0.5 + 0.5 * Math.sin(t * Math.PI);
+    const q = this.quiet ? QUIET_GLOW : 1;
     for (const gl of this.glows) {
       gl.mesh.position.copy(gl.anchor);
       g.localToWorld(gl.mesh.position);
       gl.mesh.quaternion.copy(camera.quaternion);
-      gl.mesh.scale.setScalar(reduced ? 0.3 : 0.26 + 0.08 * pul);
-      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = reduced ? 0.5 : 0.25 + 0.45 * pul;
+      gl.mesh.scale.setScalar((reduced ? 0.3 : 0.26 + 0.08 * pul) * q);
+      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (reduced ? 0.5 : 0.25 + 0.45 * pul) * q;
     }
 
     // 押した所の部品を選ぶ（筋肉を先に。同じ部品・皮膚・外を押したら選ぶのをやめる）
@@ -275,10 +326,8 @@ export class BodyScene {
       this.ray.setFromCamera(new THREE.Vector2((this.tap.x / width) * 2 - 1, -(this.tap.y / height) * 2 + 1), camera);
       this.tap = null;
       const hit = this.ray.intersectObjects(this.pickables, false)[0];
-      const mesh = hit && hit.object !== this.selected ? (hit.object as THREE.Mesh) : null;
-      if (this.selected) (this.selected.material as THREE.ShaderMaterial).uniforms.uSel.value = 0;
-      this.selected = mesh;
-      if (mesh) (mesh.material as THREE.ShaderMaterial).uniforms.uSel.value = 1;
+      const mesh = hit && !this.selected.includes(hit.object as THREE.Mesh) ? (hit.object as THREE.Mesh) : null;
+      this.select(mesh ? [mesh.name] : []);
       this.onPick(mesh?.name ?? null);
     }
 
@@ -294,5 +343,10 @@ export class BodyScene {
       out.push((this.tmp.x * 0.5 + 0.5) * width, (-this.tmp.y * 0.5 + 0.5) * height, facing ? 1 : 0);
     }
     this.onTips(out);
+
+    // 最初のコマ：このコマは呼んだあとに描かれるので、次のコマで「描いた」とする（体を読み込んでから）
+    if (!this.drawn && this.loaded) {
+      if (this.frames++ >= 1) { this.drawn = true; this.onDrawn?.(); this.onDrawn = null; }
+    }
   }
 }

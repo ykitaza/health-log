@@ -80,4 +80,79 @@ describe('3D の体の場面', () => {
     scene.frame(cam, 348, 380, 0.2, 1 / 60);
     expect(picked).toBeNull();
   });
+
+  test('ケガの画面の光り方は変えない（ふだん・直せた・直している途中の強さと、にじみの大きさ）', async () => {
+    const scene = new BodyScene();
+    scene.configure({ marks: [mark('a', 'chest', 'right', true), mark('b', 'biceps', 'left', false)], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} });
+    scene.setModel(await loadBody());
+    const all = meshesIn(scene.body);
+    const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
+    const pick = (name: string) => [u(name).uBase.value, u(name).uRim.value, u(name).uPulse.value];
+    expect(pick('quad_r')).toEqual([0.13, 1.2, 0]);
+    expect(pick('biceps_l')).toEqual([0.32, 1.8, 0]);
+    expect(pick('pec_r')).toEqual([0.7, 2.2, 1]);
+    scene.frame(camera(348, 380), 348, 380, 0.5, 1 / 60);
+    const glow = scene.glowGroup.children[0] as THREE.Mesh;
+    expect(scene.glowGroup.children).toHaveLength(1);
+    expect(glow.scale.x).toBeCloseTo(0.26 + 0.08 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
+    expect((glow.material as THREE.ShaderMaterial).uniforms.uOpacity.value).toBeCloseTo(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
+  });
+
+  test('回復マップ：明るさの表で光り、ケガの印は部品の色を変えずに小さなにじみだけ。画面から部品を選べる', async () => {
+    const scene = new BodyScene();
+    let picked: string | null | undefined;
+    const marks = [mark('a', 'chest', 'right', true)];
+    // 読み込む前に渡しても、読み込んだあとに付く
+    scene.configure({ marks, reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {}, levels: { pec_r: 1, quad_l: 0.5, nope: 1 }, quietMarks: true });
+    scene.select(['biceps_r', 'biceps_l', 'skin']);
+    scene.setModel(await loadBody());
+    const all = meshesIn(scene.body);
+    const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
+    expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.55, 2.4]);
+    expect(u('quad_l').uBase.value).toBeCloseTo(0.34);
+    expect(u('quad_l').uRim.value).toBeCloseTo(1.8);
+    expect([u('quad_r').uBase.value, u('quad_r').uRim.value]).toEqual([0.13, 1.2]);
+    // 直している途中の胸は、緑の回復の光のまま（脈打たない）
+    expect(u('pec_r').uColor.value.g).toBeGreaterThan(u('pec_r').uColor.value.r);
+    expect(u('pec_r').uPulse.value).toBe(0);
+    // 選んだ部品（皮膚は選ばない）
+    expect([u('biceps_r').uSel.value, u('biceps_l').uSel.value, u('skin').uSel.value]).toEqual([1, 1, 0]);
+
+    const cam = camera(348, 380);
+    scene.frame(cam, 348, 380, 0.5, 1 / 60);
+    const glow = scene.glowGroup.children[0] as THREE.Mesh;
+    expect(glow.scale.x).toBeCloseTo((0.26 + 0.08) * 0.6);
+    // 選んだ部品の1つを押すと、まとめて選ぶのをやめる
+    scene.select(['pec_r', 'pec_l']);
+    scene.tapAt(174, 150);
+    scene.frame(cam, 348, 380, 0.6, 1 / 60);
+    // 押した所が胸なら選ぶのをやめ（null）、ほかの部品ならその部品だけを選ぶ。どちらでも左胸は選んでいない
+    expect(u('pec_l').uSel.value).toBe(0);
+    if (picked != null) expect(u(picked).uSel.value).toBe(1);
+    scene.select([]);
+    expect(all.filter((m) => (m.material as THREE.ShaderMaterial).uniforms?.uSel?.value === 1)).toHaveLength(0);
+    // 明るさの表を外すと、ふだんの光に戻る
+    scene.configure({ marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} });
+    expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.13, 1.2]);
+  });
+
+  test('最初のコマを描いたことを1回だけ知らせる。体を読み込む前は知らせない。あとから受けてもすぐ知らせる', async () => {
+    const scene = new BodyScene();
+    const cam = camera(348, 380);
+    let n = 0;
+    scene.onFirstFrame(() => { n += 1; });
+    scene.frame(cam, 348, 380, 0, 1 / 60);
+    scene.frame(cam, 348, 380, 0.1, 1 / 60);
+    expect(n).toBe(0);
+    scene.setModel(await loadBody());
+    scene.frame(cam, 348, 380, 0.2, 1 / 60);
+    expect(n).toBe(0);
+    scene.frame(cam, 348, 380, 0.3, 1 / 60);
+    expect(n).toBe(1);
+    scene.frame(cam, 348, 380, 0.4, 1 / 60);
+    expect(n).toBe(1);
+    let late = 0;
+    scene.onFirstFrame(() => { late += 1; });
+    expect(late).toBe(1);
+  });
 });

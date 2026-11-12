@@ -2,31 +2,20 @@
 // 直している途中の部位は琥珀色で脈打ち、直せた部位は控えめな緑。吹き出しは体が正面を向いたときの位置で止めておき、
 // 引き出し線の先だけが回る部位を追う（2026-11-12 ユーザーの要望）。左右になぞると回り、押すと部位の名前が出る。
 // web（e2e）では読まない（InjuryBodyMap3D.tsx が null を出し、2D の図を使う）
-/* eslint-disable react/no-unknown-property -- R3F の <primitive object> は three.js の物を渡す決まりの属性（DOM の属性ではない） */
-import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
-import { useFocusEffect } from 'expo-router';
-import { Component, ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SharedValue, useAnimatedProps, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Line } from 'react-native-svg';
-import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import MODEL from '@/assets/models/body.glb';
 import type { Injury } from '@/db/repositories/injuries';
-import { anchorFor, CALLOUT_H, CAMERA, facingOf, layoutCallouts, partsFor, siteOfPart } from '@/lib/bodyModel';
+import { anchorFor, CALLOUT_H, facingOf, layoutCallouts, partsFor, siteOfPart } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
-import { ensureTextDecoder } from '@/lib/utf8';
 import { colors, space } from '@/theme';
+import { BodyAttribution, BodyCanvas, Fallback } from './bodyCanvas.native';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
 import { BodyScene, Mark } from './bodyScene';
 import { T } from './Text';
 
-// GLTFLoader は GLB の見出しを TextDecoder で読む。無い JS エンジンに備える
-ensureTextDecoder();
-
-/** 出典のリンク（BodyParts3D のライセンスと元のデータ） */
-const LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/';
-const SOURCE_URL = 'https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html';
 /** 図の高さ（px） */
 const STAGE_H = 380;
 /** 吹き出しの幅（px） */
@@ -34,24 +23,6 @@ const CALLOUT_W = 96;
 
 /** 引き出し線の先（画面の px）と、表を向いているか。吹き出しごとに x, y, facing（1 / 0）の3つずつ */
 type Tips = SharedValue<number[]>;
-
-/** Canvas の中：体を読み込み、毎コマ BodyScene を進める */
-function Scene({ scene }: { scene: BodyScene }) {
-  // MODEL は require の番号（R3F の native の読み込みが expo-asset で開く）。1つだけ読むので配列にはならない
-  const gltf = useLoader(GLTFLoader, MODEL as unknown as string) as GLTF;
-  const { camera, size } = useThree();
-  scene.setModel(gltf.scene);
-  useEffect(() => { camera.lookAt(...CAMERA.target); }, [camera]);
-  useFrame((state, delta) => scene.frame(camera, size.width, size.height, state.clock.elapsedTime, delta));
-  return (
-    <>
-      <primitive object={scene.body} />
-      <primitive object={scene.deck} />
-      <primitive object={scene.scanRing} />
-      <primitive object={scene.glowGroup} />
-    </>
-  );
-}
 
 const ALine = Animated.createAnimatedComponent(Line);
 const ACircle = Animated.createAnimatedComponent(Circle);
@@ -78,28 +49,17 @@ function Leader({ tips, index, from, toRight, color }: { tips: Tips; index: numb
   );
 }
 
-/** 3D が描けないとき（GL を作れない、形を読めない）は、2D の図に戻す */
-class Fallback extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? this.props.fallback : this.props.children; }
-}
-
 /**
  * 一覧の上の体の図（BODY MAP // SCAN、3D）。左右になぞると回り、押すと部位の名前が出る。
  * 吹き出しは左右それぞれ2つまで（直している途中を先に、痛めた日の新しい順）。読み上げでは件数だけを読む
  */
 function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<string, string> }) {
   const [width, setWidth] = useState(0);
-  const [focused, setFocused] = useState(true);
   const [picked, setPicked] = useState<string | null>(null);
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const active = injuries.filter((i) => i.status === 'fixing').length;
   const cleared = injuries.length - active;
-
-  // 画面から離れたら描くのを止める（電池）
-  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
 
   const marks = useMemo<Mark[]>(() => injuries.flatMap((i) => {
     const anchor = anchorFor(i.site, i.side);
@@ -131,16 +91,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: STAGE_H, marginHorizontal: -space.l }}>
           {width > 0 && (
             <>
-              <Canvas
-                style={StyleSheet.absoluteFill}
-                frameloop={focused ? 'always' : 'never'}
-                camera={{ fov: CAMERA.fov, position: CAMERA.position, near: CAMERA.near, far: CAMERA.far }}
-                gl={{ antialias: true }}
-              >
-                <Suspense fallback={null}>
-                  <Scene scene={scene} />
-                </Suspense>
-              </Canvas>
+              <BodyCanvas scene={scene} />
               <Svg width={width} height={STAGE_H} style={StyleSheet.absoluteFill} pointerEvents="none">
                 {places.map((p, i) => {
                   const fixing = injuries.find((j) => j.id === p.id)!.status === 'fixing';
@@ -171,14 +122,8 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
           {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
         </View>
       </View>
-      {/* 出典。読み上げでリンクを選べるよう、件数をまとめて読む枠の外に置く（CC BY 4.0 の決まり：作者・ライセンスとそのリンク・改変したこと。文言は公式のライセンスのページの指定どおり） */}
-      <T size={11} color={colors.sub} style={{ marginTop: space.s }}>
-        BodyParts3D, © The Database Center for Life Science licensed under{' '}
-        <T size={11} color={colors.accent} accessibilityRole="link" onPress={() => Linking.openURL(LICENSE_URL)}>CC Attribution 4.0 International</T>
-        （形を軽くして使用。
-        <T size={11} color={colors.accent} accessibilityRole="link" onPress={() => Linking.openURL(SOURCE_URL)}>元のデータ</T>
-        ）
-      </T>
+      {/* 出典。読み上げでリンクを選べるよう、件数をまとめて読む枠の外に置く */}
+      <BodyAttribution />
     </ScanFrame>
   );
 }
