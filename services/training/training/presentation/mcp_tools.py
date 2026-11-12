@@ -65,7 +65,9 @@ RATIO_DESCRIPTION = ("回数だけ（reps_only）の種目の、体重に対す�
                      "腹筋（クランチなど）0.3、プランクなど時間で行う種目は 0（総負荷量に入れない）。利用者が言わなければ省く")
 
 SITE_DESCRIPTION = "部位のコード（左右は side で分ける）：" + "、".join(
-    f"{code}＝{site.name}{'' if site.sided else '（左右なし）'}" for code, site in SITES.items())
+    f"{code}＝{site.name}{'' if site.sided else '（左右なし）'}" for code, site in SITES.items()) + (
+    "。脊柱起立筋（背骨のすぐ横の縦の筋肉）は、背中上部（胸の高さ）なら upper_back、腰なら lower_back。"
+    "僧帽筋（trapezius）・広背筋（lats）とは別")
 SIDE_DESCRIPTION = "左右（left・right）。左右のない部位と、利用者が左右を言っていないときは省く"
 OWN_WORDS = "利用者の言葉のまま。言っていなければ省く（推測で埋めない）"
 

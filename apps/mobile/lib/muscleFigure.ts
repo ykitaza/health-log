@@ -7,7 +7,7 @@ export type MuscleView = 'front' | 'back';
 /** 筋肉の図で塗り分ける筋肉（Figma「部品案：筋肉の図」のパーツ。左右はまとめる） */
 export type Muscle =
   | 'trapezius' | 'deltoid' | 'pecs' | 'biceps' | 'triceps' | 'forearm' | 'abs' | 'obliques'
-  | 'lats' | 'erectors' | 'glutes' | 'quads' | 'hamstrings' | 'shins' | 'calves';
+  | 'lats' | 'erectorsUpper' | 'erectorsLower' | 'glutes' | 'quads' | 'hamstrings' | 'shins' | 'calves';
 
 export type MuscleFigureSpec = { view: MuscleView; muscles: Muscle[] };
 
@@ -19,7 +19,7 @@ export type MuscleFigureSpec = { view: MuscleView; muscles: Muscle[] };
  */
 const PART_MUSCLES: Record<string, MuscleFigureSpec> = {
   胸: { view: 'front', muscles: ['pecs'] },
-  背中: { view: 'back', muscles: ['trapezius', 'lats', 'erectors'] },
+  背中: { view: 'back', muscles: ['trapezius', 'lats', 'erectorsUpper', 'erectorsLower'] },
   肩: { view: 'front', muscles: ['deltoid'] },
   脚: { view: 'front', muscles: ['quads', 'shins'] },
   上腕二頭筋: { view: 'front', muscles: ['biceps', 'forearm'] },
@@ -51,14 +51,14 @@ export function sideAt(view: MuscleView, x: number): Side {
 /** 本人の左右が、図の画面の左か */
 const onScreenLeft = (view: MuscleView, side: Side) => (view === 'front') === (side === 'right');
 
-/** 筋肉のパーツ → 部位のコード（前の三角筋は前、後ろは後ろ。後ろの脊柱起立筋は腰の筋肉） */
+/** 筋肉のパーツ → 部位のコード（前の三角筋は前、後ろは後ろ。後ろの脊柱起立筋は上が背中上部、下が腰の筋肉） */
 const MUSCLE_SITES: Record<MuscleView, Partial<Record<Muscle, SiteCode>>> = {
   front: {
     trapezius: 'trapezius', deltoid: 'shoulder_front', pecs: 'chest', biceps: 'biceps', forearm: 'forearm', abs: 'abs', obliques: 'obliques',
     quads: 'quads', shins: 'shins',
   },
   back: {
-    trapezius: 'trapezius', deltoid: 'shoulder_rear', lats: 'lats', erectors: 'lower_back', triceps: 'triceps', forearm: 'forearm', glutes: 'glutes',
+    trapezius: 'trapezius', deltoid: 'shoulder_rear', lats: 'lats', erectorsUpper: 'upper_back', erectorsLower: 'lower_back', triceps: 'triceps', forearm: 'forearm', glutes: 'glutes',
     hamstrings: 'hamstrings', calves: 'calves',
   },
 };
@@ -87,7 +87,7 @@ function boxOf(d: string): Box {
 }
 
 /**
- * 図の筋肉の1片。side が null なら左右のない部位（腹筋・腰の筋肉）で、左右をつなげたまま。
+ * 図の筋肉の1片。side が null なら左右のない部位（腹筋）で、左右をつなげたまま。
  * clip は、1つのパスで左右にまたがる筋肉（後ろの僧帽筋。Figma でも1つのベクター）を、まん中（x = 50）で切って描く片
  */
 export type FigurePiece = { muscle: Muscle; site: SiteCode; side: Side | null; d: string; clip?: 'left' | 'right'; box: Box };
@@ -176,6 +176,11 @@ export function markPoint(site: string, side: Side | null): { view: MuscleView; 
   for (const view of order) {
     const hits = FIGURE_TARGETS[view].filter((t) => t.site === site);
     if (hits.length === 0) continue;
+    // 腰の筋肉は、左右を持つ前（2026-11）に左右なしで記録したものがある。左右が分からないときは背骨のまん中に置く
+    if (site === 'lower_back' && side == null) {
+      const ys = hits.map((h) => h.center.y);
+      return { view, point: { x: 50, y: ys.reduce((a, y) => a + y, 0) / ys.length } };
+    }
     const t = hits.find((h) => h.side === side) ?? hits.find((h) => h.side == null || onScreenLeft(view, h.side)) ?? hits[0];
     return { view, point: t.center };
   }

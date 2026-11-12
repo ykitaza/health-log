@@ -213,6 +213,10 @@ def test_ケガ_アプリから受け付ける範囲():
     assert isinstance(parse({**INJURY, "phase": "あ" * 100, "fix": "あ" * 500}), Change)
     assert isinstance(parse({"site": "abs"}, "update"), Change)  # 左右は別の変更で null にする（項目ごとに後勝ち）
     assert isinstance(parse({"status": "fixing", "fixed_on": None}, "update"), Change)
+    # 脊柱起立筋：背中上部と腰は、どちらも左右を付けられる（腰の筋肉の左右なしの記録も今までどおり受け付ける）
+    for fields in ({"site": "upper_back", "side": "right"}, {"site": "lower_back", "side": "left"},
+                   {"site": "lower_back", "side": None}):
+        assert isinstance(parse({**INJURY, **fields}), Change), fields
     for bad in ({"site": "nose"}, {"side": "both"}, {"site": "abs", "side": "left"}, {"status": "done"},
                 {"status": "fixed", "fixed_on": None}, {"status": "fixing", "fixed_on": "2026-11-06"},
                 {"status": "fixed", "fixed_on": "2026-11-04"}, {"phase": "あ" * 101}, {"cause": "あ" * 501},

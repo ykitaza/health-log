@@ -11,6 +11,11 @@ describe('部位の名前', () => {
     expect(siteLabel('waist', null)).toBe('腰');
     expect(siteLabel('waist', 'left')).toBe('腰'); // 左右のない部位の左右は捨てる
     expect(siteLabel('elbow', null)).toBe('ひじ');
+    // 脊柱起立筋：背中上部と腰。どちらも左右がある。左右を持つ前に左右なしで記録した腰の筋肉はそのまま読める
+    expect(siteLabel('upper_back', 'right')).toBe('右の背中の起立筋');
+    expect(siteLabel('lower_back', 'left')).toBe('左の腰の筋肉');
+    expect(siteLabel('lower_back', null)).toBe('腰の筋肉');
+    expect(siteDetail('upper_back')).toBe('脊柱起立筋（背中上部）');
     expect(siteDetail('shoulder_front')).toBe('三角筋（前）');
   });
 
@@ -37,6 +42,8 @@ describe('受け取った値をそろえる', () => {
   const base = { site: 'knee', side: 'left', status: 'fixing', fixedOn: null };
   test('左右のない部位の左右・知らない左右は捨てる。直せた日は直せたのときだけ。知らない状態は直している途中', () => {
     expect(normalizeInjury({ ...base, site: 'neck' }).side).toBeNull();
+    expect(normalizeInjury({ ...base, site: 'lower_back', side: 'left' }).side).toBe('left');
+    expect(normalizeInjury({ ...base, site: 'upper_back', side: 'right' }).side).toBe('right');
     expect(normalizeInjury({ ...base, side: 'up' }).side).toBeNull();
     expect(normalizeInjury({ ...base, fixedOn: '2026-11-07' }).fixedOn).toBeNull();
     expect(normalizeInjury({ ...base, status: 'fixed', fixedOn: '2026-11-07' })).toMatchObject({ status: 'fixed', fixedOn: '2026-11-07' });

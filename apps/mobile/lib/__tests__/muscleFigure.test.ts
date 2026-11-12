@@ -8,10 +8,10 @@ describe('ケガの部位：図の左右と、押して選ぶ', () => {
     expect([sideAt('back', 30), sideAt('back', 70)]).toEqual(['left', 'right']);
   });
 
-  test('左右のある筋肉は左右の片に分かれ、片ごとに1つの部分パス（腹筋・腰の筋肉は左右なしで1片）', () => {
+  test('左右のある筋肉は左右の片に分かれ、片ごとに1つの部分パス（腹筋は左右なしで1片）', () => {
     for (const view of ['front', 'back'] as const) {
       for (const p of FIGURE_PIECES[view]) {
-        if (p.side == null) expect(['abs', 'lower_back']).toContain(p.site);
+        if (p.side == null) expect(p.site).toBe('abs');
         if (p.side != null) expect(sideAt(view, (p.box.x0 + p.box.x1) / 2)).toBe(p.side);
       }
     }
@@ -32,6 +32,21 @@ describe('ケガの部位：図の左右と、押して選ぶ', () => {
     expect(pickTarget('front', { x: 5, y: 190 })).toBeNull();
   });
 
+  test('脊柱起立筋は上が背中上部（upper_back）、下が腰（lower_back）。どちらも左右を選べる（後ろの図は画面の左が本人の左）', () => {
+    expect(pickTarget('back', { x: 49, y: 68 })).toMatchObject({ site: 'upper_back', side: 'left' });
+    expect(pickTarget('back', { x: 51, y: 68 })).toMatchObject({ site: 'upper_back', side: 'right' });
+    expect(pickTarget('back', { x: 47, y: 84 })).toMatchObject({ site: 'lower_back', side: 'left' });
+    expect(pickTarget('back', { x: 53, y: 84 })).toMatchObject({ site: 'lower_back', side: 'right' });
+    expect(FIGURE_PIECES.back.filter((p) => p.site === 'upper_back' || p.site === 'lower_back').map((p) => [p.site, p.side]))
+      .toEqual([['upper_back', 'left'], ['upper_back', 'right'], ['lower_back', 'left'], ['lower_back', 'right']]);
+    // 上部は下部より上
+    const upper = markPoint('upper_back', 'right')!;
+    const lower = markPoint('lower_back', 'right')!;
+    expect(upper).toMatchObject({ view: 'back' });
+    expect(upper.point.x).toBeGreaterThan(50);
+    expect(upper.point.y).toBeLessThan(lower.point.y);
+  });
+
   test('近くの部位は近い順で重ならない。どの部位コードも、どちらかの図で選べる', () => {
     const near = targetsNear('front', { x: 33, y: 38 });
     expect(near.length).toBeGreaterThan(1);
@@ -45,6 +60,8 @@ describe('ケガの部位：図の左右と、押して選ぶ', () => {
     expect(markPoint('shoulder_front', 'right')!.point.x).toBeLessThan(50);
     expect(markPoint('shoulder_front', 'left')!.point.x).toBeGreaterThan(50);
     expect(markPoint('waist', null)).toEqual({ view: 'back', point: { x: 50, y: 93 } });
+    // 左右を持つ前に左右なしで記録した腰の筋肉は、背骨のまん中に置く
+    expect(markPoint('lower_back', null)).toMatchObject({ view: 'back', point: { x: 50 } });
     expect(markPoint('forearm', 'left')!.view).toBe('front');
     expect(markPoint('trapezius', 'left')!.view).toBe('back');
     expect(markPoint('knee', null)).not.toBeNull(); // 左右が分からないときも置ける
@@ -54,7 +71,7 @@ describe('ケガの部位：図の左右と、押して選ぶ', () => {
 
 describe('muscleFigureFor（最近の流れの筋肉の図：部位 → 向きと塗る筋肉）', () => {
   test('背中は後ろ姿で僧帽筋・広背筋・脊柱起立筋。胸・脚・肩は前から', () => {
-    expect(muscleFigureFor('背中')).toEqual({ view: 'back', muscles: ['trapezius', 'lats', 'erectors'] });
+    expect(muscleFigureFor('背中')).toEqual({ view: 'back', muscles: ['trapezius', 'lats', 'erectorsUpper', 'erectorsLower'] });
     expect(muscleFigureFor('胸')).toEqual({ view: 'front', muscles: ['pecs'] });
     expect(muscleFigureFor('脚')).toEqual({ view: 'front', muscles: ['quads', 'shins'] });
     expect(muscleFigureFor('肩')).toEqual({ view: 'front', muscles: ['deltoid'] });

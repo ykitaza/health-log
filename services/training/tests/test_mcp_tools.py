@@ -561,8 +561,28 @@ def test_ケガを記録すると_直している途中として_言葉のまま
     assert call("record_injury", site="knee")["recorded"]["site_name"] == "膝"
 
 
+def test_脊柱起立筋は背中上部と腰に分かれ_どちらも左右を付けて記録_一覧_書き直しできる(call, engine):
+    upper = call("record_injury", site="upper_back", side="right", symptom="背中の右上が張る")["recorded"]
+    assert (upper["site"], upper["side"], upper["site_name"]) == ("upper_back", "right", "右の脊柱起立筋（背中上部）")
+    lower_left = call("record_injury", site="lower_back", side="left")["recorded"]
+    lower_right = call("record_injury", site="lower_back", side="right")["recorded"]
+    assert (lower_left["site_name"], lower_right["site_name"]) == ("左の脊柱起立筋（腰の筋肉）", "右の脊柱起立筋（腰の筋肉）")
+    # 左右を言っていなければ左右なし（左右を持つ前に記録した腰の筋肉と同じ形で、今までどおり読める）
+    legacy = call("record_injury", site="lower_back")["recorded"]
+    assert (legacy["side"], legacy["site_name"]) == (None, "脊柱起立筋（腰の筋肉）")
+    listed = {i["injury_id"]: (i["site"], i["side"], i["site_name"]) for i in call("list_injuries")["injuries"]}
+    assert listed[upper["injury_id"]] == ("upper_back", "right", "右の脊柱起立筋（背中上部）")
+    assert listed[legacy["injury_id"]] == ("lower_back", None, "脊柱起立筋（腰の筋肉）")
+    # 書き直し：腰から背中上部へ（左右は残る）。左右のない部位へ変えると左右は外れる
+    moved = call("update_injury", injury_id=lower_left["injury_id"], site="upper_back")["injury"]
+    assert (moved["site"], moved["side"]) == ("upper_back", "left")
+    to_abs = call("update_injury", injury_id=moved["injury_id"], site="abs")["injury"]
+    assert (to_abs["site"], to_abs["side"]) == ("abs", None)
+
+
 @pytest.mark.parametrize("arguments,message", [
     ({"site": "abs", "side": "left"}, "腹筋には左右がありません"),
+    ({"site": "neck", "side": "right"}, "首には左右がありません"),
     ({"site": "elbow", "exercise": "ベンチ"}, "近い名前：ベンチプレス"),  # 種目は名前の完全一致だけ
     ({"site": "elbow", "fix": "あ" * 501}, None),  # 直し方は500文字まで
 ])
