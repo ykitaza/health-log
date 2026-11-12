@@ -93,7 +93,7 @@ function Card({ title, right, label, testID, children, after }: {
   return (
     <View style={s.card} testID={testID}>
       {/* 読み上げは中身をまとめて1つに（数字を含む名前）。押せるもの（after）は外に置き、別に選べるようにする */}
-      <View accessible accessibilityLabel={label} style={s.cardBody}>
+      <View accessible accessibilityRole="summary" accessibilityLabel={label} style={s.cardBody}>
         <View style={s.cardHead}>
           <T variant="labelS" color={colors.sub}>{title}</T>
           {right != null && <T variant="labelS" color={colors.sub}>{right}</T>}

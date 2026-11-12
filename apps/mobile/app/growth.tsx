@@ -240,9 +240,12 @@ export default function GrowthScreen() {
   };
 
   const playable = canPlay(n, reduced);
-  /** 1回押す：再生 ↔ 一時停止。終わり（今日）で押したら最初から。動きを減らす設定・記録が2日未満なら何もしない */
+  /**
+   * 1回押す：再生 ↔ 一時停止。終わり（今日）で押したら最初から。動きを減らす設定・記録が2日未満なら何もしない。
+   * カードが半分以上上がっている（形を背景に回している）ときも何もしない（見えている1画面目の残りを押しても再生しない）
+   */
   const togglePlay = () => {
-    if (!playable) return;
+    if (!playable || covered) return;
     if (playingRef.current) {
       pause();
       maybeHint();
@@ -256,6 +259,7 @@ export default function GrowthScreen() {
     startPlayback(from);
   };
   const replay = () => {
+    if (covered) return;
     touch();
     indexRef.current = -1;
     startPlayback(0);

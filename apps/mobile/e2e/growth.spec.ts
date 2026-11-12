@@ -110,6 +110,9 @@ test.describe('動きを減らす設定がオフ', () => {
     await expect(button(page, '再生')).toHaveCount(1);
     await expect(see(page, '成長の記録', { exact: true })).toBeVisible();
     await expect(scoreCard(page)).toBeInViewport();
+    // カードが上がっているあいだは、上に残った1画面目を押しても再生しない
+    await page.mouse.click(206, 80);
+    await expect(button(page, '再生')).toHaveCount(1);
 
     // 一番上に戻しても止まったまま。押すと再生
     await scrollBy(page, -2000);
