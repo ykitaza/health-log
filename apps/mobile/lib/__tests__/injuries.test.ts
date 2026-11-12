@@ -1,5 +1,6 @@
 import {
-  dotDate, fixedOnFor, injuryInputError, InjuryInput, injuryNumbers, normalizeInjury, phasesFor, siteDetail, siteLabel, SITE_CODES, SITES,
+  bandText, bandWhere, dotDate, fixedOnFor, injuriesForExercise, injuryInputError, InjuryInput, injuryNumbers, normalizeInjury, phasesFor,
+  reviewOnDate, siteDetail, siteLabel, SITE_CODES, SITES,
 } from '../injuries';
 
 describe('部位の名前', () => {
@@ -73,5 +74,56 @@ describe('番号と日付', () => {
     expect(dotDate('2026-11-06')).toBe('11.06');
     expect(fixedOnFor('2026-11-01', '2026-11-08')).toBe('2026-11-08');
     expect(fixedOnFor('2026-11-09', '2026-11-08')).toBe('2026-11-09');
+  });
+});
+
+describe('筋トレの入力画面の「直すこと」の帯', () => {
+  const inj = (id: string, over: Partial<{ status: string; exerciseId: string | null; occurredOn: string; createdAt: string }> = {}) => ({
+    id, status: 'fixing', exerciseId: 'bench', occurredOn: '2026-11-06', createdAt: '2026-11-06T10:00:00Z', ...over,
+  });
+
+  test('直している途中で、種目が同じものだけ。直せた・ほかの種目・種目なしは出さない', () => {
+    const { shown, more } = injuriesForExercise([
+      inj('a'),
+      inj('fixed', { status: 'fixed' }),
+      inj('squat', { exerciseId: 'squat' }),
+      inj('none', { exerciseId: null }),
+    ], 'bench');
+    expect(shown.map((i) => i.id)).toEqual(['a']);
+    expect(more).toBe(0);
+    expect(injuriesForExercise([inj('a')], 'deadlift')).toEqual({ shown: [], more: 0 });
+  });
+
+  test('新しい順（痛めた日、同じなら記録した時刻）に2件まで。残りは more', () => {
+    const { shown, more } = injuriesForExercise([
+      inj('old', { occurredOn: '2026-10-01' }),
+      inj('early', { createdAt: '2026-11-06T09:00:00Z' }),
+      inj('new', { occurredOn: '2026-11-07' }),
+      inj('late', { createdAt: '2026-11-06T11:00:00Z' }),
+    ], 'bench');
+    expect(shown.map((i) => i.id)).toEqual(['new', 'late']);
+    expect(more).toBe(2);
+  });
+
+  test('その日の振り返り：なければ null、同じ日に複数あれば後に記録したもの', () => {
+    const reviews = [
+      { date: '2026-11-07', result: 'pain' as const },
+      { date: '2026-11-08', result: 'not_yet' as const },
+      { date: '2026-11-08', result: 'fixed' as const },
+    ];
+    expect(reviewOnDate(reviews, '2026-11-08')).toBe('fixed');
+    expect(reviewOnDate(reviews, '2026-11-07')).toBe('pain');
+    expect(reviewOnDate(reviews, '2026-11-06')).toBeNull();
+    expect(reviewOnDate([], '2026-11-08')).toBeNull();
+  });
+
+  test('部位と場面、本文は直し方 → 原因 → 症状 → 既定の文', () => {
+    expect(bandWhere({ site: 'shoulder_front', side: 'right', phase: 'ラックアップ' })).toBe('右肩・ラックアップ');
+    expect(bandWhere({ site: 'waist', side: null, phase: ' ' })).toBe('腰');
+    const empty = { fix: '', cause: '', symptom: '' };
+    expect(bandText({ ...empty, fix: '肩甲骨を寄せてから外す', cause: '肩で持ち上げた' })).toBe('肩甲骨を寄せてから外す');
+    expect(bandText({ ...empty, cause: '肩で持ち上げた', symptom: 'ピリッとした' })).toBe('肩で持ち上げた');
+    expect(bandText({ ...empty, symptom: 'ピリッとした' })).toBe('ピリッとした');
+    expect(bandText({ ...empty, fix: '  ' })).toBe('ケガの記録があります');
   });
 });

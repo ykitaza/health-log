@@ -180,3 +180,38 @@ export function dotDate(key: string): string {
 export function fixedOnFor(occurredOn: string, today: string): string {
   return today < occurredOn ? occurredOn : today;
 }
+
+/** 筋トレの入力画面の「直すこと」の帯に出す数（残りは「ほか N 件」） */
+export const BAND_MAX = 2;
+
+type BandInjury = { id: string; status: string; exerciseId: string | null; occurredOn: string; createdAt: string };
+
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * 筋トレの入力画面の帯に出すケガ：直している途中で、種目が同じもの（部位では突き合わせない）。
+ * 新しい順（痛めた日、同じなら記録した時刻、同じなら ID の新しい順）に BAND_MAX 件まで。more は出さなかった数
+ */
+export function injuriesForExercise<T extends BandInjury>(injuries: T[], exerciseId: string): { shown: T[]; more: number } {
+  const hit = injuries
+    .filter((i) => i.status === 'fixing' && i.exerciseId != null && i.exerciseId === exerciseId)
+    .sort((a, b) => cmp(b.occurredOn, a.occurredOn) || cmp(b.createdAt, a.createdAt) || cmp(b.id, a.id));
+  return { shown: hit.slice(0, BAND_MAX), more: Math.max(0, hit.length - BAND_MAX) };
+}
+
+/**
+ * その日の振り返りの結果（帯の「振り返り済み（✓直せた）」）。その日がなければ null。
+ * 同じ日に複数あれば、後に記録したもの（reviews は古い順に並んだもの。injuryRepository の reviews の順）
+ */
+export function reviewOnDate(reviews: { date: string; result: ReviewResult }[], date: string): ReviewResult | null {
+  const same = reviews.filter((r) => r.date === date);
+  return same.length > 0 ? same[same.length - 1].result : null;
+}
+
+/** 帯の見出しの横：部位と場面（「右肩・ラックアップ」）。場面がなければ部位だけ */
+export const bandWhere = (i: { site: string; side: string | null; phase: string }) =>
+  [siteLabel(i.site, i.side), i.phase.trim()].filter(Boolean).join('・');
+
+/** 帯の本文：直し方。空なら原因、それも空なら症状、どれも空なら「ケガの記録があります」 */
+export const bandText = (i: { fix: string; cause: string; symptom: string }) =>
+  i.fix.trim() || i.cause.trim() || i.symptom.trim() || 'ケガの記録があります';

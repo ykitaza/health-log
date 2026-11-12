@@ -1,20 +1,24 @@
 // ケガの記録の部品（Figma「スタディ：ケガの記録」の強め版）。一覧の体の図（BODY MAP // SCAN）、走査の枠、状態の札、一覧の行
 import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Line, Path, Pattern, Rect } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { useFocusData } from '@/hooks/data';
-import { formatShortDate } from '@/lib/date';
-import { dotDate, injuryNumbers, InjuryStatus, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
+import { addDays, formatJpDate, formatShortDate } from '@/lib/date';
+import { dotDate, injuryNumbers, InjuryStatus, RESULT_KEYS, ReviewResult, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
+import { INJURY_LIMITS } from '@/lib/limits';
 import { markPoint, MuscleView } from '@/lib/muscleFigure';
 import { colors, fonts, radius, space, toneColors } from '@/theme';
+import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
+import { Input } from './Input';
 import { LoadError } from './LoadError';
-import { PressableScale } from './motion';
+import { PressableScale, Sheet } from './motion';
 import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
-import { EmptyState } from './ui';
+import { Button, Chip, EmptyState, Segmented } from './ui';
 
 /** 走査の枠の線（控えめな緑） */
 const SCAN_LINE = colors.accentMuted;
@@ -245,6 +249,79 @@ export function InjurySectionTitle({ title, en, count }: { title: string; en: st
   );
 }
 
+export type ReviewDraft = { date: string; result: ReviewResult; note: string; withExercise: boolean };
+
+/**
+ * 振り返りを足すシート（ケガの1件の画面と、筋トレの入力画面の「直すこと」の帯で使う）。試した日・結果・種目で試したか・メモ。
+ * locked を渡すと、試した日と種目は決め打ちにして（帯から開くとき：その画面の日付と種目）、選ぶ行の代わりに文字で出す
+ */
+export function ReviewSheet({ draft, onChange, today, exerciseName, locked, error, busy, onClose, onSave }: {
+  draft: ReviewDraft | null; onChange: (d: ReviewDraft) => void; today: string; exerciseName: string | null;
+  locked?: boolean; error: string | null; busy: boolean; onClose: () => void; onSave: () => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const insets = useSafeAreaInsets();
+  return (
+    <>
+      <Sheet visible={draft != null && !picking} onClose={onClose}>
+        {draft && (
+          // 入力欄がキーボードに隠れないように（components/BodyInputSheet.tsx と同じ）
+          <KeyboardAvoidingView behavior="padding">
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl + insets.bottom, gap: space.m }}>
+            <View style={{ alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: colors.sub }} />
+            <T variant="headlineS" accessibilityRole="header">振り返りを足す</T>
+            {locked ? (
+              <T variant="bodyM" color={colors.sub}>{[formatJpDate(draft.date), exerciseName && draft.withExercise ? `${exerciseName}で試した` : ''].filter(Boolean).join(' ・ ')}</T>
+            ) : (
+              <View style={{ gap: space.xs }}>
+                <T variant="titleS" color={colors.sub}>試した日</T>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.s }}>
+                  <Chip label="今日" active={draft.date === today} onPress={() => onChange({ ...draft, date: today })} />
+                  <Chip label="昨日" active={draft.date === addDays(today, -1)} onPress={() => onChange({ ...draft, date: addDays(today, -1) })} />
+                  <Chip
+                    label={draft.date < addDays(today, -1) ? formatJpDate(draft.date) : 'ほかの日'}
+                    active={draft.date < addDays(today, -1)}
+                    accessibilityLabel={`ほかの日を選ぶ${draft.date < addDays(today, -1) ? `、${formatJpDate(draft.date)}` : ''}`}
+                    onPress={() => setPicking(true)}
+                  />
+                </View>
+              </View>
+            )}
+            <View style={{ gap: space.xs }}>
+              <T variant="titleS" color={colors.sub}>結果</T>
+              <Segmented<ReviewResult>
+                options={RESULT_KEYS.map((k) => ({ key: k, label: `${RESULTS[k].mark} ${RESULTS[k].label}` }))}
+                value={draft.result}
+                onChange={(result) => onChange({ ...draft, result })}
+              />
+            </View>
+            {!locked && exerciseName && (
+              <Chip label={`${exerciseName}で試した`} active={draft.withExercise} onPress={() => onChange({ ...draft, withExercise: !draft.withExercise })} />
+            )}
+            <Input
+              value={draft.note}
+              onChangeText={(note) => onChange({ ...draft, note })}
+              accessibilityLabel="メモ"
+              placeholder="例：寄せてから外せた"
+              placeholderTextColor={colors.sub}
+              maxLength={INJURY_LIMITS.reviewNote * 2}
+              multiline
+              style={s.input}
+            />
+            {error && <T variant="bodyM" color={colors.danger} accessibilityLiveRegion="polite">{error}</T>}
+            <Button label={busy ? '保存しています…' : '足す'} icon="check" onPress={onSave} busy={busy} testID="review-save" />
+          </ScrollView>
+          </KeyboardAvoidingView>
+        )}
+      </Sheet>
+      {draft && !locked && (
+        <DayPickerSheet visible={picking} kind="training" value={draft.date} today={today} onClose={() => setPicking(false)}
+          onPick={(date) => onChange({ ...draft, date })} />
+      )}
+    </>
+  );
+}
+
 /**
  * 筋トレのタブの「ケガ」の中身：体の図、直している途中（カード）、直せた（行）。記録がなければ責めない一言。
  * 右下の「ケガを記録」は画面の側（タブの画面の FAB）
@@ -296,4 +373,8 @@ const s = StyleSheet.create({
   },
   fixedRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
   fixedRing: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.accentMuted },
+  input: {
+    minHeight: 72, borderRadius: radius.m, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.input, color: colors.text,
+    fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top',
+  },
 });
