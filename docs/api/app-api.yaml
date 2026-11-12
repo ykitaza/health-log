@@ -803,6 +803,7 @@ components:
           - shoulder_rear
           - triceps
           - lats
+          - upper_back
           - lower_back
           - glutes
           - hamstrings
@@ -824,7 +825,7 @@ components:
           - left
           - right
           - null
-          description: 左右。左右のない部位（abs・lower_back・neck・waist）と、左右が分からないときは null。同じ変更に site もあるときは、左右のない部位に left・right を入れると断る
+          description: 左右。左右のない部位（abs・neck・waist）と、左右が分からないときは null。同じ変更に site もあるときは、左右のない部位に left・right を入れると断る
         exercise_id:
           type:
           - string
