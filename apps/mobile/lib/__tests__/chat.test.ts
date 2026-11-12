@@ -1,12 +1,12 @@
 import { addDays } from '../date';
 import {
-  ChatPrompt, chatUrl as chatUrlWith, MAX_URL_LENGTH, openChat, openFailedMessage, orderedApps, pendingPrompt as pendingPromptWith, promptSummary,
+  ChatPrompt, chatUrl as chatUrlWith, MAX_URL_LENGTH, OPEN_BASE, openChat, openFailedMessage, orderedApps, pendingPrompt as pendingPromptWith, promptSummary,
   promptText as promptTextWith, REPORT_SCHEDULES,
 } from '../chat';
 import type { PendingReport } from '../reports';
 
-// 戻るリンクの行き先（認可サーバー）。jest では app.json の extra が読めないので、本物と同じ長さの URL を渡す
-const OPEN = 'https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com';
+// 戻るリンクの行き先（認可サーバー。lib/auth/config.ts の authzUrl）
+const OPEN = OPEN_BASE;
 const promptText = (p: ChatPrompt) => promptTextWith(p, OPEN);
 const chatUrl = (app: Parameters<typeof chatUrlWith>[0], p?: ChatPrompt) => chatUrlWith(app, p, OPEN);
 const pendingPrompt = (items: PendingReport[]) => pendingPromptWith(items, OPEN);
@@ -237,8 +237,7 @@ describe('開く', () => {
     const open = jest.fn(async () => {});
     const day = { kind: 'report', span: 'day', today: TODAY } as const;
     expect(await openChat('claude', day, open)).toBe(true);
-    // openChat はアプリの設定（app.json の extra）の行き先を使う。jest では空なので、空のときの文になる
-    expect(open).toHaveBeenCalledWith(`https://claude.ai/new?q=${encodeURIComponent(promptTextWith(day, ''))}`);
+    expect(open).toHaveBeenCalledWith(`https://claude.ai/new?q=${encodeURIComponent(promptText(day))}`);
   });
 
   test('開けなかったら false（呼ぶ側が案内を出す）', async () => {
