@@ -28,7 +28,7 @@ describe('形ごとの題と式', () => {
     const f = formula('galaxy', 1234, { x: 0.5, y: -0.25 });
     expect(f.title).toBe('LOGARITHMIC SPIRAL');
     expect(f.equations.map(text)).toEqual(['r = a·e^(bθ)', 'x = r·cos θ', 'y = r·sin θ']);
-    expect(f.constants).toBe('a = 0.1   b = 0.36');
+    expect(f.constants).toBe('a = 0.1   b = 0.7');
     expect(text(f.values)).toBe('x  0.500   y −0.250');
     expect(f.point).toBe('point 1,234 / 6,000');
   });

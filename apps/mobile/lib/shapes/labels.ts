@@ -6,7 +6,7 @@ import type { GrowthParams, ShapeKind } from './types';
 export const SHAPE_LABELS: Record<ShapeKind, { name: string; description: string }> = {
   attractor: { name: '点の軌跡', description: '記録の全体で点が増え、形が浮かぶ' },
   tree: { name: '木', description: '部位ごとに枝が伸び、葉と光の粒が増える' },
-  galaxy: { name: '銀河', description: '腕が伸び、星が増え、中心が光る' },
+  galaxy: { name: '銀河', description: '部位ごとに腕が伸び、星が増え、中心が光る' },
 };
 
 /** 選んだ形を置く場所（sync_meta。同期しない。端末だけ） */

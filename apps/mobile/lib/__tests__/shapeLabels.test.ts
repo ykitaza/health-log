@@ -20,7 +20,7 @@ describe('形の名前と説明', () => {
     expect(SHAPE_KINDS.map((k) => SHAPE_LABELS[k])).toEqual([
       { name: '点の軌跡', description: '記録の全体で点が増え、形が浮かぶ' },
       { name: '木', description: '部位ごとに枝が伸び、葉と光の粒が増える' },
-      { name: '銀河', description: '腕が伸び、星が増え、中心が光る' },
+      { name: '銀河', description: '部位ごとに腕が伸び、星が増え、中心が光る' },
     ]);
   });
 });

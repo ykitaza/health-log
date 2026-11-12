@@ -443,6 +443,73 @@ describe('木：部位ごとに枝が育つ', () => {
   });
 });
 
+describe('銀河：部位ごとに腕が育つ', () => {
+  const b = shapeBuild('galaxy');
+  const full = { ...base, volumeKg: 1e9, foodDays: 1e6, sleepDays: 1e6 };
+  const withSets = (sets: number[]) => galaxyLayout({ ...full, partSets: sets });
+  /** 部位 p（6 は円盤）の、出ている星の中心からいちばん遠い所と、星の数 */
+  const arm = (l: ShapeLayout, p: number) => {
+    const shown = shownOfPart(b, l, p);
+    return { reach: Math.max(0, ...shown.map((i) => radial(b.points, i))), stars: shown.length };
+  };
+
+  test('腕は6本（星の数は同じくらい）、ふくらみは部位なし、円盤はいちばん育った腕と比べる', () => {
+    const counts = BALANCE_PARTS.map((_, p) => b.parts!.filter((v) => v === p).length);
+    for (const n of counts) expect(Math.abs(n - counts[0])).toBeLessThanOrEqual(1);
+    expect(b.parts!.filter((v) => v < 0).length).toBeGreaterThan(500);
+    const l = withSets([0, 300, 0, 0, 0, 0]);
+    expect(l.parts).toHaveLength(BALANCE_PARTS.length + 1);
+    expect(l.parts![BALANCE_PARTS.length]).toBeCloseTo(partGrowth(300));
+  });
+
+  test('0 セットの腕も、中ほど（半径 0.42 くらい）までは星が出る', () => {
+    const l = withSets([0, 0, 0, 0, 0, 0]);
+    for (let p = 0; p < BALANCE_PARTS.length; p++) {
+      expect(arm(l, p).reach).toBeGreaterThan(0.35);
+      expect(arm(l, p).reach).toBeLessThan(0.5);
+      expect(arm(l, p).stars).toBeGreaterThan(50);
+    }
+  });
+
+  test('セット数が多い腕ほど先まで伸び、星が多い。ほかの腕には左右されない。円盤はいちばん伸びた腕の先まで', () => {
+    const other = arm(withSets([0, 0, 0, 0, 0, 0]), 2);
+    let prev = { reach: 0, stars: 0 };
+    for (const n of [0, 60, 110, 180, 400]) {
+      const l = withSets([n, 0, 0, 0, 0, 0]);
+      const now = arm(l, 0);
+      expect(now.reach).toBeGreaterThan(prev.reach);
+      expect(now.stars).toBeGreaterThan(prev.stars);
+      expect(arm(l, 2)).toEqual(other);
+      expect(arm(l, BALANCE_PARTS.length).reach).toBeLessThanOrEqual(now.reach + 0.06);
+      prev = now;
+    }
+    // いちばん育った腕は先（半径 0.9 より外）まで届き、星は最低限の腕の3倍を超える（大きな偏りが見える）
+    const top = arm(withSets([1e6, 0, 0, 0, 0, 0]), 0);
+    expect(top.reach).toBeGreaterThan(0.9);
+    expect(top.stars).toBeGreaterThan(arm(withSets([0, 0, 0, 0, 0, 0]), 0).stars * 3);
+  });
+
+  test('腕は画面の上で、BALANCE_PARTS の順に時計回りに並ぶ（回し始めの向きで、腕の内側の角度が順に増える）', () => {
+    // 画面の上の角度（y は下が正）：XZ 面の点 (x, z) は、上から倒して見ると (x, −z) の向き
+    const angle = (p: number) => {
+      let sx = 0;
+      let sy = 0;
+      for (let i = 0; i < b.points.length / 3; i++) {
+        if (b.parts![i] !== p) continue;
+        const r = radial(b.points, i);
+        if (r < 0.12 || r > 0.18) continue;
+        sx += b.points[i * 3] / r;
+        sy += -b.points[i * 3 + 2] / r;
+      }
+      return Math.atan2(sy, sx);
+    };
+    for (let p = 0; p < BALANCE_PARTS.length; p++) {
+      const d = (angle((p + 1) % BALANCE_PARTS.length) - angle(p) + Math.PI * 4) % (Math.PI * 2);
+      expect(d).toBeCloseTo(Math.PI / 3, 0);
+    }
+  });
+});
+
 describe('形を箱に収める', () => {
   /**
    * 描くときと同じ計算（placePoint）で、画面の上で届く横・縦（形の半径を 1 としたとき）。回す形は1周を細かく回し、
@@ -456,7 +523,7 @@ describe('形を箱に収める', () => {
     const sway = def.sway ?? 0;
     const angles = sway > 0 ? [0] : Array.from({ length: 180 }, (_, k) => (k / 180) * Math.PI * 2);
     const bends = sway > 0 ? [-1, -0.5, 0, 0.5, 1].map((k) => k * sway) : [0];
-    const scales = parts.length > 0 ? [[1, 1, 1, 1, 1, 1], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5], [1, 0.5, 0.7, 1, 0.5, 0.9]] : [[]];
+    const scales = pivots.length > 0 ? [[1, 1, 1, 1, 1, 1], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5], [1, 0.5, 0.7, 1, 0.5, 0.9]] : [[]];
     let x = 0;
     let y = 0;
     for (const a of angles) {

@@ -146,7 +146,7 @@ export function placePoint(
   let y = points[i * 3 + 1];
   let z = points[i * 3 + 2];
   const part = i < parts.length ? parts[i] : -1;
-  if (part >= 0 && part < partScale.length) {
+  if (part >= 0 && part < partScale.length && part * 3 + 2 < pivots.length) {
     const s = partScale[part];
     const px = pivots[part * 3];
     const py = pivots[part * 3 + 1];

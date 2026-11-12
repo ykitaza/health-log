@@ -1,7 +1,7 @@
 // 形ごとの「値 → 点の並び」。形を足すときは、ここに1つ足す
 import { attractorLayout, attractorPoints, MAX_POINTS, pointTints } from '@/lib/shapes/attractor';
 import type { ShapeLayout } from '@/lib/shapes/common';
-import { GALAXY_POINTS, galaxyLayout, galaxyPoints, galaxyTints } from '@/lib/shapes/galaxy';
+import { GALAXY_POINTS, galaxyLayout, galaxyShape, galaxyTints } from '@/lib/shapes/galaxy';
 import { TREE_POINTS, TREE_SWAY, treeLayout, treeShape } from '@/lib/shapes/tree';
 import type { GrowthParams, ShapeKind } from '@/lib/shapes/types';
 import { growthColors } from '@/theme';
@@ -62,15 +62,15 @@ const attractor: ShapeDef = {
 const galaxy: ShapeDef = {
   maxPoints: GALAXY_POINTS,
   build: () => {
-    const points = galaxyPoints();
-    return { points, tints: galaxyTints(points) };
+    const { points, parts, partMin } = galaxyShape();
+    return { points, tints: galaxyTints(points), parts, partMin };
   },
   layout: galaxyLayout,
   palette: PURPLE_GREEN,
   // 円盤を斜め上から見る
   tilt: 0.42,
   orbitOffsetY: 0,
-  extent: { x: 1.0306, y: 0.5196 },
+  extent: { x: 1.0320, y: 0.5202 },
 };
 
 const tree: ShapeDef = {

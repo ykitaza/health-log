@@ -289,7 +289,7 @@ test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって�
   await expect(radios).toHaveCount(3);
   const attractor = sheet.getByRole('radio', { name: '点の軌跡。記録の全体で点が増え、形が浮かぶ', exact: true });
   const tree = sheet.getByRole('radio', { name: '木。部位ごとに枝が伸び、葉と光の粒が増える', exact: true });
-  const galaxy = sheet.getByRole('radio', { name: '銀河。腕が伸び、星が増え、中心が光る', exact: true });
+  const galaxy = sheet.getByRole('radio', { name: '銀河。部位ごとに腕が伸び、星が増え、中心が光る', exact: true });
   await expect(attractor).toHaveAttribute('aria-checked', 'true');
   await expect(tree).toHaveAttribute('aria-checked', 'false');
   await expect(galaxy).toHaveAttribute('aria-checked', 'false');
