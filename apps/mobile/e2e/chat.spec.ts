@@ -17,12 +17,13 @@ const parse = (url: string) => {
 };
 const CHATGPT = 'https://chatgpt.com/';
 const CLAUDE = 'https://claude.ai/new';
+const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](torelog://${path}) を押せるリンクの形で添えてください。`;
 const training = (when: string, day: string) => `${C}に${when}の筋トレを記録してください。`
   + `これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout（day=${day}）で保存してください。`
-  + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED;
-const meal = (what: string, args: string) => `${C}に${what}を記録してください。`
+  + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED + back(`training?date=${day}`);
+const meal = (what: string, args: string, date: string) => `${C}に${what}を記録してください。`
   + 'これから送る写真や説明から品目と量を推定してカロリーと PFC を出し、量が分からなければ先に1つだけ質問してください。'
-  + `推定を見せて了承を得たら record_meal（${args}）で保存し、推定の根拠を basis に書いてください。` + SAVED;
+  + `推定を見せて了承を得たら record_meal（${args}）で保存し、推定の根拠を basis に書いてください。` + SAVED + back(`meals?date=${date}`);
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -72,7 +73,7 @@ test('食事の記録の方法に「AI で記録」があり、食事の文で�
   // 区分を選んでいるので、決まった形で区分を入れる
   await expect(see(sheet(page), '今日の朝食を記録するための文を入れて開きます')).toBeVisible();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
-  expect((await opened(page)).map(parse)).toEqual([{ app: CHATGPT, q: meal('今日（11月8日）の朝食', 'date=2026-11-08、slot=breakfast') }]);
+  expect((await opened(page)).map(parse)).toEqual([{ app: CHATGPT, q: meal('今日（11月8日）の朝食', 'date=2026-11-08、slot=breakfast', '2026-11-08') }]);
 });
 
 test('食事のタブの下の「AI で記録」：今日は「今日（11月8日）」、過去の日はその日付で開く', async ({ page }) => {
@@ -82,15 +83,15 @@ test('食事のタブの下の「AI で記録」：今日は「今日（11月8�
   await expect(see(sheet(page), '今日の食事を記録するための文を入れて開きます')).toBeVisible();
   await button(page, 'Claude で開く（外のアプリ）').click();
   await expect(sheet(page)).toBeHidden();
-  expect((await opened(page)).map(parse)).toEqual([{ app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08') }]);
+  expect((await opened(page)).map(parse)).toEqual([{ app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08', '2026-11-08') }]);
 
   await button(page, '前の日').click();
   await button(page, '前の日').click();
   await button(page, AI_RECORD).click();
   await button(page, 'ChatGPT で開く（外のアプリ）').click();
   expect((await opened(page)).map(parse)).toEqual([
-    { app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08') },
-    { app: CHATGPT, q: meal('11月6日の食事', 'date=2026-11-06') },
+    { app: CLAUDE, q: meal('今日（11月8日）の食事', 'date=2026-11-08', '2026-11-08') },
+    { app: CHATGPT, q: meal('11月6日の食事', 'date=2026-11-06', '2026-11-06') },
   ]);
 });
 
@@ -131,7 +132,7 @@ test('ホームのおすすめ：まだ作っていないまとめの件数と�
     + '期間ごとに period_overview を読み、数字は記録の値だけを使ってください。'
     + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで。'
     + '記録がない期間は作らず、そう伝えてください。'
-    + '終わったら、アプリに戻ると自動で取り込まれると添えてください。');
+    + `終わったら、${back('reports')}`);
 
   await button(banner, 'おすすめを閉じる。今出ている分は、もう出しません').click();
   await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
