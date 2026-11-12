@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, homeCard, moveToDate, openApp, openSettings, recordOn, see } from './helpers';
+import { button, goPane, goTab, homeCard, moveToDate, openApp, openSettings, recordOn, see } from './helpers';
 
 // チャット（ChatGPT・Claude）を開くショートカット。web では Linking.openURL が window.open を呼ぶので、
 // それを見張って、開いた URL（決まった文だけ・エンコード・選んだアプリ）を確かめる
@@ -216,4 +216,56 @@ test('自動で作る：設定の「チャットとの連携」からシート�
 
   await button(page, SCHEDULE).click();
   await expect(see(page.getByTestId('schedule-sheet').filter({ visible: true }), '前回 11月8日に設定を頼みました', { exact: true })).toBeVisible();
+});
+
+// SHOT_DIR を渡すと、ケガの「AI で記録」のシートのスクリーンショットを残す（見た目の確認用）
+const shot = async (page: Page, name: string) => {
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png` });
+};
+
+test('ケガの「ケガを記録」：記録の方法のシートから「AI で記録」を選ぶと、ケガを聞き取って記録する文で開く（筋トレへ戻る）', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, '筋トレ');
+  await goPane(page, 'ケガ');
+  await page.getByTestId('injury-new').click();
+  const add = page.getByTestId('injury-add-sheet').filter({ visible: true });
+  await expect(see(add, '記録の方法を選びます', { exact: true })).toBeVisible();
+  await expect(button(add, '自分で入力 図で部位を選んで書きます')).toBeVisible();
+  await shot(page, 'injury-add-sheet');
+  await button(add, `${AI_RECORD}（ケガ）`).click();
+  await expect(add).toBeHidden();
+  await expect(see(sheet(page), 'ケガを記録するための文を入れて開きます')).toBeVisible();
+  await shot(page, 'injury-chat-sheet');
+  await button(page, 'Claude で開く（外のアプリ）').click();
+  await expect(sheet(page)).toBeHidden();
+  const [{ app, q }] = (await opened(page)).map(parse);
+  expect(app).toBe(CLAUDE);
+  expect(q).toBe(`${C}にケガを記録してください。`
+    + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
+    + '種目は list_exercises の名前で、痛めた日が今日（11月8日）でなければ day に。'
+    + '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。痛みの強さは聞かず、診断しないでください。'
+    + SAVED + back('training'));
+});
+
+test('ケガの1件の「振り返りを足す」から「AI で書く」：痛めた日を手がかりに探して add_injury_review で記録する文で開く', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, '筋トレ');
+  await goPane(page, 'ケガ');
+  await page.getByTestId('injury-new').click();
+  await page.getByTestId('injury-new-manual').filter({ visible: true }).click();
+  await button(page, '一覧から選ぶ').click();
+  await button(page, '腰').click();
+  await page.getByTestId('injury-save').filter({ visible: true }).click();
+  await page.getByRole('button', { name: /^腰、直している途中/ }).filter({ visible: true }).click();
+  await page.getByTestId('injury-review').filter({ visible: true }).click();
+  await button(page, `${AI_RECORD}（振り返り）`).click();
+  await expect(see(sheet(page), 'ケガの振り返りを記録するための文を入れて開きます')).toBeVisible();
+  await button(page, 'ChatGPT で開く（外のアプリ）').click();
+  const [{ app, q }] = (await opened(page)).map(parse);
+  expect(app).toBe(CHATGPT);
+  expect(q).toContain(`${C}にケガの振り返りを記録してください。list_injuries で11月8日に痛めたケガを探して私に確かめ、`);
+  expect(q).toContain('add_injury_review で保存してください。');
+  expect(q).toContain('痛みの強さは聞かず、診断しないでください。');
+  expect(q).not.toContain('腰');
+  expect(q.endsWith(back('training'))).toBe(true);
 });

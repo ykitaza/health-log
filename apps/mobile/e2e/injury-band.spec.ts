@@ -14,6 +14,8 @@ async function recordBenchInjury(page: Page, site = '肩') {
   await goTab(page, '筋トレ');
   await goPane(page, 'ケガ');
   await page.getByTestId('injury-new').click();
+  // 記録の方法のシートで「自分で入力」
+  await page.getByTestId('injury-new-manual').filter({ visible: true }).click();
   await button(page, '一覧から選ぶ').click();
   await button(page, site).click();
   await page.getByTestId('injury-exercise').filter({ visible: true }).click();

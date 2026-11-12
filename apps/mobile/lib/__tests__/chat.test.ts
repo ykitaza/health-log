@@ -169,6 +169,38 @@ describe('食事の文', () => {
   });
 });
 
+describe('ケガの文', () => {
+  const NO_DX = '痛みの強さは聞かず、診断しないでください。';
+
+  test('記録：種目・場面・部位と左右・何が起きたか・原因・直し方を聞き取り、record_injury で保存。言葉のまま、推測で埋めない、痛みの強さや診断は聞かない。筋トレへ戻る', () => {
+    expect(promptText({ kind: 'injury', today: TODAY })).toBe(
+      `${C}にケガを記録してください。`
+      + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
+      + '種目は list_exercises の名前で、痛めた日が今日（11月9日）でなければ day に。'
+      + '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。' + NO_DX + SAVED + back('training'));
+    expect(promptSummary({ kind: 'injury', today: TODAY })).toBe('ケガを記録する');
+  });
+
+  test('振り返り：痛めた日を手がかりに list_injuries で探して確かめ、add_injury_review で保存。直せたなら mark_injury_fixed を確かめる', () => {
+    expect(promptText({ kind: 'injury-review', occurredOn: '2026-11-03', today: TODAY })).toBe(
+      `${C}にケガの振り返りを記録してください。`
+      + 'list_injuries で11月3日に痛めたケガを探して私に確かめ、'
+      + '試したことと結果を聞き取り、add_injury_review で保存してください。'
+      + '試した日が今日（11月9日）でなければ day に。'
+      + 'メモは私の言葉のまま、推測で埋めずに。直せたなら mark_injury_fixed も呼ぶか聞いてください。'
+      + NO_DX + SAVED + back('training'));
+    expect(promptSummary({ kind: 'injury-review', occurredOn: '2026-11-03', today: TODAY })).toBe('ケガの振り返りを記録する');
+  });
+
+  test('決まった形でない日付は入れない（ケガの中身や ID も入れない）', () => {
+    const text = promptText({ kind: 'injury-review', occurredOn: '右肩&x=1', today: 'x&q=1' });
+    expect(text).toContain('list_injuries でケガを探して');
+    expect(text).toContain('試した日が今日でなければ');
+    expect(text).not.toMatch(/右肩|x=1|q=1/);
+    expect(promptText({ kind: 'injury', today: 'x&q=1' })).toContain('痛めた日が今日でなければ');
+  });
+});
+
 const ALL: ChatPrompt[] = [
   { kind: 'report', span: 'day', today: TODAY },
   { kind: 'report', span: 'week', today: TODAY },
@@ -176,6 +208,8 @@ const ALL: ChatPrompt[] = [
   { kind: 'meal', date: TODAY, today: TODAY },
   { kind: 'meal', date: '2026-11-06', today: TODAY, slot: 'breakfast' },
   { kind: 'training', date: '2026-11-06', today: TODAY },
+  { kind: 'injury', today: TODAY },
+  { kind: 'injury-review', occurredOn: '2026-11-03', today: TODAY },
   { kind: 'pending', items: [{ kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08', key: 'weekly:2026-11-02' }] },
   { kind: 'schedule' },
 ];
@@ -188,6 +222,8 @@ describe('どの文も', () => {
         ...(['day', 'week', 'month'] as const).map((span) => ({ kind: 'report', span, today: day }) as const),
         { kind: 'meal', date: addDays(day, -1), today: day, slot: 'breakfast' },
         { kind: 'training', date: day, today: day },
+        { kind: 'injury', today: day },
+        { kind: 'injury-review', occurredOn: addDays(day, -30), today: day },
       ];
       for (const p of ps) longest = Math.max(longest, chatUrl('claude', p).length, chatUrl('chatgpt', p).length);
     }
@@ -258,7 +294,8 @@ describe('戻るリンク', () => {
   test('行き先（認可サーバーの URL）がなければ、リンクを添えてもらう文を入れない', () => {
     for (const p of [
       { kind: 'meal', date: TODAY, today: TODAY }, { kind: 'training', date: TODAY, today: TODAY },
-      { kind: 'report', span: 'week', today: TODAY },
+      { kind: 'report', span: 'week', today: TODAY }, { kind: 'injury', today: TODAY },
+      { kind: 'injury-review', occurredOn: TODAY, today: TODAY },
     ] as ChatPrompt[]) {
       const text = promptTextWith(p, '');
       expect(text).not.toContain('/open/');

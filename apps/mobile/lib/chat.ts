@@ -23,6 +23,10 @@ export const REPORT_SPAN_LABELS: Record<ReportSpan, string> = { day: '今日', w
 export type ChatPrompt =
   | { kind: 'meal'; date: string; today: string; slot?: Slot }
   | { kind: 'training'; date: string; today: string }
+  /** ケガを記録する（痛めた日は聞き取る。今日は文に入れる） */
+  | { kind: 'injury'; today: string }
+  /** ケガの振り返りを書く。occurredOn はそのケガの痛めた日（どのケガかを探す手がかり。ほかの中身は入れない） */
+  | { kind: 'injury-review'; occurredOn: string; today: string }
   | { kind: 'report'; span: ReportSpan; today: string }
   /** まだ作っていないまとめを、まとめて作る（lib/reports.ts の pendingReports の結果） */
   | { kind: 'pending'; items: PendingReport[] }
@@ -185,11 +189,38 @@ function scheduleText(): string {
     + `${BATCH_WRITE.daily}、${BATCH_WRITE.weekly}、${BATCH_WRITE.monthly}。ほかは save_report の説明どおり。`;
 }
 
+/** 原因・直し方は本人の言葉のまま、痛みの強さは聞かず、診断しない（MCP の record_injury の説明の決まりの要点。体調のことは URL の長さのため説明に任せる） */
+const OWN_WORDS = '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。';
+const NO_DIAGNOSIS = '痛みの強さは聞かず、診断しないでください。';
+
+/**
+ * ケガの文。戻るリンクは筋トレ（/open/training）へ。認可サーバーの /open/ がケガの一覧（training?view=injury）を通さないため。
+ * ケガの中身（部位・症状・ID）は入れない。振り返りは、痛めた日（決まった形の日付）を手がかりに list_injuries で探してもらう。
+ * URL の上限（2,000 文字）に収めるため、MCP のツールの説明にある決まりは要点だけにする
+ */
+function injuryText(p: Extract<ChatPrompt, { kind: 'injury' | 'injury-review' }>, base: string): string {
+  const today = validDate(p.today);
+  if (p.kind === 'injury') {
+    return `${CONNECTOR}にケガを記録してください。`
+      + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
+      + `種目は list_exercises の名前で、痛めた日が${todayText(today)}でなければ day に。`
+      + OWN_WORDS + NO_DIAGNOSIS + AFTER_SAVE + backLink('training', base);
+  }
+  const occurred = validDate(p.occurredOn);
+  return `${CONNECTOR}にケガの振り返りを記録してください。`
+    + `list_injuries で${occurred ? `${dayText(occurred)}に痛めた` : ''}ケガを探して私に確かめ、`
+    + '試したことと結果を聞き取り、add_injury_review で保存してください。'
+    + `試した日が${todayText(today)}でなければ day に。`
+    + 'メモは私の言葉のまま、推測で埋めずに。直せたなら mark_injury_fixed も呼ぶか聞いてください。'
+    + NO_DIAGNOSIS + AFTER_SAVE + backLink('training', base);
+}
+
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
 export function promptText(p: ChatPrompt, base: string = OPEN_BASE): string {
   if (p.kind === 'report') return reportText(p.span, p.today, base);
   if (p.kind === 'schedule') return scheduleText();
   if (p.kind === 'pending') return pendingPrompt(p.items, base).text;
+  if (p.kind === 'injury' || p.kind === 'injury-review') return injuryText(p, base);
   // 決まった形でない日付は、今日として扱う
   const today = validDate(p.today);
   const date = validDate(p.date) ?? today;
@@ -213,6 +244,8 @@ export function promptSummary(p: ChatPrompt): string {
   if (p.kind === 'report') return `${REPORT_SPAN_LABELS[p.span]}のまとめを作る`;
   if (p.kind === 'pending') return `まだのまとめ ${pendingPrompt(p.items).included.length} 件を作る`;
   if (p.kind === 'schedule') return 'まとめを自動で作る予定を入れる';
+  if (p.kind === 'injury') return 'ケガを記録する';
+  if (p.kind === 'injury-review') return 'ケガの振り返りを記録する';
   const day = p.date === p.today || !validDate(p.date) ? '今日' : dayText(p.date);
   if (p.kind === 'training') return `${day}の筋トレを記録する`;
   const slot = p.slot && SLOTS.includes(p.slot) ? SLOT_LABELS[p.slot] : '食事';

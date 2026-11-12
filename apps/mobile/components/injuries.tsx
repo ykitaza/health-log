@@ -6,11 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Line, Path, Pattern, Rect } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { useFocusData } from '@/hooks/data';
-import { addDays, formatJpDate, formatShortDate } from '@/lib/date';
+import { addDays, formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { dotDate, injuryNumbers, InjuryStatus, RESULT_KEYS, ReviewResult, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
 import { INJURY_LIMITS } from '@/lib/limits';
 import { markPoint, MuscleView } from '@/lib/muscleFigure';
 import { colors, fonts, radius, space, toneColors } from '@/theme';
+import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
 import { Input } from './Input';
@@ -18,7 +19,7 @@ import { LoadError } from './LoadError';
 import { PressableScale, Sheet } from './motion';
 import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
-import { Button, Chip, EmptyState, Segmented } from './ui';
+import { Button, Chip, EmptyState, ListRow, Segmented } from './ui';
 
 /** 走査の枠の線（控えめな緑） */
 const SCAN_LINE = colors.accentMuted;
@@ -253,11 +254,12 @@ export type ReviewDraft = { date: string; result: ReviewResult; note: string; wi
 
 /**
  * 振り返りを足すシート（ケガの1件の画面と、筋トレの入力画面の「直すこと」の帯で使う）。試した日・結果・種目で試したか・メモ。
- * locked を渡すと、試した日と種目は決め打ちにして（帯から開くとき：その画面の日付と種目）、選ぶ行の代わりに文字で出す
+ * locked を渡すと、試した日と種目は決め打ちにして（帯から開くとき：その画面の日付と種目）、選ぶ行の代わりに文字で出す。
+ * onAi を渡すと、「足す」の下に「AI で書く」（振り返りをチャットに任せる。呼ぶ側でこのシートを閉じて、アプリを選ぶシートを出す）
  */
-export function ReviewSheet({ draft, onChange, today, exerciseName, locked, error, busy, onClose, onSave }: {
+export function ReviewSheet({ draft, onChange, today, exerciseName, locked, error, busy, onClose, onSave, onAi }: {
   draft: ReviewDraft | null; onChange: (d: ReviewDraft) => void; today: string; exerciseName: string | null;
-  locked?: boolean; error: string | null; busy: boolean; onClose: () => void; onSave: () => void;
+  locked?: boolean; error: string | null; busy: boolean; onClose: () => void; onSave: () => void; onAi?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const insets = useSafeAreaInsets();
@@ -310,6 +312,9 @@ export function ReviewSheet({ draft, onChange, today, exerciseName, locked, erro
             />
             {error && <T variant="bodyM" color={colors.danger} accessibilityLiveRegion="polite">{error}</T>}
             <Button label={busy ? '保存しています…' : '足す'} icon="check" onPress={onSave} busy={busy} testID="review-save" />
+            {onAi && (
+              <Button label="AI で書く" icon="chat" variant="text" accessibilityLabel={`${AI_RECORD_LABEL}（振り返り）`} onPress={onAi} testID="review-ai-record" />
+            )}
           </ScrollView>
           </KeyboardAvoidingView>
         )}
@@ -324,7 +329,7 @@ export function ReviewSheet({ draft, onChange, today, exerciseName, locked, erro
 
 /**
  * 筋トレのタブの「ケガ」の中身：体の図、直している途中（カード）、直せた（行）。記録がなければ責めない一言。
- * 右下の「ケガを記録」は画面の側（タブの画面の FAB）
+ * 右下の「ケガを記録」は画面の側（タブの画面の FAB。押すと useInjuryAddSheet のシート）
  */
 export function InjuryListContent() {
   const { data, error, reload } = useFocusData((r) => r.injuries.list());
@@ -361,7 +366,47 @@ export function InjuryListContent() {
   );
 }
 
+/**
+ * 「ケガを記録」（一覧の右下の FAB）で出す、記録の方法を選ぶシート：AI で記録（チャットで聞き取って record_injury）か、自分で入力（記録する画面）。
+ * 食事の記録の方法のシートと同じ流れで、AI を選んだらこのシートを閉じて、チャットのアプリを選ぶシートを出す
+ */
+export function useInjuryAddSheet() {
+  const [visible, setVisible] = useState(false);
+  const chat = useChatChooser();
+  const close = () => setVisible(false);
+  const sheet = (
+    <>
+      <Sheet visible={visible} onClose={close}>
+        <InjuryAddSheetBody
+          onAi={() => { close(); chat.record({ kind: 'injury', today: todayKey() }); }}
+          onManual={() => { close(); router.push('/injuries/new'); }}
+        />
+      </Sheet>
+      {chat.sheet}
+    </>
+  );
+  return { open: () => setVisible(true), sheet };
+}
+
+function InjuryAddSheetBody({ onAi, onManual }: { onAi: () => void; onManual: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="injury-add-sheet">
+      <View>
+        <T variant="titleL" accessibilityRole="header">ケガを記録</T>
+        <T variant="bodyM" color={colors.sub}>記録の方法を選びます</T>
+      </View>
+      <View style={s.group}>
+        <ListRow first icon="chat" chevron={false} title="AI で記録" subtitle="チャットで聞き取って記録します"
+          right={<Icon name="external" color={colors.sub} size={24} />} label={`${AI_RECORD_LABEL}（ケガ）`} onPress={onAi} testID="injury-ai-record" />
+        <ListRow icon="pencil" title="自分で入力" subtitle="図で部位を選んで書きます" onPress={onManual} testID="injury-new-manual" />
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
   fixedList: { backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   frame: { borderWidth: 1, borderRadius: radius.l, backgroundColor: colors.card, overflow: 'hidden' },
   mapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
