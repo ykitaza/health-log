@@ -359,9 +359,13 @@ describe('ログインの戻りのリンク（+native-intent）', () => {
     expect(redirectSystemPath({ path: 'torelog://meals?date=2026-11-12', initial: false })).toBe('/meals?date=2026-11-12');
     expect(redirectSystemPath({ path: 'torelog://training?date=2026-11-12', initial: true })).toBe('/training?date=2026-11-12');
     expect(redirectSystemPath({ path: 'torelog://reports', initial: false })).toBe('/reports');
+    // ケガは、筋トレのタブの「ケガ」
+    expect(redirectSystemPath({ path: 'torelog://injuries', initial: true })).toBe('/training?view=injury');
+    expect(redirectSystemPath({ path: 'torelog://injuries', initial: false })).toBe('/training?view=injury');
     // 決まった画面だけ。似た名前やほかの道は、これまでどおりそのまま
     expect(redirectSystemPath({ path: 'torelog://mealsx', initial: false })).toBe('torelog://mealsx');
     expect(redirectSystemPath({ path: 'torelog://reports/abc', initial: false })).toBe('torelog://reports/abc');
+    expect(redirectSystemPath({ path: 'torelog://injuries/abc', initial: false })).toBe('torelog://injuries/abc');
   });
 
   test('ほかのリンクはそのまま', () => {

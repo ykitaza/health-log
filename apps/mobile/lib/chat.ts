@@ -194,7 +194,7 @@ const OWN_WORDS = '原因と直し方は私の言葉のまま、分からない�
 const NO_DIAGNOSIS = '痛みの強さは聞かず、診断しないでください。';
 
 /**
- * ケガの文。戻るリンクは筋トレ（/open/training）へ。認可サーバーの /open/ がケガの一覧（training?view=injury）を通さないため。
+ * ケガの文。戻るリンクはケガの一覧（/open/injuries。アプリでは筋トレのタブの「ケガ」）へ。
  * ケガの中身（部位・症状・ID）は入れない。振り返りは、痛めた日（決まった形の日付）を手がかりに list_injuries で探してもらう。
  * URL の上限（2,000 文字）に収めるため、MCP のツールの説明にある決まりは要点だけにする
  */
@@ -204,7 +204,7 @@ function injuryText(p: Extract<ChatPrompt, { kind: 'injury' | 'injury-review' }>
     return `${CONNECTOR}にケガを記録してください。`
       + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
       + `種目は list_exercises の名前で、痛めた日が${todayText(today)}でなければ day に。`
-      + OWN_WORDS + NO_DIAGNOSIS + AFTER_SAVE + backLink('training', base);
+      + OWN_WORDS + NO_DIAGNOSIS + AFTER_SAVE + backLink('injuries', base);
   }
   const occurred = validDate(p.occurredOn);
   return `${CONNECTOR}にケガの振り返りを記録してください。`
@@ -212,7 +212,7 @@ function injuryText(p: Extract<ChatPrompt, { kind: 'injury' | 'injury-review' }>
     + '試したことと結果を聞き取り、add_injury_review で保存してください。'
     + `試した日が${todayText(today)}でなければ day に。`
     + 'メモは私の言葉のまま、推測で埋めずに。直せたなら mark_injury_fixed も呼ぶか聞いてください。'
-    + NO_DIAGNOSIS + AFTER_SAVE + backLink('training', base);
+    + NO_DIAGNOSIS + AFTER_SAVE + backLink('injuries', base);
 }
 
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
