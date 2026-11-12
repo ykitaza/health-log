@@ -53,7 +53,7 @@ export function SatMark({ kind, size: s = MARK }: { kind: MarkKind; size?: numbe
 
 /**
  * 指の操作（1回押す・左右になぞる）。押し始めで指を受け取り、動いた量で見分ける（タップは縦横とも TAP_SLOP_DP 未満で放したとき）。
- * なぞると、押し始めの日から指の動きの分だけ日を移す（1日単位で onSeek）。edges なら、画面の左右の端で始まった指は何もしない。
+ * なぞると、押し始めの日から指の動きの分だけ日を移す（なぞり始めと、日が変わるたびに onSeek）。edges なら、画面の左右の端で始まった指の動きは使わない。
  * ボタンなど子の押せるものは、自分で先に受け取るので、ここには来ない
  */
 export function useDayGesture(o: {
@@ -82,15 +82,17 @@ export function useDayGesture(o: {
       onPanResponderMove: (_, g) => {
         const l = latest.current;
         if (l.ignored || (!l.dragging && !claimsDrag(g.dx, g.dy))) return;
-        l.dragging = true;
         const i = dragIndex(l.startIndex, g.dx, l.screenWidth, l.dayCount);
-        if (i === l.lastIndex) return;
+        // なぞり始めたら、日が変わらなくても一度知らせる（再生を止めるため）
+        if (l.dragging && i === l.lastIndex) return;
+        l.dragging = true;
         l.lastIndex = i;
         l.onSeek(i);
       },
+      // タップは端で始まっても受ける（端で使わないのは指の動きだけ）
       onPanResponderRelease: (_, g) => {
         const l = latest.current;
-        if (!l.ignored && !l.dragging && isTap(g.dx, g.dy)) l.onTap(l.startX);
+        if (!l.dragging && isTap(g.dx, g.dy)) l.onTap(l.startX);
       },
       // 指で動かしているあいだは、ほかに渡さない
       onPanResponderTerminationRequest: () => false,

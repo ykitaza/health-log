@@ -306,7 +306,7 @@ export default function GrowthScreen() {
     <Screen scroll={false}>
       <View style={s.root} {...gesture}>
         {header}
-        {/* 計算した高さが実際より大きいときは、下の段を押し出さずに箱を縮めて切る */}
+        {/* 計算した高さが実際とずれても、箱が伸び縮みして下の段を下に付ける（大きいときは切る） */}
         <View style={[s.shapeBox, { height: shapeHeight }]}>
           {/* 形を変えたら作り直す（形ごとに点の数がちがう） */}
           {shape != null && (
@@ -392,7 +392,7 @@ const s = StyleSheet.create({
   // 画面全体で指を受けるため、左右の余白の外（画面の端）まで広げる
   root: { flex: 1, marginHorizontal: -space.screen, paddingHorizontal: space.screen },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: size.topBar, marginHorizontal: -12 },
-  shapeBox: { marginHorizontal: -space.screen, flexShrink: 1, overflow: 'hidden', justifyContent: 'center' },
+  shapeBox: { marginHorizontal: -space.screen, flexGrow: 1, flexShrink: 1, overflow: 'hidden', justifyContent: 'center' },
   caption: { height: CAPTION_H, alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
   captionText: { minHeight: 24, justifyContent: 'center' },
   day: { height: DAY_H, justifyContent: 'flex-end' },

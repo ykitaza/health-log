@@ -84,6 +84,11 @@ test.describe('動きを減らす設定がオフ', () => {
     await expect(pausedMark(page)).toHaveCount(0);
     await expect(see(page, HINT)).toHaveCount(0);
 
+    // 少しなぞるだけ（日が変わらない量）でも、なぞり始めたら一時停止
+    await dragScreen(page, 200, 15);
+    await expect(button(page, '再生')).toHaveCount(1);
+    await expect(pausedMark(page)).toBeVisible();
+
     // 線の帯の左はしを押すと、最初の日へ飛んで止まる
     await pressTimeline(page, 2);
     await expect(day(page)).toHaveAttribute('aria-label', 'DAY 1、2026年11月6日（金）');
