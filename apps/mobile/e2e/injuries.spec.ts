@@ -27,6 +27,7 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await front.click({ position: { x: box.width * 0.27, y: box.height * 0.22 } });
   await expect(page.getByTestId('injury-selected').filter({ visible: true })).toHaveText('右肩');
   await expect(see(page, '三角筋（前）', { exact: true })).toBeVisible();
+  await shot(page, 'injury-new');
   // 近くの部位のチップで選び直せる。左右は「右・左」で直せる
   await expect(see(page, '近くの部位', { exact: true })).toBeVisible();
   await button(page, '左側').click();
@@ -38,8 +39,6 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await button(page, 'ベンチプレス 胸').click();
   await button(page, 'ラックアップ').click();
   await expect(button(page, 'ラックアップ')).toHaveAttribute('aria-selected', 'true');
-  await page.getByTestId('injury-site').filter({ visible: true }).scrollIntoViewIfNeeded();
-  await shot(page, 'injury-new');
   await page.getByRole('textbox', { name: '症状のひとこと' }).fill('前側にピリッとした痛み');
   await page.getByRole('textbox', { name: '原因（自分の分析）' }).fill('肩でバーベルを持ち上げてしまっている');
   await page.getByRole('textbox', { name: '次はこう直す' }).fill('肩甲骨を寄せてから、腕を伸ばして外す');
@@ -80,6 +79,7 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await shot(page, 'injury-detail-ask');
   // いったん途中のまま
   await button(page, '途中のままにする').click();
+  await expect(see(page, 'このケガを直せたにしますか？', { exact: true })).toHaveCount(0);
   await expect(page.getByTestId('injury-fixed').filter({ visible: true })).toBeVisible();
   const log = page.getByTestId('injury-log').filter({ visible: true });
   await expect(log).toContainText('11/07');
@@ -115,4 +115,39 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await page.reload();
   await openInjuries(page);
   await expect(page.getByRole('button', { name: /^腰、直している途中/ }).filter({ visible: true })).toBeVisible();
+});
+
+test.describe('動きを減らす設定がオフ', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('直している途中の印が脈打つ（画面のエラーなしで出る）', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await openApp(page);
+    await openInjuries(page);
+    await page.getByTestId('injury-new').click();
+    await button(page, '一覧から選ぶ').click();
+    await button(page, 'ひざ').click();
+    await page.getByTestId('injury-save').filter({ visible: true }).click();
+    await expect(page.getByRole('button', { name: /^右ひざ、直している途中/ }).filter({ visible: true })).toBeVisible();
+    await expect(see(page, '▲ 1 ALERT')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('狭い画面（360）', () => {
+  test.use({ viewport: { width: 360, height: 800 } });
+
+  test('記録する画面の図と選んだ部位が枠に収まる', async ({ page }) => {
+    await openApp(page);
+    await openInjuries(page);
+    await page.getByTestId('injury-new').click();
+    await button(page, '一覧から選ぶ').click();
+    await button(page, '肩の関節').click();
+    const frame = (await page.getByTestId('injury-site').filter({ visible: true }).boundingBox())!;
+    const back = (await page.getByTestId('injury-figure-back').filter({ visible: true }).boundingBox())!;
+    expect(back.x + back.width).toBeLessThanOrEqual(frame.x + frame.width);
+    await expect(page.getByTestId('injury-selected').filter({ visible: true })).toHaveText('右肩の関節');
+    await shot(page, 'injury-new-360');
+  });
 });

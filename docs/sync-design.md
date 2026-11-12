@@ -252,7 +252,7 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 
 - 衝突の決まり：`testdata/sync/conflicts.json` を、サーバー（`services/training/tests/test_shared_sync_testdata.py`）と、アプリ（`apps/mobile/db/__tests__/sync-shared.test.ts`）で流します。アプリでは、偽のサーバー（`test-utils/fakeSyncServer.ts`。当てはめの決まりをサーバーと同じに書いたもの）と、端末を通したもの（端末の変更は端末の表を変えてトリガーで送り、最後に受け取った表を見る）の両方で、同じ結果になることを確かめます
 - アプリ → MCP：アプリが送る本文（`testdata/sync/app_push.json`。jest が作る）を、pytest（`services/training/tests/test_app_sync.py`）が本物の `SyncHttpApi` に送り、MCP の `get_workout`・`list_exercises`・`body_progress` から見えることと、2回送っても二重にならないことを確かめます
-- MCP → アプリ：pytest が MCP の `record_workout`・`record_body`・`record_injury`・`add_injury_review` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/mobile/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます（ケガと振り返りは、版13のアプリのリポジトリから読めることを jest で確かめる）
+- MCP → アプリ：pytest が MCP の `record_workout`・`record_body`・`record_injury`・`add_injury_review` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/mobile/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます（ケガと振り返りは、版13のアプリのリポジトリから読めることを jest で、筋トレのタブの「ケガ」に出ることを E2E で確かめる）
 - アカウントが変わったとき：止める・送り直す・消して受け取り直すの決まりは jest（`apps/mobile/db/__tests__/sync.test.ts`）、確認の画面が出る流れだけを E2E（`e2e/sync.spec.ts`）で確かめます
 - E2E は本物の API に当てず、`execute-api` への通信を偽のサーバーに向けます
 

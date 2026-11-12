@@ -134,13 +134,13 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
                 <MuscleFigure view="front" width={FIG_W} height={FIG_H} marks={marks} />
                 <MuscleFigure view="back" width={FIG_W} height={FIG_H} marks={marks} />
               </View>
-              {/* 吹き出しと印をつなぐ線 */}
-              <Svg width={width} height={FIG_H + 8} style={StyleSheet.absoluteFill} pointerEvents="none">
+              {/* 吹き出しと印をつなぐ線（吹き出しが入らない狭い画面では、線も出さない） */}
+              {calloutW >= 64 && (<Svg width={width} height={FIG_H + 8} style={StyleSheet.absoluteFill} pointerEvents="none">
                 {[...leftOnes.map((p) => ({ p, from: calloutW })), ...rightOnes.map((p) => ({ p, from: width - calloutW }))].map(({ p, from }) => (
                   <Line key={p.injury.id} x1={from} y1={p.top + 8} x2={p.x} y2={p.y}
                     stroke={p.injury.status === 'fixing' ? INJURY_AMBER : colors.sub} strokeWidth={1} strokeOpacity={0.7} />
                 ))}
-              </Svg>
+              </Svg>)}
               {calloutW >= 64 && leftOnes.map((p) => (
                 <Callout key={p.injury.id} injury={p.injury} number={numbers.get(p.injury.id) ?? ''} align="right" style={{ left: 0, top: p.top, width: calloutW }} />
               ))}

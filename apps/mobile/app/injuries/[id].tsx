@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DayPickerSheet } from '@/components/DayPicker';
 import { Mono, ScanFrame, StatusBadge } from '@/components/injuries';
 import { Input } from '@/components/Input';
@@ -47,6 +48,7 @@ export default function InjuryScreen() {
   const [askFixed, setAskFixed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, run } = useBusy();
+  const insets = useSafeAreaInsets();
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/training?view=injury'));
   if (error) return <Screen><Header title="ケガ" onBack={back} /><LoadError onRetry={reload} /></Screen>;
@@ -170,7 +172,9 @@ export default function InjuryScreen() {
 
       <Sheet visible={draft != null && !picking} onClose={() => setDraft(null)}>
         {draft && (
-          <View style={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl, gap: space.m }}>
+          // 入力欄がキーボードに隠れないように（components/BodyInputSheet.tsx と同じ）
+          <KeyboardAvoidingView behavior="padding">
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl + insets.bottom, gap: space.m }}>
             <View style={{ alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: colors.sub }} />
             <T variant="headlineS" accessibilityRole="header">振り返りを足す</T>
             <View style={{ gap: space.xs }}>
@@ -209,7 +213,8 @@ export default function InjuryScreen() {
             />
             {draftError && <T variant="bodyM" color={colors.danger} accessibilityLiveRegion="polite">{draftError}</T>}
             <Button label={busy ? '保存しています…' : '足す'} icon="check" onPress={saveReview} busy={busy} testID="review-save" />
-          </View>
+          </ScrollView>
+          </KeyboardAvoidingView>
         )}
       </Sheet>
       {draft && (

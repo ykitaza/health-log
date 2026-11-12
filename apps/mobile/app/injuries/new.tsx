@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DayPickerSheet } from '@/components/DayPicker';
 import { Icon } from '@/components/Icon';
 import { Mono, ScanFrame } from '@/components/injuries';
@@ -24,7 +25,6 @@ import { INJURY_LIMITS } from '@/lib/limits';
 import { FigureTarget, MuscleView, targetsNear } from '@/lib/muscleFigure';
 import { colors, fonts, radius, space, toneColors } from '@/theme';
 
-const FIG_H = 220;
 
 const EMPTY = (today: string): InjuryInput => ({ occurredOn: today, site: '', side: null, exerciseId: null, phase: '', symptom: '', cause: '', fix: '' });
 
@@ -37,6 +37,10 @@ const EMPTY = (today: string): InjuryInput => ({ occurredOn: today, site: '', si
 export default function InjuryFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const repos = useRepos();
+  // 図の大きさ：画面の幅から、枠の余白・図のあいだ・選んだ部位の欄（110）を引いた残りを2つに分ける（412 で 107、360 で 81）
+  const { width: winW } = useWindowDimensions();
+  const figW = Math.max(70, Math.min(110, Math.floor((winW - space.screen * 2 - space.l * 2 - space.m * 2 - 110) / 2)));
+  const FIG_H = figW * 2;
   const today = useToday();
   const [form, setForm] = useState<InjuryInput>(() => EMPTY(today));
   const [initial, setInitial] = useState<InjuryInput | null>(id ? null : EMPTY(today));
@@ -270,8 +274,9 @@ function TextField({ value, onChange, label, placeholder, max, multiline }: {
 }
 
 function SheetBody({ title, children }: { title: string; children: ReactNode }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl }}>
+    <View style={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl + insets.bottom }}>
       <View style={{ alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: colors.sub, marginBottom: space.l }} />
       <T variant="headlineS" accessibilityRole="header">{title}</T>
       <ScrollView style={{ maxHeight: 480, marginTop: space.s }}>{children}</ScrollView>
