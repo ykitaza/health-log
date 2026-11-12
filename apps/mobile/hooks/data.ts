@@ -47,6 +47,11 @@ export function useWeeklyAchievement(date: DateKey) {
   return useFocusData((r) => r.achievements.week(date), date);
 }
 
+/** すべての目標を達成した週の連続（lib/goals.ts の GoalStreak）。date の週から過去へ数える（週のまとめでは、その週の時点の連続） */
+export function useGoalStreak(date: DateKey) {
+  return useFocusData((r) => r.achievements.streak(date), date);
+}
+
 /** その日の達成（lib/goals.ts の DailyAchievement） */
 export function useDailyAchievement(date: DateKey) {
   return useFocusData((r) => r.achievements.day(date), date);

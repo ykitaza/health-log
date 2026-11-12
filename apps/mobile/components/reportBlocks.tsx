@@ -5,26 +5,29 @@ import { router } from 'expo-router';
 import { ReactNode } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useDailyAchievement, useFocusData, useWeeklyAchievement } from '@/hooks/data';
+import { useDailyAchievement, useFocusData, useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { formatMonthDay, todayKey } from '@/lib/date';
+import { DateKey, formatMonthDay, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
-import { weekOf } from '@/lib/goals';
+import { allGoalsReached, weekOf } from '@/lib/goals';
+import { WEEKLY_GOALS_SECTION } from '@/lib/home';
 import {
   AchievementRow, achievementRowLabel, AREA_LABELS, Big3Lifts, big3Total, bodyChange, dailyAchievementRows, Highlight, linkCaption, Metric,
-  ReportLink, ReportReview, weeklyAchievementRows,
+  ReportLink, ReportReview, settingGoalRows, weeklyAchievementRows, weeklyGoalCardLabel, weekStreakText,
 } from '@/lib/reports';
 import { fmt1, kgToUnit } from '@/lib/units';
-import { colors, radius, toneColors } from '@/theme';
+import { colors, radius, space, toneColors } from '@/theme';
 import { LineChart } from './charts';
 import { Icon } from './Icon';
-import { GrowBar } from './motion';
+import { GrowBar, PressableScale } from './motion';
 import { AREA_ICON, Delta, MetricTile, useEntering } from './reports';
 import { T } from './Text';
 import { Button } from './ui';
 
-/** 達成のカードの枠：題と右の補足、行 */
-function AchievementCard({ title, right, index, testID, children }: { title: string; right: string; index: number; testID: string; children: ReactNode }) {
+/** 達成のカードの枠：題と右の補足、行、下の段（footer。なければ出さない） */
+function AchievementCard({ title, right, index, testID, children, footer }: {
+  title: string; right: string; index: number; testID: string; children: ReactNode; footer?: ReactNode;
+}) {
   const enter = useEntering();
   return (
     <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 14 }} testID={testID}>
@@ -33,9 +36,13 @@ function AchievementCard({ title, right, index, testID, children }: { title: str
         <T size={13} color={colors.sub}>{right}</T>
       </View>
       {children}
+      {footer}
     </Animated.View>
   );
 }
+
+/** 設定の今週の目標の欄を開く（settings?section=weekly-goals。欄までスクロールする） */
+const openGoalSettings = () => router.push({ pathname: '/settings', params: { section: WEEKLY_GOALS_SECTION } });
 
 /** 達成の1行：印（チェック・注意。色だけでなく形でも）、名前、値と目標、棒（届いたら緑、届かなければ琥珀色） */
 function AchievementLine({ row }: { row: AchievementRow }) {
@@ -79,16 +86,84 @@ export function DailyAchievementBlock({ date, index }: { date: string; index: nu
   );
 }
 
-/** 週のまとめの「今週の目標」（過去の週は「この週の目標」）。目標は設定の今の値 */
+/**
+ * 週のまとめの「今週の目標」（過去の週は「この週の目標」）。目標は設定の今の値。
+ * 下の段：設定の目標（筋トレ・食事の記録・睡眠）がすべて届いたら「✓ 達成」（たんぱく質は設定の目標ではないので見ない。連続と同じ決まり）と、
+ * その週の時点の連続（lib/reports.ts の weekStreakText）。右に「目標を変える ›」で設定の今週の目標の欄へ
+ */
 export function WeeklyGoalsBlock({ date, index }: { date: string; index: number }) {
   const { data: w } = useWeeklyAchievement(date);
+  const { data: streak } = useGoalStreak(date);
   if (!w) return null;
   const { rows, summary } = weeklyAchievementRows(w);
   if (rows.length === 0) return null;
+  const current = weekOf(todayKey()).start === w.start;
+  const achieved = allGoalsReached(w);
+  const streakText = streak ? weekStreakText(streak, current) : null;
+  const status = [achieved && '設定の目標をすべて達成', streakText].filter(Boolean).join('。');
+  const footer = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: -8 }}>
+      <View accessible={status !== ''} accessibilityLabel={status || undefined} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 2 }}>
+        {achieved && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }} testID="report-goals-achieved">
+            <Icon name="check" size={16} color={colors.accent} />
+            <T bold size={14} color={colors.accent}>達成</T>
+          </View>
+        )}
+        {streakText && <T size={13} color={colors.sub} testID="report-goal-streak">{streakText}</T>}
+      </View>
+      <Button label="目標を変える ›" accessibilityLabel="目標を変える" variant="text" small onPress={openGoalSettings}
+        style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }} testID="report-goals-edit" />
+    </View>
+  );
   return (
-    <AchievementCard title={weekOf(todayKey()).start === w.start ? '今週の目標' : 'この週の目標'} right={summary} index={index} testID="report-achievement">
+    <AchievementCard title={current ? '今週の目標' : 'この週の目標'} right={summary} index={index} testID="report-achievement" footer={footer}>
       {rows.map((r) => <AchievementLine key={r.key} row={r} />)}
     </AchievementCard>
+  );
+}
+
+/**
+ * レポートのタブの「やること」のいちばん上の「今週の目標」（今週の途中経過）。設定で決める目標（筋トレ・食事の記録・睡眠（切でなければ））だけを、
+ * 数字と細い棒で（届いた行はチェックの印も）。すべて届いたら題の右に「✓ 達成」、下に連続。カード全体を押すと設定の今週の目標の欄へ
+ */
+export function WeeklyGoalsNowCard({ today }: { today: DateKey }) {
+  const { data: w } = useWeeklyAchievement(today);
+  const { data: streak } = useGoalStreak(today);
+  if (!w) return null;
+  const rows = settingGoalRows(w);
+  const achieved = allGoalsReached(w);
+  const streakText = streak ? weekStreakText(streak, true) : null;
+  return (
+    <PressableScale
+      scaleTo={0.98} accessibilityRole="button" accessibilityLabel={weeklyGoalCardLabel(achieved, rows, streakText)} onPress={openGoalSettings}
+      style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 10, marginTop: space.l }} testID="tab-weekly-goals"
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <T bold size={15} style={{ flex: 1 }}>今週の目標</T>
+        {achieved && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }} testID="tab-goals-achieved">
+            <Icon name="check" size={16} color={colors.accent} />
+            <T bold size={13} color={colors.accent}>達成</T>
+          </View>
+        )}
+        <Icon name="chevron" size={18} color={colors.sub} />
+      </View>
+      {rows.map((r) => (
+        <View key={r.key} style={{ gap: 6 }} testID={`tab-goal-${r.key}`}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+            <View style={{ width: 16, alignSelf: 'center' }}>{r.mark === 'reached' && <Icon name="check" size={16} color={colors.text} />}</View>
+            <T size={13} style={{ flex: 1 }} numberOfLines={1}>{r.label}</T>
+            <T num bold size={16}>{r.value}</T>
+            <T size={12} color={colors.sub}>／{r.goal} {r.unit}</T>
+          </View>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.input, overflow: 'hidden' }}>
+            <GrowBar ratio={r.ratio ?? 0} style={{ height: 6, borderRadius: 3, backgroundColor: r.mark === 'reached' ? toneColors.good.accent : toneColors.caution.accent }} />
+          </View>
+        </View>
+      ))}
+      {streakText && <T size={12} color={colors.sub} testID="tab-goal-streak">{streakText}</T>}
+    </PressableScale>
   );
 }
 

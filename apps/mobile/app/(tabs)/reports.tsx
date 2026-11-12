@@ -5,6 +5,7 @@ import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { REPORT_CHAT_LABEL, SCHEDULE_LABEL, useChatChooser, useScheduleSheet } from '@/components/ChatSheet';
 import { LoadError } from '@/components/LoadError';
 import { easeOut, useListMotion } from '@/components/motion';
+import { WeeklyGoalsNowCard } from '@/components/reportBlocks';
 import { ReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
@@ -31,7 +32,8 @@ const paneOf = (v: string | undefined): Pane | null => (v === 'report' || v === 
  * どちらを開いていたかは画面の状態で覚える（タブを移っても、戻ったら同じ）。ほかの画面から view=todo で開くと「やること」
  * （ホームの今週やることの「すべて」）。お知らせから order=newest で開くと「レポート」。
  *
- * やること：週のまとめの次の一歩を、やることの週（まとめの期間の次の週）の新しい順にカードで（lib/home.ts の todoWeeks）。
+ * やること：いちばん上に今週の目標（今週の途中経過。押すと設定の今週の目標の欄へ。ホームから外したカードの代わりの入口）。
+ * その下に、週のまとめの次の一歩を、やることの週（まとめの期間の次の週）の新しい順にカードで（lib/home.ts の todoWeeks）。
  * 今週の分は見出しに「今週」。どの週もチェックを付け外しでき、ホームの今週やることと同じ next_steps_done を変える。
  * 見出しの行を押すと、もとの週のまとめを開く。絞り込みと並べ替え、お知らせの帯は出さない。
  *
@@ -98,6 +100,7 @@ export default function ReportsScreen() {
           onChange={setPane}
         />
         {data != null && pane === 'report' && <ReportSuggestion both onSeen={reload} />}
+        {pane === 'todo' && <WeeklyGoalsNowCard today={today} />}
         {body}
       </Screen>
       <Fab label="レポートを作る" onPress={make} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="report-make" />

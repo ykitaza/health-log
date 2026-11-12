@@ -63,6 +63,21 @@ describe('週の達成', () => {
   });
 });
 
+describe('過ぎた週の達成', () => {
+  test('その週（月〜日）の記録だけを数える。前後の週の記録は入れない', () => {
+    const a = weeklyAchievement({
+      date: '2026-10-30', goals: { trainingDays: 2, mealDays: 3, sleepDays: 0 },
+      trainingDates: ['2026-10-25', '2026-10-26', '2026-11-01', '2026-11-02'],
+      meals: ['2026-10-25', '2026-10-27', '2026-10-28', '2026-11-02'].map((d) => meal(d, 100, null)),
+      sleep: [],
+    });
+    expect([a.start, a.end]).toEqual(['2026-10-26', '2026-11-01']);
+    expect(a.training).toEqual({ days: 2, goal: 2, reached: true });
+    expect(a.meals).toEqual({ days: 2, goal: 3, reached: false });
+    expect(allGoalsReached(a)).toBe(false);
+  });
+});
+
 describe('日の達成', () => {
   const set = (date: string, exerciseId: string, weightKg: number | null, reps: number, bodyweightLoadKg: number | null = null): TrainingSetRow =>
     ({ date, exerciseId, bodyPartId: 'p', weightKg, reps, bodyweightLoadKg });
@@ -155,6 +170,12 @@ describe('すべて達成した週の連続', () => {
     expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep })).toEqual({ weeks: 0, thisWeek: false });
     expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep, sleep: [{ date: '2026-11-10', asleepMin: 420 }] })).toEqual({ weeks: 1, thisWeek: true });
     expect(streak('2026-11-11', ['2026-11-09'], { goals: withSleep, sleep: [{ date: '2026-11-10', asleepMin: 419 }] })).toEqual({ weeks: 0, thisWeek: false });
+  });
+  test('過ぎた週（週のまとめの週）でも、その週の時点で数える。その週より後の週は数えない', () => {
+    // 10/26 の週のまとめ：10/26・10/19 の週を達成。後の 11/2・11/9 の週の達成は入れない
+    expect(streak('2026-10-28', ['2026-11-09', '2026-11-02', '2026-10-26', '2026-10-19'])).toEqual({ weeks: 2, thisWeek: true });
+    // 10/26 の週は届かなかった：その前の週から数える（thisWeek は false。画面では過ぎた週なら連続を出さない）
+    expect(streak('2026-11-01', ['2026-11-02', '2026-10-19', '2026-10-12'])).toEqual({ weeks: 2, thisWeek: false });
   });
   test('数えるのは今週を含めて上限の週まで', () => {
     const mondays = Array.from({ length: STREAK_MAX_WEEKS + 5 }, (_, i) => addDays('2026-11-09', -7 * i));
