@@ -3,7 +3,8 @@ import {
   attractorLayout, attractorPoints, MAX_POINTS, MIN_POINTS, pointTints, SEED_RAMP_DAYS, VOLUME_SCALE_KG,
 } from '../shapes/attractor';
 import {
-  DOT_FULL_UNIT, DOT_MIN_SCALE, dotStyle, PART_SCALE_SETS, partGrowth, PERSPECTIVE, placePoint, pointShown, shapeExtent, ShapeLayout, shapeUnit,
+  DOT_FULL_UNIT, DOT_MIN_SCALE, dotStyle, PART_SCALE_SETS, partFrame, partGrowth, PERSPECTIVE, placeDot, placePoint, pointShown, shapeExtent,
+  ShapeLayout, shapeUnit,
   swayExtent, swayX,
 } from '../shapes/common';
 import { GALAXY_POINTS, galaxyLayout, galaxyPoints, galaxyTints } from '../shapes/galaxy';
@@ -506,6 +507,47 @@ describe('銀河：部位ごとに腕が育つ', () => {
     for (let p = 0; p < BALANCE_PARTS.length; p++) {
       const d = (angle((p + 1) % BALANCE_PARTS.length) - angle(p) + Math.PI * 4) % (Math.PI * 2);
       expect(d).toBeCloseTo(Math.PI / 3, 0);
+    }
+  });
+});
+
+describe('描くときの計算（placeDot）', () => {
+  test.each(SHAPE_KINDS)('%s：pointShown と placePoint で置いたのと同じ位置・大きさになる（値・回し方・揺れを変えても）', (kind) => {
+    const def = SHAPES[kind];
+    const b = shapeBuild(kind);
+    const gates = b.gates ?? new Float32Array(0);
+    const parts = b.parts ?? new Float32Array(0);
+    const partMin = b.partMin ?? new Float32Array(0);
+    const pivots = b.pivots ?? new Float32Array(0);
+    const [cx, cy, dotScale, half] = [190, 220, 0.15, 16];
+    const params: GrowthParams[] = [
+      { ...base, days: 3, volumeKg: 2000, partSets: [0, 0, 0, 0, 0, 0] },
+      { ...base, volumeKg: 30000, foodDays: 20, sleepDays: 5, partSets: [10, 200, 0, 60, 1000, 5] },
+      { ...base, volumeKg: 1e9, foodDays: 1e6, sleepDays: 1e6, partSets: [1e6, 1e6, 1e6, 1e6, 1e6, 1e6] },
+    ];
+    for (const prm of params) {
+      const l = def.layout(prm);
+      const partScale = l.partScale ?? [];
+      for (const [a, bend] of [[0, 0], [1.3, 0.02], [4, -0.025]]) {
+        const frame = {
+          cos: Math.cos(a), sin: Math.sin(a), tiltCos: Math.cos(def.tilt), tiltSin: Math.sin(def.tilt), bend: def.sway ? bend : 0, rootY: b.seedY ?? 0,
+        };
+        const v = { count: l.count, fills: l.fills ?? [], growth: l.parts ?? [], partXf: partFrame(pivots, partScale), frame, unit: 170 };
+        let got = [0, 0, 0, 0];
+        const val = { set: (a1: number, b1: number, c1: number, d1: number) => { got = [a1, b1, c1, d1]; } };
+        for (let i = 0; i < def.maxPoints; i++) {
+          placeDot(val, i, b.points, gates, parts, partMin, v, cx, cy, dotScale, half);
+          const k = Math.min(1, pointShown(i, l.count, gates, l.fills ?? [], parts, partMin, l.parts ?? []));
+          if (k <= 0) {
+            expect(got).toEqual([0, 0, 0, 0]);
+            continue;
+          }
+          const q = placePoint(b.points, i, parts, pivots, partScale, frame);
+          const s = dotScale * k * (0.75 + 0.25 * q.p);
+          const want = [s, 0, cx + q.x * v.unit - s * half, cy + q.y * v.unit - s * half];
+          for (let j = 0; j < 4; j++) if (Math.abs(got[j] - want[j]) > 1e-6) expect([i, got]).toEqual([i, want]);
+        }
+      }
     }
   });
 });

@@ -52,7 +52,7 @@ export const FADE_PART = 0.05;
 
 /**
  * 点 i をどれだけ出すか（1 以上ならそのまま、0 以下なら出さない。あいだは小さく描いて、なめらかに現れる）。
- * 描くとき（GrowthShape）と確かめ（jest・見た目の画像）で同じものを使う。
+ * 確かめ（jest・見た目の画像）で使う。描くとき（GrowthShape）は、同じ計算を1つにまとめた placeDot を使う。
  * - 並びの先頭から count 個（筋トレの量）
  * - 組のある点（gates）は、その組の出す割合（fills）が順位を超えたら（木の葉は食事、光の粒は睡眠）
  * - 部位のある点（parts）は、その部位の育ち具合（growth）が、その点の出る最小の育ち具合（partMin）を超えたら
@@ -136,7 +136,7 @@ export function projectPoint(x: number, y: number, z: number, f: PlaceFrame): { 
 /**
  * 点 i の画面の上の位置（形の半径を 1、中心を 0 としたとき。y は下が正）と、奥行きの倍率 p。
  * 部位のある点は、その部位の付け根（pivots）を中心に partScale 倍に縮め、揺らし、Y 軸まわりに回してから X 軸まわりに倒す。
- * 描くとき（GrowthShape）と見た目の確かめで同じものを使う
+ * 見た目の確かめで使う。描くとき（GrowthShape）は、同じ計算を1つにまとめた placeDot を使う
  */
 export function placePoint(
   points: Float32Array, i: number, parts: Float32Array, pivots: Float32Array, partScale: readonly number[], f: PlaceFrame,
@@ -156,6 +156,80 @@ export function placePoint(
     z = pz + (z - pz) * s;
   }
   return projectPoint(x, y, z, f);
+}
+
+/**
+ * 部位ごとの縮め方（placePoint の、付け根 pivots を中心に partScale 倍に縮める）を、x' = x·s + o の形にした表。
+ * 部位 p につき4つ（s、ox、oy、oz）。毎フレーム1回だけ作り、点ごとには付け根を読まない（placeDot）。付け根のない形では空
+ */
+export function partFrame(pivots: Float32Array, partScale: readonly number[]): number[] {
+  'worklet';
+  const out: number[] = [];
+  for (let p = 0; p < partScale.length && p * 3 + 2 < pivots.length; p++) {
+    const s = partScale[p];
+    out.push(s, pivots[p * 3] * (1 - s), pivots[p * 3 + 1] * (1 - s), pivots[p * 3 + 2] * (1 - s));
+  }
+  return out;
+}
+
+/** placeDot で、毎フレーム1回だけ決める値（view の値） */
+export type DotFrame = {
+  count: number; fills: readonly number[]; growth: readonly number[];
+  /** partFrame の表 */
+  partXf: readonly number[];
+  frame: PlaceFrame;
+  /** 形の半径（dp） */
+  unit: number;
+};
+
+/** 点の絵の置き方を書き込む先（Skia の RSXform の set と同じ形） */
+export type XformTarget = { set: (scos: number, ssin: number, tx: number, ty: number) => void };
+
+/**
+ * 点 i を描く位置と大きさを val に書く（出さない点は大きさ 0）。pointShown と placePoint と同じ計算を、
+ * 毎フレーム数千回呼ぶので、関数を重ねず・途中の値の箱を作らずに1つにまとめたもの（GrowthShape で使う。
+ * 同じ結果になることを lib/__tests__/shapes.test.ts で確かめる）。
+ * 点の画面の位置は (cx, cy) を中心に unit 倍、大きさは dotScale 倍（奥行きで 0.75〜1 倍）で、絵の半分 half だけ左上へずらす
+ */
+export function placeDot(
+  val: XformTarget, i: number, points: Float32Array, gates: Float32Array, parts: Float32Array, partMin: Float32Array,
+  v: DotFrame, cx: number, cy: number, dotScale: number, half: number,
+): void {
+  'worklet';
+  let k = Math.min(1, (v.count - i) / FADE_POINTS);
+  const g = i < gates.length ? gates[i] : -1;
+  if (k > 0 && g >= 0) {
+    const c = Math.floor(g);
+    k = Math.min(k, ((v.fills[c] ?? 1) - (g - c)) / FADE_FILL);
+  }
+  const part = i < parts.length ? parts[i] : -1;
+  if (k > 0 && part >= 0) k = Math.min(k, ((v.growth[part] ?? 1) - partMin[i]) / FADE_PART + 1);
+  if (k <= 0) {
+    val.set(0, 0, 0, 0);
+    return;
+  }
+  let x = points[i * 3];
+  let y = points[i * 3 + 1];
+  let z = points[i * 3 + 2];
+  const xf = v.partXf;
+  if (part >= 0 && part * 4 + 3 < xf.length) {
+    const s = xf[part * 4];
+    x = x * s + xf[part * 4 + 1];
+    y = y * s + xf[part * 4 + 2];
+    z = z * s + xf[part * 4 + 3];
+  }
+  const f = v.frame;
+  if (f.bend !== 0) {
+    const h = Math.max(0, f.rootY - y);
+    x += f.bend * h * h;
+  }
+  const x1 = x * f.cos + z * f.sin;
+  const z1 = z * f.cos - x * f.sin;
+  const y2 = y * f.tiltCos - z1 * f.tiltSin;
+  const z2 = y * f.tiltSin + z1 * f.tiltCos;
+  const p = 1 / (1 - z2 * PERSPECTIVE);
+  const s = dotScale * k * (0.75 + 0.25 * p);
+  val.set(s, 0, cx + x1 * p * v.unit - s * half, cy + y2 * p * v.unit - s * half);
 }
 
 /** 広がりが最大のとき、形の半径はいちばん外の軌道のこの割合 */

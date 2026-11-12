@@ -7,7 +7,7 @@ import Animated, {
   isSharedValue, SharedValue, useAnimatedStyle, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue,
 } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
-import { dotStyle, PERSPECTIVE, PlaceFrame, placePoint, pointShown, projectPoint, shapeUnit } from '@/lib/shapes/common';
+import { DotFrame, dotStyle, partFrame, PERSPECTIVE, PlaceFrame, placeDot, projectPoint, shapeUnit } from '@/lib/shapes/common';
 import { partTip, TIP_STRIDE } from '@/lib/shapes/tree';
 import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
 import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
@@ -71,9 +71,7 @@ const NO_GATES = new Float32Array(0);
 const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
 
 /** 毎フレーム1回だけ決める値（出す点の数・組と部位の割合・形の大きさ・光・回し方と揺れ） */
-type ViewValue = {
-  count: number; fills: readonly number[]; growth: readonly number[]; partScale: readonly number[]; unit: number; glow: number; frame: PlaceFrame;
-};
+type ViewValue = DotFrame & { partScale: readonly number[]; glow: number };
 
 /**
  * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
@@ -132,8 +130,9 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
       cos: Math.cos(a), sin: Math.sin(a), tiltCos, tiltSin,
       bend: sway > 0 ? sway * Math.sin(((t - START_S) / SWAY_PERIOD_S) * Math.PI * 2) : 0, rootY: seedY,
     };
+    const partScale = l.partScale ?? NO_FILLS;
     return {
-      count: l.count, fills: l.fills ?? NO_FILLS, growth: l.parts ?? NO_FILLS, partScale: l.partScale ?? NO_FILLS,
+      count: l.count, fills: l.fills ?? NO_FILLS, growth: l.parts ?? NO_FILLS, partScale, partXf: partFrame(pivots, partScale),
       unit: baseUnit * l.spread, glow: l.glow, frame,
     };
   });
@@ -143,18 +142,10 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const dotScale = (DOT_DP * dot.size) / SPRITE;
   const half = SPRITE / 2;
   // 点ごとの位置と大きさ。出さない点（並びの先頭から count 個の外、組・部位で出さない点）は大きさ 0 にする
+  // 部位の枝を付け根を中心に縮め、揺らし、Y 軸まわりに回してから X 軸まわりに倒す（点の数だけ毎フレーム呼ぶので、placeDot は1つにまとめてある）
   const transforms = useRSXformBuffer(maxPoints, (val, i) => {
     'worklet';
-    const v = view.get();
-    const k = Math.min(1, pointShown(i, v.count, gates, v.fills, parts, partMin, v.growth));
-    if (k <= 0) {
-      val.set(0, 0, 0, 0);
-      return;
-    }
-    // 部位の枝を付け根を中心に縮め、揺らし、Y 軸まわりに回してから X 軸まわりに倒す
-    const q = placePoint(points, i, parts, pivots, v.partScale, v.frame);
-    const s = dotScale * k * (0.75 + 0.25 * q.p);
-    val.set(s, 0, cx + q.x * v.unit - s * half, cy + q.y * v.unit - s * half);
+    placeDot(val, i, points, gates, parts, partMin, view.get(), cx, cy, dotScale, half);
   });
 
   const sprites = useMemo(() => Array.from({ length: maxPoints }, () => rect(0, 0, SPRITE, SPRITE)), [maxPoints]);
