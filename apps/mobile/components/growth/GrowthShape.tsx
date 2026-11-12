@@ -5,11 +5,11 @@ import {
 } from '@shopify/react-native-skia';
 import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
-import { dotStyle, PERSPECTIVE, shapeExtent, shapeUnit } from '@/lib/shapes/common';
+import { dotStyle, PERSPECTIVE, shapeUnit } from '@/lib/shapes/common';
 import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
 import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
 import { growthColors } from '@/theme';
-import { SHAPES } from './shapes';
+import { shapeBuild, SHAPES } from './shapes';
 
 /** 今日の衛星の状態（内側から 筋トレ・食事・睡眠） */
 export type SatStates = { training: SatState; food: SatState; sleep: SatState };
@@ -64,12 +64,12 @@ const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
  */
 export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel }: GrowthShapeProps) {
   const def = SHAPES[shape];
-  const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => def.build(), [def]);
+  const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => shapeBuild(shape), [shape]);
   const layout = def.layout;
   const maxPoints = def.maxPoints;
   const tilt = def.tilt;
   // どう回しても、形が画面の上で届く範囲（形の半径を 1 としたとき）
-  const extent = useMemo(() => shapeExtent(points, tilt, PERSPECTIVE), [points, tilt]);
+  const extent = def.extent;
 
   // 値：SharedValue ならそのまま、ふつうの値なら自前の SharedValue に写す
   const own = useSharedValue<GrowthParams>(isSharedValue(params) ? EMPTY : (params as GrowthParams));

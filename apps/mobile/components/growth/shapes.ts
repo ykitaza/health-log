@@ -23,6 +23,12 @@ export type ShapeDef = {
   tilt: number;
   /** 軌道の中心の、形の中心からのずれ（描く箱の高さに対する割合。下が正） */
   orbitOffsetY: number;
+  /**
+   * どう回しても形が画面の上で届く範囲（形の半径を 1 としたとき。lib/shapes/common.ts の shapeExtent の値を、小数4桁に切り上げたもの）。
+   * 実機では計算に1秒近くかかり、形を選ぶシートを開くたびに画面が止まったので、先に計算した値を置く。
+   * 点の並びか tilt を変えたら、lib/__tests__/shapes.test.ts が新しい値を教える
+   */
+  extent: { x: number; y: number };
 };
 
 /** 紫（中心に近い）→ 緑（外側） */
@@ -38,6 +44,7 @@ const attractor: ShapeDef = {
   palette: PURPLE_GREEN,
   tilt: 0.35,
   orbitOffsetY: 0,
+  extent: { x: 1.0353, y: 0.6785 },
 };
 
 const galaxy: ShapeDef = {
@@ -51,6 +58,7 @@ const galaxy: ShapeDef = {
   // 円盤を斜め上から見る
   tilt: 0.42,
   orbitOffsetY: 0,
+  extent: { x: 1.0306, y: 0.5196 },
 };
 
 const tree: ShapeDef = {
@@ -63,6 +71,18 @@ const tree: ShapeDef = {
   tilt: 0.12,
   // 衛星は樹冠ではなく幹のまん中あたりを回る
   orbitOffsetY: 0.15,
+  extent: { x: 1.0133, y: 0.9089 },
 };
 
 export const SHAPES: Record<ShapeKind, ShapeDef> = { attractor, tree, galaxy };
+
+/** 作った点の並びを、形ごとに1回だけ作って使い回す（ホーム・成長を見る・形を選ぶシートで同じ形を何度も作らない） */
+const built = new Map<ShapeKind, ReturnType<ShapeDef['build']>>();
+export function shapeBuild(kind: ShapeKind): ReturnType<ShapeDef['build']> {
+  let b = built.get(kind);
+  if (!b) {
+    b = SHAPES[kind].build();
+    built.set(kind, b);
+  }
+  return b;
+}
