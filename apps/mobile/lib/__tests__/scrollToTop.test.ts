@@ -15,6 +15,9 @@ const { NavigatorStateContext } = require('expo-router/build/react-navigation/co
 // expo-router が書き出している useScrollToTop と同じもの（expo-router 全体を読み込むと遅いので、直接読む）
 const { useScrollToTop } = require('expo-router/build/react-navigation/native/useScrollToTop');
 /* eslint-enable @typescript-eslint/no-require-imports */
+// フックを React の外から直接呼ぶ（上で use と useEffect を差し替えてあるので、描画の外でも動く）。
+// 名前を use〜 にしないのは、rules-of-hooks に「コンポーネントの外でフックを呼んでいる」と読まれないようにするため
+const attachScrollToTop = useScrollToTop as (ref: { current: unknown }) => void;
 
 type Event = { defaultPrevented: boolean };
 
@@ -31,7 +34,7 @@ function tabScreen(focused: boolean, reduced = false) {
   mockContexts.set(NavigationRouteContext, { key: 'index-1', name: 'index' });
   mockContexts.set(NavigatorStateContext, { type: 'tab', routes: [{ key: 'index-1' }] });
   const scrollView = { scrollTo: jest.fn() };
-  useScrollToTop({ current: scrollToTopTarget(() => scrollView, reduced) });
+  attachScrollToTop({ current: scrollToTopTarget(() => scrollView, reduced) });
   return { press: () => listeners.forEach((fn) => fn({ defaultPrevented: false })), scrollTo: scrollView.scrollTo };
 }
 
