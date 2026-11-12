@@ -71,6 +71,10 @@ button {
 button:disabled { opacity: 0.6; cursor: default; }
 .allow { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
 .deny { background: transparent; color: var(--accent); border: 1px solid var(--outline); }
+a.button {
+  display: flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 var(--space-xl);
+  border-radius: 999px; font: 700 16px/24px var(--font); text-decoration: none;
+}
 @media (min-width: 640px) {
   main { padding-top: var(--space-xxl); }
   .actions { flex-direction: row-reverse; }
@@ -194,6 +198,25 @@ def render_privacy_page() -> str:    return _page("プライバシーポリシ�
 
 <h2>改定</h2>
 <p>このポリシーを変えるときは、このページで知らせます。</p>""")
+
+
+# アプリ（hlog）の Android のパッケージ名と、独自の URL（apps/mobile/app.json の android.package と scheme）
+APP_PACKAGE = "com.ykitaza.torelog"
+APP_SCHEME = "torelog"
+
+
+def render_open_app_page(target: str, title: str) -> str:
+    """チャット（ChatGPT・Claude）の返事のリンクから、アプリへ戻るための案内（/open/...）。
+
+    チャットのアプリの中のブラウザは torelog:// を開けないので、https のこのページを経由し、
+    押したときに Android へ「hlog を開いて」と頼む（intent://。人が押したときだけ通ることが多いので、自動では飛ばさない）。
+    target は呼ぶ側で決まった値（画面の名前と日付）だけにしたもの。記録は読まない
+    """
+    href = f"intent://{target}#Intent;scheme={APP_SCHEME};package={APP_PACKAGE};end"
+    return _page(title, f"""<h1>hlog に戻る</h1>
+<section class="card"><p class="body-m">{html.escape(title)}を、hlog のアプリで開きます。</p></section>
+<div class="actions"><a class="button allow" href="{html.escape(href)}">hlog で開く</a></div>
+<p class="note">押しても開かないときは、このページを Chrome で開いてから押してください。</p>""")
 
 
 def render_logged_out_page() -> str:
