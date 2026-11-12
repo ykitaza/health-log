@@ -15,23 +15,14 @@ import MODEL from '@/assets/models/body.glb';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, CALLOUT_H, CAMERA, facingOf, layoutCallouts, partsFor, siteOfPart, Vec3 } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
+import { ensureTextDecoder } from '@/lib/utf8';
 import { colors, space } from '@/theme';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
 import { T } from './Text';
 
-// GLTFLoader は GLB の見出しを TextDecoder で読む。無い環境に備えて UTF-8 だけを読む代わりを置く
-if (typeof globalThis.TextDecoder === 'undefined') {
-  (globalThis as { TextDecoder?: unknown }).TextDecoder = class {
-    decode(input?: ArrayBuffer | ArrayBufferView) {
-      if (!input) return '';
-      const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-      let s = '';
-      for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      return decodeURIComponent(escape(s));
-    }
-  };
-}
+// GLTFLoader は GLB の見出しを TextDecoder で読む。無い JS エンジンに備える
+ensureTextDecoder();
 
 const GREEN = new THREE.Color(colors.accent);
 const AMBER = new THREE.Color(INJURY_AMBER);
@@ -160,6 +151,7 @@ class BodyScene {
   private dragging = false;
   private lastInput = -1e9;
   private moved = false;
+  private horizontal = false;
   private lastDx = 0;
   private tap: { x: number; y: number } | null = null;
   private onPick: (part: string | null) => void = () => {};
@@ -242,13 +234,17 @@ class BodyScene {
 
   /** なぞる・押すの受け口（図の上いっぱいの面に付ける） */
   readonly pan = PanResponder.create({
+    // 押した（タップ）を受けるため、触れた時から受ける。ただし上下のスクロールは止めない（Android の ScrollView は、
+    // 縦に動いたときだけ指を取る。横になぞる間は取らないので、回す操作はそのまま続く）
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
-    // 横になぞり始めたら、上下のスクロールに渡さない
-    onPanResponderTerminationRequest: () => !this.moved,
-    onPanResponderGrant: () => { this.lastDx = 0; this.moved = false; this.dragging = true; this.vYaw = 0; },
+    onShouldBlockNativeResponder: () => false,
+    // 横になぞり始めたら、ほかの JS の受け手には渡さない
+    onPanResponderTerminationRequest: () => !this.horizontal,
+    onPanResponderGrant: () => { this.lastDx = 0; this.moved = false; this.horizontal = false; this.dragging = true; this.vYaw = 0; },
     onPanResponderMove: (_, g) => {
       if (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6) this.moved = true;
+      if (Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy)) this.horizontal = true;
       this.yaw += (g.dx - this.lastDx) * 0.012;
       this.lastDx = g.dx;
       this.vYaw = g.vx * 12;
