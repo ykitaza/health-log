@@ -66,11 +66,22 @@ export function useDayGesture(o: {
   /** タップ。x は押した要素の中の横の位置 */
   onTap: (x: number) => void;
   onSeek: (index: number) => void;
+  /**
+   * 縦にスクロールする中に置くとき。横になぞり始めるまでは、指をスクロールに渡せるようにする（Android の ScrollView が縦の動きを取れる）。
+   * なぞり始めたら渡さず、onDragging(true) を呼ぶ（画面の側でスクロールを止める）。放す・取られると onDragging(false)
+   */
+  scrollable?: boolean;
+  onDragging?: (on: boolean) => void;
 }) {
   const latest = useRef({ ...o, ignored: false, dragging: false, startIndex: 0, lastIndex: 0, startX: 0 });
   useLayoutEffect(() => { Object.assign(latest.current, o); });
   // ref は指の動きの中（描く間ではない）でだけ読むので、描くたびに作り直さずに最新の値を使える
   return useMemo(() => {
+    const endDrag = () => {
+      const l = latest.current;
+      if (l.dragging) l.onDragging?.(false);
+      l.dragging = false;
+    };
     // eslint-disable-next-line react-hooks/refs
     return PanResponder.create({
       onStartShouldSetPanResponder: () => !latest.current.disabled,
@@ -88,6 +99,7 @@ export function useDayGesture(o: {
         const i = dragIndex(l.startIndex, g.dx, l.screenWidth, l.dayCount);
         // なぞり始めたら、日が変わらなくても一度知らせる（再生を止めるため）
         if (l.dragging && i === l.lastIndex) return;
+        if (!l.dragging) l.onDragging?.(true);
         l.dragging = true;
         l.lastIndex = i;
         l.onSeek(i);
@@ -96,9 +108,14 @@ export function useDayGesture(o: {
       onPanResponderRelease: (_, g) => {
         const l = latest.current;
         if (!l.dragging && isTap(g.dx, g.dy)) l.onTap(l.startX);
+        endDrag();
       },
-      // 指で動かしているあいだは、ほかに渡さない
-      onPanResponderTerminationRequest: () => false,
+      // スクロールに取られたら、タップにもなぞりにもしない
+      onPanResponderTerminate: endDrag,
+      // 指で動かしているあいだは、ほかに渡さない。スクロールの中では、なぞり始めるまでは渡す
+      onPanResponderTerminationRequest: () => latest.current.scrollable === true && !latest.current.dragging,
+      // Android では既定で、子の指の操作がネイティブ（ScrollView）の動きを止める。スクロールの中では止めない
+      onShouldBlockNativeResponder: () => latest.current.scrollable !== true,
     }).panHandlers;
   }, []);
 }

@@ -108,6 +108,60 @@ function Radar({ width, height, from, to, animate }: { width: number; height: nu
   );
 }
 
+/** 大きなレーダーの、軸の名前と数の余白（左右は「背中 60」の幅、上下は文字の高さ。Figma 成長 11-2 の 348×262 で外周の半径 108） */
+const BIG_PAD_X = 64;
+const BIG_PAD_Y = 22;
+/** 直近2週の点線の色（白の約85%） */
+const RECENT_COLOR = 'rgba(243,245,247,0.85)';
+
+/**
+ * 成長の記録の「部位の積み重ね」の大きなレーダー（Figma 成長 11-2 ⑤）。これまでの累計（緑の実線・放射状の面・点）と、直近2週（白の点線）を重ねる。
+ * どちらも、その期間でいちばん多い部位を外周にそろえる。軸の名前の横に、これまでのセット数。動かさない（スクロールで何度も出入りするため）。
+ * 読み上げはカードの側でまとめて出すので、ここは飾り
+ */
+export function PartStackRadar({ all, recent, width }: { all: PartBalance; recent: PartBalance; width: number }) {
+  const height = Math.round(width * 0.75);
+  const R = Math.max(0, Math.min((width - BIG_PAD_X * 2) / 2, (height - BIG_PAD_Y * 2) / Math.sqrt(3)));
+  const cx = width / 2, cy = height / 2;
+  const at = (i: number, r: number) => ({ x: cx + r * COS[i], y: cy + r * SIN[i] });
+  const poly = (ratios: number[], k = 1) => `${ratios.map((v, i) => { const p = at(i, R * v * k); return `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`; }).join('')}Z`;
+  const ring = (k: number) => poly(ZEROS.map(() => 1), k);
+  const axes = BALANCE_PARTS.map((_, i) => { const p = at(i, R); return `M${cx},${cy}L${p.x},${p.y}`; }).join('');
+  const shape = all.total > 0 ? all.ratios.map((v, i) => at(i, R * v)) : null;
+  return (
+    <Svg width={width} height={height} testID="growth-part-radar">
+      <Defs>
+        <RadialGradient id="partStackFill" cx={cx} cy={cy} r={R} fx={cx} fy={cy} gradientUnits="userSpaceOnUse">
+          <Stop offset={0} stopColor={colors.accent} stopOpacity={0.12} />
+          <Stop offset={1} stopColor={colors.accent} stopOpacity={0.5} />
+        </RadialGradient>
+      </Defs>
+      {RINGS.map((k) => <Path key={k} d={ring(k)} fill="none" stroke={colors.outline} strokeWidth={1} />)}
+      <Path d={axes} stroke={colors.outline} strokeWidth={1} />
+      {shape && (
+        <>
+          <Path d={poly(all.ratios)} fill="url(#partStackFill)" stroke={colors.accent} strokeWidth={2} strokeLinejoin="round" />
+          {shape.map((p, i) => <Circle key={i} cx={p.x} cy={p.y} r={3} fill={colors.accent} />)}
+        </>
+      )}
+      {recent.total > 0 && (
+        <Path d={poly(recent.ratios)} fill="none" stroke={RECENT_COLOR} strokeWidth={1.5} strokeDasharray="4 3" strokeLinejoin="round" />
+      )}
+      {BALANCE_PARTS.map((name, i) => {
+        const p = at(i, R);
+        const side = COS[i] < 0 ? 'end' : 'start';
+        const dx = COS[i] < 0 ? -6 : 6;
+        const dy = SIN[i] < -0.5 ? -6 : SIN[i] > 0.5 ? 14 : 4;
+        return (
+          <SvgText key={name} x={p.x + dx} y={p.y + dy} fill={colors.sub} fontSize={12} fontFamily={fonts.bold} textAnchor={side}>
+            {`${name} ${all.sets[i]}`}
+          </SvgText>
+        );
+      })}
+    </Svg>
+  );
+}
+
 /** 中心から外へ広がる面と線（6点が同時に、前の半径から今の半径へ） */
 function MovingShape({ from, to, cx, cy, R, progress }: { from: number[]; to: number[]; cx: number; cy: number; R: number; progress: SharedValue<number> }) {
   const props = useAnimatedProps(() => {
