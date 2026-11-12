@@ -235,7 +235,7 @@ const shot = async (page: Page, name: string) => {
   if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png` });
 };
 
-test('ケガの「ケガを記録」：記録の方法のシートから「AI で記録」を選ぶと、ケガを聞き取って記録する文で開く（筋トレへ戻る）', async ({ page }) => {
+test('ケガの「ケガを記録」：記録の方法のシートから「AI で記録」を選ぶと、ケガを聞き取って記録する文で開く（ケガの一覧へ戻る）', async ({ page }) => {
   await openApp(page);
   await goTab(page, '筋トレ');
   await goPane(page, 'ケガ');
@@ -256,7 +256,7 @@ test('ケガの「ケガを記録」：記録の方法のシートから「AI �
     + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
     + '種目は list_exercises の名前で、痛めた日が今日（11月8日）でなければ day に。'
     + '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。痛みの強さは聞かず、診断しないでください。'
-    + SAVED + back('training'));
+    + SAVED + back('injuries'));
 });
 
 test('ケガの1件の「振り返りを足す」から「AI で書く」：痛めた日を手がかりに探して add_injury_review で記録する文で開く', async ({ page }) => {
@@ -279,5 +279,5 @@ test('ケガの1件の「振り返りを足す」から「AI で書く」：痛�
   expect(q).toContain('add_injury_review で保存してください。');
   expect(q).toContain('痛みの強さは聞かず、診断しないでください。');
   expect(q).not.toContain('腰');
-  expect(q.endsWith(back('training'))).toBe(true);
+  expect(q.endsWith(back('injuries'))).toBe(true);
 });

@@ -172,12 +172,12 @@ describe('食事の文', () => {
 describe('ケガの文', () => {
   const NO_DX = '痛みの強さは聞かず、診断しないでください。';
 
-  test('記録：種目・場面・部位と左右・何が起きたか・原因・直し方を聞き取り、record_injury で保存。言葉のまま、推測で埋めない、痛みの強さや診断は聞かない。筋トレへ戻る', () => {
+  test('記録：種目・場面・部位と左右・何が起きたか・原因・直し方を聞き取り、record_injury で保存。言葉のまま、推測で埋めない、痛みの強さや診断は聞かない。ケガの一覧へ戻る', () => {
     expect(promptText({ kind: 'injury', today: TODAY })).toBe(
       `${C}にケガを記録してください。`
       + '種目・場面・部位と左右・何が起きたか・原因（自分の分析）・次の直し方を聞き取り、record_injury で保存してください。'
       + '種目は list_exercises の名前で、痛めた日が今日（11月9日）でなければ day に。'
-      + '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。' + NO_DX + SAVED + back('training'));
+      + '原因と直し方は私の言葉のまま、分からない所は推測で埋めず空に。' + NO_DX + SAVED + back('injuries'));
     expect(promptSummary({ kind: 'injury', today: TODAY })).toBe('ケガを記録する');
   });
 
@@ -188,7 +188,7 @@ describe('ケガの文', () => {
       + '試したことと結果を聞き取り、add_injury_review で保存してください。'
       + '試した日が今日（11月9日）でなければ day に。'
       + 'メモは私の言葉のまま、推測で埋めずに。直せたなら mark_injury_fixed も呼ぶか聞いてください。'
-      + NO_DX + SAVED + back('training'));
+      + NO_DX + SAVED + back('injuries'));
     expect(promptSummary({ kind: 'injury-review', occurredOn: '2026-11-03', today: TODAY })).toBe('ケガの振り返りを記録する');
   });
 
