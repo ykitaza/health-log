@@ -14,7 +14,7 @@ import {
   TrainingSetRow, trainingDates, daysInMonth, vehicleRatio, weeklySummary, weeklyVolumeByBodyPart,
 } from '../training';
 import { thisWeekVolume } from '../home';
-import { fmt1, kgToUnit } from '../units';
+import { fmt1 } from '../units';
 
 const TODAY = '2026-11-08'; // E2E と同じ「今日」（日曜）
 
