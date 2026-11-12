@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { colors, onToneSub, PART_COLORS, toneColors } from '@/theme';
+import { cautionBand, colors, onToneSub, PART_COLORS, toneColors } from '@/theme';
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -54,5 +54,8 @@ describe('レポートの調子の色', () => {
   });
   test.each(tones)('%s：調子のアイコンの丸（accent）の上の暗い印は 3:1 以上', (_, t) => {
     expect(contrastRatio(colors.onAccent, t.accent)).toBeGreaterThanOrEqual(3);
+  });
+  test('「直すこと」の帯：見出し・本文・補足の文字は、帯の地の上で 4.5:1 以上', () => {
+    for (const fg of [toneColors.caution.accent, colors.text, onToneSub]) expect(contrastRatio(fg, cautionBand)).toBeGreaterThanOrEqual(4.5);
   });
 });

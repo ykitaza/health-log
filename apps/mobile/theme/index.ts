@@ -77,6 +77,8 @@ export const toneColors = {
   caution: { accent: '#F5B54A', container: '#3A2A0C' },
 } as const;
 export const onToneSub = '#C8CED8';
+/** 気をつけたいの帯の地（筋トレの入力画面の「直すこと」。caution.container より暗い。枠は caution.accent の 50%） */
+export const cautionBand = '#211A0D';
 
 /** 部位の色（グラフ用）。部位の並び順で選ぶ */
 export const PART_COLORS = ['#5BE49B', '#6FA8FF', '#B98CFF', '#F5A524', '#FF8FB1', '#4DD4E6', '#E6D85B', '#FF7A59'];

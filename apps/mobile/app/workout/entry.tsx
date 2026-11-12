@@ -4,6 +4,7 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Big3Badge } from '@/components/ExerciseFields';
 import { Icon } from '@/components/Icon';
+import { InjuryBand } from '@/components/InjuryBand';
 import { Input } from '@/components/Input';
 import { CheckPop, ColorFade, PopIn, Shake, useListMotion } from '@/components/motion';
 import { RestTimerBar, restTimer } from '@/components/RestTimer';
@@ -205,6 +206,7 @@ export default function EntryScreen() {
         ) : undefined}
       />
       <DayNote date={date} today={today} />
+      <InjuryBand exerciseId={exercise.id} exerciseName={exercise.name} date={date} today={today} />
 
       <Card style={{ marginTop: 8, gap: 8 }}>
         {previous ? (

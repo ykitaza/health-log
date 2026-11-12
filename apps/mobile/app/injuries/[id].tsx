@@ -1,25 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DayPickerSheet } from '@/components/DayPicker';
-import { Mono, ScanFrame, StatusBadge } from '@/components/injuries';
-import { Input } from '@/components/Input';
+import { StyleSheet, View } from 'react-native';
+import { Mono, ReviewDraft, ReviewSheet, ScanFrame, StatusBadge } from '@/components/injuries';
 import { LoadError } from '@/components/LoadError';
-import { Sheet } from '@/components/motion';
 import { INJURY_AMBER, MuscleFigure } from '@/components/MuscleFigure';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Chip, ConfirmDialog, Header, IconButton, Segmented } from '@/components/ui';
+import { Button, ConfirmDialog, Header, IconButton } from '@/components/ui';
 import type { InjuryReview } from '@/db/repositories/injuries';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { addDays, formatJpDate, formatMonthDay, formatShortDate } from '@/lib/date';
-import { injuryNumbers, RESULT_KEYS, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/lib/injuries';
-import { INJURY_LIMITS } from '@/lib/limits';
+import { formatMonthDay, formatShortDate } from '@/lib/date';
+import { injuryNumbers, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/lib/injuries';
 import { markPoint } from '@/lib/muscleFigure';
-import { colors, fonts, radius, space, toneColors } from '@/theme';
+import { colors, radius, space, toneColors } from '@/theme';
 
 /** 振り返りの結果の色（記号と文字も添える） */
 const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
@@ -27,8 +22,6 @@ const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
   not_yet: { fg: INJURY_AMBER, bg: toneColors.caution.container },
   pain: { fg: colors.onDangerDark, bg: colors.dangerDark },
 };
-
-type Draft = { date: string; result: ReviewResult; note: string; withExercise: boolean };
 
 /**
  * ケガの1件（Figma「ケガ 2. 1件の詳細」）。どこで（種目・場面）・何が起きた・原因（自分の分析）・次はこう直す（緑の枠）・
@@ -42,13 +35,11 @@ export default function InjuryScreen() {
     const [injury, reviews, all] = await Promise.all([r.injuries.get(id), r.injuries.reviews(id), r.injuries.list()]);
     return { injury, reviews, number: injuryNumbers(all).get(id) ?? '' };
   }, id);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [picking, setPicking] = useState(false);
+  const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [askFixed, setAskFixed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, run } = useBusy();
-  const insets = useSafeAreaInsets();
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/training?view=injury'));
   if (error) return <Screen><Header title="ケガ" onBack={back} /><LoadError onRetry={reload} /></Screen>;
@@ -170,57 +161,16 @@ export default function InjuryScreen() {
         )}
       </Block>
 
-      <Sheet visible={draft != null && !picking} onClose={() => setDraft(null)}>
-        {draft && (
-          // 入力欄がキーボードに隠れないように（components/BodyInputSheet.tsx と同じ）
-          <KeyboardAvoidingView behavior="padding">
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.xl + insets.bottom, gap: space.m }}>
-            <View style={{ alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: colors.sub }} />
-            <T variant="headlineS" accessibilityRole="header">振り返りを足す</T>
-            <View style={{ gap: space.xs }}>
-              <T variant="titleS" color={colors.sub}>試した日</T>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.s }}>
-                <Chip label="今日" active={draft.date === today} onPress={() => setDraft({ ...draft, date: today })} />
-                <Chip label="昨日" active={draft.date === addDays(today, -1)} onPress={() => setDraft({ ...draft, date: addDays(today, -1) })} />
-                <Chip
-                  label={draft.date < addDays(today, -1) ? formatJpDate(draft.date) : 'ほかの日'}
-                  active={draft.date < addDays(today, -1)}
-                  accessibilityLabel={`ほかの日を選ぶ${draft.date < addDays(today, -1) ? `、${formatJpDate(draft.date)}` : ''}`}
-                  onPress={() => setPicking(true)}
-                />
-              </View>
-            </View>
-            <View style={{ gap: space.xs }}>
-              <T variant="titleS" color={colors.sub}>結果</T>
-              <Segmented<ReviewResult>
-                options={RESULT_KEYS.map((k) => ({ key: k, label: `${RESULTS[k].mark} ${RESULTS[k].label}` }))}
-                value={draft.result}
-                onChange={(result) => setDraft({ ...draft, result })}
-              />
-            </View>
-            {injury.exerciseName && (
-              <Chip label={`${injury.exerciseName}で試した`} active={draft.withExercise} onPress={() => setDraft({ ...draft, withExercise: !draft.withExercise })} />
-            )}
-            <Input
-              value={draft.note}
-              onChangeText={(note) => { setDraft({ ...draft, note }); setDraftError(null); }}
-              accessibilityLabel="メモ"
-              placeholder="例：寄せてから外せた"
-              placeholderTextColor={colors.sub}
-              maxLength={INJURY_LIMITS.reviewNote * 2}
-              multiline
-              style={s.input}
-            />
-            {draftError && <T variant="bodyM" color={colors.danger} accessibilityLiveRegion="polite">{draftError}</T>}
-            <Button label={busy ? '保存しています…' : '足す'} icon="check" onPress={saveReview} busy={busy} testID="review-save" />
-          </ScrollView>
-          </KeyboardAvoidingView>
-        )}
-      </Sheet>
-      {draft && (
-        <DayPickerSheet visible={picking} kind="training" value={draft.date} today={today} onClose={() => setPicking(false)}
-          onPick={(date) => setDraft({ ...draft, date })} />
-      )}
+      <ReviewSheet
+        draft={draft}
+        onChange={(d) => { setDraft(d); setDraftError(null); }}
+        today={today}
+        exerciseName={injury.exerciseName}
+        error={draftError}
+        busy={busy}
+        onClose={() => setDraft(null)}
+        onSave={saveReview}
+      />
 
       <ConfirmDialog
         visible={askFixed}
@@ -299,8 +249,4 @@ const s = StyleSheet.create({
   logDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, marginTop: 4 },
   logLine: { flex: 1, width: 1, backgroundColor: colors.outline, marginTop: 2 },
   result: { borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 },
-  input: {
-    minHeight: 72, borderRadius: radius.m, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.input, color: colors.text,
-    fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top',
-  },
 });
