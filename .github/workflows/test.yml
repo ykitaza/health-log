@@ -168,7 +168,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       # eslint-config-expo（apps/mobile/eslint.config.js）。警告も通さない
-      - run: npx expo lint --max-warnings 0
+      - run: npx expo lint . --max-warnings 0
       - run: npx jest
 
   # 画面の E2E。Expo の web 向けの書き出しを、Pixel と同じ大きさの Chromium で操作する（apps/mobile/e2e/README.md）

@@ -14,6 +14,8 @@ import { fakeHealthConnect as hc, heartRate, restingHeartRate, sleep, steps, wei
 import { createFakeSyncServer, Origin } from '@/test-utils/fakeSyncServer';
 import { Device, device } from '@/test-utils/syncHarness';
 
+// jest.mock の中身は import より先に巻き上げられるため、import ではなく require で読む
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-health-connect', () => require('@/test-utils/fakeHealthConnect').module);
 
 const DIR = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'sync');
