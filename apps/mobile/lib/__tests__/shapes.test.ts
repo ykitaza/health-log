@@ -392,15 +392,15 @@ describe('点の大きさと濃さ（形の大きさに合わせる）', () => {
 });
 
 describe('形ごとに置いた「届く範囲」（extent）', () => {
-  test('shapeExtent の計算と合う（切り上げた値で、0.0002 以内）。点の並びか tilt を変えたら、ここに出る値に置き換える', () => {
+  test('shapeExtent の計算と合う（切り上げた値で、0.001 以内。Mac と Linux で三角関数の丸めが少しちがう）。点の並びか tilt を変えたら、ここに出る値に置き換える', () => {
     for (const kind of ['attractor', 'tree', 'galaxy'] as const) {
       const def = SHAPES[kind];
       const e = shapeExtent(def.build().points, def.tilt, PERSPECTIVE);
       // 置いた値は計算より小さくない（形が箱からはみ出さない）、かつ大きすぎない
       expect(def.extent.x).toBeGreaterThanOrEqual(e.x);
       expect(def.extent.y).toBeGreaterThanOrEqual(e.y);
-      expect(def.extent.x - e.x).toBeLessThan(0.0002);
-      expect(def.extent.y - e.y).toBeLessThan(0.0002);
+      expect(def.extent.x - e.x).toBeLessThan(0.001);
+      expect(def.extent.y - e.y).toBeLessThan(0.001);
     }
   });
   test('点の並びは形ごとに1回だけ作る', () => {
