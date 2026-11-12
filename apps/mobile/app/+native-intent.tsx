@@ -9,5 +9,8 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     return initial ? '/account' : null;
   }
   if (/^(torelog:\/\/|\/)?signout([/?#]|$)/.test(path)) return initial ? '/' : null;
+  // チャット（ChatGPT・Claude）の返事に添えてもらう、アプリへ戻るリンク（torelog://meals?date=… など。lib/chat.ts の backLink）
+  const back = /^torelog:\/\/(meals|training|reports)(\?[^#]*)?$/.exec(path);
+  if (back) return `/${back[1]}${back[2] ?? ''}`;
   return path;
 }

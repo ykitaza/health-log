@@ -53,6 +53,17 @@ const CONNECTOR = 'hlog（健康記録の MCP コネクタ）';
 const FACTS_ONLY = '数字は記録の値だけを使い推測で補わないでください';
 const AFTER_SAVE = '保存したら、記録した内容を短く見せてください。';
 
+/** アプリの独自の URL（app.json の scheme）。チャットの返事に添えてもらう「戻る」リンクに使う（app/+native-intent.tsx が画面の道に変える） */
+export const APP_SCHEME = 'torelog://';
+
+/** チャットの返事の最後に、アプリへ戻るリンクを添えてもらう文。path はアプリの中の道（'meals?date=2026-11-12' など） */
+function backLink(path: string, label = 'hlog に戻る'): string {
+  return `最後に [${label}](${APP_SCHEME}${path}) を押せるリンクの形で添えてください。`;
+}
+
+/** その日の画面へ戻る道（日付が決まった形でなければ、日付を付けない） */
+const dayPath = (tab: 'meals' | 'training', date: string | null) => (date ? `${tab}?date=${date}` : tab);
+
 /** URL の長さの上限（エンコードしたあと。BASE のどちらでも） */
 export const MAX_URL_LENGTH = 2000;
 
@@ -91,7 +102,7 @@ function reportText(span: ReportSpan, rawToday: string): string {
   return `${CONNECTOR}で${period}のまとめを作ってください。`
     + `${call('period_overview', [['start', start], ['end', today]])}を読み、${FACTS_ONLY}。${ACHIEVED_BY_APP}`
     + `${WRITE[kind]}、責めない言い方で書き、${call('save_report', [['kind', kind], ['period_start', start], ['period_end', today]])}で保存してください。`
-    + '保存したら、画面を下に引っぱって同期すると見られると添えてください。';
+    + `保存したら、${backLink('reports', 'hlog で見る')}`;
 }
 
 /**
@@ -121,7 +132,7 @@ function pendingText(items: PendingReport[], rest: number): string {
     + `${kinds.map((k) => BATCH_WRITE[k]).join('、')}。`
     + '記録がない期間は作らず、そう伝えてください。'
     + (rest > 0 ? `残りの${rest}件は次に頼みます。` : '')
-    + '終わったら、アプリに戻ると自動で取り込まれると添えてください。';
+    + `終わったら、${backLink('reports')}`;
 }
 
 /** 長いほうの BASE で、エンコードした URL の長さ */
@@ -182,12 +193,12 @@ export function promptText(p: ChatPrompt): string {
     return `${CONNECTOR}に${when}の${slot ? SLOT_LABELS[slot] : '食事'}を記録してください。`
       + 'これから送る写真や説明から品目と量を推定してカロリーと PFC を出し、量が分からなければ先に1つだけ質問してください。'
       + `推定を見せて了承を得たら record_meal${args([['date', date], ['slot', slot]]) || ' '}で保存し、推定の根拠を basis に書いてください。`
-      + AFTER_SAVE;
+      + AFTER_SAVE + backLink(dayPath('meals', date));
   }
   return `${CONNECTOR}に${when}の筋トレを記録してください。`
     + `これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout${args([['day', date]]) || ' '}で保存してください。`
     + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。'
-    + AFTER_SAVE;
+    + AFTER_SAVE + backLink(dayPath('training', date));
 }
 
 /** シートに出す短い説明（URL には入れない） */
