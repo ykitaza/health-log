@@ -72,6 +72,21 @@ export function shapeUnit(width: number, height: number, extent: { x: number; y:
   );
 }
 
+/** 点の大きさと濃さを、そのまま（1倍）にする形の半径（dp）。「成長を見る」の大きな形がこのくらい */
+export const DOT_FULL_UNIT = 190;
+/** 小さい形（ホーム、形を選ぶシートの絵）で、点の大きさを下げる下限の倍率 */
+export const DOT_MIN_SCALE = 0.3;
+
+/**
+ * 形の大きさ（unit：広がりが最大のときの形の半径、dp）に合わせた、点の大きさの倍率と濃さの倍率。
+ * 点を形の大きさによらず同じ大きさで描くと、小さい形では数千の点が重なって白くにじみ、線が太く見える（実機）。
+ * 小さい形ほど点を小さく、少し薄くする（大きさは形の半径に比べて、濃さはその半分ほどの割合で下げる）
+ */
+export function dotStyle(unit: number): { size: number; alpha: number } {
+  const size = Math.min(1, Math.max(DOT_MIN_SCALE, unit / DOT_FULL_UNIT));
+  return { size, alpha: 0.55 + 0.45 * size };
+}
+
 /** shapeExtent で調べる回転の向きの数と、そのあいだを見落とす分の上乗せ */
 const EXTENT_STEPS = 72;
 const EXTENT_MARGIN = 1.01;

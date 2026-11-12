@@ -2,7 +2,7 @@ import { SHAPES } from '@/components/growth/shapes';
 import {
   attractorLayout, attractorPoints, MAX_POINTS, MIN_POINTS, pointTints, SEED_RAMP_DAYS, VOLUME_SCALE_KG,
 } from '../shapes/attractor';
-import { PERSPECTIVE, shapeExtent, shapeUnit, ShapeLayout } from '../shapes/common';
+import { DOT_FULL_UNIT, DOT_MIN_SCALE, dotStyle, PERSPECTIVE, shapeExtent, shapeUnit, ShapeLayout } from '../shapes/common';
 import { GALAXY_POINTS, galaxyLayout, galaxyPoints, galaxyTints } from '../shapes/galaxy';
 import { orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '../shapes/orbits';
 import { TREE_POINTS, treeLayout, treeShape } from '../shapes/tree';
@@ -374,5 +374,19 @@ describe('今日の衛星の軌道', () => {
     expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThan(30);
     expect(c.x).toBeCloseTo(a.x);
     expect(c.y).toBeCloseTo(a.y);
+  });
+});
+
+describe('点の大きさと濃さ（形の大きさに合わせる）', () => {
+  test('大きな形（成長を見る）はそのまま。小さい形ほど小さく・少し薄く。下限で止まる', () => {
+    expect(dotStyle(DOT_FULL_UNIT)).toEqual({ size: 1, alpha: 1 });
+    expect(dotStyle(400)).toEqual({ size: 1, alpha: 1 });
+    const home = dotStyle(80);
+    expect(home.size).toBeCloseTo(80 / DOT_FULL_UNIT);
+    expect(home.alpha).toBeLessThan(1);
+    expect(home.alpha).toBeGreaterThan(home.size);
+    // 形を選ぶシートの小さな絵は、下限
+    expect(dotStyle(20).size).toBe(DOT_MIN_SCALE);
+    expect(dotStyle(0).size).toBe(DOT_MIN_SCALE);
   });
 });
