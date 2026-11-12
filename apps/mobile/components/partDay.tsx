@@ -18,6 +18,8 @@ export async function loadPartDays(r: Repositories, rows?: Awaited<ReturnType<Re
   const nameById = new Map(parts.map((p) => [p.id, p.name]));
   return {
     days: focusByDate(setRows, (id) => nameById.get(id) ?? ''),
+    /** 部位の ID → 名前（非表示の部位も） */
+    nameById,
     names: parts.filter((p) => !p.hidden).map((p) => p.name),
     idByName: new Map(parts.filter((p) => !p.hidden).map((p) => [p.name.trim(), p.id])),
   };

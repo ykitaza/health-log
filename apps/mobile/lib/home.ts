@@ -2,7 +2,6 @@
 import { goalProgress } from './body';
 import { addDays, addMonths, DateKey, daysBetween, formatMonthDay, weekStart } from './date';
 import type { Big3Role } from './exercises';
-import type { GoalProgress, GoalStreak } from './goals';
 import { weekOf } from './goals';
 import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, satellites, SatState, SCORE_MAX } from './growth';
 import { formatMinutes } from './health';
@@ -27,38 +26,8 @@ export function sleepNote(asleepMin: number | null | undefined): string | null {
   return `睡眠 ${formatMinutes(asleepMin)}。今日は軽めでも大丈夫`;
 }
 
-/** 今週の目標の棒の割合（0〜1）。目標に届いたら満たす。目標がなければ 0 */
-export function goalRatio(p: GoalProgress): number {
-  if (p.goal == null || p.goal <= 0) return 0;
-  return p.reached ? 1 : Math.min(1, p.days / p.goal);
-}
-
-/** 今週の目標の行の読み上げ（「筋トレ 2回、目標 3回」「食事の記録 6日、目標 5日、達成」） */
-export function goalA11yLabel(name: string, unit: string, p: GoalProgress): string {
-  return [`${name} ${p.days}${unit}`, p.goal != null ? `目標 ${p.goal}${unit}` : null, p.reached ? '達成' : null].filter(Boolean).join('、');
-}
-
-/** 今週の目標のカードのいちばん下の連続の記録（「3週連続で達成」「先週まで 2週連続で達成」）。連続が0なら null（出さない） */
-export function goalStreakText(s: GoalStreak): string | null {
-  if (s.weeks <= 0) return null;
-  return s.thisWeek ? `${s.weeks}週連続で達成` : `先週まで ${s.weeks}週連続で達成`;
-}
-
-/** 設定の「今週の目標」の欄を開く道（ホームの今週の目標のカードを押したとき） */
+/** 設定の「今週の目標」の欄を開く道（settings?section=weekly-goals） */
 export const WEEKLY_GOALS_SECTION = 'weekly-goals';
-
-/**
- * 今週の目標のカード全体の読み上げ（押すと設定で目標を変えられる）。
- * 「今週の目標をすべて達成。筋トレ 2回、目標 2回、達成。食事の記録 3日、目標 3日、達成。1週連続で達成。押すと設定で変えられます」
- */
-export function weeklyGoalCardLabel(achieved: boolean, rows: string[], streak: string | null): string {
-  return [achieved ? '今週の目標をすべて達成' : '今週の目標', ...rows, streak, '押すと設定で変えられます'].filter(Boolean).join('。');
-}
-
-/** 達成のチェックを動かして出すか。その週で初めてすべて達成したのを見たときだけ（seen は端末に覚えた、前に動かした週の月曜） */
-export function shouldCelebrate(achieved: boolean, weekStart: DateKey, seen: string | null): boolean {
-  return achieved && seen !== weekStart;
-}
 
 /**
  * 今週やること：最新の週のまとめ（kind が weekly で、期間の終わりが先週の月曜〜今週の日曜のもの）の次の一歩。
@@ -216,11 +185,6 @@ export function homeGrowth(days: GrowthDay[], today: DateKey, weeklyTrainingGoal
     sats: { training: sat.training, food: sat.meal, sleep: sat.sleep },
     score: series.length === 0 ? null : growthScore(days, today, weeklyTrainingGoal),
   };
-}
-
-/** 成長スコアの大きい数字（「78」）。点が出せないときは「—」 */
-export function scoreText(score: GrowthScore | null): string {
-  return score ? String(score.total) : '—';
 }
 
 /** 内訳の合計（「78 / 100」）。点が出せないときは「—」 */

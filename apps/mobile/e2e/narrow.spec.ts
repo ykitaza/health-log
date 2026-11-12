@@ -14,6 +14,15 @@ test('360 の幅でも、ホームのカレンダーが負荷量のカードに�
   expect(sat.x + sat.width).toBeLessThanOrEqual(vol.x);
   // 日付の丸は正円のまま
   expect(Math.abs(sat.width - sat.height)).toBeLessThan(1);
+  // 右の列の部位のバランスの軸の名前が、カードからはみ出さない。左右の列の下の端がそろう
+  const balance = (await page.getByTestId('home-part-balance').boundingBox())!;
+  for (const name of ['脚', '肩']) {
+    const label = (await page.getByTestId('home-part-balance').locator('text', { hasText: name }).boundingBox())!;
+    expect(label.x).toBeGreaterThanOrEqual(balance.x);
+    expect(label.x + label.width).toBeLessThanOrEqual(balance.x + balance.width);
+  }
+  const archive = (await page.getByTestId('archive').boundingBox())!;
+  expect(Math.abs(archive.y + archive.height - (balance.y + balance.height))).toBeLessThan(1);
 });
 
 test('360 の幅でも、食事の推移の週（いちばん長い「10月26日〜11月1日」）がカレンダーのアイコンと1行に収まる', async ({ page }) => {

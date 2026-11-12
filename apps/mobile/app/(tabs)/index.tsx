@@ -1,15 +1,16 @@
 import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Sparkline } from '@/components/charts';
+import { CountToText, Sparkline } from '@/components/charts';
 import { PartBadge } from '@/components/ExerciseFields';
-import { GrowthStage, ReceivedNotice, RecordSheet, WeeklyGoalCard } from '@/components/home';
+import { GrowthStage, ReceivedNotice, RecordSheet } from '@/components/home';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { loadPartDays, RecentPartFlow, todaySuggestion, TodaySuggestLines, todaySuggestionSpoken } from '@/components/partDay';
-import { PressableScale, RollNumber } from '@/components/motion';
+import { PressableScale } from '@/components/motion';
+import { PartBalanceCard } from '@/components/PartBalance';
 import { LatestReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
@@ -19,6 +20,7 @@ import { Badge, Button, Fab } from '@/components/ui';
 import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
+import { useEntrance } from '@/hooks/entrance';
 import { useToday } from '@/hooks/today';
 import { datePoints } from '@/lib/chart';
 import { DateKey, formatJpDate, formatMonthDay, monthMatrix, pickedDayOrToday, yearMonth } from '@/lib/date';
@@ -28,6 +30,7 @@ import { goalLine, homeBig3, signedChange, sleepNote, thisWeekVolume } from '@/l
 import { DAY_TYPE_LABELS, DaySummary } from '@/lib/meals';
 import { tonnes } from '@/lib/format';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
+import { partBalance } from '@/lib/partBalance';
 import { dayFocus, daysInMonth, recentFlow, totalVolume, TrainingSetRow, trainingDates, Vehicle, vehicleRatio } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space, toneColors } from '@/theme';
@@ -81,6 +84,8 @@ export default function HomeScreen() {
   const flow = partDays ? recentFlow(partDays.days, today) : null;
   // 記録のある日：見出しの右にその日の部位の札（「胸」、2つなら「胸」「肩」）
   const focus = dayEntries && dayEntries.length > 0 ? dayFocus(dayEntries) : null;
+  // 部位のバランス：今日までの直近2週の、部位ごとのセット数（選んだ日ではなく今日が基準）
+  const balance = partDays ? partBalance(rows, (id) => partDays.nameById.get(id) ?? '', today) : null;
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
@@ -110,13 +115,14 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <T num bold size={15} style={{ lineHeight: 14 }}>{'MONTHLY\nARCHIVE'}</T>
               <View style={{ width: 2, height: 30, backgroundColor: colors.text }} />
-              <T num bold size={36}>{daysInMonth(dates, year, month)}</T>
+              {/* 数字は数え上げる（読み込む前は 0 のまま動かさない） */}
+              <CountToText countKey="home-archive-month" value={data ? daysInMonth(dates, year, month) : null} format={(v) => String(Math.round(v ?? 0))} num bold size={36} />
               <T num size={15}>days</T>
             </View>
             <View style={{ alignItems: 'center' }}>
               <T num bold size={12}>TOTAL</T>
               <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 6 }}>
-                <T num bold size={18} color={colors.onAccent}>{dates.length} days</T>
+                <CountToText countKey="home-archive-total" value={data ? dates.length : null} format={(v) => `${Math.round(v ?? 0)} days`} num bold size={18} color={colors.onAccent} />
               </View>
             </View>
           </View>
@@ -126,7 +132,8 @@ export default function HomeScreen() {
           {/* 今週は月曜始まり（lib/date.ts の weekStart） */}
           <VolumeCard testID="volume-week" title="合計負荷量／今週" kg={weekVolume} vehicle="car" unit={unit} ready={data != null} />
           <Big3Card rows={rows} assignments={data?.big3 ?? null} today={today} unit={unit} />
-          <WeeklyGoalCard today={today} />
+          {/* 残りの高さはこのカードが受ける（左の列の下の端とそろえる） */}
+          <PartBalanceCard balance={balance} />
         </View>
       </View>
       <ReportSuggestion />
@@ -253,30 +260,31 @@ function Big3Card({ rows, assignments, today, unit }: {
   const total = big3 ? fmt1(kgToUnit(big3.totalKg, unit)) : null;
   const change = big3?.diffKg != null ? signedChange(kgToUnit(big3.diffKg, unit)) : null;
   const changeColor = change?.dir === 'down' ? colors.danger : colors.accent;
+  const points = big3 ? datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today) : null;
+  // 折れ線は、初めて見せるときと形が変わったときだけ左から描く（タブの行き来や同じ値の読み直しでは描き直さない）
+  const lineSig = points ? points.map((p) => `${p.x.toFixed(4)}:${p.y}`).join(',') : null;
+  const line = useEntrance('home-big3-line', points, lineSig);
   const label = assignments == null ? 'BIG3 推定1RM 合計'
     : total == null || !big3 ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
     : `BIG3 推定1RM 合計 ${total}${unit}。${big3.note ? `${big3.note}。` : ''}${change ? `${big3.diffText} ${change.text}${unit}` : big3.noDiffText}`;
   return (
     <PressableScale
       testID="home-big3" accessibilityRole="button" accessibilityLabel={`${label}。筋トレの推移を開く`} scaleTo={0.98}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })} style={[s.volume, { flexGrow: 1 }]}
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })} style={[s.volume, { paddingVertical: 8, gap: 4 }]}
     >
       <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>BIG3 推定1RM 合計</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
         {total != null ? (
           <>
-            <RollNumber num bold size={22} value={total} ready={assignments != null} />
+            <CountToText countKey="home-big3" value={big3 ? kgToUnit(big3.totalKg, unit) : null} format={(v) => fmt1(v ?? 0)} num bold size={20} />
             <T variant="labelS" color={colors.sub}>{unit}</T>
           </>
-        ) : <T num bold size={22}>—</T>}
+        ) : <T num bold size={20}>—</T>}
       </View>
       {big3?.note != null && <T variant="labelS" bold={false} color={colors.sub}>{big3.note}</T>}
       {big3 ? (
         <>
-          {/* 列の高さの余りはこのカードが受け、折れ線と差は下に寄せる */}
-          <View style={{ flexGrow: 1, justifyContent: 'flex-end' }}>
-            <Sparkline points={datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today)} animKey="home-big3" />
-          </View>
+          {points && <Sparkline points={points} height={34} animKey={lineSig ?? undefined} still={!line.fresh} />}
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, flexWrap: 'wrap' }} testID="home-big3-change">
             {change ? (
               <>
@@ -298,16 +306,16 @@ function VolumeCard({ testID, title, kg, vehicle, unit, ready }: {
   testID: string; title: string; kg: number; vehicle: Vehicle; unit: 'kg' | 'lb'; ready: boolean;
 }) {
   return (
-    <View style={s.volume} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
+    <View style={[s.volume, { paddingVertical: 5 }]} testID={testID} accessible accessibilityLabel={`${title} ${tonnes(kg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`}>
       <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>{title}</T>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-        {/* 読み込みが終わる前の 0 から変わるときは動かさない（ready） */}
-        <RollNumber num bold size={22} value={tonnes(kg, unit)} ready={ready} />
+        {/* 数え上げる。読み込みが終わる前（ready でない）は 0 のまま動かさない */}
+        <CountToText countKey={`${testID}-t`} value={ready ? kg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={20} />
         <T variant="labelS" color={colors.sub}>{unit === 'kg' ? 't' : 'k lb'}</T>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
         <Icon name={VEHICLE_ICON[vehicle]} size={18} color={colors.accent} />
-        <RollNumber num bold size={13} color={colors.accent} prefix="× " value={vehicleRatio(kg, vehicle).toFixed(1)} ready={ready} />
+        <CountToText countKey={`${testID}-ratio`} value={ready ? kg : null} format={(v) => `× ${vehicleRatio(v ?? 0, vehicle).toFixed(1)}`} num bold size={13} color={colors.accent} />
       </View>
     </View>
   );
