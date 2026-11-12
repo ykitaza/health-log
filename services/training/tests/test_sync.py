@@ -127,7 +127,7 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
 def test_筋トレの種類は_training_の_scope():
     assert REGISTRY.types_in({"training"}) == {
         "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session", "heart_rate_day",
-        "step_day"}
+        "step_day", "injury", "injury_review"}
     assert REGISTRY.types_in({"meals"}) == set()
 
 
@@ -192,3 +192,60 @@ def test_歩数の日の合計_受け付ける範囲():
     # meals の scope だけでは書けない
     rejection = REGISTRY.parse_change(raw(day), REGISTRY.types_in({"meals"}), "pixel")
     assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"
+
+
+INJURY = {"occurred_on": "2026-11-05", "site": "elbow", "side": "left", "exercise_id": "bench", "phase": "下ろすとき",
+          "symptom": "肘の内側が痛い", "cause": "", "fix": "", "status": "fixing", "fixed_on": None}
+
+
+def raw_change(entity_type, fields, op="create"):
+    return {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": "x", "op": op,
+            "fields": fields, "changed_at": "2026-11-08T09:00:00Z"}
+
+
+def test_ケガ_アプリから受け付ける範囲():
+    def parse(fields, op="create", entity_type="injury"):
+        return REGISTRY.parse_change(raw_change(entity_type, fields, op), set(REGISTRY.specs), "pixel")
+
+    assert isinstance(parse(INJURY), Change)
+    assert isinstance(parse({"occurred_on": "2026-11-05", "site": "abs", "status": "fixing"}), Change)  # 要るのは3つだけ
+    assert isinstance(parse({**INJURY, "status": "fixed", "fixed_on": "2026-11-05"}), Change)
+    assert isinstance(parse({**INJURY, "phase": "あ" * 100, "fix": "あ" * 500}), Change)
+    assert isinstance(parse({"site": "abs"}, "update"), Change)  # 左右は別の変更で null にする（項目ごとに後勝ち）
+    assert isinstance(parse({"status": "fixing", "fixed_on": None}, "update"), Change)
+    for bad in ({"site": "nose"}, {"side": "both"}, {"site": "abs", "side": "left"}, {"status": "done"},
+                {"status": "fixed", "fixed_on": None}, {"status": "fixing", "fixed_on": "2026-11-06"},
+                {"status": "fixed", "fixed_on": "2026-11-04"}, {"phase": "あ" * 101}, {"cause": "あ" * 501},
+                {"symptom": None}, {"pain_level": 3}, {"diagnosis": "腱炎"}):
+        assert isinstance(parse({**INJURY, **bad}), Rejection), bad
+    rejection = parse({"occurred_on": "2026-11-05", "site": "elbow"})
+    assert isinstance(rejection, Rejection) and rejection.code == "missing_fields"
+    review = {"injury_id": "i1", "date": "2026-11-08", "result": "not_yet", "note": "", "exercise_id": None}
+    assert isinstance(parse(review, entity_type="injury_review"), Change)
+    for bad in ({"result": "ok"}, {"note": "あ" * 501}, {"injury_id": None}, {"date": "11/08"}):
+        assert isinstance(parse({**review, **bad}, entity_type="injury_review"), Rejection), bad
+    # meals の scope だけでは書けない
+    rejection = REGISTRY.parse_change(raw_change("injury", INJURY), REGISTRY.types_in({"meals"}), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"
+
+
+def test_ケガ_項目が食い違っていても読み_消したケガの振り返りは出さない(engine):
+    engine.append(USER, [
+        change("injury", "i1", fields=INJURY),
+        change("injury_review", "r1", fields={"injury_id": "i1", "date": "2026-11-06", "result": "pain"}),
+        change("injury", "i2", fields={**INJURY, "status": "fixed", "fixed_on": "2026-11-07"}),
+        change("injury_review", "r2", fields={"injury_id": "i2", "date": "2026-11-07", "result": "fixed"}),
+        # 端末 A が左右のない部位に、端末 B が直している途中に戻した（それぞれの項目だけが後勝ちで残る）
+        change("injury", "i1", "update", {"site": "abs"}, at="2026-11-08T09:10:00.000Z"),
+        change("injury", "i2", "update", {"status": "fixing"}, at="2026-11-08T09:10:00.000Z"),
+        change("injury", "i3", fields={**INJURY, "occurred_on": "2026-11-01"}),
+        change("injury_review", "r3", fields={"injury_id": "i3", "date": "2026-11-02", "result": "pain"}),
+        change("injury", "i3", "delete", at="2026-11-08T09:20:00.000Z"),  # 振り返りの削除はまだ届いていない
+    ])
+    queries = create_queries(engine)
+    records = asyncio.run(queries.injuries(USER))
+    assert [(r.injury.id, r.injury.site, r.injury.side, r.injury.status, r.injury.fixed_on) for r in records] == [
+        ("i2", "elbow", "left", "fixing", None), ("i1", "abs", None, "fixing", None)]
+    assert [[r.id for r in record.reviews] for record in records] == [["r2"], ["r1"]]
+    assert sorted(r.id for r in asyncio.run(queries.repository.injury_reviews(TraineeId(USER)))) == ["r1", "r2"]
+

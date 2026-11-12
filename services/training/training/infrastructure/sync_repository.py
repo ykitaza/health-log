@@ -20,6 +20,7 @@ from sync.engine import SyncEngine
 from sync.model import Change, EntityState
 from training.domain import bodyweight
 from training.domain.catalog import SEED_BODY_PARTS, SEED_EXERCISES, Catalog
+from training.domain.injury import SITES, Injury, InjuryReview
 from training.domain.model import (
     BodyPart,
     BodyRecord,
@@ -44,6 +45,8 @@ REQUIRED = {
     "sleep_session": {"date", "start_at", "end_at", "asleep_min", "awake_min", "source"},
     "heart_rate_day": {"date", "samples"},
     "step_day": {"date", "steps"},
+    "injury": {"occurred_on", "site", "status"},
+    "injury_review": {"injury_id", "date", "result"},
 }
 _MISSING = object()
 
@@ -171,6 +174,32 @@ class SyncTrainingRepository:
         states = await self._run(self._alive, trainee.value, "step_day")
         return [StepDay(s.values["date"], s.values["steps"]) for s in states]
 
+    def _injuries(self, user: str) -> list[Injury]:
+        """消していないケガ。項目は後勝ちで当てはめるので、組み合わせが食い違っていても読む
+        （左右のない部位の左右は捨て、直せた日は状態が fixed のときだけ使う）。"""
+        found = []
+        for s in self._alive(user, "injury"):
+            v = s.values
+            sided = SITES[v["site"]].sided
+            fixed = v["status"] == "fixed"
+            found.append(Injury(s.entity_id, v["occurred_on"], v["site"], v.get("side") if sided else None,
+                                v.get("exercise_id"), v.get("phase", ""), v.get("symptom", ""), v.get("cause", ""),
+                                v.get("fix", ""), v["status"], v.get("fixed_on") if fixed else None, s.created_at))
+        return found
+
+    async def injuries(self, trainee: TraineeId) -> list[Injury]:
+        return await self._run(self._injuries, trainee.value)
+
+    def _injury_reviews(self, user: str) -> list[InjuryReview]:
+        # ケガを消したあと、振り返りの削除がまだ届いていない（アプリの送信の途中など）ときも出さない
+        alive = {s.entity_id for s in self._alive(user, "injury")}
+        return [InjuryReview(s.entity_id, s.values["injury_id"], s.values["date"], s.values["result"],
+                             s.values.get("note", ""), s.values.get("exercise_id"), s.created_at)
+                for s in self._alive(user, "injury_review") if s.values["injury_id"] in alive]
+
+    async def injury_reviews(self, trainee: TraineeId) -> list[InjuryReview]:
+        return await self._run(self._injury_reviews, trainee.value)
+
     # --- 書き込み ---
 
     def _change(self, entity_type: str, entity_id: str, op: str, fields: dict | None = None) -> Change:
@@ -249,3 +278,30 @@ class SyncTrainingRepository:
 
     async def save_body_record(self, trainee: TraineeId, record: BodyRecord) -> None:
         await self._run(self._save_body_record, trainee.value, record)
+
+    def _save_injury(self, user: str, injury: Injury) -> None:
+        state = self._states(user, {("injury", injury.id)}).get(("injury", injury.id))
+        self._write(user, self._upsert("injury", injury.id, state, {
+            "occurred_on": injury.occurred_on, "site": injury.site, "side": injury.side,
+            "exercise_id": injury.exercise_id, "phase": injury.phase, "symptom": injury.symptom, "cause": injury.cause,
+            "fix": injury.fix, "status": injury.status, "fixed_on": injury.fixed_on}))
+
+    async def save_injury(self, trainee: TraineeId, injury: Injury) -> None:
+        await self._run(self._save_injury, trainee.value, injury)
+
+    def _save_injury_review(self, user: str, review: InjuryReview) -> None:
+        state = self._states(user, {("injury_review", review.id)}).get(("injury_review", review.id))
+        self._write(user, self._upsert("injury_review", review.id, state, {
+            "injury_id": review.injury_id, "date": review.date, "result": review.result, "note": review.note,
+            "exercise_id": review.exercise_id}))
+
+    async def save_injury_review(self, trainee: TraineeId, review: InjuryReview) -> None:
+        await self._run(self._save_injury_review, trainee.value, review)
+
+    def _delete_injury(self, user: str, injury_id: str, review_ids: list[str]) -> None:
+        # ケガを先に消す（振り返りが多いと30件ごとに分けて書くので、途中で止まっても、消えたケガの振り返りは読まない）
+        self._write(user, [self._change("injury", injury_id, "delete")]
+                    + [self._change("injury_review", i, "delete") for i in review_ids])
+
+    async def delete_injury(self, trainee: TraineeId, injury_id: str, review_ids: list[str]) -> None:
+        await self._run(self._delete_injury, trainee.value, injury_id, review_ids)

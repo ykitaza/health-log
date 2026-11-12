@@ -32,6 +32,8 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `sleep_session` | 睡眠（Health Connect の取り込みだけ。起きた日・寝た時刻・起きた時刻・眠っていた分・起きていた分） | 取り込みの ID（下の「Health Connect の取り込み」） | `training.*` |
 | `heart_rate_day` | 心拍の1日のまとめ（Health Connect の取り込みだけ。安静時・平均・最低・最高・サンプルの数） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
 | `step_day` | 歩数の1日の合計（Health Connect の取り込みだけ。`date`・`steps`。1〜1,000,000） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
+| `injury` | ケガの記録（痛めた日・部位のコード・左右・種目・場面・症状・原因・直し方・状態・直せた日。下の注） | UUID | `training.*` |
+| `injury_review` | ケガの振り返り（ケガ・試した日・結果・メモ・種目） | UUID | `training.*` |
 | `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩・つながり・目標の見直し） | UUID | `training.*` |
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
@@ -41,6 +43,13 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 日の種類（`day_type`）は、本人が決めたものだけを保存します。筋トレの日かどうかは、のちに筋トレの記録から求め、本人が決めた日の種類があればそちらを使います
 - 食事の推定の根拠（`basis`）は、MCP が kcal と PFC を推定したときだけ書きます（1000字まで）。アプリで記録した食事は null で、アプリは書き換えません（アプリの画面に出すだけ）
 - レポート（`report`）は、筋トレと食事の両方をまとめるので、筋トレの scope（`training.*`）で扱います（新しい scope は作らない。MCP では接続のところで食事の scope、ツールで筋トレの scope を確かめるので、両方が要る）。書くのは MCP だけで、アプリから受け付けるのは `delete` と、次の一歩のチェック（`next_steps_done`）だけの `update` です（`EntitySpec.app_ops`・`app_fields`。`create`・`restore`、ほかの項目の `update` は `op_not_allowed` で断る。下の「次の一歩のチェック」）。大きさは、本文 20,000字まで、項目を JSON にして 150,000 バイトまで（変更の記録には項目と今の状態の両方が入るので、DynamoDB の1項目 400KB に収まるように）、1人200件まで（`services/reports/reports/domain/report.py`）。受け取りとスナップショットは DynamoDB の1回の読み取り（1MB まで）でページが切れるので、大きなレポートが続いても応答は Lambda の上限（6MB）に届きません
+- ケガ（`injury`）と振り返り（`injury_review`）は、MCP（`record_injury` など）もアプリも書きます。筋トレの scope（`training.*`）で扱います（新しい scope・表は作らない）。上限と部位のコードは `services/training/training/domain/injury.py` にあります（場面100字、症状・原因・直し方・振り返りのメモは500字。1人200件、振り返りはケガ1件に100件まで。件数は MCP が書くときだけ確かめる）
+  - 項目：`occurred_on`（痛めた日）、`site`（部位のコード。筋肉 `shoulder_front`・`chest`・`biceps`・`forearm`・`trapezius`・`abs`・`obliques`・`quads`・`shins`・`shoulder_rear`・`triceps`・`lats`・`lower_back`・`glutes`・`hamstrings`・`calves`、関節 `neck`・`shoulder_joint`・`elbow`・`wrist`・`waist`・`hip`・`knee`・`ankle`）、`side`（`left`・`right`・null）、`exercise_id`（任意）、`phase`・`symptom`・`cause`・`fix`（文字。空でもよい）、`status`（`fixing`・`fixed`）、`fixed_on`（日付か null）。create に要るのは `occurred_on`・`site`・`status`
+  - 振り返りの項目：`injury_id`、`date`、`result`（`fixed`・`not_yet`・`pain`）、`note`、`exercise_id`（任意）。create に要るのは `injury_id`・`date`・`result`
+  - 原因と直し方は本人の言葉をそのまま持ちます。痛みの強さ・体調・診断の項目はありません（知らない項目として断る）
+  - 項目ごとに後勝ちで当てはめるので、項目の組み合わせ（左右のない部位 `abs`・`lower_back`・`neck`・`waist` の左右、状態と直せた日、直せた日が痛めた日より前）は、同じ変更に両方の項目があるときだけ断ります。読む側（`sync_repository.py`）は、食い違った状態でも読みます（左右のない部位の左右は捨て、直せた日は `fixed` のときだけ使う）
+  - ケガを消すときは、振り返りも一緒に消します（MCP の `delete_injury` は、ケガ → 振り返りの順に変更を書く）。振り返りの削除が届く前でも、消えたケガの振り返りは読みません
+  - 前の版のアプリは、知らない種類として飛ばし、受け取りの位置だけ進めます。アプリにケガを足す版では、レポートの版7と同じく、受け取りの位置を消してスナップショットを取り直します
 - 体重は、体組成（`body_record`）に一本化しています。MCP の `record_weight` も体組成の記録を書きます（[design.md](design.md#mcp-サーバーの組み立て)）
 
 ## 変更の記録
@@ -243,7 +252,7 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 
 - 衝突の決まり：`testdata/sync/conflicts.json` を、サーバー（`services/training/tests/test_shared_sync_testdata.py`）と、アプリ（`apps/mobile/db/__tests__/sync-shared.test.ts`）で流します。アプリでは、偽のサーバー（`test-utils/fakeSyncServer.ts`。当てはめの決まりをサーバーと同じに書いたもの）と、端末を通したもの（端末の変更は端末の表を変えてトリガーで送り、最後に受け取った表を見る）の両方で、同じ結果になることを確かめます
 - アプリ → MCP：アプリが送る本文（`testdata/sync/app_push.json`。jest が作る）を、pytest（`services/training/tests/test_app_sync.py`）が本物の `SyncHttpApi` に送り、MCP の `get_workout`・`list_exercises`・`body_progress` から見えることと、2回送っても二重にならないことを確かめます
-- MCP → アプリ：pytest が MCP の `record_workout`・`record_body` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/mobile/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます
+- MCP → アプリ：pytest が MCP の `record_workout`・`record_body`・`record_injury`・`add_injury_review` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/mobile/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます（ケガと振り返りは、アプリが知らない今の版では飛ばすことを確かめる）
 - アカウントが変わったとき：止める・送り直す・消して受け取り直すの決まりは jest（`apps/mobile/db/__tests__/sync.test.ts`）、確認の画面が出る流れだけを E2E（`e2e/sync.spec.ts`）で確かめます
 - E2E は本物の API に当てず、`execute-api` への通信を偽のサーバーに向けます
 
@@ -310,7 +319,7 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 | `services/meals/meals/infrastructure/sync_entities.py` | 食事の5つの種類を登録する | 食事、sync |
 | `services/meals/meals/infrastructure/sync_repositories.py` | MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 食事、sync |
 | `services/meals/meals/presentation/app_routes.py` | `POST /v1/meals/goal-suggestions` | 食事、sync の入口の型 |
-| `services/training/training/infrastructure/` | 筋トレの6つの種類を登録する、MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 筋トレ、sync |
+| `services/training/training/infrastructure/` | 筋トレの種類（ケガと振り返りも）を登録する、MCP の読み書き（今の状態を読み、変更の記録を通して書く） | 筋トレ、sync |
 | `services/reports/reports/infrastructure/` | レポートの種類を登録する（アプリからは delete だけ）、MCP の読み書き | レポート、sync |
 | `services/app_api/main.py` | アプリ用の Lambda の組み立て。登録とルートをまとめる | すべて |
 | `services/mcp/main.py` | MCP サーバーの Lambda の組み立て。食事と筋トレのツールをまとめる | すべて |

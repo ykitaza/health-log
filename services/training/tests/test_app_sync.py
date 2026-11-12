@@ -151,13 +151,20 @@ def test_MCP_で記録したものを_アプリが受け取るページ(app_api,
         {"exercise": "懸垂", "sets": [{"reps": 12}]},
     ])
     tool("record_body", day="2026-11-07", weight_kg=71.3, body_fat_pct=17.5)
+    # ケガの記録と振り返り（アプリが知らない版では、知らない種類として飛ばす）
+    injury = tool("record_injury", day="2026-11-07", site="shoulder_front", side="right", exercise="ベンチプレス",
+                  phase="2セット目の下ろすとき", symptom="肩の前がピリッとした", cause="肘が開いていた",
+                  fix="肘を45度にたたむ")["recorded"]
+    tool("add_injury_review", injury_id=injury["injury_id"], day="2026-11-08", result="not_yet", note="少し違和感")
     status, page = app_api("GET", "/v1/sync/changes", query={"after": "0"})
     assert status == 200 and page["has_more"] is False
+    assert [e["change"]["entity_type"] for e in page["entries"]][-2:] == ["injury", "injury_review"]
     page = normalize(page, {})
     path = TESTDATA / "mcp_pull.json"
     if os.environ.get("UPDATE_TESTDATA"):
         path.write_text(json.dumps({
-            "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成を記録したあと、アプリ用の API の受け取り"
+            "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成、ケガ（右の三角筋（前））とその振り返りを"
+                           "記録したあと、アプリ用の API の受け取り"
                            "（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。"
                            "services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
             "page": page,

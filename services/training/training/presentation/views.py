@@ -8,6 +8,7 @@ from training.application.queries import (
     BodyProgress,
     ExerciseHistory,
     HeartRateSummary,
+    InjuryRecord,
     PeriodTraining,
     SleepSummary,
     StepSummary,
@@ -15,6 +16,7 @@ from training.application.queries import (
 )
 from training.domain import big3, body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
+from training.domain.injury import MAX_LIST_REVIEWS, SITES, Injury, InjuryReview, site_label
 from training.domain.model import Exercise, SetRow, Workout
 
 
@@ -293,3 +295,27 @@ def period_steps(s: StepSummary) -> dict:
         "average_steps": whole(s.average_steps),
         "days": [{"date": d.date, "steps": d.steps} for d in s.days],
     }
+
+
+def _exercise_name(catalog: Catalog, exercise_id: str | None) -> str | None:
+    found = catalog.exercise(exercise_id) if exercise_id else None
+    return found.name if found else None  # 消した種目は名前を出さない（ID は残す）
+
+
+def injury_review(r: InjuryReview, catalog: Catalog) -> dict:
+    return {"review_id": r.id, "date": r.date, "result": r.result, "note": r.note, "exercise_id": r.exercise_id,
+            "exercise": _exercise_name(catalog, r.exercise_id)}
+
+
+def injury(i: Injury, reviews: list[InjuryReview], catalog: Catalog) -> dict:
+    """ケガの記録。振り返りは新しい MAX_LIST_REVIEWS 件を古い順に（全部の数は review_count）。"""
+    site = SITES[i.site]
+    return {"injury_id": i.id, "occurred_on": i.occurred_on, "site": i.site, "side": i.side,
+            "site_name": site_label(i.site, i.side), "site_kind": site.kind, "exercise_id": i.exercise_id,
+            "exercise": _exercise_name(catalog, i.exercise_id), "phase": i.phase, "symptom": i.symptom,
+            "cause": i.cause, "fix": i.fix, "status": i.status, "fixed_on": i.fixed_on,
+            "reviews": [injury_review(r, catalog) for r in reviews[-MAX_LIST_REVIEWS:]], "review_count": len(reviews)}
+
+
+def injury_list(records: list[InjuryRecord], catalog: Catalog, limit: int) -> dict:
+    return {"injuries": [injury(r.injury, r.reviews, catalog) for r in records[:limit]], "total": len(records)}

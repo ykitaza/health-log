@@ -14,6 +14,15 @@ from typing import Callable
 from training.domain import bodyweight, rules
 from training.domain.catalog import Catalog, normalize
 from training.domain.errors import NotFound, TrainingError
+from training.domain.injury import (
+    MAX_INJURIES,
+    MAX_REVIEWS_PER_INJURY,
+    SITES,
+    Injury,
+    InjuryReview,
+    check_injury,
+    check_review,
+)
 from training.domain.model import BodyRecord, Exercise, RecordType, TraineeId, Workout, WorkoutEntry, WorkoutSet
 from training.domain.ports import TrainingRepository
 
@@ -51,6 +60,37 @@ class WorkoutChanges:
 
     def empty(self) -> bool:
         return not (self.sets or self.remove_set_ids or self.remove_entry_ids or self.move_to)
+
+
+@dataclass(frozen=True)
+class NewInjury:
+    occurred_on: str
+    site: str
+    side: str | None = None
+    exercise: str | None = None  # 種目の名前か ID
+    phase: str = ""
+    symptom: str = ""
+    cause: str = ""
+    fix: str = ""
+
+
+@dataclass(frozen=True)
+class InjuryChanges:
+    """None は変えない。文字は空にすると消す。exercise は空の文字で種目を外す。"""
+
+    occurred_on: str | None = None
+    site: str | None = None
+    side: str | None = None
+    exercise: str | None = None
+    phase: str | None = None
+    symptom: str | None = None
+    cause: str | None = None
+    fix: str | None = None
+    reopen: bool = False  # 直している途中に戻す（直せた日を消す）
+
+    def empty(self) -> bool:
+        return not self.reopen and all(getattr(self, k) is None for k in (
+            "occurred_on", "site", "side", "exercise", "phase", "symptom", "cause", "fix"))
 
 
 def _timestamp(value: datetime) -> str:
@@ -244,3 +284,83 @@ class TrainingCommands:
                                 given.get("body_fat_pct"), given.get("muscle_pct"), given.get("waist_cm"),
                                 (memo or "").strip(), "manual", "")
         await self.repository.save_body_record(trainee, record)
+
+    # --- ケガの記録 ---
+
+    async def _injury(self, trainee: TraineeId, injury_id: str) -> Injury:
+        found = next((i for i in await self.repository.injuries(trainee) if i.id == injury_id), None)
+        if found is None:
+            raise NotFound(f"ケガの記録 {injury_id} はありません。list_injuries で injury_id を確かめてください")
+        return found
+
+    async def _exercise_id(self, trainee: TraineeId, exercise: str | None) -> str | None:
+        """種目の名前か ID から ID を決める（名前は完全一致だけ。見つからなければ候補を添えて断る）。"""
+        if exercise is None or not exercise.strip():
+            return None
+        return (await self.repository.catalog(trainee)).find_exercise(exercise).id
+
+    async def record_injury(self, subject: str, new: NewInjury) -> Injury:
+        """ケガを記録する（直している途中として）。原因と直し方は、渡された言葉をそのまま持つ。"""
+        trainee = TraineeId(subject)
+        if len(await self.repository.injuries(trainee)) >= MAX_INJURIES:
+            raise TrainingError(f"ケガの記録は{MAX_INJURIES}件までです。直せた古い記録を delete_injury で消してから記録してください")
+        injury = check_injury(Injury(
+            self.new_id(), new.occurred_on, new.site, new.side, await self._exercise_id(trainee, new.exercise),
+            new.phase, new.symptom, new.cause, new.fix, "fixing", None))
+        await self.repository.save_injury(trainee, injury)
+        return await self._injury(trainee, injury.id)
+
+    async def update_injury(self, subject: str, injury_id: str, changes: InjuryChanges) -> Injury:
+        """ケガの記録を書き直す（渡した項目だけ）。部位を左右のない部位に変えると、左右は外す。"""
+        if changes.empty():
+            raise TrainingError("直す内容を1つ以上入れてください")
+        trainee = TraineeId(subject)
+        current = await self._injury(trainee, injury_id)
+        site = changes.site if changes.site is not None else current.site
+        if changes.side is not None:
+            side = changes.side
+        else:
+            side = current.side if site in SITES and SITES[site].sided else None
+        exercise_id = current.exercise_id if changes.exercise is None else \
+            await self._exercise_id(trainee, changes.exercise)
+
+        def text(new: str | None, old: str) -> str:
+            return old if new is None else new
+
+        status, fixed_on = ("fixing", None) if changes.reopen else (current.status, current.fixed_on)
+        updated = check_injury(replace(
+            current, occurred_on=changes.occurred_on or current.occurred_on, site=site, side=side,
+            exercise_id=exercise_id, phase=text(changes.phase, current.phase),
+            symptom=text(changes.symptom, current.symptom), cause=text(changes.cause, current.cause),
+            fix=text(changes.fix, current.fix), status=status, fixed_on=fixed_on))
+        await self.repository.save_injury(trainee, updated)
+        return await self._injury(trainee, injury_id)
+
+    async def mark_injury_fixed(self, subject: str, injury_id: str, fixed_on: str) -> Injury:
+        """直せたにする（直せた日を入れる）。もう直せたにしてあれば、直せた日を書き換える。"""
+        trainee = TraineeId(subject)
+        current = await self._injury(trainee, injury_id)
+        updated = check_injury(replace(current, status="fixed", fixed_on=fixed_on))
+        await self.repository.save_injury(trainee, updated)
+        return await self._injury(trainee, injury_id)
+
+    async def add_injury_review(self, subject: str, injury_id: str, day: str, result: str, note: str = "",
+                                exercise: str | None = None) -> InjuryReview:
+        """振り返りを足す。結果が「直せた」でも、ケガの状態は変えない（直せたにするのは mark_injury_fixed）。"""
+        trainee = TraineeId(subject)
+        await self._injury(trainee, injury_id)
+        reviews = [r for r in await self.repository.injury_reviews(trainee) if r.injury_id == injury_id]
+        if len(reviews) >= MAX_REVIEWS_PER_INJURY:
+            raise TrainingError(f"振り返りはケガ1件に{MAX_REVIEWS_PER_INJURY}件までです")
+        review = check_review(InjuryReview(self.new_id(), injury_id, day, result, note,
+                                           await self._exercise_id(trainee, exercise)))
+        await self.repository.save_injury_review(trainee, review)
+        return review
+
+    async def delete_injury(self, subject: str, injury_id: str) -> int:
+        """ケガを消す。振り返りも一緒に消す。消した振り返りの数を返す。"""
+        trainee = TraineeId(subject)
+        await self._injury(trainee, injury_id)
+        review_ids = [r.id for r in await self.repository.injury_reviews(trainee) if r.injury_id == injury_id]
+        await self.repository.delete_injury(trainee, injury_id, review_ids)
+        return len(review_ids)

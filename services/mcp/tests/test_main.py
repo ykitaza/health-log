@@ -89,9 +89,11 @@ def test_食事と筋トレとレポートとログアウトのツールが1つ�
     assert {"record_meal", "today_status", "set_day_type", "weekly_review", "record_weight"} <= names
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
             "sleep_summary", "heart_rate_summary", "step_summary"} <= names
+    assert {"record_injury", "list_injuries", "add_injury_review", "mark_injury_fixed", "update_injury",
+            "delete_injury"} <= names
     assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
     assert {"logout", "period_overview", "meal_summary"} <= names
-    assert len(names) == 17 + 15 + 4 + 1 + 1
+    assert len(names) == 17 + 21 + 4 + 1 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):

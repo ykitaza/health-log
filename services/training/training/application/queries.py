@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from training.domain import body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
+from training.domain.injury import Injury, InjuryReview
 from training.domain.model import HeartRateDay, SetRow, StepDay, TraineeId, Workout
 from training.domain.ports import TrainingRepository
 
@@ -65,6 +66,12 @@ class HeartRateSummary:
 class StepSummary:
     days: list[StepDay]  # 期間の中の、日ごとの合計（古い順。記録がない日は含めない）
     average_steps: float | None  # 記録がある日の平均
+
+
+@dataclass(frozen=True)
+class InjuryRecord:
+    injury: Injury
+    reviews: list[InjuryReview]  # 古い順（試した日、同じなら記録した順）
 
 
 class TrainingQueries:
@@ -148,3 +155,13 @@ class TrainingQueries:
     async def step_summary(self, subject: str, start: str, end: str) -> StepSummary:
         days = health.step_days_between(await self.repository.step_days(TraineeId(subject)), start, end)
         return StepSummary(days, health.average([d.steps for d in days]))
+
+    async def injuries(self, subject: str, status: str | None = None) -> list[InjuryRecord]:
+        """ケガと振り返り。新しい順（痛めた日、同じなら記録した順の新しいもの）。status を渡すとその状態だけ。"""
+        trainee = TraineeId(subject)
+        reviews: dict[str, list[InjuryReview]] = {}
+        for r in sorted(await self.repository.injury_reviews(trainee), key=lambda r: (r.date, r.created_at, r.id)):
+            reviews.setdefault(r.injury_id, []).append(r)
+        found = [i for i in await self.repository.injuries(trainee) if status is None or i.status == status]
+        found.sort(key=lambda i: (i.occurred_on, i.created_at, i.id), reverse=True)
+        return [InjuryRecord(i, reviews.get(i.id, [])) for i in found]
