@@ -1,5 +1,6 @@
 // からだのタブの「回復マップ」（RECOVERY MAP // 7D）。筋トレの部位ごとに、最後に鍛えた日からの日数で 3D の体の部品を光らせる。
-// Android は 3D（RecoveryMap3D.native.tsx）、描けないときと web（e2e）は 2D の図（前と後ろ）で、7日以内に鍛えた部位を塗る。
+// 温存の部位は青、最近鍛えた部位ほど暖色（橙）、直している途中のケガは赤。
+// Android は 3D（RecoveryMap3D.native.tsx）、描けないときと web（e2e）は 2D の図（前と後ろ）で同じように塗る。
 // 部位のボタン（48dp）でも選べる（読み上げは図の部品を選べないので、ボタンで同じことが分かるようにする）
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -8,14 +9,14 @@ import type { Injury } from '@/db/repositories/injuries';
 import { siteOfPart } from '@/lib/bodyModel';
 import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
-import { musclesForParts } from '@/lib/muscleFigure';
 import {
-  fixingOn, injuriesForPart, partOfMesh, PartRecovery, partRecoveries, recoveryLevels, RECOVERY_DAYS,
+  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, partOfMesh, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
+  RECOVERY_DAYS, REST_BLUE,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
 import { colors, radius, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
-import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
+import { MuscleFigure } from './MuscleFigure';
 import { RecoveryMap3D } from './RecoveryMap3D';
 import { T } from './Text';
 
@@ -56,7 +57,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   if (list.every((p) => p.last == null)) return null;
   const recent = list.filter((p) => p.level > 0);
   const spoken = [
-    '回復マップ',
+    '回復マップ。青は温存、橙は最近の負荷、赤はケガ',
     recent.length > 0 ? `${RECOVERY_DAYS}日以内に鍛えた部位、${recent.map((p) => `${p.name} ${agoText(p, date)}`).join('、')}` : `${RECOVERY_DAYS}日以内に鍛えた部位はありません`,
     injuries.length > 0 ? `直している途中のケガ ${injuries.length}件` : '',
   ].filter(Boolean).join('。');
@@ -68,9 +69,18 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
       <View accessible accessibilityLabel={spoken} style={{ gap: space.s }}>
         <View style={s.head}>
           <Mono color={colors.accent}>{`RECOVERY MAP // ${RECOVERY_DAYS}D`}</Mono>
-          {injuries.length > 0 && <Mono color={INJURY_AMBER}>{`▲ ${injuries.length} ALERT`}</Mono>}
+          {injuries.length > 0 && <Mono color={INJURY_RED}>{`▲ ${injuries.length} ALERT`}</Mono>}
         </View>
-        <T variant="bodyM" color={colors.sub}>明るいほど最近鍛えた部位（7日ほどで元に戻る）</T>
+        <T variant="bodyM" color={colors.sub}>最近鍛えた部位ほど暖色（7日ほどで青に戻る）</T>
+        {/* 凡例（色の四角と文字。色だけにしない） */}
+        <View style={s.legend} testID="recovery-legend">
+          {LEGEND.map((l) => (
+            <View key={l.label} style={s.legendItem}>
+              <View style={[s.swatch, { backgroundColor: l.color }]} />
+              <T variant="bodyS" color={colors.sub}>{l.label}</T>
+            </View>
+          ))}
+        </View>
       </View>
       {RecoveryMap3D
         ? <RecoveryMap3D levels={levels} injuries={injuries} selected={selected} onPick={onPick} fallback={figure2D} />
@@ -87,10 +97,10 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
               style={[s.chip, on && s.chipOn]}
             >
               {/* 光の強さ（色だけにしない：横に日数） */}
-              <View style={[s.dot, { opacity: 0.25 + 0.75 * p.level }]} />
+              <View style={[s.dot, { backgroundColor: recoveryColor(p.level) }]} />
               <T variant="labelL">{p.name}</T>
               <T variant="bodyS" color={colors.sub}>{agoText(p, date)}</T>
-              {hurt > 0 && <T variant="labelM" color={INJURY_AMBER}>▲</T>}
+              {hurt > 0 && <T variant="labelM" color={INJURY_RED}>▲</T>}
             </Pressable>
           );
         })}
@@ -111,7 +121,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
               </T>
               <T variant="bodyM">{`2週間のセット数 ${part.sets}セット`}</T>
               {injuriesForPart(part, injuries, input.partOfExercise).map((i) => (
-                <T key={i.id} variant="bodyM" color={INJURY_AMBER}>{`▲ ${siteLabel(i.site, i.side)}のケガを直している途中`}</T>
+                <T key={i.id} variant="bodyM" color={INJURY_RED}>{`▲ ${siteLabel(i.site, i.side)}のケガを直している途中`}</T>
               ))}
             </>
           ) : (
@@ -123,21 +133,28 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   );
 }
 
+/** 凡例：青＝温存、橙＝最近の負荷、赤＝ケガ */
+const LEGEND = [
+  { color: REST_BLUE, label: '温存' },
+  { color: LOAD_ORANGE, label: '最近の負荷' },
+  { color: INJURY_RED, label: 'ケガ' },
+];
+
 /** どの部位にもあたらない部品の名前（三角筋の中部は部位のコードがないので「肩」） */
 function meshLabel(mesh: string): string {
   const s = siteOfPart(mesh);
   return s ? siteLabel(s.site, s.side) : '肩';
 }
 
-/** 2D の図（前と後ろ）。7日以内に鍛えた部位の筋肉を緑で塗り、直している途中のケガに琥珀色の印 */
+/** 2D の図（前と後ろ）。温存の筋肉は青、7日以内に鍛えた筋肉は明るさの暖色、直している途中のケガに赤の印 */
 function Recovery2D({ list, injuries }: { list: PartRecovery[]; injuries: Injury[] }) {
-  const paint = musclesForParts(list.filter((p) => p.level > 0).map((p) => p.name));
+  const fills = muscleFills(list);
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
   return (
     <View style={s.figures} testID="recovery-2d">
       {(['front', 'back'] as const).map((view) => (
         <View key={view} style={{ alignItems: 'center', gap: space.xs }}>
-          <MuscleFigure view={view} paint={paint} marks={marks} width={100} height={200} />
+          <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={100} height={200} />
           <Mono>{view === 'front' ? 'FRONT' : 'BACK'}</Mono>
         </View>
       ))}
@@ -154,7 +171,10 @@ const s = StyleSheet.create({
     borderRadius: radius.m, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.input,
   },
   chipOn: { borderColor: colors.accent },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.m, rowGap: space.xs },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  swatch: { width: 10, height: 10, borderRadius: 2 },
   pick: {
     marginTop: space.m, gap: 2, backgroundColor: 'rgba(14,16,19,0.8)', borderWidth: 1, borderColor: colors.accentMuted,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: space.s,

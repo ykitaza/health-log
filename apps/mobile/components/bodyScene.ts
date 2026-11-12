@@ -17,8 +17,9 @@ const START_YAW = 0.35;
 /** 回復の光：明るさ 1（いちばん強い）のときの部品の光の強さ。0 はふだんの光（RECOVERY_IDLE）。間はまっすぐ混ぜる */
 const RECOVERY_IDLE = { base: 0.13, rim: 1.2 };
 const RECOVERY_FULL = { base: 0.55, rim: 2.4 };
-/** 控えめなケガの印（回復マップ）：にじみの大きさと濃さの倍率。部品は琥珀色にしない（主役は回復の光） */
-const QUIET_GLOW = 0.6;
+/** 回復マップのケガの印：部品をケガの色で塗って脈打たせ（脈の深さ）、にじみはケガの画面の 0.8 倍 */
+const QUIET_MARK = { base: 0.45, rim: 1.9, pulse: 0.7 };
+const QUIET_GLOW = 0.8;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -122,6 +123,15 @@ export class BodyScene {
   private levels: Record<string, number> = {};
   /** ケガの印を控えめにする（回復マップ） */
   private quiet = false;
+  /** 土台の色（部品のふだんの光・皮膚・台・走査の輪）。ケガの画面は緑 */
+  private base = GREEN.clone();
+  /** 明るさ k の色。渡さなければ緑のまま強さだけを変える */
+  private levelColor: ((k: number) => string) | null = null;
+  /** ケガの印の色（回復マップの控えめな印と、にじみ）。ケガの画面は琥珀色 */
+  private injury = AMBER.clone();
+  /** 土台の色に寄せる、台・走査の輪・皮膚の材質 */
+  private tinted: (THREE.LineBasicMaterial | THREE.ShaderMaterial)[] = [];
+  private readonly tmpC = new THREE.Color();
   /** 最初のコマを描いたか（読み込み中の表示を消す） */
   private drawn = false;
   private onDrawn: (() => void) | null = null;
@@ -149,6 +159,19 @@ export class BodyScene {
     const { deck, ticks } = makeDeck();
     this.deck = deck;
     this.ticks = ticks;
+    deck.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (m instanceof THREE.LineBasicMaterial || m instanceof THREE.ShaderMaterial) this.tinted.push(m);
+    });
+    this.tinted.push(this.scanRing.material as THREE.LineBasicMaterial);
+  }
+
+  /** 台・走査の輪・皮膚を土台の色にする */
+  private tint() {
+    for (const m of this.tinted) {
+      if (m instanceof THREE.LineBasicMaterial) m.color.copy(this.base);
+      else m.uniforms.uColor.value = this.base.clone();
+    }
   }
 
   /**
@@ -168,6 +191,7 @@ export class BodyScene {
       const core = o.name === 'skin';
       o.material = core ? holoMat(this.shared, GREEN, 0.004, 0.32) : holoMat(this.shared, GREEN, 0.13, 1.2);
       if (core) {
+        this.tinted.push(o.material as THREE.ShaderMaterial, skinWire);
         o.add(new THREE.LineSegments(new THREE.WireframeGeometry(o.geometry), skinWire));
         o.renderOrder = 2;
       } else {
@@ -186,6 +210,7 @@ export class BodyScene {
     this.body.add(root);
     // 終わってから印を付ける（途中で失敗したら、次の描画でやり直す）
     this.loaded = loaded;
+    this.tint();
     this.setMarks(this.marks);
     this.select(this.selNames);
   }
@@ -199,10 +224,15 @@ export class BodyScene {
   configure(o: {
     marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
     levels?: Record<string, number>; quietMarks?: boolean;
+    baseColor?: string; levelColor?: (k: number) => string; injuryColor?: string;
   }) {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
     this.quiet = o.quietMarks ?? false;
+    this.base.set(o.baseColor ?? GREEN);
+    this.levelColor = o.levelColor ?? null;
+    this.injury.set(o.injuryColor ?? AMBER);
+    this.tint();
     this.tipMarks = o.tipMarks;
     this.onPick = o.onPick;
     this.onTips = o.onTips;
@@ -235,13 +265,18 @@ export class BodyScene {
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
-    for (const m of this.pickables) set(m, GREEN, 0.13, 1.2, 0);
+    for (const m of this.pickables) set(m, this.base, 0.13, 1.2, 0);
     for (const [p, v] of Object.entries(this.levels)) {
       const k = Math.min(1, Math.max(0, v));
       const lerp = (a: number, b: number) => a + (b - a) * k;
-      if (k > 0) set(this.byName[p], GREEN, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
+      const color = this.levelColor ? this.tmpC.set(this.levelColor(k)) : this.base;
+      if (k > 0) set(this.byName[p], color, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
     }
-    if (!this.quiet) {
+    if (this.quiet) {
+      for (const mk of marks.filter((k) => k.fixing)) {
+        for (const p of mk.parts) set(this.byName[p], this.injury, QUIET_MARK.base, QUIET_MARK.rim, this.reduced ? 0 : QUIET_MARK.pulse);
+      }
+    } else {
       for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
       for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
     }
@@ -250,7 +285,7 @@ export class BodyScene {
     this.glows = marks.filter((m) => m.fixing).map((m) => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
-        uniforms: { uColor: { value: AMBER }, uOpacity: { value: 0.5 } }, vertexShader: UV_VERT, fragmentShader: GLOW_FRAG,
+        uniforms: { uColor: { value: this.injury.clone() }, uOpacity: { value: 0.5 } }, vertexShader: UV_VERT, fragmentShader: GLOW_FRAG,
       }));
       this.glowGroup.add(mesh);
       return { mesh, anchor: new THREE.Vector3(...m.anchor) };

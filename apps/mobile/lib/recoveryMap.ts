@@ -3,11 +3,42 @@
 import type { Injury } from '@/db/repositories/injuries';
 import { addDays, DateKey, daysBetween } from './date';
 import { partsFor } from './bodyModel';
+import { Muscle, muscleFigureFor } from './muscleFigure';
 import { BALANCE_DAYS } from './partBalance';
 import type { TrainingSetRow } from './training';
 
 /** 光が消えるまでの日数の目安。鍛えた日・次の日がいちばん強く、8日目にはふだんの光 */
 export const RECOVERY_DAYS = 7;
+
+// ---- 回復マップの色（ケガの画面の BODY MAP は変えない）----
+// 温存（明るさ 0）は落ち着いた青、最近の負荷は明るさが高いほど暖色（青 → 薄い色 → 黄 → 橙）。
+// 青と黄をまっすぐ混ぜると間が濁った灰色になるので、間に薄い色をはさむ。ケガ（直している途中）は負荷の橙と見分けられる赤
+
+/** 温存（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色に寄せる） */
+export const REST_BLUE = '#5B8DEF';
+/** 温存（2D の図の塗り。平らに塗るので 3D より暗い青） */
+export const REST_BLUE_FILL = '#36507E';
+/** 最近の負荷（今日・昨日） */
+export const LOAD_ORANGE = '#FF8A3D';
+/** ケガ（直している途中）。ケガの画面の琥珀色（INJURY_AMBER）とは別 */
+export const INJURY_RED = '#FF5A4F';
+/** 明るさ k（0〜1）と色の点。間はまっすぐ混ぜる */
+const STOPS: [number, string][] = [[0, REST_BLUE], [0.3, '#DCE3EE'], [0.6, '#F5C94A'], [1, LOAD_ORANGE]];
+
+const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const toHex = (v: number[]) => `#${v.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+
+/** 明るさ k（0〜1）の色。0 は温存の青、1 は負荷の橙 */
+export function recoveryColor(k: number): string {
+  const t = Math.min(1, Math.max(0, k));
+  const i = STOPS.findIndex(([at]) => at >= t);
+  if (i <= 0) return STOPS[0][1];
+  const [a, ca] = STOPS[i - 1];
+  const [b, cb] = STOPS[i];
+  const f = (t - a) / (b - a);
+  const x = hex(ca), y = hex(cb);
+  return toHex(x.map((v, j) => v + (y[j] - v) * f));
+}
 
 /**
  * 部位の名前（種目と部位の管理の名前。db/seed.ts の初期の部位）→ GLB の部品の名前の頭（左右がある部品は `_r`・`_l` を両方光らせる）。
@@ -90,6 +121,21 @@ export function recoveryLevels(list: PartRecovery[]): Record<string, number> {
   for (const p of list) for (const m of p.meshes) out[m] = Math.max(out[m] ?? 0, p.level);
   return out;
 }
+
+/**
+ * 2D の図の筋肉ごとの塗り（web と、3D を描けないとき）。部位の筋肉は lib/muscleFigure.ts の muscleFigureFor（2D の図の対応）。
+ * 鍛えていない筋肉は温存の青、最近鍛えた筋肉は明るさの色（いくつかの部位にある筋肉は明るいほう）
+ */
+export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
+  const level: Partial<Record<Muscle, number>> = {};
+  for (const p of list) for (const m of muscleFigureFor(p.name).muscles) level[m] = Math.max(level[m] ?? 0, p.level);
+  return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, (level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : REST_BLUE_FILL])) as Record<Muscle, string>;
+}
+
+const MUSCLE_NAMES: Muscle[] = [
+  'trapezius', 'deltoid', 'pecs', 'biceps', 'triceps', 'forearm', 'abs', 'obliques',
+  'lats', 'erectorsUpper', 'erectorsLower', 'glutes', 'quads', 'hamstrings', 'shins', 'calves',
+];
 
 /** 押した部品の部位。いくつかの部位にあたるとき（前腕）は、最後に鍛えた日の新しいもの（同じなら並びの先）。どの部位にもなければ null */
 export function partOfMesh(mesh: string, list: PartRecovery[]): PartRecovery | null {

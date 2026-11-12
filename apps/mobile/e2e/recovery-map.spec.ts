@@ -21,7 +21,8 @@ test('筋トレの記録がなければ回復マップは出さない。記録�
   await expect(card).toBeVisible();
   await expect(see(card, 'RECOVERY MAP // 7D')).toBeVisible();
   await expect(card.getByTestId('recovery-2d')).toBeVisible();
-  await expect(card.getByLabel(/^回復マップ。7日以内に鍛えた部位、胸 3日前$/)).toHaveCount(1);
+  await expect(card.getByTestId('recovery-legend')).toHaveText('温存最近の負荷ケガ');
+  await expect(card.getByLabel(/^回復マップ。青は温存、橙は最近の負荷、赤はケガ。7日以内に鍛えた部位、胸 3日前$/)).toHaveCount(1);
   // 2週間より前の脚は、ボタンには出るが 7日以内には入らない
   await expect(button(card, '脚、19日前、2週間で 0セット')).toBeVisible();
   await expect(button(card, '背中、まだ鍛えていない、2週間で 0セット')).toBeVisible();

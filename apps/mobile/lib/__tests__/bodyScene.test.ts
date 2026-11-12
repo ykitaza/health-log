@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BodyScene, Mark } from '@/components/bodyScene';
 import { anchorFor, CAMERA, facingOf, partsFor } from '@/lib/bodyModel';
+import { colors, toneColors } from '@/theme';
 
 async function loadBody(): Promise<THREE.Object3D> {
   const buf = readFileSync(join(__dirname, '../../assets/models/body.glb'));
@@ -91,37 +92,58 @@ describe('3D の体の場面', () => {
     expect(pick('quad_r')).toEqual([0.13, 1.2, 0]);
     expect(pick('biceps_l')).toEqual([0.32, 1.8, 0]);
     expect(pick('pec_r')).toEqual([0.7, 2.2, 1]);
+    // 色：ふだんと台・皮膚は緑、直している途中とにじみは琥珀色
+    const green = new THREE.Color(colors.accent).getHexString();
+    const amber = new THREE.Color(toneColors.caution.accent).getHexString();
+    expect((u('quad_r').uColor.value as THREE.Color).getHexString()).toBe(green);
+    expect((u('skin').uColor.value as THREE.Color).getHexString()).toBe(green);
+    expect((u('pec_r').uColor.value as THREE.Color).getHexString()).toBe(amber);
+    const deckLine = scene.deck.children.find((c) => c instanceof THREE.LineLoop) as THREE.LineLoop;
+    expect((deckLine.material as THREE.LineBasicMaterial).color.getHexString()).toBe(green);
     scene.frame(camera(348, 380), 348, 380, 0.5, 1 / 60);
     const glow = scene.glowGroup.children[0] as THREE.Mesh;
     expect(scene.glowGroup.children).toHaveLength(1);
     expect(glow.scale.x).toBeCloseTo(0.26 + 0.08 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
     expect((glow.material as THREE.ShaderMaterial).uniforms.uOpacity.value).toBeCloseTo(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
+    expect(((glow.material as THREE.ShaderMaterial).uniforms.uColor.value as THREE.Color).getHexString()).toBe(amber);
   });
 
-  test('回復マップ：明るさの表で光り、ケガの印は部品の色を変えずに小さなにじみだけ。画面から部品を選べる', async () => {
+  test('回復マップ：土台は青、明るさの表で暖色に光り、ケガは赤で脈打つ。台と皮膚も青に寄せる。画面から部品を選べる', async () => {
     const scene = new BodyScene();
     let picked: string | null | undefined;
     const marks = [mark('a', 'chest', 'right', true)];
     // 読み込む前に渡しても、読み込んだあとに付く
-    scene.configure({ marks, reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {}, levels: { pec_r: 1, quad_l: 0.5, nope: 1 }, quietMarks: true });
+    scene.configure({
+      marks: [...marks, mark('b', 'biceps', 'left', false)], reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {},
+      levels: { pec_r: 1, pec_l: 1, quad_l: 0.5, nope: 1 }, quietMarks: true,
+      baseColor: '#0000FF', levelColor: (k) => (k >= 1 ? '#FF8000' : '#FFFF00'), injuryColor: '#FF0000',
+    });
     scene.select(['biceps_r', 'biceps_l', 'skin']);
     scene.setModel(await loadBody());
     const all = meshesIn(scene.body);
     const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
-    expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.55, 2.4]);
+    const hexOf = (name: string) => (u(name).uColor.value as THREE.Color).getHexString();
+    // 温存は青（縁の光はケガの画面のふだんと同じ強さ）、負荷は明るさの色と強さ
+    expect([hexOf('quad_r'), u('quad_r').uBase.value, u('quad_r').uRim.value]).toEqual(['0000ff', 0.13, 1.2]);
+    expect([hexOf('pec_l'), u('pec_l').uBase.value, u('pec_l').uRim.value]).toEqual(['ff8000', 0.55, 2.4]);
+    expect(hexOf('quad_l')).toBe('ffff00');
     expect(u('quad_l').uBase.value).toBeCloseTo(0.34);
     expect(u('quad_l').uRim.value).toBeCloseTo(1.8);
-    expect([u('quad_r').uBase.value, u('quad_r').uRim.value]).toEqual([0.13, 1.2]);
-    // 直している途中の胸は、緑の回復の光のまま（脈打たない）
-    expect(u('pec_r').uColor.value.g).toBeGreaterThan(u('pec_r').uColor.value.r);
-    expect(u('pec_r').uPulse.value).toBe(0);
+    // 直している途中の右胸はケガの赤で脈打つ。直せたケガ（左の二頭筋）は印を付けない
+    expect([hexOf('pec_r'), u('pec_r').uBase.value, u('pec_r').uRim.value, u('pec_r').uPulse.value]).toEqual(['ff0000', 0.45, 1.9, 0.7]);
+    expect([hexOf('biceps_l'), u('biceps_l').uBase.value]).toEqual(['0000ff', 0.13]);
+    // 皮膚と台も青
+    expect(hexOf('skin')).toBe('0000ff');
+    const deckLine = scene.deck.children.find((c) => c instanceof THREE.LineLoop) as THREE.LineLoop;
+    expect((deckLine.material as THREE.LineBasicMaterial).color.getHexString()).toBe('0000ff');
     // 選んだ部品（皮膚は選ばない）
     expect([u('biceps_r').uSel.value, u('biceps_l').uSel.value, u('skin').uSel.value]).toEqual([1, 1, 0]);
 
     const cam = camera(348, 380);
     scene.frame(cam, 348, 380, 0.5, 1 / 60);
     const glow = scene.glowGroup.children[0] as THREE.Mesh;
-    expect(glow.scale.x).toBeCloseTo((0.26 + 0.08) * 0.6);
+    expect(glow.scale.x).toBeCloseTo((0.26 + 0.08) * 0.8);
+    expect(((glow.material as THREE.ShaderMaterial).uniforms.uColor.value as THREE.Color).getHexString()).toBe('ff0000');
     // 選んだ部品の1つを押すと、まとめて選ぶのをやめる
     scene.select(['pec_r', 'pec_l']);
     scene.tapAt(174, 150);

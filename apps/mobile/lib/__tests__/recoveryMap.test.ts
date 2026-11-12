@@ -4,9 +4,12 @@ import type { Injury } from '@/db/repositories/injuries';
 import { SEED_BODY_PARTS } from '@/db/seed';
 import { ALL_PARTS } from '@/lib/bodyModel';
 import { muscleFigureFor } from '@/lib/muscleFigure';
+import { contrastRatio } from '@/lib/contrast';
 import {
-  fixingOn, injuriesForPart, partOfMesh, partRecoveries, recoveryLevel, recoveryLevels, recoveryMeshesFor,
+  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, partOfMesh, partRecoveries, recoveryColor, recoveryLevel, recoveryLevels,
+  recoveryMeshesFor, REST_BLUE, REST_BLUE_FILL,
 } from '@/lib/recoveryMap';
+import { colors, toneColors } from '@/theme';
 import type { TrainingSetRow } from '@/lib/training';
 
 /** GLB の部品の名前（皮膚を除く） */
@@ -114,5 +117,48 @@ describe('回復マップのケガ', () => {
     const partOf = (id: string) => (id === 'squat' ? '脚' : null);
     expect(injuriesForPart(chest, list, partOf).map((i) => i.id)).toEqual(['pec']);
     expect(injuriesForPart(legs, list, partOf).map((i) => i.id)).toEqual(['knee']);
+  });
+});
+
+describe('回復マップの色', () => {
+  const hsl = (c: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    return { s: max === min ? 0 : (max - min) / (1 - Math.abs(max + min - 1)), l: (max + min) / 2 };
+  };
+
+  test('明るさ 0 は温存の青、1 は負荷の橙。間は薄い色と黄を通る（青と黄の間で濁らない）', () => {
+    expect(recoveryColor(0)).toBe(REST_BLUE);
+    expect(recoveryColor(-1)).toBe(REST_BLUE);
+    expect(recoveryColor(1)).toBe(LOAD_ORANGE);
+    expect(recoveryColor(2)).toBe(LOAD_ORANGE);
+    expect(recoveryColor(0.6)).toBe('#F5C94A');
+    // 鍛えた日からの日数ごとの色（今日・昨日の橙から、8日目で青）は、どれも暗く濁らない（明るさ 50% 以上か、鮮やかさ 60% 以上）
+    for (let d = 0; d <= 8; d++) {
+      const c = hsl(recoveryColor(recoveryLevel(d)));
+      expect(c.l >= 0.5 || c.s >= 0.6).toBe(true);
+    }
+    // 2日目は橙寄り（赤 > 青）、6日目は青寄り
+    const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    expect(rgb(recoveryColor(recoveryLevel(2)))[0]).toBeGreaterThan(rgb(recoveryColor(recoveryLevel(2)))[2]);
+    expect(rgb(recoveryColor(recoveryLevel(7)))[2]).toBeGreaterThan(rgb(recoveryColor(recoveryLevel(7)))[0]);
+  });
+
+  test('ケガの赤は負荷の橙・ケガの画面の琥珀色と別の色。文字に使うケガの赤はカードと画面の背景に 4.5:1 以上', () => {
+    expect(INJURY_RED).not.toBe(LOAD_ORANGE);
+    expect(INJURY_RED).not.toBe(toneColors.caution.accent);
+    expect(contrastRatio(INJURY_RED, colors.card)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(INJURY_RED, colors.bg)).toBeGreaterThanOrEqual(4.5);
+    // 凡例の四角・ボタンの点（文字でないもの）は 3:1 以上
+    for (const c of [REST_BLUE, LOAD_ORANGE, INJURY_RED]) expect(contrastRatio(c, colors.input)).toBeGreaterThanOrEqual(3);
+  });
+
+  test('2D の図：鍛えていない筋肉は温存の青、最近鍛えた筋肉は明るさの色（2D の図の対応で）', () => {
+    const list = partRecoveries([row('2026-11-12', 'c'), row('2026-10-01', 'l')], name, ['胸', '脚', '背中'], '2026-11-13');
+    const fills = muscleFills(list);
+    expect(fills.pecs).toBe(LOAD_ORANGE);
+    expect(fills.quads).toBe(REST_BLUE_FILL);
+    expect(fills.lats).toBe(REST_BLUE_FILL);
+    expect(fills.glutes).toBe(REST_BLUE_FILL);
   });
 });
