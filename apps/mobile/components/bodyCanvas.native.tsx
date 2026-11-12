@@ -51,6 +51,14 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
   const [ready, setReady] = useState(false);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   useEffect(() => { scene.onFirstFrame(() => setReady(true)); }, [scene]);
+  // GL が例外を出さずに描けないとき、読み込み中のまま残らないよう、しばらく描けなければ 2D の図へ戻す（外の Fallback が受ける）
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (ready || !focused) return;
+    const t = setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [ready, focused]);
+  if (timedOut && !ready) throw new Error('3D の体を描けませんでした（時間切れ）');
   return (
     <>
       <Canvas
@@ -67,6 +75,9 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
     </>
   );
 }
+
+/** 体を描けるまで待つ時間（ms）。過ぎたら 2D の図へ戻す */
+const LOAD_TIMEOUT_MS = 15000;
 
 /** 走査の線が上下に動く幅（px。図の高さのまん中から上下へ） */
 const SWEEP = 48;
