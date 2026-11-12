@@ -5,6 +5,7 @@ import type { Big3Role } from './exercises';
 import { goalStreak, WeeklyGoals } from './goals';
 import { LONG_SLEEP_MIN } from './health';
 import type { DaySummary } from './meals';
+import { BALANCE_PARTS } from './partBalance';
 import { big3Trend, estimated1RM, trainingDates, TrainingSetRow } from './training';
 import { fmt1, kgToUnit, WeightUnit } from './units';
 
@@ -16,10 +17,17 @@ export type GrowthDay = {
   mealRecorded: boolean;       // その日に食事の記録があるか
   mealGoalReached: boolean;    // 食事の目標（カロリーとたんぱく質）に届いたか
   sleepMin: number | null;     // 睡眠（分）。記録がなければ null
+  /** その日の部位ごとのセット数（lib/partBalance.ts の BALANCE_PARTS の順に6つ）。省けば 0 */
+  partSets?: readonly number[];
 };
 
-/** 形を描く値。その日までの累計 */
-export type GrowthParams = { volumeKg: number; foodDays: number; sleepDays: number; days: number };
+/**
+ * 形を描く値。その日までの累計。partSets は部位ごとのセット数の累計（BALANCE_PARTS の順に6つ。木の枝・銀河の腕が育つ）
+ */
+export type GrowthParams = { volumeKg: number; foodDays: number; sleepDays: number; days: number; partSets: number[] };
+
+/** 部位のセット数が全部 0 の値（記録がまだないとき） */
+export const NO_PART_SETS: readonly number[] = BALANCE_PARTS.map(() => 0);
 
 /** 今日の衛星。none＝点線の軌道だけ、dim＝薄い衛星、bright＝明るく光る衛星 */
 export type SatState = 'none' | 'dim' | 'bright';
@@ -49,7 +57,7 @@ export function firstRecordDate(days: GrowthDay[], today: DateKey): DateKey | nu
 /**
  * 最初の記録の日から today までの毎日について、その日までの累計。記録のない日も埋める（休んでも値は減らない）。
  * 配列の i 番目は、最初の記録の日の i 日後。days は最初の記録の日を 1 と数える（最後の要素の days ＝ 日数）。
- * sleepDays は 7時間（420分）以上寝た日数。記録が1つもなければ空の配列
+ * sleepDays は 7時間（420分）以上寝た日数。partSets は部位ごとのセット数の累計。記録が1つもなければ空の配列
  */
 export function growthSeries(days: GrowthDay[], today: DateKey): GrowthParams[] {
   const start = firstRecordDate(days, today);
@@ -59,6 +67,7 @@ export function growthSeries(days: GrowthDay[], today: DateKey): GrowthParams[] 
   let volumeKg = 0;
   let foodDays = 0;
   let sleepDays = 0;
+  const partSets = BALANCE_PARTS.map(() => 0);
   const n = daysBetween(start, today) + 1;
   for (let i = 0; i < n; i++) {
     const d = byDate.get(addDays(start, i));
@@ -66,8 +75,9 @@ export function growthSeries(days: GrowthDay[], today: DateKey): GrowthParams[] 
       volumeKg += d.volumeKg;
       if (d.mealRecorded && d.mealGoalReached) foodDays++;
       if (d.sleepMin != null && d.sleepMin >= LONG_SLEEP_MIN) sleepDays++;
+      d.partSets?.forEach((v, k) => { if (k < partSets.length) partSets[k] += v; });
     }
-    out.push({ volumeKg, foodDays, sleepDays, days: i + 1 });
+    out.push({ volumeKg, foodDays, sleepDays, days: i + 1, partSets: [...partSets] });
   }
   return out;
 }

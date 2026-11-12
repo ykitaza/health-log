@@ -2,11 +2,11 @@
 import { SHAPE_KINDS } from './types';
 import type { GrowthParams, ShapeKind } from './types';
 
-/** 形の名前と、育ち方のひとこと */
+/** 形の名前と、育ち方のひとこと（木・銀河は部位ごとに育ち、点の軌跡は記録の全体で育つことが分かるように） */
 export const SHAPE_LABELS: Record<ShapeKind, { name: string; description: string }> = {
-  attractor: { name: '点の軌跡', description: '点が増えて形が浮かび、広がる' },
-  tree: { name: '木', description: '枝が伸び、葉が増え、光の粒が増える' },
-  galaxy: { name: '銀河', description: '腕が伸び、星が増え、中心が光る' },
+  attractor: { name: '点の軌跡', description: '記録の全体で点が増え、形が浮かぶ' },
+  tree: { name: '木', description: '部位ごとに枝が伸び、葉と光の粒が増える' },
+  galaxy: { name: '銀河', description: '部位ごとに腕が伸び、星が増え、中心が光る' },
 };
 
 /** 選んだ形を置く場所（sync_meta。同期しない。端末だけ） */
@@ -20,8 +20,10 @@ export function parseShapeKind(value: string | null | undefined): ShapeKind {
   return SHAPE_KINDS.find((k) => k === value) ?? DEFAULT_SHAPE;
 }
 
-/** シートの小さな絵に描く値（十分育った姿。どの値も伸びしろの 95% ほど） */
-export const SHAPE_PREVIEW_PARAMS: GrowthParams = { volumeKg: 450_000, foodDays: 180, sleepDays: 180, days: 365 };
+/** シートの小さな絵に描く値（十分育った姿。どの値も伸びしろの 95% ほど。部位はどれも同じだけ） */
+export const SHAPE_PREVIEW_PARAMS: GrowthParams = {
+  volumeKg: 450_000, foodDays: 180, sleepDays: 180, days: 365, partSets: [330, 330, 330, 330, 330, 330],
+};
 
 /** シートの行の読み上げ（名前と説明。選んだかどうかはラジオボタンの状態で伝える） */
 export const shapeOptionLabel = (kind: ShapeKind) => `${SHAPE_LABELS[kind].name}。${SHAPE_LABELS[kind].description}`;

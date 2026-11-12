@@ -3,7 +3,7 @@ import { goalProgress } from './body';
 import { addDays, addMonths, DateKey, daysBetween, formatMonthDay, weekStart } from './date';
 import type { Big3Role } from './exercises';
 import { weekOf } from './goals';
-import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, satellites, SatState, SCORE_MAX } from './growth';
+import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, NO_PART_SETS, satellites, SatState, SCORE_MAX } from './growth';
 import { formatMinutes } from './health';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
 import type { Report } from './reports';
@@ -169,7 +169,7 @@ export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big
 export const GROWTH_SCORE_NOTE = '直近7日の記録から計算します。記録がない日は数えません';
 
 /** 記録がまだないときの形の値（種だけが出る） */
-const NO_GROWTH: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+const NO_GROWTH: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [...NO_PART_SETS] };
 
 /**
  * ホームの形の段に出すもの：形の値（今日までの累計）、今日の衛星（部品の名前に合わせて meal を food に写す）、成長スコア。

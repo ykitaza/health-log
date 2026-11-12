@@ -37,7 +37,7 @@ export function ShapePickerSheet({ visible, value, onSelect, onClose }: {
       <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="shape-picker">
         <View style={{ gap: space.xs }}>
           <T variant="titleL" accessibilityRole="header">形を選ぶ</T>
-          <T variant="bodyM" color={colors.sub}>どの形でも、育ち方と衛星の意味は同じです</T>
+          <T variant="bodyM" color={colors.sub}>どの形でも、衛星の意味は同じです</T>
         </View>
         <View accessibilityRole="radiogroup" style={{ gap: space.s }}>
           {SHAPE_KINDS.map((kind) => {

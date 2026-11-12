@@ -3,12 +3,16 @@ import { View } from 'react-native';
 import {
   Atlas, Blur, BlurMask, Canvas, Circle, DashPathEffect, FilterMode, Group, MipmapMode, Oval, Paint, Path, RadialGradient, rect, Skia, useRSXformBuffer, useTexture, vec,
 } from '@shopify/react-native-skia';
-import { isSharedValue, SharedValue, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  isSharedValue, SharedValue, useAnimatedStyle, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue,
+} from 'react-native-reanimated';
 import { MIN_POINTS } from '@/lib/shapes/attractor';
-import { dotStyle, PERSPECTIVE, shapeUnit } from '@/lib/shapes/common';
+import { DotFrame, dotStyle, partFrame, PERSPECTIVE, PlaceFrame, placeDot, projectPoint, shapeUnit } from '@/lib/shapes/common';
+import { partTip, TIP_STRIDE } from '@/lib/shapes/tree';
 import { Orbit, orbitPoint, ORBITS, outerOrbitRadius, SAT_RADIUS } from '@/lib/shapes/orbits';
 import type { GrowthParams, SatState, ShapeKind } from '@/lib/shapes/types';
 import { growthColors } from '@/theme';
+import { T } from '../Text';
 import { shapeBuild, SHAPES } from './shapes';
 
 /** 今日の衛星の状態（内側から 筋トレ・食事・睡眠） */
@@ -36,10 +40,17 @@ export type GrowthShapeProps = {
    * 0 のときも層は作るので、ぼかさないあいだは渡さない
    */
   blur?: SharedValue<number>;
+  /**
+   * 部位の名前（BALANCE_PARTS の順）。渡すと、木の太い枝の先の近くに小さく薄く出す（揺れと育ち方に合わせて追いかける）。
+   * 成長を見る画面でだけ渡す（ホームでは出さない）。部位の枝のない形では出さない
+   */
+  partNames?: readonly string[];
 };
 
 /** Y 軸まわりに1周する秒数 */
 const ROTATION_PERIOD_S = 50;
+/** 揺れる形（木）が左右に1往復する秒数 */
+const SWAY_PERIOD_S = 7;
 /** 回し始めの時刻（秒）。動きを減らす設定のときは、この向きで止める */
 const START_S = 9;
 /** 光る点の絵の大きさ（px）と、画面に出す大きさ（dp、光のにじみを含む）。絵は出す大きさより細かく作り、縮めてもぼやけないようにする */
@@ -51,25 +62,28 @@ const CORE = 0.3;
 const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.None };
 /** 点1つの濃さ。重なると足し合わせて光るので、密なところだけが明るくなる（濃すぎると白くつぶれる） */
 const POINT_ALPHA = 0.42;
-/** 出す点の数の端で、この数の点をかけて、なめらかに現れる */
-const FADE_POINTS = 60;
-/** 組のある点（木の葉・光の粒）が、出す割合の端で、この幅をかけてなめらかに現れる */
-const FADE_FILL = 0.04;
 /** 形を箱に収めるときの、箱の端との余白（dp。点の半径） */
 const FIT_MARGIN = DOT_DP / 2;
 
-const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
+const EMPTY: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0, partSets: [0, 0, 0, 0, 0, 0] };
 const NO_FILLS: readonly number[] = [];
 const NO_GATES = new Float32Array(0);
 const SAT_COLORS: Record<Orbit['key'], string> = growthColors;
+
+/** 毎フレーム1回だけ決める値（出す点の数・組と部位の割合・形の大きさ・光・回し方と揺れ） */
+type ViewValue = DotFrame & { partScale: readonly number[]; glow: number };
 
 /**
  * 記録で育つ形と、今日の衛星。形はゆっくり回る点の群れ（Skia の Atlas で、光る点の絵を数千個まとめて描く）。
  * 点の位置は UI スレッドで毎フレーム計算する（JS スレッドを使わない）。動きを減らす設定なら止まった形を出す
  */
-export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel, blur }: GrowthShapeProps) {
+export function GrowthShape({ shape, params, sats, width, height, spin = 1, paused = false, accessibilityLabel, blur, partNames }: GrowthShapeProps) {
   const def = SHAPES[shape];
-  const { points, tints, gates = NO_GATES, seedY = 0 } = useMemo(() => shapeBuild(shape), [shape]);
+  const {
+    points, tints, gates = NO_GATES, seedY = 0, parts = NO_GATES, partMin = NO_GATES, pivots = NO_GATES, tips = NO_GATES,
+  } = useMemo(() => shapeBuild(shape), [shape]);
+  // 揺れる形（木）は回さず、根元を中心に左右へ小さく揺らす。再生中も速めない（枝と部位の対応を見やすく）
+  const sway = def.sway ?? 0;
   const layout = def.layout;
   const maxPoints = def.maxPoints;
   const tilt = def.tilt;
@@ -88,8 +102,8 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   const seconds = useSharedValue(START_S);
   const spinSV = useSharedValue(spin);
   useEffect(() => {
-    spinSV.set(spin);
-  }, [spin, spinSV]);
+    spinSV.set(sway > 0 ? 1 : spin);
+  }, [spin, spinSV, sway]);
   const clock = useFrameCallback((info) => {
     seconds.set(seconds.get() + ((info.timeSincePreviousFrame ?? 0) / 1000) * spinSV.get());
   }, false);
@@ -105,44 +119,33 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
   // 形の大きさ。軌道の中心をずらした形（木）も、ずらさないときと同じ大きさを目安にし、どう回しても箱からはみ出さない大きさに抑える
   const baseUnit = shapeUnit(width, height, extent, sats != null, FIT_MARGIN);
 
-  const view = useDerivedValue(() => {
-    const l = layout(source.get());
-    const a = (seconds.get() / ROTATION_PERIOD_S) * Math.PI * 2;
-    return { count: l.count, fills: l.fills ?? NO_FILLS, unit: baseUnit * l.spread, glow: l.glow, cos: Math.cos(a), sin: Math.sin(a) };
-  });
-
   const tiltCos = Math.cos(tilt);
   const tiltSin = Math.sin(tilt);
+  const view = useDerivedValue<ViewValue>(() => {
+    const l = layout(source.get());
+    const t = seconds.get();
+    // 回す形は Y 軸まわりに回す。揺れる形は回さず、回し始めの時刻（動きを減らす設定で止める時刻）で揺れが 0 になるように揺らす
+    const a = sway > 0 ? 0 : (t / ROTATION_PERIOD_S) * Math.PI * 2;
+    const frame: PlaceFrame = {
+      cos: Math.cos(a), sin: Math.sin(a), tiltCos, tiltSin,
+      bend: sway > 0 ? sway * Math.sin(((t - START_S) / SWAY_PERIOD_S) * Math.PI * 2) : 0, rootY: seedY,
+    };
+    const partScale = l.partScale ?? NO_FILLS;
+    return {
+      count: l.count, fills: l.fills ?? NO_FILLS, growth: l.parts ?? NO_FILLS, partScale, partXf: partFrame(pivots, partScale),
+      unit: baseUnit * l.spread, glow: l.glow, frame,
+    };
+  });
+
   // 点の大きさと濃さは、形の大きさに合わせる（小さい形で点が重なり、線が太くにじんで見えないように）
   const dot = dotStyle(baseUnit);
   const dotScale = (DOT_DP * dot.size) / SPRITE;
   const half = SPRITE / 2;
-  // 点ごとの位置と大きさ。並びの先頭から count 個だけ出し、残りは大きさ 0 にする
+  // 点ごとの位置と大きさ。出さない点（並びの先頭から count 個の外、組・部位で出さない点）は大きさ 0 にする
+  // 部位の枝を付け根を中心に縮め、揺らし、Y 軸まわりに回してから X 軸まわりに倒す（点の数だけ毎フレーム呼ぶので、placeDot は1つにまとめてある）
   const transforms = useRSXformBuffer(maxPoints, (val, i) => {
     'worklet';
-    const v = view.get();
-    let k = Math.min(1, (v.count - i) / FADE_POINTS);
-    // 組のある点は、その組の出す割合が順位を超えたら出す
-    const g = i < gates.length ? gates[i] : -1;
-    if (g >= 0) {
-      const c = Math.floor(g);
-      k = Math.min(k, ((v.fills[c] ?? 1) - (g - c)) / FADE_FILL);
-    }
-    if (k <= 0) {
-      val.set(0, 0, 0, 0);
-      return;
-    }
-    const x = points[i * 3];
-    const y = points[i * 3 + 1];
-    const z = points[i * 3 + 2];
-    // Y 軸まわりに回してから、X 軸まわりに倒す
-    const x1 = x * v.cos + z * v.sin;
-    const z1 = z * v.cos - x * v.sin;
-    const y2 = y * tiltCos - z1 * tiltSin;
-    const z2 = y * tiltSin + z1 * tiltCos;
-    const p = 1 / (1 - z2 * PERSPECTIVE);
-    const s = dotScale * k * (0.75 + 0.25 * p);
-    val.set(s, 0, cx + x1 * v.unit * p - s * half, cy + y2 * v.unit * p - s * half);
+    placeDot(val, i, points, gates, parts, partMin, view.get(), cx, cy, dotScale, half);
   });
 
   const sprites = useMemo(() => Array.from({ length: maxPoints }, () => rect(0, 0, SPRITE, SPRITE)), [maxPoints]);
@@ -206,8 +209,49 @@ export function GrowthShape({ shape, params, sats, width, height, spin = 1, paus
           ))}
         </Layer>
       </Canvas>
+      {partNames && tips.length > 0 && partNames.map((name, p) => (
+        <PartName key={name} name={name} part={p} view={view} tips={tips} pivots={pivots} cx={cx} cy={cy} width={width} />
+      ))}
     </View>
   );
+}
+
+/** 部位の名前の箱の幅と、枝の先からのすき間（dp） */
+const NAME_W = 48;
+const NAME_GAP = 4;
+/** 部位の名前の文字の色（白の 60%） */
+const NAME_COLOR = 'rgba(255,255,255,0.6)';
+
+/**
+ * 木の太い枝の先の近くに置く、部位の名前（11sp・白の 60%）。枝の先が左なら名前を左に、右なら右に置き、
+ * 揺れと育ち方（長さ・段数・出ている点の数）に合わせて UI スレッドで追いかける。その部位の枝がまだ出ていなければ出さない
+ */
+function PartName({ name, part, view, tips, pivots, cx, cy, width }: {
+  name: string; part: number; view: SharedValue<ViewValue>; tips: Float32Array; pivots: Float32Array; cx: number; cy: number; width: number;
+}) {
+  const left = isLeftPart(tips, pivots, part);
+  const style = useAnimatedStyle(() => {
+    const v = view.get();
+    const tip = partTip(tips, pivots, part, v.count, v.growth[part] ?? 0, v.partScale[part] ?? 1);
+    if (!tip) return { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }] };
+    const q = projectPoint(tip.x, tip.y, tip.z, v.frame);
+    const x = cx + q.x * v.unit;
+    const y = cy + q.y * v.unit;
+    const tx = Math.min(width - NAME_W, Math.max(0, left ? x - NAME_GAP - NAME_W : x + NAME_GAP));
+    return { opacity: 1, transform: [{ translateX: tx }, { translateY: y - 16 }] };
+  });
+  return (
+    <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: NAME_W }, style]} pointerEvents="none" importantForAccessibility="no">
+      <T size={11} color={NAME_COLOR} align={left ? 'right' : 'left'} numberOfLines={1}>{name}</T>
+    </Animated.View>
+  );
+}
+
+/** 部位の枝が左へ伸びるか（その部位の枝の先の候補の平均が、付け根より左） */
+function isLeftPart(tips: Float32Array, pivots: Float32Array, part: number): boolean {
+  let sum = 0;
+  for (let k = 0; k < tips.length; k += TIP_STRIDE) if (tips[k] === part) sum += tips[k + 4] - pivots[part * 3];
+  return sum < 0;
 }
 
 /** blur を渡したときだけ、中身を1枚の層にまとめてぼかす（渡さなければ、そのまま描く） */
