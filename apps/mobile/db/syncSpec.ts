@@ -10,7 +10,8 @@ import type { Bind } from './types';
 export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
-  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'step_day' | 'report';
+  | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'step_day' | 'report'
+  | 'injury' | 'injury_review';
 
 export type EntitySpec = {
   type: SyncType;
@@ -36,6 +37,11 @@ export type EntitySpec = {
    * サーバーもそれ以外を断る。ログインの前の記録・アカウントを変えたときに outbox に積み直さない（backfillOutbox）
    */
   readOnly?: true;
+  /**
+   * いっしょに送る項目の組（ケガの部位と左右、状態と直せた日）。組のどれかが変わったら、組の全部を update に入れる。
+   * サーバーは項目ごとに後勝ちで当てはめ、組の決まりは同じ変更に両方があるときだけ確かめるため
+   */
+  together?: string[][];
 };
 
 /** 筋トレ・体組成・設定（版2のマイグレーションで、トリガーを作った種類）。版2・版4のマイグレーションは、この形でトリガーを作る */
@@ -178,7 +184,30 @@ export const REPORT_ENTITIES_V9: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({
  */
 export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V9.map((s) => ({ ...s, columns: { ...s.columns, next_steps_done: 'json' } }));
 
-export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES];
+/**
+ * ケガの記録と振り返り（版13）。サーバーの services/training/training/infrastructure/sync_entities.py の InjuryFields・InjuryReviewFields と
+ * 同じ項目・必須の項目。親（ケガ）が先。文字の項目は NULL にしない（サーバーは str。空はよい）
+ */
+export const INJURY_ENTITIES: EntitySpec[] = [
+  {
+    type: 'injury', table: 'injuries',
+    columns: {
+      occurred_on: 'text', site: 'text', side: 'text', exercise_id: 'text', phase: 'text', symptom: 'text', cause: 'text', fix: 'text',
+      status: 'text', fixed_on: 'text',
+    },
+    required: ['occurred_on', 'site', 'status'],
+    refs: { exercise_id: 'exercises' },
+    together: [['site', 'side'], ['status', 'fixed_on']],
+  },
+  {
+    type: 'injury_review', table: 'injury_reviews',
+    columns: { injury_id: 'text', date: 'text', result: 'text', note: 'text', exercise_id: 'text' },
+    required: ['injury_id', 'date', 'result'],
+    refs: { injury_id: 'injuries', exercise_id: 'exercises' },
+  },
+];
+
+export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES, ...INJURY_ENTITIES];
 
 export const SPEC_BY_TYPE = new Map(ENTITIES.map((s) => [s.type, s]));
 
@@ -227,8 +256,10 @@ export function triggerSql(spec: EntitySpec, withOrigin = true): string {
   const origin = withOrigin ? `, ${SQL_ORIGIN}` : '';
   const allFields = `json_object(${cols.map((c) => `'${c}', NEW.${c}`).join(', ')})`;
   const changed = cols.map((c) => `OLD.${c} IS NOT NEW.${c}`).join(' OR ');
+  // 組（together）の項目は、組のどれかが変わったら入れる
+  const changedOf = (c: string) => (spec.together?.find((g) => g.includes(c)) ?? [c]).map((x) => `OLD.${x} IS NOT NEW.${x}`).join(' OR ');
   const diff = `(SELECT json_group_object(k, v) FROM (${cols
-    .map((c) => `SELECT '${c}' AS k, NEW.${c} AS v WHERE OLD.${c} IS NOT NEW.${c}`).join(' UNION ALL ')}))`;
+    .map((c) => `SELECT '${c}' AS k, NEW.${c} AS v WHERE ${changedOf(c)}`).join(' UNION ALL ')}))`;
   return `
 CREATE TRIGGER sync_${spec.table}_insert AFTER INSERT ON ${spec.table} WHEN ${notApplying}
 BEGIN
