@@ -18,9 +18,29 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from training.application.commands import NewExerciseSets, NewSet, SetChange, TrainingCommands, WorkoutChanges
+from training.application.commands import (
+    InjuryChanges,
+    NewExerciseSets,
+    NewInjury,
+    NewSet,
+    SetChange,
+    TrainingCommands,
+    WorkoutChanges,
+)
 from training.application.queries import TrainingQueries
 from training.domain.errors import TrainingError
+from training.domain.injury import (
+    MAX_CAUSE,
+    MAX_FIX,
+    MAX_LIST_INJURIES,
+    MAX_PHASE,
+    MAX_REVIEW_NOTE,
+    MAX_SYMPTOM,
+    SITES,
+    ReviewResult,
+    Side,
+    SiteCode,
+)
 from training.domain.model import RecordType
 from training.presentation import views
 
@@ -35,11 +55,19 @@ INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回�
 種目は名前の完全一致でだけ選ぶ。「ベンチ」のように略した名前で見つからないときは、返ってきた候補から利用者の意図がはっきりしていればその名前で呼び直し、迷うなら利用者に聞く。
 総負荷量（重量×回数の合計。回数だけの自重の種目は、体重×種目の割合×回数）・推定1RM（Epley 式。自重の種目は出さない）・自己ベストはサーバーが計算する。AI が計算し直さない。
 推移（総負荷量、推定1RM、体重）は、描けるならグラフで見せる。部位の偏りは割合で見せる。記録の少なさや休んだ日を責めない。
-睡眠・心拍・歩数は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary、step_summary。読むだけ）。病気の診断はしない。"""
+睡眠・心拍・歩数は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary、step_summary。読むだけ）。病気の診断はしない。
+ケガの記録：筋トレで痛めたと言われたら record_injury で、日付・部位・左右・種目・場面・症状と、利用者が言った原因と直し方をそのまま記録する。
+言っていない原因や直し方を推測で埋めない（空のまま記録し、あとで update_injury で足せる）。痛みの強さや体調は聞かない。診断や治療の助言はしない。
+記録したら「次にその種目を記録するとき、アプリに直すことが出る」と伝える。その後の様子は add_injury_review、直せたら mark_injury_fixed。"""
 
 RATIO_DESCRIPTION = ("回数だけ（reps_only）の種目の、体重に対する割合（0〜1）。自重の負荷量 ＝ 体重×割合×回数。"
                      "目安：懸垂・チンニング 1、ディップス 0.95、自重スクワット 0.7、腕立て伏せ 0.65、膝つき腕立て 0.5、"
                      "腹筋（クランチなど）0.3、プランクなど時間で行う種目は 0（総負荷量に入れない）。利用者が言わなければ省く")
+
+SITE_DESCRIPTION = "部位のコード（左右は side で分ける）：" + "、".join(
+    f"{code}＝{site.name}{'' if site.sided else '（左右なし）'}" for code, site in SITES.items())
+SIDE_DESCRIPTION = "左右（left・right）。左右のない部位と、利用者が左右を言っていないときは省く"
+OWN_WORDS = "利用者の言葉のまま。言っていなければ省く（推測で埋めない）"
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -393,6 +421,115 @@ def register_training_tools(
         summary = await queries.step_summary(sub, start.isoformat(), end.isoformat())
         return await synced(sub, views.step_summary(summary, start.isoformat(), end.isoformat()))
 
+    # --- ケガの記録 ---
+
+    async def injury_view(sub: str, injury_id: str) -> dict:
+        record = next(r for r in await queries.injuries(sub) if r.injury.id == injury_id)
+        return views.injury(record.injury, record.reviews, await queries.catalog(sub))
+
+    @mcp.tool(annotations=WRITE)
+    async def record_injury(
+        site: Annotated[SiteCode, Field(description=SITE_DESCRIPTION)],
+        side: Annotated[Side | None, Field(description=SIDE_DESCRIPTION)] = None,
+        day: Annotated[date | None, Field(description="痛めた日。省くと今日")] = None,
+        exercise: Annotated[str | None, Field(
+            description="そのときの種目の名前（list_exercises の名前と同じもの）か exercise_id。なければ省く")] = None,
+        phase: Annotated[str, Field(max_length=MAX_PHASE, description="場面（例：3セット目の下ろすとき）")] = "",
+        symptom: Annotated[str, Field(max_length=MAX_SYMPTOM, description="何が起きたか（例：肩の前がピリッとした）")] = "",
+        cause: Annotated[str, Field(max_length=MAX_CAUSE, description="原因の自己分析。" + OWN_WORDS)] = "",
+        fix: Annotated[str, Field(max_length=MAX_FIX, description="次の直し方。" + OWN_WORDS)] = "",
+    ) -> dict:
+        """筋トレで痛めたことを記録する（直している途中として）。アプリのケガの記録にも出る。
+
+        原因（cause）と直し方（fix）は、利用者が言ったことをそのまま渡す。言っていなければ省き、推測で埋めない。
+        痛みの強さや体調は聞かない。診断や治療の助言はしない。
+        種目の名前が見つからないときは理由と候補が返るので、それに従って呼び直す。
+        記録したら「次にその種目を記録するとき、アプリに直すことが出る」と伝える。
+        """
+        sub = subject(WRITE_SCOPE)
+        with training_errors():
+            injury = await commands.record_injury(sub, NewInjury(
+                day_of(day), site, side, exercise, phase, symptom, cause, fix))
+        return await synced(sub, {"recorded": await injury_view(sub, injury.id)})
+
+    @mcp.tool(annotations=READ)
+    async def list_injuries(
+        status: Annotated[Literal["fixing", "fixed"] | None, Field(
+            description="fixing（直している途中）か fixed（直せた）で絞る。省くと全部")] = None,
+        limit: Annotated[int, Field(ge=1, le=MAX_LIST_INJURIES, description="返す数（新しい順）")] = 20,
+    ) -> dict:
+        """ケガの記録の一覧（新しい順）。振り返り（reviews。新しい20件を古い順に。全部の数は review_count）も付ける。
+
+        直す・振り返りを足す・消すときは、ここで injury_id を調べる。total は絞ったあとの全部の数。
+        """
+        sub = subject(READ_SCOPE)
+        records = await queries.injuries(sub, status)
+        return await synced(sub, views.injury_list(records, await queries.catalog(sub), limit))
+
+    @mcp.tool(annotations=WRITE)
+    async def add_injury_review(
+        injury_id: str,
+        result: Annotated[ReviewResult, Field(description="fixed（直せた）・not_yet（まだ）・pain（痛んだ）")],
+        day: Annotated[date | None, Field(description="試した日。省くと今日")] = None,
+        note: Annotated[str, Field(max_length=MAX_REVIEW_NOTE,
+                                   description="メモ（試したこと、気づいたこと）。利用者の言葉のまま。なければ省く")] = "",
+        exercise: Annotated[str | None, Field(description="試した種目の名前か exercise_id。なければ省く")] = None,
+    ) -> dict:
+        """ケガのその後を振り返る（直し方を試した結果）。injury_id は list_injuries で調べる。
+
+        結果が fixed（直せた）でも、ケガの状態は変わらない。利用者がもう直せたと言うなら mark_injury_fixed も呼ぶ。
+        """
+        sub = subject(WRITE_SCOPE)
+        with training_errors():
+            await commands.add_injury_review(sub, injury_id, day_of(day), result, note, exercise)
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+
+    @mcp.tool(annotations=WRITE)
+    async def mark_injury_fixed(
+        injury_id: str,
+        day: Annotated[date | None, Field(description="直せた日。省くと今日")] = None,
+    ) -> dict:
+        """ケガを直せたにする（直せた日を入れる）。直している途中に戻すときは update_injury の reopen。"""
+        sub = subject(WRITE_SCOPE)
+        with training_errors():
+            await commands.mark_injury_fixed(sub, injury_id, day_of(day))
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+
+    @mcp.tool(annotations=WRITE)
+    async def update_injury(
+        injury_id: str,
+        day: Annotated[date | None, Field(description="痛めた日を変える。変えないなら省く")] = None,
+        site: Annotated[SiteCode | None, Field(description="部位を変える。変えないなら省く。" + SITE_DESCRIPTION)] = None,
+        side: Annotated[Side | None, Field(
+            description="左右を変える。変えないなら省く（左右のない部位に変えると左右は外れる）")] = None,
+        exercise: Annotated[str | None, Field(
+            description="種目を変える（名前か exercise_id）。空の文字で外す。変えないなら省く")] = None,
+        phase: Annotated[str | None, Field(max_length=MAX_PHASE, description="場面。変えないなら省く")] = None,
+        symptom: Annotated[str | None, Field(max_length=MAX_SYMPTOM, description="症状。変えないなら省く")] = None,
+        cause: Annotated[str | None, Field(
+            max_length=MAX_CAUSE, description="原因の自己分析（利用者の言葉のまま）。変えないなら省く")] = None,
+        fix: Annotated[str | None, Field(
+            max_length=MAX_FIX, description="次の直し方（利用者の言葉のまま）。変えないなら省く")] = None,
+        reopen: Annotated[bool, Field(description="true で直している途中に戻す（直せた日を消す）")] = False,
+    ) -> dict:
+        """ケガの記録を書き直す（原因や直し方の書き直し・書き足し、直している途中に戻すなど）。渡した項目だけを変える。
+
+        文字の項目は、空の文字にすると消える。原因と直し方は、利用者が言ったことをそのまま渡す（推測で書き足さない）。
+        """
+        sub = subject(WRITE_SCOPE)
+        changes = InjuryChanges(day.isoformat() if day else None, site, side, exercise, phase, symptom, cause, fix,
+                                reopen)
+        with training_errors():
+            await commands.update_injury(sub, injury_id, changes)
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+
+    @mcp.tool(annotations=DESTRUCTIVE)
+    async def delete_injury(injury_id: str) -> dict:
+        """ケガの記録を消す。振り返りも一緒に消える（アプリからも消える）。どの記録を消すかを利用者に確かめてから呼ぶ。"""
+        sub = subject(WRITE_SCOPE)
+        with training_errors():
+            reviews = await commands.delete_injury(sub, injury_id)
+        return await synced(sub, {"deleted_injury_id": injury_id, "deleted_review_count": reviews})
 
 @contextmanager
 def training_errors():

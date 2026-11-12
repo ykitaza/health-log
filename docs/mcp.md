@@ -57,6 +57,25 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 - 種目は名前で指します。「ベンチ」のように略すと、サーバーは推測で選ばず、候補（「ベンチプレス」など）を返します
 - 睡眠・心拍・歩数は、アプリが Health Connect（ウォッチなど）から取り込んで同期したものを読むだけです（MCP からは書けない）。心拍と歩数は1日のまとめ（歩数は1日の合計）だけで、1回ごと・1件ごとの値はサーバーにありません。病気の診断はしません
 
+## ケガの記録の頼み方
+
+| 頼み方 | 起きること（ツール） |
+|---|---|
+| 「ベンチの3セット目で右肩の前を痛めた。肘が開いてたと思う。次は肘を45度にたたむ」 | ケガを記録する（`record_injury`。直している途中として）。部位はコード（`shoulder_front` など）、左右は `side` |
+| 「ケガの記録を見せて」「まだ直していないケガは？」 | 一覧と振り返り（`list_injuries`。`status` で絞れる） |
+| 「肘をたたんだら痛くなかった」「まだ少し痛む」 | その後の振り返りを足す（`add_injury_review`：直せた・まだ・痛んだ） |
+| 「肩はもう直った」 | 直せたにする（`mark_injury_fixed`。直せた日を入れる） |
+| 「直し方を変える」「やっぱりまだ直っていない」 | 書き直す、直している途中に戻す（`update_injury`） |
+| 「さっきのケガの記録は消して」 | 消す（`delete_injury`。振り返りも一緒に消え、アプリからも消える） |
+
+- 原因（`cause`）と直し方（`fix`）は、利用者の言葉をそのまま残します。言っていなければ空のままにし、AI が推測で埋めないようにツールの説明で頼んでいます（あとで `update_injury` で足せる）
+- 痛みの強さ・体調・診断は持ちません。AI は聞かず、診断や治療の助言もしません
+- 部位は筋肉16・関節8のコードです（`services/training/training/domain/injury.py` の `SITES`）。左右のある部位は `side`（`left`・`right`）で分け、左右のない部位（`abs`・`lower_back`・`neck`・`waist`）は左右を持ちません。左右を言っていないときは左右なしで記録します
+- 種目は、筋トレの記録と同じく名前の完全一致で選びます（見つからなければ候補を返す）
+- 振り返りで「直せた」にしても、ケガの状態は変わりません（直せたにするのは `mark_injury_fixed`）
+- 1人200件まで、振り返りはケガ1件に100件まで。`list_injuries` は一度に50件まで、振り返りはケガ1件に新しい20件まで（全部の数は `review_count`）
+- 記録したら、次にその種目を記録するときにアプリに直すことが出る、と AI が伝えます（アプリの画面は別の PR）
+
 ## レポートの頼み方
 
 | 頼み方 | 起きること（ツール） |
@@ -78,7 +97,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 ## ツールの一覧
 
-1つのコネクタに、次の37個が並びます。
+1つのコネクタに、次の44個が並びます。
 
 | 分類 | ツール | 説明 |
 |---|---|---|
@@ -114,6 +133,12 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 筋トレ | `sleep_summary` | 睡眠のまとめ（起きた日ごとの眠っていた時間・寝た時刻と起きた時刻、期間の平均）。Health Connect の取り込み。期間は `days` か `start`・`end` |
 | 筋トレ | `heart_rate_summary` | 心拍の1日のまとめ（安静時・平均・最低・最高）と、安静時心拍の平均。Health Connect の取り込み。期間は `days` か `start`・`end` |
 | 筋トレ | `step_summary` | 歩数の1日の合計（`days`：`date`・`steps`）と、記録がある日の平均（`average_steps`。整数）。Health Connect の取り込み。期間は `days` か `start`・`end` |
+| ケガ | `record_injury` | 痛めたことを記録する（日付・部位・左右・種目・場面・症状・原因・直し方。原因と直し方は利用者の言葉のまま） |
+| ケガ | `list_injuries` | ケガの記録の一覧（新しい順、振り返りつき）。状態（直している途中・直せた）で絞れる |
+| ケガ | `add_injury_review` | その後の振り返り（直せた・まだ・痛んだ、メモ、試した種目）を足す |
+| ケガ | `mark_injury_fixed` | 直せたにする（直せた日を入れる） |
+| ケガ | `update_injury` | 書き直す（原因・直し方など）、直している途中に戻す |
+| ケガ | `delete_injury` | ケガの記録を消す（振り返りも一緒に消え、アプリからも消える） |
 | レポート | `period_overview` | 期間（31日まで）の材料を1回で読む：筋トレ・食事・体組成（体重・体脂肪率）・睡眠・心拍・歩数と目標（下の「期間の材料」） |
 | レポート | `save_report` | まとめ・分析を保存し、アプリで読めるようにする（「今週のまとめを作って」）。つながり（`links`）と目標の見直し（`review`）も持てる |
 | レポート | `list_reports` | 保存したレポートの一覧（新しい順。本文は含まない） |
@@ -121,7 +146,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | レポート | `delete_report` | レポートを消す（アプリからも消える） |
 | その他 | `logout` | ログアウトする（別のアカウントで入り直すとき、連携をやめるとき） |
 
-食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py`、`period_overview` は `services/mcp/connector/period_overview.py`（筋トレ・食事・設定をまたぐので、組み立ての場所）にあります。
+食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレとケガのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py`、`period_overview` は `services/mcp/connector/period_overview.py`（筋トレ・食事・設定をまたぐので、組み立ての場所）にあります。
 
 ### 期間の材料（`period_overview`）
 

@@ -66,7 +66,9 @@ def test_ツールの一覧():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"record_workout", "get_workout", "list_workouts", "exercise_history", "weekly_training_review",
                      "list_exercises", "update_workout", "delete_workout", "add_exercise", "update_exercise",
-                     "record_body", "body_progress", "sleep_summary", "heart_rate_summary", "step_summary"}
+                     "record_body", "body_progress", "sleep_summary", "heart_rate_summary", "step_summary",
+                     "record_injury", "list_injuries", "add_injury_review", "mark_injury_fixed", "update_injury",
+                     "delete_injury"}
 
 
 def test_記録すると_その日の記録と計算と最後の同期の時刻を返す(call):
@@ -392,6 +394,12 @@ def test_ほかの人の記録は見えず_直せない(call):
     ("add_exercise", {"name": "x", "body_part": "胸"}, "training:write"),
     ("update_exercise", {"exercise": BENCH, "hidden": True}, "training:write"),
     ("record_body", {"weight_kg": 70}, "training:write"),
+    ("list_injuries", {}, "training:read"),
+    ("record_injury", {"site": "elbow", "side": "left"}, "training:write"),
+    ("add_injury_review", {"injury_id": "x", "result": "not_yet"}, "training:write"),
+    ("mark_injury_fixed", {"injury_id": "x"}, "training:write"),
+    ("update_injury", {"injury_id": "x", "reopen": True}, "training:write"),
+    ("delete_injury", {"injury_id": "x"}, "training:write"),
 ])
 def test_筋トレの_scope_がなければ断る(call, engine, tool, arguments, scope):
     call.login("alice", scopes=["meals:read", "meals:write"])  # 筋トレのツールを足す前に同意したコネクタ
@@ -525,3 +533,149 @@ def test_まとめは_start_と_end_で前の期間も読める(call, engine):
 def test_まとめの期間を確かめる(call, tool, start, end, message):
     with pytest.raises(ToolError, match=message):
         call(tool, start=start, end=end)
+
+
+# --- ケガの記録 ---
+
+def shoulder(call, **extra):
+    """ベンチプレスで右の三角筋（前）を痛めた記録。原因と直し方は利用者の言葉のまま。"""
+    arguments = {"site": "shoulder_front", "side": "right", "day": "2026-11-05", "exercise": BENCH,
+                 "phase": "3セット目の下ろすとき", "symptom": "肩の前がピリッとした",
+                 "cause": "肘が開いていた", "fix": "肘を45度にたたむ", **extra}
+    return call("record_injury", **arguments)["recorded"]
+
+
+def test_ケガを記録すると_直している途中として_言葉のまま残り_部位の名前を付ける(call):
+    recorded = shoulder(call)
+    assert {k: recorded[k] for k in ("occurred_on", "site", "side", "site_name", "site_kind", "exercise", "phase",
+                                     "symptom", "cause", "fix", "status", "fixed_on", "reviews", "review_count")} == {
+        "occurred_on": "2026-11-05", "site": "shoulder_front", "side": "right", "site_name": "右の三角筋（前）",
+        "site_kind": "muscle", "exercise": BENCH, "phase": "3セット目の下ろすとき", "symptom": "肩の前がピリッとした",
+        "cause": "肘が開いていた", "fix": "肘を45度にたたむ", "status": "fixing", "fixed_on": None, "reviews": [],
+        "review_count": 0}
+    # 原因と直し方を言っていなければ空のまま（推測で埋めない）。左右のない部位、種目なし、日付は今日
+    waist = call("record_injury", site="waist", symptom="朝から重い")["recorded"]
+    assert (waist["occurred_on"], waist["side"], waist["site_name"], waist["exercise_id"], waist["cause"],
+            waist["fix"]) == ("2026-11-08", None, "腰（関節・下背部）", None, "", "")
+    # 左右のある部位で左右を言っていないときは、左右なしで記録する
+    assert call("record_injury", site="knee")["recorded"]["site_name"] == "膝"
+
+
+@pytest.mark.parametrize("arguments,message", [
+    ({"site": "abs", "side": "left"}, "腹筋には左右がありません"),
+    ({"site": "elbow", "exercise": "ベンチ"}, "近い名前：ベンチプレス"),  # 種目は名前の完全一致だけ
+    ({"site": "elbow", "fix": "あ" * 501}, None),  # 直し方は500文字まで
+])
+def test_ケガの記録の入力が合わなければ理由を返し_何も書かない(call, engine, arguments, message):
+    with pytest.raises(ToolError, match=message):
+        call("record_injury", **arguments)
+    assert engine.head("alice") == 0
+
+
+def test_ケガの一覧は新しい順で_状態で絞れ_振り返りも返す(call):
+    old = shoulder(call, day="2026-10-01")
+    new = shoulder(call, site="wrist", side="left", exercise=None)
+    call("add_injury_review", injury_id=old["injury_id"], day="2026-10-10", result="pain", note="まだ痛む")
+    call("add_injury_review", injury_id=old["injury_id"], day="2026-10-20", result="fixed",
+         note="肘をたたんだら大丈夫だった", exercise=BENCH)
+    fixed = call("mark_injury_fixed", injury_id=old["injury_id"], day="2026-10-20")["injury"]
+    assert (fixed["status"], fixed["fixed_on"]) == ("fixed", "2026-10-20")
+    listed = call("list_injuries")
+    assert listed["total"] == 2 and listed["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
+    assert [i["injury_id"] for i in listed["injuries"]] == [new["injury_id"], old["injury_id"]]
+    reviews = listed["injuries"][1]["reviews"]
+    assert [(r["date"], r["result"], r["note"], r["exercise"]) for r in reviews] == [
+        ("2026-10-10", "pain", "まだ痛む", None), ("2026-10-20", "fixed", "肘をたたんだら大丈夫だった", BENCH)]
+    assert [i["injury_id"] for i in call("list_injuries", status="fixing")["injuries"]] == [new["injury_id"]]
+    assert [i["injury_id"] for i in call("list_injuries", status="fixed")["injuries"]] == [old["injury_id"]]
+    assert len(call("list_injuries", limit=1)["injuries"]) == 1
+
+
+def test_振り返りが直せたでも_ケガの状態は変えない(call):
+    injury = shoulder(call)
+    after = call("add_injury_review", injury_id=injury["injury_id"], result="fixed")["injury"]
+    assert (after["status"], after["review_count"], after["reviews"][0]["date"]) == ("fixing", 1, "2026-11-08")
+
+
+def test_ケガの記録を書き直し_直している途中に戻す(call):
+    injury = shoulder(call)
+    call("mark_injury_fixed", injury_id=injury["injury_id"])
+    updated = call("update_injury", injury_id=injury["injury_id"], fix="肘を45度にたたみ、肩甲骨を寄せる", cause="",
+                   reopen=True)["injury"]
+    assert (updated["fix"], updated["cause"], updated["status"], updated["fixed_on"]) == (
+        "肘を45度にたたみ、肩甲骨を寄せる", "", "fixing", None)
+    assert updated["phase"] == "3セット目の下ろすとき"  # 渡さなかった項目は変えない
+    # 左右のない部位に変えると左右は外れる。種目は空の文字で外す
+    moved = call("update_injury", injury_id=injury["injury_id"], site="neck", exercise="")["injury"]
+    assert (moved["site_name"], moved["side"], moved["exercise_id"]) == ("首", None, None)
+    with pytest.raises(ToolError, match="首には左右がありません"):
+        call("update_injury", injury_id=injury["injury_id"], side="left")
+    with pytest.raises(ToolError, match="直す内容"):
+        call("update_injury", injury_id=injury["injury_id"])
+    with pytest.raises(ToolError, match="痛めた日.*と同じか後の日"):
+        call("mark_injury_fixed", injury_id=injury["injury_id"], day="2026-11-01")
+
+
+def test_ケガを消すと振り返りも消える_同期にはケガを先に消す(call, engine):
+    injury = shoulder(call)
+    for result in ("pain", "not_yet"):
+        call("add_injury_review", injury_id=injury["injury_id"], result=result)
+    head = engine.head("alice")
+    assert call("delete_injury", injury_id=injury["injury_id"]) == {
+        "deleted_injury_id": injury["injury_id"], "deleted_review_count": 2,
+        "last_app_sync_at": "2026-11-08T19:00:00+09:00"}
+    entries, _, _ = engine.pull("alice", head, 100, set(REGISTRY.specs))
+    assert [(e.change.entity_type, e.change.op) for e in entries] == [
+        ("injury", "delete"), ("injury_review", "delete"), ("injury_review", "delete")]
+    assert call("list_injuries")["injuries"] == []
+    with pytest.raises(ToolError, match="ありません"):
+        call("add_injury_review", injury_id=injury["injury_id"], result="pain")
+
+
+def test_ほかの人のケガは見えず_直せない(call):
+    injury = shoulder(call)
+    call.login("bob")
+    assert call("list_injuries")["injuries"] == []
+    for tool, arguments in [("add_injury_review", {"result": "pain"}), ("mark_injury_fixed", {}),
+                            ("update_injury", {"fix": "x"}), ("delete_injury", {})]:
+        with pytest.raises(ToolError, match="ありません"):
+            call(tool, injury_id=injury["injury_id"], **arguments)
+
+
+def test_ケガと振り返りの数の上限(call, monkeypatch):
+    from training.application import commands
+    monkeypatch.setattr(commands, "MAX_INJURIES", 2)
+    monkeypatch.setattr(commands, "MAX_REVIEWS_PER_INJURY", 1)
+    injury = shoulder(call)
+    shoulder(call)
+    with pytest.raises(ToolError, match="ケガの記録は2件まで"):
+        shoulder(call)
+    call("add_injury_review", injury_id=injury["injury_id"], result="pain")
+    with pytest.raises(ToolError, match="振り返りはケガ1件に1件まで"):
+        call("add_injury_review", injury_id=injury["injury_id"], result="pain")
+    call("delete_injury", injury_id=injury["injury_id"])  # 消したものは数えない
+    shoulder(call)
+
+
+def test_ケガの変更は_アプリから届く変更と同じ確かめ方を通る(call, engine):
+    injury = shoulder(call)
+    call("add_injury_review", injury_id=injury["injury_id"], result="not_yet", exercise=BENCH)
+    call("mark_injury_fixed", injury_id=injury["injury_id"])
+    call("update_injury", injury_id=injury["injury_id"], reopen=True, site="abs")
+    call("delete_injury", injury_id=injury["injury_id"])
+    entries, _, _ = engine.pull("alice", 0, 100, set(REGISTRY.specs))
+    assert {e.change.entity_type for e in entries} == {"injury", "injury_review"}
+    for e in entries:
+        c = e.change
+        raw = {"change_id": str(uuid.uuid4()), "entity_type": c.entity_type, "entity_id": c.entity_id,
+               "op": c.op, "fields": c.fields, "changed_at": "2026-11-08T12:00:00Z"}
+        if c.op in ("delete", "restore"):
+            raw.pop("fields")
+        assert isinstance(REGISTRY.parse_change(raw, set(REGISTRY.specs), None), Change), (c, raw)
+
+
+
+def test_説明文に_ケガの記録の流れがある():
+    for words in ("record_injury", "そのまま記録する", "推測で埋めない", "痛みの強さや体調は聞かない", "診断",
+                  "アプリに直すことが出る"):
+        assert words in mcp_tools.INSTRUCTIONS

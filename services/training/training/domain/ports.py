@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from training.domain.catalog import Catalog
+from training.domain.injury import Injury, InjuryReview
 from training.domain.model import (
     BodyPart,
     BodyRecord,
@@ -66,3 +67,21 @@ class TrainingRepository(Protocol):
     async def save_exercise(self, trainee: TraineeId, exercise: Exercise) -> None: ...
 
     async def save_body_record(self, trainee: TraineeId, record: BodyRecord) -> None: ...
+
+    async def injuries(self, trainee: TraineeId) -> list[Injury]:
+        """消していないケガ（並びは決めない）。"""
+        ...
+
+    async def injury_reviews(self, trainee: TraineeId) -> list[InjuryReview]:
+        """消していない振り返りのうち、消していないケガのもの（並びは決めない）。"""
+        ...
+
+    async def save_injury(self, trainee: TraineeId, injury: Injury) -> None:
+        """ケガを書く（新しければ作る。あれば今の状態と違う項目だけ）。"""
+        ...
+
+    async def save_injury_review(self, trainee: TraineeId, review: InjuryReview) -> None: ...
+
+    async def delete_injury(self, trainee: TraineeId, injury_id: str, review_ids: list[str]) -> None:
+        """ケガを消し、その振り返り（review_ids）も消す。"""
+        ...

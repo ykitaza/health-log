@@ -1,5 +1,5 @@
 {
-  "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成を記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
+  "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成、ケガ（右の三角筋（前））とその振り返りを記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
   "page": {
     "entries": [
       {
@@ -233,9 +233,95 @@
           "deleted_at": null,
           "seq": 6
         }
+      },
+      {
+        "change": {
+          "seq": 7,
+          "change_id": "00000000-0000-4000-8000-000000000013",
+          "entity_type": "injury",
+          "entity_id": "00000000-0000-4000-8000-000000000014",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "occurred_on": "2026-11-07",
+            "site": "shoulder_front",
+            "side": "right",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "phase": "2セット目の下ろすとき",
+            "symptom": "肩の前がピリッとした",
+            "cause": "肘が開いていた",
+            "fix": "肘を45度にたたむ",
+            "status": "fixing",
+            "fixed_on": null
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "injury",
+          "entity_id": "00000000-0000-4000-8000-000000000014",
+          "parent_id": null,
+          "fields": {
+            "occurred_on": "2026-11-07",
+            "site": "shoulder_front",
+            "side": "right",
+            "exercise_id": "d41c7096-c246-4dfa-945a-e1cb329977a6",
+            "phase": "2セット目の下ろすとき",
+            "symptom": "肩の前がピリッとした",
+            "cause": "肘が開いていた",
+            "fix": "肘を45度にたたむ",
+            "status": "fixing",
+            "fixed_on": null
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 7
+        }
+      },
+      {
+        "change": {
+          "seq": 8,
+          "change_id": "00000000-0000-4000-8000-000000000015",
+          "entity_type": "injury_review",
+          "entity_id": "00000000-0000-4000-8000-000000000016",
+          "parent_id": null,
+          "op": "create",
+          "fields": {
+            "injury_id": "00000000-0000-4000-8000-000000000014",
+            "date": "2026-11-08",
+            "result": "not_yet",
+            "note": "少し違和感",
+            "exercise_id": null
+          },
+          "changed_at": "2026-11-08T12:30:00.000Z",
+          "received_at": "2026-11-08T12:30:00.000Z",
+          "origin": "mcp",
+          "device_id": null
+        },
+        "state": {
+          "entity_type": "injury_review",
+          "entity_id": "00000000-0000-4000-8000-000000000016",
+          "parent_id": null,
+          "fields": {
+            "injury_id": "00000000-0000-4000-8000-000000000014",
+            "date": "2026-11-08",
+            "result": "not_yet",
+            "note": "少し違和感",
+            "exercise_id": null
+          },
+          "deleted": false,
+          "created_at": "2026-11-08T12:30:00.000Z",
+          "updated_at": "2026-11-08T12:30:00.000Z",
+          "deleted_at": null,
+          "seq": 8
+        }
       }
     ],
-    "next_cursor": 6,
+    "next_cursor": 8,
     "has_more": false
   }
 }

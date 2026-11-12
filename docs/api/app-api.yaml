@@ -780,6 +780,122 @@ components:
           maximum: 1000000
           description: その日の歩数の合計（Health Connect の集計。複数のアプリが同じ時間を書いた重なりは除かれている）。1件ごとの記録は送らない
       description: '歩数の1日の合計（Health Connect の Steps をその日について集計したもの。アプリの取り込みだけが作る。origin: import）。create では date, steps が要る。update では変えた項目だけを送る'
+    InjuryFields:
+      type: object
+      additionalProperties: false
+      properties:
+        occurred_on:
+          type: string
+          format: date
+          description: 痛めた日
+        site:
+          type: string
+          enum:
+          - shoulder_front
+          - chest
+          - biceps
+          - forearm
+          - trapezius
+          - abs
+          - obliques
+          - quads
+          - shins
+          - shoulder_rear
+          - triceps
+          - lats
+          - lower_back
+          - glutes
+          - hamstrings
+          - calves
+          - neck
+          - shoulder_joint
+          - elbow
+          - wrist
+          - waist
+          - hip
+          - knee
+          - ankle
+          description: 部位のコード（services/training/training/domain/injury.py の SITES）。筋肉 shoulder_front（三角筋の前）〜calves、関節 neck〜ankle。左右は side で分ける（コードは左右で分けない）
+        side:
+          type:
+          - string
+          - 'null'
+          enum:
+          - left
+          - right
+          - null
+          description: 左右。左右のない部位（abs・lower_back・neck・waist）と、左右が分からないときは null。同じ変更に site もあるときは、左右のない部位に left・right を入れると断る
+        exercise_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: そのときの種目（なければ null）
+        phase:
+          type: string
+          maxLength: 100
+          description: 場面（例：3セット目の下ろすとき）。空でもよい
+        symptom:
+          type: string
+          maxLength: 500
+          description: 症状（何が起きたか）。空でもよい
+        cause:
+          type: string
+          maxLength: 500
+          description: 原因の自己分析（本人の言葉のまま）。空でもよい
+        fix:
+          type: string
+          maxLength: 500
+          description: 次の直し方（本人の言葉のまま）。空でもよい
+        status:
+          type: string
+          enum:
+          - fixing
+          - fixed
+          description: fixing（直している途中）・fixed（直せた）
+        fixed_on:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: 直せたにした日。直している途中なら null。同じ変更に status もあるときは、fixed なら日付、fixing なら null でないと断る。occurred_on もあるときは、同じか後の日
+      description: ケガの記録（筋トレで痛めたときの場面・原因の自己分析・次の直し方）。痛みの強さ・体調・診断の項目はない。create では occurred_on, site, status が要る。update では変えた項目だけを送る。ケガを消すときは、その振り返り（injury_review）も消す
+    InjuryReviewFields:
+      type: object
+      additionalProperties: false
+      properties:
+        injury_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 振り返るケガ（injury の ID）
+        date:
+          type: string
+          format: date
+          description: 試した日
+        result:
+          type: string
+          enum:
+          - fixed
+          - not_yet
+          - pain
+          description: fixed（直せた）・not_yet（まだ）・pain（痛んだ）
+        note:
+          type: string
+          maxLength: 500
+          description: メモ。空でもよい
+        exercise_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 試した種目（なければ null）
+      description: ケガの振り返り（その後に直し方を試した結果）。create では injury_id, date, result が要る。update では変えた項目だけを送る。消えたケガの振り返りは、MCP では読まない
     ReportTone:
       type: string
       enum:
@@ -974,6 +1090,8 @@ components:
       - sleep_session
       - heart_rate_day
       - step_day
+      - injury
+      - injury_review
       - report
       description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外（report も）は training.* の scope で扱う
     MealChange:
@@ -1719,6 +1837,112 @@ components:
         fields:
           $ref: '#/components/schemas/StepDayFields'
           description: create・update のとき。delete・restore では送らない
+    InjuryChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: injury
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/InjuryFields'
+          description: create・update のとき。delete・restore では送らない
+    InjuryReviewChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: injury_review
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/InjuryReviewFields'
+          description: create・update のとき。delete・restore では送らない
     ReportChange:
       type: object
       additionalProperties: false
@@ -1786,6 +2010,8 @@ components:
       - $ref: '#/components/schemas/SleepSessionChange'
       - $ref: '#/components/schemas/HeartRateDayChange'
       - $ref: '#/components/schemas/StepDayChange'
+      - $ref: '#/components/schemas/InjuryChange'
+      - $ref: '#/components/schemas/InjuryReviewChange'
       - $ref: '#/components/schemas/ReportChange'
       discriminator:
         propertyName: entity_type
@@ -1804,6 +2030,8 @@ components:
           sleep_session: '#/components/schemas/SleepSessionChange'
           heart_rate_day: '#/components/schemas/HeartRateDayChange'
           step_day: '#/components/schemas/StepDayChange'
+          injury: '#/components/schemas/InjuryChange'
+          injury_review: '#/components/schemas/InjuryReviewChange'
           report: '#/components/schemas/ReportChange'
     PushRequest:
       type: object
