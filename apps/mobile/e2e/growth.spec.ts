@@ -12,6 +12,17 @@ const pausedMark = (page: Page) => page.getByTestId('growth-paused');
 const shapeImage = (page: Page, name: string) => page.getByRole('img', { name: new RegExp(`^記録で育つ形（${name}）`) });
 const totalsLabel = (t: string, food: number, sleep: number) => `累計。筋トレの負荷量 ${t} トン、食事の目標に届いた日 ${food}日、7時間以上眠った日 ${sleep}日`;
 const HINT = 'タップで再生・左右になぞると日を移せます';
+/** 下の線の両はしの日付（カードの日付と分けて探す） */
+const timelineLabels = (page: Page) => page.getByTestId('growth-timeline-labels').filter({ visible: true });
+/** 下の手がかり（「↑ 成長の記録」）と、①のカード */
+const recordsHint = (page: Page) => page.getByTestId('growth-records-hint');
+const scoreCard = (page: Page) => page.getByTestId('growth-card-score');
+
+/** 画面の上で、ホイールで下へ dy だけスクロールする（負なら上へ） */
+async function scrollBy(page: Page, dy: number) {
+  await page.mouse.move(206, 500);
+  await page.mouse.wheel(0, dy);
+}
 
 async function openGrowth(page: Page) {
   await page.goto('/growth');
@@ -52,7 +63,7 @@ test.describe('動きを減らす設定がオフ', () => {
     await openGrowth(page);
     await expect(see(page, '記録を始めると、ここから育ちます')).toBeVisible();
     await expect(day(page)).toHaveAttribute('aria-label', 'DAY 0、2026年11月8日（日）');
-    await expect(see(page, '今日', { exact: true })).toHaveCount(1); // 線の下の左はし
+    await expect(see(timelineLabels(page), '今日', { exact: true })).toHaveCount(1); // 線の下の左はし
     await expect(timeline(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(totals(page)).toHaveAttribute('aria-label', totalsLabel('0.0', 0, 0));
 
@@ -62,6 +73,50 @@ test.describe('動きを減らす設定がオフ', () => {
     await expect(day(page)).toHaveAttribute('aria-label', 'DAY 0、2026年11月8日（日）');
     await expect(pausedMark(page)).toHaveCount(0);
     for (const name of ['再生', '一時停止', 'もう一度']) await expect(button(page, name)).toHaveCount(0);
+
+    // 再生しないので、下の手がかりと①の頭がのぞく。カードは記録がないことを短く伝える
+    await expect(recordsHint(page)).toBeVisible();
+    await expect(scoreCard(page)).toBeInViewport();
+    await expect(page.getByLabel('成長スコアの内訳。まだ記録がありません', { exact: true })).toHaveCount(1);
+    await expect(page.getByLabel('強くなった、BIG3 の推定1RM。まだ記録がありません', { exact: true })).toHaveCount(1);
+    await expect(page.getByLabel('体の変化。体重と体脂肪率の記録がまだありません', { exact: true })).toHaveCount(1);
+    await expect(page.getByLabel('部位の積み重ね。まだ記録がありません', { exact: true })).toHaveCount(1);
+    await expect(page.getByLabel('自己ベストの年表。まだ自己ベストの更新がありません', { exact: true })).toHaveCount(1);
+    await expect(button(page, '自己ベストをすべて見る。筋トレの推移を開く')).toHaveCount(0);
+  });
+
+  test('成長の記録：再生中は下の手がかりを隠し、終わるとのぞかせる。半分スクロールすると再生が止まり、上に戻しても止まったまま', async ({ page }) => {
+    await recordTwoDays(page);
+    await openGrowth(page);
+
+    // 再生中：手がかりは出さず、①は画面の外
+    await expect(button(page, '一時停止')).toHaveCount(1);
+    await expect(recordsHint(page)).toHaveCount(0);
+    await expect(scoreCard(page)).not.toBeInViewport();
+
+    // 終わると（3日は 8秒）、手がかりと①の頭が下からのぞく
+    await expect(button(page, 'もう一度')).toHaveCount(1, { timeout: 15_000 });
+    await expect(recordsHint(page)).toBeVisible();
+    await expect(see(page, '↑  成長の記録')).toBeVisible();
+    await expect(scoreCard(page)).toBeInViewport();
+
+    // もう一度再生すると、また隠れる
+    await tapScreen(page);
+    await expect(button(page, '一時停止')).toHaveCount(1);
+    await expect(recordsHint(page)).toHaveCount(0);
+
+    // 再生中に上へ半分以上スクロールすると止まり、見出しとカードが見える
+    await scrollBy(page, 600);
+    await expect(button(page, '再生')).toHaveCount(1);
+    await expect(see(page, '成長の記録', { exact: true })).toBeVisible();
+    await expect(scoreCard(page)).toBeInViewport();
+
+    // 一番上に戻しても止まったまま。押すと再生
+    await scrollBy(page, -2000);
+    await expect(day(page)).toBeInViewport();
+    await expect(button(page, '再生')).toHaveCount(1);
+    await tapScreen(page);
+    await expect(button(page, '一時停止')).toHaveCount(1);
   });
 
   test('開くと自動で再生。タップで一時停止（初回はヒント）と再生、点の帯で日へ飛ぶ、終わると「もう一度」', async ({ page }) => {
@@ -133,8 +188,8 @@ test('動きを減らす設定：自動で再生せず今日の姿。タップ�
   await openGrowth(page);
 
   await expect(day(page)).toHaveAttribute('aria-label', 'DAY 3、2026年11月8日（日）');
-  await expect(see(page, '11月6日', { exact: true })).toBeVisible();
-  await expect(see(page, '11月8日', { exact: true })).toBeVisible();
+  await expect(see(timelineLabels(page), '11月6日', { exact: true })).toBeVisible();
+  await expect(see(timelineLabels(page), '11月8日', { exact: true })).toBeVisible();
   await expect(totals(page)).toHaveAttribute('aria-label', totalsLabel('1.3', 0, 0));
   // 再生のボタンも「もう一度」も出さない
   for (const name of ['再生', '一時停止', 'もう一度']) await expect(button(page, name)).toHaveCount(0);
@@ -162,6 +217,32 @@ test('動きを減らす設定：自動で再生せず今日の姿。タップ�
   const box = await page.getByTestId('growth-timeline').filter({ visible: true }).boundingBox();
   await pressTimeline(page, box!.width / 2);
   await expect(day(page)).toHaveAttribute('aria-label', 'DAY 2、2026年11月7日（土）');
+});
+
+test('成長の記録：見出しと6枚のカード（読み上げの名前に数字）。「すべて見る」で筋トレの推移へ', async ({ page }) => {
+  // 計算の場合分け（週ごとの点数・伸び率・体の変化・連続・部位・自己ベストの判定）は jest（lib/__tests__/growthRecords.test.ts）
+  await recordTwoDays(page);
+  await openGrowth(page);
+  // 動きを減らす設定では再生しないので、はじめから手がかりと①の頭がのぞく
+  await expect(recordsHint(page)).toBeVisible();
+  await expect(scoreCard(page)).toBeInViewport();
+
+  await expect(page.getByRole('heading', { name: '成長の記録、11月6日から今日まで3日', exact: true })).toHaveCount(1);
+  await expect(page.getByLabel(/^成長スコアの内訳。成長スコア \d+点、直近7日。筋トレ \d+点、40点満点。食事 記録なし。睡眠 記録なし。週ごとの点数 1週/)).toHaveCount(1);
+  await expect(page.getByLabel('強くなった、BIG3 の推定1RM。ベンチプレス 101.3kg から 107.7kg、6%増', { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel('体の変化。体重と体脂肪率の記録がまだありません', { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel('積み重ね、これまで。総負荷量 1.3トン、乗用車 0.9台分。筋トレした日 2日、記録した食事 0食、いちばん長く続いた連続 1日', { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel(/^部位の積み重ね、これまでの部位ごとのセット数。胸 2、.*。直近2週は 胸 2、/)).toHaveCount(1);
+  await expect(page.getByLabel(
+    '自己ベストの年表、更新した日を新しい順に1件。11月8日、ベンチプレス、85kg 8回、推定1RM 107.7 kg', { exact: true },
+  )).toHaveCount(1);
+
+  // 一番下までスクロールして「すべて見る」を押すと、筋トレの推移
+  await scrollBy(page, 5000);
+  const more = button(page, '自己ベストをすべて見る。筋トレの推移を開く');
+  await expect(more).toBeInViewport();
+  await more.click();
+  await expect(page).toHaveURL(/\/training/);
 });
 
 test('左上の数式：題・式・定数・値・番号が出る（記録がまだないので値 0.000、番号 0）。形を木に変えると題と式が変わる', async ({ page }) => {

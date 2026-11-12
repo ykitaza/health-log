@@ -170,7 +170,7 @@ export function TimelineBar({ pos, dayCount, index, markIndexes, labels, disable
           />
         ))}
       </View>
-      <View style={s.labels}>
+      <View style={s.labels} testID="growth-timeline-labels">
         <T variant="bodyS" color={colors.sub}>{labels.left}</T>
         {labels.right != null && <T variant="bodyS" color={colors.sub}>{labels.right}</T>}
       </View>
