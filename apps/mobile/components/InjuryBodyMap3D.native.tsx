@@ -6,7 +6,7 @@
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
 import { useFocusEffect } from 'expo-router';
 import { Component, ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { Linking, PanResponder, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SharedValue, useAnimatedProps, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Line } from 'react-native-svg';
 import * as THREE from 'three';
@@ -35,6 +35,9 @@ if (typeof globalThis.TextDecoder === 'undefined') {
 
 const GREEN = new THREE.Color(colors.accent);
 const AMBER = new THREE.Color(INJURY_AMBER);
+/** 出典のリンク（BodyParts3D のライセンスと元のデータ） */
+const LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/';
+const SOURCE_URL = 'https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html';
 /** 図の高さ（px） */
 const STAGE_H = 380;
 /** 吹き出しの幅（px） */
@@ -455,8 +458,15 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
           <Mono>DRAG ROTATE · TAP SELECT</Mono>
           {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
         </View>
-        <T size={11} color={colors.sub}>BodyParts3D, © The Database Center for Life Science, CC BY 4.0（形を軽くして使用）</T>
       </View>
+      {/* 出典。読み上げでリンクを選べるよう、件数をまとめて読む枠の外に置く（CC BY 4.0 の決まり：作者・ライセンスとそのリンク・改変したこと。文言は公式のライセンスのページの指定どおり） */}
+      <T size={11} color={colors.sub} style={{ marginTop: space.s }}>
+        BodyParts3D, © The Database Center for Life Science licensed under{' '}
+        <T size={11} color={colors.accent} accessibilityRole="link" onPress={() => Linking.openURL(LICENSE_URL)}>CC Attribution 4.0 International</T>
+        （形を軽くして使用。
+        <T size={11} color={colors.accent} accessibilityRole="link" onPress={() => Linking.openURL(SOURCE_URL)}>元のデータ</T>
+        ）
+      </T>
     </ScanFrame>
   );
 }
