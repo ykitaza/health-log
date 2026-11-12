@@ -13,8 +13,8 @@ const DISC_POINTS = 1200;
 const ARM_POINTS = GALAXY_POINTS - BULGE_POINTS - DISC_POINTS;
 
 /** 腕の巻き方（対数らせん r = ARM_START・e^(PITCH・θ)）。PITCH が小さいほどきつく巻く */
-const PITCH = 0.36;
-const ARM_START = 0.1;
+export const PITCH = 0.36;
+export const ARM_START = 0.1;
 /** 腕の太さ（中心からの距離に対する割合）と、円盤の厚み */
 const ARM_WIDTH = 0.07;
 const THICKNESS = 0.025;

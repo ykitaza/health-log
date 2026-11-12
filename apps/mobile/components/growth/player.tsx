@@ -10,7 +10,7 @@ import {
   approachTotal, claimsDrag, dayIndexAt, dragIndex, FORMULA_UPDATE_MS, growthTotals, isTap, lerpParams, LIVE_UPDATE_MS, ratioAt, startsAtEdge,
   TOTAL_STEPS, totalKeys, totalsLabel, totalsText, TotalValues, totalValues,
 } from '@/lib/growthPlayer';
-import { formula, formulaValues, pointNumber, pointValue } from '@/lib/shapes/formula';
+import { formula, FormulaLine, formulaValues, pointNumber, pointValue } from '@/lib/shapes/formula';
 import type { ShapeKind } from '@/lib/shapes/types';
 import { kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, growthColors, size, space } from '@/theme';
@@ -234,20 +234,36 @@ export function TotalsLine({ pos, playing, index, series, unit, running, instant
 
 const ZERO: GrowthParams = { volumeKg: 0, foodDays: 0, sleepDays: 0, days: 0 };
 
-/** 式の文字の大きさ（sp）。412dp の画面の、左右 24dp の内側（364dp）に1行で収まる大きさ */
-const FORMULA_SIZE = 14;
-/** 右はしの値の幅（dp）。6文字（符号＋0.000）が入る幅にし、右に寄せて符号の有無で位置がずれないようにする */
-const VALUE_W = Math.ceil(FORMULA_SIZE * 0.62 * 6);
-/** 等幅の書体（端末の書体）。下付きの番号は書体に頼らず、小さい文字で下に寄せて描く */
+/** 式の文字の大きさ（sp）と、値・番号の行の大きさ（sp） */
+const FORMULA_SIZE = 15;
+const READOUT_SIZE = 12;
+/** 値の幅（dp）。6文字（符号＋0.000）が入る幅にし、右に寄せて符号の有無で位置がずれないようにする */
+const VALUE_W = Math.ceil(READOUT_SIZE * 0.62 * 6);
+/** 等幅の書体（端末の書体）。下付きの添え字は書体に頼らず、小さい文字で下に寄せて描く */
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
-/** 式の色（白の約45%）と、題の色（約32%）。飾りなので色で区別しない */
+/** 式と定数の色（白の約45%）、値と番号の行の色（約38%。式より少し薄く）、題の色（約32%）。飾りなので色で区別しない */
 const FORMULA_COLOR = 'rgba(243,245,247,0.45)';
+const READOUT_COLOR = 'rgba(243,245,247,0.38)';
 const FORMULA_TITLE_COLOR = 'rgba(243,245,247,0.32)';
 
+/** 式の1行（下付きは小さい文字で下に寄せ、値は幅をそろえて右に寄せる） */
+function FormulaRow({ line, readout }: { line: FormulaLine; readout?: boolean }) {
+  return (
+    <View style={s.formulaLine}>
+      {line.map((part, pi) => (
+        <Text
+          key={pi} allowFontScaling={false}
+          style={[s.mono, readout && s.readout, part.sub ? s.formulaSub : part.value ? s.formulaValue : null]}
+        >{part.text}</Text>
+      ))}
+    </View>
+  );
+}
+
 /**
- * 形の左上に出す、形を描いている数式（題と2行）。番号はいま打った点の番号（出している点の数）、右はしはその点の値。
- * 再生中は再生の位置から FORMULA_UPDATE_MS ごとに描き直し（この部品だけ）、止まっているときはその日の値で止める。
- * 番号は mark にも書き、形の上の光る点を同じ点に置く。飾りなので読み上げない
+ * 形の左上に出す、形を描いている数式。題・式・定数は動かさず、下の2行（いまの点の値と、点の番号 / 上限）だけが更新される。
+ * 番号はいま打った点の番号（出している点の数）。再生中は再生の位置から FORMULA_UPDATE_MS ごとに描き直し（この部品だけ）、
+ * 止まっているときはその日の値で止める。番号は mark にも書き、形の上の光る点を同じ点に置く。飾りなので読み上げない
  */
 export function FormulaReadout({ shape, pos, playing, index, series, mark }: {
   shape: ShapeKind; pos: SharedValue<number>; playing: boolean; /** 止まっているときに出す日の番号 */ index: number;
@@ -263,15 +279,14 @@ export function FormulaReadout({ shape, pos, playing, index, series, mark }: {
   const f = formula(shape, n, pointValue(values, n));
   return (
     <View style={s.formula} pointerEvents="none" importantForAccessibility="no-hide-descendants" aria-hidden testID="growth-formula">
-      {/* 飾りの式は、文字の大きさの設定で大きくしない（値の幅をそろえ、1行に収めるため） */}
+      {/* 飾りの式は、文字の大きさの設定で大きくしない（値の幅をそろえ、行を折り返さないため） */}
       <Text allowFontScaling={false} style={[s.mono, s.formulaTitle]}>{f.title}</Text>
-      {f.lines.map((line, li) => (
-        <View key={li} style={s.formulaLine}>
-          {line.map((part, pi) => (
-            <Text key={pi} allowFontScaling={false} style={[s.mono, part.sub ? s.formulaSub : part.value ? s.formulaValue : null]}>{part.text}</Text>
-          ))}
-        </View>
-      ))}
+      {f.equations.map((line, li) => <FormulaRow key={li} line={line} />)}
+      {f.constants != null && <Text allowFontScaling={false} style={[s.mono, s.readout]}>{f.constants}</Text>}
+      <View style={s.readoutGap}>
+        <FormulaRow line={f.values} readout />
+        <Text allowFontScaling={false} style={[s.mono, s.readout]}>{f.point}</Text>
+      </View>
     </View>
   );
 }
@@ -298,9 +313,11 @@ const s = StyleSheet.create({
   totals: { flexDirection: 'row', alignItems: 'center', gap: space.l, flexWrap: 'wrap' },
   total: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   formula: { position: 'absolute', top: space.s, left: space.xl, right: space.xl },
-  mono: { fontFamily: MONO, fontSize: FORMULA_SIZE, lineHeight: 22, color: FORMULA_COLOR, includeFontPadding: false },
+  mono: { fontFamily: MONO, fontSize: FORMULA_SIZE, lineHeight: 24, color: FORMULA_COLOR, includeFontPadding: false },
   formulaTitle: { fontSize: 11, lineHeight: 16, letterSpacing: 1.5, color: FORMULA_TITLE_COLOR, marginBottom: space.xs },
   formulaLine: { flexDirection: 'row', alignItems: 'baseline' },
   formulaSub: { fontSize: 10, transform: [{ translateY: 4 }] },
   formulaValue: { width: VALUE_W, textAlign: 'right' },
+  readout: { fontSize: READOUT_SIZE, lineHeight: 18, color: READOUT_COLOR },
+  readoutGap: { marginTop: space.xs },
 });

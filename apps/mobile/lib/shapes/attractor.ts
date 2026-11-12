@@ -19,10 +19,11 @@ export const SLEEP_SCALE_DAYS = 60;
 export const SEED_RAMP_DAYS = 3;
 
 // Clifford のアトラクタの係数（x, y）と、高さ（z）を作る係数。乱数は使わず、始まりの点も固定
-const A = -1.7;
-const B = 1.8;
-const C = -1.9;
-const D = -0.4;
+// A〜D は成長を見る画面の左上の式（lib/shapes/formula.ts）にも出す
+export const A = -1.7;
+export const B = 1.8;
+export const C = -1.9;
+export const D = -0.4;
 const E = 1.3;
 const F = 0.9;
 /** 始めの数回は、点がアトラクタに落ち着くまでの道のりなので捨てる */

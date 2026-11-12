@@ -1,53 +1,62 @@
 import { SHAPES } from '@/components/growth/shapes';
-import { attractorPoints, cliffordOrbit, MAX_POINTS } from '../shapes/attractor';
-import { Formula, formatCoord, formula, FormulaLine, formulaValues, pointNumber, pointValue } from '../shapes/formula';
+import { A, attractorPoints, B, C, cliffordOrbit, D, MAX_POINTS } from '../shapes/attractor';
+import { formatCoord, formatCount, formula, FormulaLine, formulaValues, pointNumber, pointValue } from '../shapes/formula';
 import { galaxyPoints } from '../shapes/galaxy';
-import { ANGLE, LENGTH_RATIO, treeShape } from '../shapes/tree';
+import { treeShape } from '../shapes/tree';
 import { SHAPE_KINDS } from '../shapes/types';
 
-const SUB: Record<string, string> = {
-  0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉', k: 'ₖ', '+': '₊',
-};
+const SUB: Record<string, string> = { k: 'ₖ', n: 'ₙ', '+': '₊', 1: '₁' };
 /** 式の1行を、下付きを Unicode の下付きの文字にした1つの文字列に（見た目の確かめ用） */
 const text = (line: FormulaLine) => line.map((p) => (p.sub ? [...p.text].map((c) => SUB[c]).join('') : p.text)).join('');
-const lines = (f: Formula) => f.lines.map(text);
 
 describe('形ごとの題と式', () => {
-  const v = { x: 0.8144, y: -1.2051 };
+  const v = { x: -0.8144, y: -1.2051 };
 
-  test('点の軌跡：Clifford の式。右はしが x・y の値', () => {
+  test('点の軌跡：Clifford の式（添え字は n）、係数の行、値の行、番号 / 上限の行', () => {
     const f = formula('attractor', 4120, v);
     expect(f.title).toBe('CLIFFORD ATTRACTOR');
-    expect(lines(f)).toEqual([
-      'x₄₁₂₀ = sin(a·y) + c·cos(a·x) =  0.814',
-      'y₄₁₂₀ = sin(b·x) + d·cos(b·y) = −1.205',
+    expect(f.equations.map(text)).toEqual([
+      'xₙ₊₁ = sin(a·yₙ) + c·cos(a·xₙ)',
+      'yₙ₊₁ = sin(b·xₙ) + d·cos(b·yₙ)',
     ]);
+    expect(f.constants).toBe('a = −1.7   b = 1.8   c = −1.9   d = −0.4');
+    expect(text(f.values)).toBe('x −0.814   y −1.205');
+    expect(f.point).toBe('point 4,120 / 6,000');
   });
 
-  test('銀河：対数らせん', () => {
-    const f = formula('galaxy', 4120, v);
+  test('銀河：対数らせん（3行）、galaxy.ts の a・b', () => {
+    const f = formula('galaxy', 1234, { x: 0.5, y: -0.25 });
     expect(f.title).toBe('LOGARITHMIC SPIRAL');
-    expect(lines(f)).toEqual([
-      'x₄₁₂₀ = a·e^(bθ)·cos θ =  0.814',
-      'y₄₁₂₀ = a·e^(bθ)·sin θ = −1.205',
-    ]);
+    expect(f.equations.map(text)).toEqual(['r = a·e^(bθ)', 'x = r·cos θ', 'y = r·sin θ']);
+    expect(f.constants).toBe('a = 0.1   b = 0.36');
+    expect(text(f.values)).toBe('x  0.500   y −0.250');
+    expect(f.point).toBe('point 1,234 / 6,000');
   });
 
-  test('木：1行目は枝分かれの決まり（tree.ts の長さの比と開く角度）、2行目はいまの点の座標', () => {
-    const f = formula('tree', 4120, v);
+  test('木：枝分かれの決まり（tree.ts の長さの比と開く角度）。定数の行はなし', () => {
+    const f = formula('tree', 1234, v);
     expect(f.title).toBe('BRANCHING TREE');
-    expect(lines(f)).toEqual([
-      `Lₖ₊₁ = ${LENGTH_RATIO}·Lₖ   θₖ₊₁ = θₖ ± ${ANGLE}`,
-      '(x, y)₄₁₂₀ = ( 0.814, −1.205)',
-    ]);
-    expect(text(f.lines[0])).toBe('Lₖ₊₁ = 0.72·Lₖ   θₖ₊₁ = θₖ ± 0.55');
+    expect(f.equations.map(text)).toEqual(['Lₖ₊₁ = 0.72·Lₖ', 'θₖ₊₁ = θₖ ± 0.55']);
+    expect(f.constants).toBeNull();
+    expect(f.point).toBe('point 1,234 / 4,900');
   });
 
-  test('右はしの値は value、番号は sub の印が付く（描くときに幅をそろえる・下に寄せる）', () => {
+  test('式と定数は番号・値で変わらない（下の2行だけが変わる）', () => {
     for (const kind of SHAPE_KINDS) {
-      const parts = formula(kind, 12, v).lines[1];
-      expect(parts.filter((p) => p.value).map((p) => p.text)).toContain('−1.205');
-      expect(parts.find((p) => p.sub)?.text).toBe('12');
+      const a = formula(kind, 1, { x: 0.1, y: 0.2 });
+      const b = formula(kind, 3000, { x: -1, y: 1 });
+      expect(b.equations).toEqual(a.equations);
+      expect(b.constants).toBe(a.constants);
+      expect(b.values).not.toEqual(a.values);
+      expect(b.point).not.toBe(a.point);
+      // 式に番号の数字は入れない
+      expect(a.equations.flat().some((p) => p.sub && /\d{2}/.test(p.text))).toBe(false);
+    }
+  });
+
+  test('値には value の印が付く（描くときに幅をそろえて右に寄せる）', () => {
+    for (const kind of SHAPE_KINDS) {
+      expect(formula(kind, 12, v).values.filter((p) => p.value).map((p) => p.text)).toEqual(['−0.814', '−1.205']);
     }
   });
 
@@ -58,10 +67,19 @@ describe('形ごとの題と式', () => {
       expect(n).toBe(0);
       const f = formula(kind, n, pointValue(values, n));
       expect(f.title.length).toBeGreaterThan(0);
-      const sub = f.lines[1].find((p) => p.sub);
-      expect(sub?.text).toBe('0');
-      expect(f.lines[1].filter((p) => p.value).map((p) => p.text)).toEqual(kind === 'tree' ? [' 0.000', ' 0.000'] : [' 0.000']);
+      expect(f.equations.length).toBeGreaterThanOrEqual(2);
+      expect(text(f.values)).toBe('x  0.000   y  0.000');
+      expect(f.point).toBe(`point 0 / ${formatCount(SHAPES[kind].maxPoints)}`);
     }
+  });
+});
+
+describe('番号の書式', () => {
+  test('3桁ごとにカンマ', () => {
+    expect(formatCount(0)).toBe('0');
+    expect(formatCount(999)).toBe('999');
+    expect(formatCount(4120)).toBe('4,120');
+    expect(formatCount(1234567)).toBe('1,234,567');
   });
 });
 
@@ -110,7 +128,7 @@ describe('点の値', () => {
       expect(values[i * 2 + 1]).toBeCloseTo(pts[i * 3 + 1] * max, 4);
     }
     // attractor.ts の係数で、前の点から次の点を作り直して合う（番号は式をくり返した回数）
-    const [a, b, c, d] = [-1.7, 1.8, -1.9, -0.4];
+    const [a, b, c, d] = [A, B, C, D];
     for (const i of [1, 500, 4119]) {
       const x = values[(i - 1) * 2];
       const y = values[(i - 1) * 2 + 1];
