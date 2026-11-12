@@ -36,7 +36,8 @@ export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
   return (
     <PressableScale
       testID="home-part-balance" accessibilityRole="button" accessibilityLabel={`${partBalanceLabel(balance)}。筋トレの推移を開く`} scaleTo={0.98}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })} style={s.card}
+      // 推移でも、覚えた期間に関係なく 2週で開く（ホームと同じ形を見せる）
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', balance: '2w' } })} style={s.card}
     >
       <View style={s.head}>
         <T variant="labelS" color={colors.sub} style={{ lineHeight: 13 }}>部位のバランス</T>

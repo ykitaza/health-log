@@ -36,9 +36,12 @@ const EXERCISE_MONTHS = 3;
 /**
  * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
  * すべてなら BIG3 の推定1RM の合計、部位のバランス（2週・3か月・これまで）、総負荷量（週・日）、種目ごとの自己ベスト。
- * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）
+ * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）。
+ * balanceOverride があれば、部位のバランスは覚えた期間の代わりにそれで見せる（ホームから来たとき。覚えた期間は書き換えない）
  */
-export function TrainingTrend({ onOpenDay }: { onOpenDay: (date: string) => void }) {
+export function TrainingTrend({ onOpenDay, balanceOverride, onBalanceChosen }: {
+  onOpenDay: (date: string) => void; balanceOverride?: BalanceRange | null; onBalanceChosen?: () => void;
+}) {
   const today = todayKey();
   const [exerciseId, setExerciseId] = useState<string>(ALL);
 
@@ -53,9 +56,10 @@ export function TrainingTrend({ onOpenDay }: { onOpenDay: (date: string) => void
   // 部位のバランスの期間。選んだら端末に覚える。種目を選んで「すべて」に戻ったときも選んだままにするため、ここに置く
   const repos = useRepos();
   const [pickedBalance, setPickedBalance] = useState<BalanceRange | null>(null);
-  const balanceRange = pickedBalance ?? data?.balanceRange ?? '2w';
+  const balanceRange = balanceOverride ?? pickedBalance ?? data?.balanceRange ?? '2w';
   const chooseBalance = (k: BalanceRange) => {
     setPickedBalance(k);
+    onBalanceChosen?.();
     repos.settings.setBalanceRange(k).catch(() => {});
   };
   const unit = data?.settings.weightUnit ?? 'kg';

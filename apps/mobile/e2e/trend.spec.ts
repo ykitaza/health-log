@@ -145,6 +145,40 @@ test('部位のバランス：BIG3 と総負荷量のあいだ。2週・3か月�
   await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
 });
 
+test('部位のバランス：ホームの部位のバランスから来ると、覚えた期間に関係なく 2週。タブや BIG3 から開くと覚えた期間', async ({ page }) => {
+  await seed(page);
+  const card = page.getByTestId('trend-part-balance').filter({ visible: true });
+  const home = (id: string) => page.getByTestId(id).filter({ visible: true });
+  await button(page, 'これまで').click();
+  await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
+
+  // ホームの部位のバランスを押すと 2週（ホームと同じセット数）
+  await goTab(page, 'ホーム');
+  await home('home-part-balance').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
+
+  // 覚えた期間は書き換えない：下のタブで開き直すと、これまで
+  await goTab(page, 'ホーム');
+  await goTab(page, '筋トレ');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+
+  // 上の切り替えで記録 → 推移に移っても、これまで
+  await goTab(page, 'ホーム');
+  await home('home-part-balance').click();
+  await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+  await goPane(page, '記録');
+  await goPane(page, '推移');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+
+  // BIG3 のカードから来たときも、これまで
+  await goTab(page, 'ホーム');
+  await home('home-big3').click();
+  await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
+  await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
+});
+
 test('種目を選ぶと、推定1RM の折れ線とその種目の記録（新しい順）。カードを押すと記録のタブのその日で直せる', async ({ page }) => {
   await seed(page);
   // 種目のチップは1列：すべて、記録のある種目（部位の順）。部位のチップと「記録／グラフ」の切り替えはない
