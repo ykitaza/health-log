@@ -21,8 +21,12 @@ test('360 の幅でも、ホームのカレンダーが負荷量のカードに�
     expect(label.x).toBeGreaterThanOrEqual(balance.x);
     expect(label.x + label.width).toBeLessThanOrEqual(balance.x + balance.width);
   }
-  const archive = (await page.getByTestId('archive').boundingBox())!;
-  expect(Math.abs(archive.y + archive.height - (balance.y + balance.height))).toBeLessThan(1);
+  // 下の端は、読み込みが済んで高さが決まってから比べる（読み込みの途中で2つを測ると、間に高さが変わって食い違う。CI で 74 ずれた）
+  await expect.poll(async () => {
+    const archive = (await page.getByTestId('archive').boundingBox())!;
+    const b = (await page.getByTestId('home-part-balance').boundingBox())!;
+    return Math.abs(archive.y + archive.height - (b.y + b.height));
+  }).toBeLessThan(1);
 });
 
 test('360 の幅でも、食事の推移の週（いちばん長い「10月26日〜11月1日」）がカレンダーのアイコンと1行に収まる', async ({ page }) => {
