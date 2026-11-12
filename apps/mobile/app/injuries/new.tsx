@@ -37,9 +37,10 @@ const EMPTY = (today: string): InjuryInput => ({ occurredOn: today, site: '', si
 export default function InjuryFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const repos = useRepos();
-  // 図の大きさ：画面の幅から、枠の余白・図のあいだ・選んだ部位の欄（110）を引いた残りを2つに分ける（412 で 107、360 で 81）
+  // 図の大きさ（Figma「ケガ 3-2」）：押しやすいよう、図は枠の幅いっぱいに前と後ろを並べ、選んだ部位は図の下に出す。
+  // 枠の中の幅から図のあいだを引いて2つに分ける。上限 150（412 で 150、360 で 140。前は横に選んだ部位の欄があり 107・81）
   const { width: winW } = useWindowDimensions();
-  const figW = Math.max(70, Math.min(110, Math.floor((winW - space.screen * 2 - space.l * 2 - space.m * 2 - 110) / 2)));
+  const figW = Math.max(70, Math.min(150, Math.floor((winW - space.screen * 2 - space.l * 2 - space.l) / 2)));
   const FIG_H = figW * 2;
   const today = useToday();
   const [form, setForm] = useState<InjuryInput>(() => EMPTY(today));
@@ -128,36 +129,36 @@ export default function InjuryFormScreen() {
           <T variant="titleS" color={colors.sub}>部位</T>
           <Mono>TAP TO SELECT</Mono>
         </View>
-        <View style={{ flexDirection: 'row', marginTop: space.s, gap: space.m }}>
-          <View style={{ flex: 1, justifyContent: 'center', gap: space.xs }}>
-            {label ? (
-              <>
-                <Mono color={INJURY_AMBER} size={11}>SELECTED</Mono>
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={`${label}を外す`}
-                  onPress={() => { set({ site: '', side: null }); setNear([]); }}
-                  style={s.selected}
-                >
-                  <T variant="titleM" color={INJURY_AMBER} testID="injury-selected">{label}</T>
-                  <Icon name="close" size={18} color={INJURY_AMBER} />
-                </PressableScale>
-                <T variant="bodyS" color={colors.sub}>{siteDetail(form.site)}</T>
-              </>
-            ) : (
-              <T variant="bodyM" color={colors.sub}>前・後ろの図で、痛む場所を押す</T>
-            )}
-          </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: space.s, gap: space.l }}>
           <View style={{ alignItems: 'center' }}>
-            <MuscleFigure view="front" width={FIG_H / 2} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
+            <MuscleFigure view="front" width={figW} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
               onPick={onPick('front')} testID="injury-figure-front" />
             <Mono size={11}>R FRONT L</Mono>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <MuscleFigure view="back" width={FIG_H / 2} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
+            <MuscleFigure view="back" width={figW} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
               onPick={onPick('back')} testID="injury-figure-back" />
             <Mono size={11}>L BACK R</Mono>
           </View>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.m, rowGap: space.xs, marginTop: space.s, minHeight: 48 }}>
+          {label ? (
+            <>
+              <Mono color={INJURY_AMBER} size={11}>SELECTED</Mono>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`${label}を外す`}
+                onPress={() => { set({ site: '', side: null }); setNear([]); }}
+                style={s.selected}
+              >
+                <T variant="titleM" color={INJURY_AMBER} testID="injury-selected">{label}</T>
+                <Icon name="close" size={18} color={INJURY_AMBER} />
+              </PressableScale>
+              <T variant="bodyS" color={colors.sub}>{siteDetail(form.site)}</T>
+            </>
+          ) : (
+            <T variant="bodyM" color={colors.sub}>前・後ろの図で、痛む場所を押す</T>
+          )}
         </View>
         {near.length > 1 && (
           <View style={{ marginTop: space.s }}>
