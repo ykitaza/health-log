@@ -1,7 +1,7 @@
 import type { GrowthDay, GrowthScore } from '../growth';
 import {
-  big3Range, goalA11yLabel, goalLine, goalRatio, goalStreakText, HOME_BIG3_MONTHS, homeBig3, homeGrowth, mealRecordTarget, previousTodo, scoreA11yLabel, scoreDiff,
-  scoreDiffSpoken, scorePillars, scoreText, scoreTotalText, shouldCelebrate, signedChange, weeklyGoalCardLabel, sleepNote, thisWeekVolume, todoAllDone,
+  big3Range, goalLine, HOME_BIG3_MONTHS, homeBig3, homeGrowth, mealRecordTarget, previousTodo, scoreA11yLabel, scoreDiff,
+  scoreDiffSpoken, scorePillars, scoreTotalText, signedChange, sleepNote, thisWeekVolume, todoAllDone,
   todoCount, todoWeeks, toggleTodo, weekRangeLabel, weeklyTodo,
 } from '../home';
 import { big3Trend, TrainingSetRow } from '../training';
@@ -135,20 +135,6 @@ describe('寝不足の日のひとこと', () => {
   });
 });
 
-describe('今週の目標の棒と読み上げ', () => {
-  test('届いたら満たす。目標がなければ 0', () => {
-    expect(goalRatio({ days: 2, goal: 3, reached: false })).toBeCloseTo(2 / 3);
-    expect(goalRatio({ days: 4, goal: 3, reached: true })).toBe(1);
-    expect(goalRatio({ days: 0, goal: 5, reached: false })).toBe(0);
-    expect(goalRatio({ days: 2, goal: null, reached: false })).toBe(0);
-  });
-
-  test('達成も言葉で伝える', () => {
-    expect(goalA11yLabel('筋トレ', '回', { days: 2, goal: 3, reached: false })).toBe('筋トレ 2回、目標 3回');
-    expect(goalA11yLabel('食事の記録', '日', { days: 6, goal: 5, reached: true })).toBe('食事の記録 6日、目標 5日、達成');
-  });
-});
-
 describe('今週やること', () => {
   // 今日は 2026-11-10（火）。今週は 11/9〜11/15、先週は 11/2〜11/8
   const TODAY = '2026-11-10';
@@ -239,25 +225,6 @@ describe('「記録する」の食事の行', () => {
   });
 });
 
-describe('今週の目標の連続と、達成のチェックを動かすか', () => {
-  test('今週を含む・含まない。0 なら出さない', () => {
-    expect(goalStreakText({ weeks: 3, thisWeek: true })).toBe('3週連続で達成');
-    expect(goalStreakText({ weeks: 2, thisWeek: false })).toBe('先週まで 2週連続で達成');
-    expect(goalStreakText({ weeks: 0, thisWeek: false })).toBeNull();
-  });
-  test('カード全体の読み上げ：達成・各行・連続と、押すと設定で変えられること', () => {
-    expect(weeklyGoalCardLabel(true, ['筋トレ 2回、目標 2回、達成', '食事の記録 3日、目標 3日、達成'], '3週連続で達成'))
-      .toBe('今週の目標をすべて達成。筋トレ 2回、目標 2回、達成。食事の記録 3日、目標 3日、達成。3週連続で達成。押すと設定で変えられます');
-    expect(weeklyGoalCardLabel(false, ['筋トレ 1回、目標 3回'], null)).toBe('今週の目標。筋トレ 1回、目標 3回。押すと設定で変えられます');
-  });
-  test('その週で初めて達成を見たときだけ動かす', () => {
-    expect(shouldCelebrate(true, '2026-11-09', null)).toBe(true);
-    expect(shouldCelebrate(true, '2026-11-09', '2026-11-02')).toBe(true); // 先週に動かした
-    expect(shouldCelebrate(true, '2026-11-09', '2026-11-09')).toBe(false); // 同じ週の2回目
-    expect(shouldCelebrate(false, '2026-11-09', null)).toBe(false);
-  });
-});
-
 describe('形の段：形の値・今日の衛星・成長スコア', () => {
   const gday = (date: string, p: Partial<GrowthDay> = {}): GrowthDay => ({
     date, trained: false, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: null, ...p,
@@ -282,7 +249,6 @@ describe('形の段：形の値・今日の衛星・成長スコア', () => {
   });
   test('記録が今日だけ：筋トレ 1/3 回（負荷量も回数の割合）・食事と睡眠は満点。先週の差は出せない', () => {
     const g = homeGrowth([gday('2026-11-08', { trained: true, volumeKg: 500, mealRecorded: true, mealGoalReached: true, sleepMin: 480 })], '2026-11-08', null);
-    expect(scoreText(g.score)).toBe('73');
     expect(scoreTotalText(g.score)).toBe('73 / 100');
     expect(scorePillars(g.score).map((p) => `${p.name} ${p.text}`)).toEqual(['筋トレ 13 / 40', '食事 30 / 30', '睡眠 30 / 30']);
     expect(scoreDiff(g.score!.diffFromLastWeek)).toBeNull();
@@ -303,7 +269,6 @@ describe('形の段：形の値・今日の衛星・成長スコア', () => {
     expect(scoreDiffSpoken(null)).toBeNull();
   });
   test('点が出せないときは「—」', () => {
-    expect(scoreText(null)).toBe('—');
     expect(scoreTotalText(null)).toBe('—');
     expect(scorePillars(null).map((p) => p.text)).toEqual(['—', '—', '—']);
     expect(scoreA11yLabel(null)).toBe('成長スコア まだ記録がありません。押すと内訳');

@@ -51,10 +51,10 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   const dayBox = await box(flow.getByTestId('recent-flow-day').first());
   expect(dayBox.width).toBeGreaterThanOrEqual(24);
   expect(dayBox.height).toBeCloseTo(51, 0);
-  // 左の列（MONTHLY ARCHIVE）と右の列（今週の目標）の下の端がそろう
+  // 左の列（MONTHLY ARCHIVE）と右の列（部位のバランス）の下の端がそろう
   const archive = await box(visible(page.getByTestId('archive')));
-  const goals = await box(visible(page.getByTestId('weekly-goals')));
-  expect(Math.abs(archive.y + archive.height - (goals.y + goals.height))).toBeLessThan(1);
+  const balance = await box(visible(page.getByTestId('home-part-balance')));
+  expect(Math.abs(archive.y + archive.height - (balance.y + balance.height))).toBeLessThan(1);
 
   // 押すと筋トレの記録のタブ：今日は空なので「部位ごとの前回」と、その下に前回のメニュー
   await card.click();
