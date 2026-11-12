@@ -26,11 +26,13 @@ type Props = {
   rowGap?: number;
   /** 曜日の下に線を引く */
   divider?: boolean;
+  /** カレンダー全体の読み上げ（印の意味など）。日のマスは今までどおり1日ずつ選べるよう、まとめない（accessible にしない） */
+  accessibilityLabel?: string;
   testID?: string;
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, accessibilityLabel, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
@@ -38,7 +40,7 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
   const grow = reduced ? undefined : ZoomIn.duration(duration.enter).easing(easeOut);
   return (
     <LayoutAnimationConfig skipEntering>
-      <View style={{ gap: rowGap }} testID={testID}>
+      <View style={{ gap: rowGap }} accessibilityLabel={accessibilityLabel} testID={testID}>
         <View style={[s.row, divider && s.divider]}>
           {WEEKDAY_EN.map((w) => (
             <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>

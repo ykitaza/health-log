@@ -54,6 +54,15 @@ export const growthColors = {
   sleep: '#B79CF0',
 } as const;
 
+/**
+ * 筋肉の図（components/MuscleFigure）の地の色（Figma「部品案：筋肉の図」）。muscle は筋肉のパーツ、body は頭・首・手・足。
+ * その日の部位の筋肉は colors.accent で塗る
+ */
+export const figureColors = {
+  muscle: '#4A515D',
+  body: '#343A44',
+} as const;
+
 /** 入力のヒント（placeholder）の色 */
 export const placeholderColor = colors.sub;
 
