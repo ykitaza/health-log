@@ -12,6 +12,8 @@ import { bodyFat, fakeHealthConnect as hc, heartRate, leanMass, restingHeartRate
 import { memoryDb, testDeps } from '@/test-utils/nodeDb';
 import { Device, device } from '@/test-utils/syncHarness';
 
+// jest.mock の中身は import より先に巻き上げられるため、import ではなく require で読む
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-health-connect', () => require('@/test-utils/fakeHealthConnect').module);
 
 beforeEach(() => hc.reset());

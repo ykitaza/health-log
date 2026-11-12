@@ -5,7 +5,8 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    // 生成物（.gitignore と同じもの）。手元で lint 全体を流したときに拾わないようにする
+    ignores: ['dist/*', 'test-results/*', 'playwright-report/*', '.expo/*', 'ios/*', 'android/*'],
   },
   {
     rules: {
