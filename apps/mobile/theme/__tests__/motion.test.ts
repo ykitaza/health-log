@@ -76,6 +76,10 @@ describe('グラフ', () => {
     expect(duration.draw).toBe(600);
   });
 
+  test('レーダーは気づける長さ（1200ms）でゆっくり広げる', () => {
+    expect(duration.radar).toBe(1200);
+  });
+
   test('棒は 40ms ずつずらす', () => {
     expect([0, 1, 2, 3].map((i) => barDelay(i, 4, false))).toEqual([0, 40, 80, 120]);
   });

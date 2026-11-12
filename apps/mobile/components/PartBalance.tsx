@@ -27,11 +27,11 @@ const SIN = BALANCE_PARTS.map((_, i) => Math.sin(axisAngle(i)));
 /**
  * 部位のバランスのカード。見出し「部位のバランス」と「2週」、レーダー（目盛り3段・軸の線・データの面と線と点・軸の名前）。
  * 最大の軸を外周にそろえる。記録がなければ目盛りだけと、短い一言。押すと筋トレの推移（部位ごとの総負荷量の棒がある）。
- * 初めて見せるときは中心から外へ広がり（600ms、ease-out）、値が変わったら前の形から新しい形へ（hooks/entrance.ts）
+ * ホームが見えるたびに中心から外へ広がり（1200ms、ease-out）、見えているあいだに値が変わったら前の形から新しい形へ（hooks/entrance.ts）
  */
 export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
   const ratios = balance && balance.total > 0 ? balance.ratios : null;
-  const { fresh, prev } = useEntrance('home-part-balance', ratios, ratios ? ratios.map((r) => r.toFixed(4)).join(',') : null);
+  const { token, prev } = useEntrance(ratios, ratios ? ratios.map((r) => r.toFixed(4)).join(',') : null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   return (
     <PressableScale
@@ -44,7 +44,7 @@ export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
       </View>
       <View style={{ flex: 1, minHeight: 96 }} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
         {size && size.w > PAD_L + PAD_R && (
-          <Radar width={size.w} height={size.h} to={ratios} from={fresh ? prev ?? ZEROS : ratios} animate={fresh} />
+          <Radar width={size.w} height={size.h} to={ratios} from={prev ?? ZEROS} token={token} />
         )}
       </View>
       {balance != null && ratios == null && (
@@ -56,23 +56,22 @@ export function PartBalanceCard({ balance }: { balance: PartBalance | null }) {
   );
 }
 
-function Radar({ width, height, from, to, animate }: { width: number; height: number; from: number[] | null; to: number[] | null; animate: boolean }) {
+function Radar({ width, height, from, to, token }: { width: number; height: number; from: number[]; to: number[] | null; token: number }) {
   const reduced = useReducedMotion();
   const R = Math.max(0, Math.min((width - PAD_L - PAD_R) / 2, (height - PAD_Y * 2) / Math.sqrt(3)));
   const cx = PAD_L + (width - PAD_L - PAD_R) / 2, cy = height / 2;
   const at = (i: number, r: number) => ({ x: cx + r * COS[i], y: cy + r * SIN[i] });
   const ring = (k: number) => `${BALANCE_PARTS.map((_, i) => { const p = at(i, R * k); return `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`; }).join('')}Z`;
   const axes = BALANCE_PARTS.map((_, i) => { const p = at(i, R); return `M${cx},${cy}L${p.x},${p.y}`; }).join('');
-  const moving = animate && !reduced && to != null;
-  const sig = to?.join(',') ?? '';
+  const moving = !reduced && to != null;
   const progress = useSharedValue(moving ? 0 : 1);
   useEffect(() => {
     if (!moving) { progress.set(1); return; }
     progress.set(0);
-    progress.set(withTiming(1, { duration: duration.draw, easing: easeOut }));
-    // 値（sig）が変わったときだけ動かし直す
+    progress.set(withTiming(1, { duration: duration.radar, easing: easeOut }));
+    // 動かすのは合図（token）が来たときだけ
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moving, sig]);
+  }, [moving, token]);
   const shape = to && to.map((v, i) => at(i, R * v));
   return (
     <Svg width={width} height={height}>
@@ -87,8 +86,8 @@ function Radar({ width, height, from, to, animate }: { width: number; height: nu
       <Path d={axes} stroke={colors.outline} strokeWidth={1} />
       {shape && to && (moving ? (
         <>
-          <MovingShape from={from ?? ZEROS} to={to} cx={cx} cy={cy} R={R} progress={progress} />
-          {to.map((v, i) => <MovingDot key={i} i={i} from={(from ?? ZEROS)[i]} to={v} cx={cx} cy={cy} R={R} progress={progress} />)}
+          <MovingShape from={from} to={to} cx={cx} cy={cy} R={R} progress={progress} />
+          {to.map((v, i) => <MovingDot key={i} i={i} from={(from)[i]} to={v} cx={cx} cy={cy} R={R} progress={progress} />)}
         </>
       ) : (
         <>

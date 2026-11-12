@@ -18,13 +18,13 @@ export function CountUpText({ value, format, animKey, ...text }: Omit<ComponentP
 }
 
 /**
- * ホームの大きな数字の数え上げ（hooks/entrance.ts の useCountTo）。countKey は数字の場所の名前（同じ名前は1か所だけ）。
+ * ホームの大きな数字の数え上げ（hooks/entrance.ts の useCountTo）。
  * format には読み込む前（null）も渡す。親を毎フレーム描き直さないよう、数字だけの部品にしている
  */
-export function CountToText({ countKey, value, format, ...text }: Omit<ComponentProps<typeof T>, 'children'> & {
-  countKey: string; value: number | null; format: (v: number | null) => string;
+export function CountToText({ value, format, ...text }: Omit<ComponentProps<typeof T>, 'children'> & {
+  value: number | null; format: (v: number | null) => string;
 }) {
-  const shown = useCountTo(countKey, value);
+  const shown = useCountTo(value);
   return <T {...text}>{format(shown)}</T>;
 }
 
@@ -36,16 +36,15 @@ const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 /**
  * グラフを描く動きの進み（0〜1）。開いたときと animKey（期間など）が変わったときに 0 から描き直す。
  * データの読み直しやスクロールでは描き直さない。動きを減らす設定なら、はじめから描き終わった形。
- * still なら描き直さず、描き終わった形（ホームで、前に見せたのと同じ線を作り直したとき）
  */
-function useDrawProgress(animKey: string | undefined, total: number, still = false) {
+function useDrawProgress(animKey: string | undefined, total: number) {
   const reduced = useReducedMotion();
-  const progress = useSharedValue(reduced || still ? 1 : 0);
+  const progress = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
-    if (reduced || still) { progress.set(1); return; }
+    if (reduced) { progress.set(1); return; }
     progress.set(0);
     progress.set(withTiming(1, { duration: total, easing: easeOut }));
-  }, [animKey, reduced, still, total, progress]);
+  }, [animKey, reduced, total, progress]);
   return { progress, reduced };
 }
 
@@ -176,8 +175,8 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
  * 目盛りのない小さな折れ線（ホームのカード）。points の x は 0〜1。最後の点に丸。
  * 描き方は LineChart と同じ（左から描かれ、線が通ったあとに丸が出る。動きを減らす設定なら描き終わった形）
  */
-export function Sparkline({ points, height = 44, animKey, still = false }: { points: Point[]; height?: number; animKey?: string; still?: boolean }) {
-  const { progress, reduced } = useDrawProgress(animKey, duration.draw, still);
+export function Sparkline({ points, height = 44, animKey }: { points: Point[]; height?: number; animKey?: string }) {
+  const { progress, reduced } = useDrawProgress(animKey, duration.draw);
   const [width, setWidth] = useState(120);
   const pad = 4;
   const ys = points.map((p) => p.y);

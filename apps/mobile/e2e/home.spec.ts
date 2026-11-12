@@ -208,3 +208,17 @@ test('形の段：アカウントの写真・月・歯車・成長スコア・�
   await expect(sheet.getByTestId('growth-score-week')).toHaveText('先週との差↑ +34');
 });
 
+
+test('タブを移ってホームに戻ると、数え上げをやり直して最後の値に着く', async ({ page }) => {
+  await recordOn(page, TODAY, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
+  await moveToDate(page, TODAY);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await expect(visible(page, 'volume-week')).toContainText('0.64t');
+  await goTab(page, '食事');
+  await goTab(page, 'ホーム');
+  // 0 から数え直したあと、最後の値になる（動きの途中は web の確認では捉えない）
+  await expect(visible(page, 'volume-week')).toContainText('0.64t');
+  await expect(visible(page, 'home-part-balance')).toBeVisible();
+  expect(errors).toEqual([]);
+});
