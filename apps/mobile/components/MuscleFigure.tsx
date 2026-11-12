@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Pressable, View, ViewInstance } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
 import type { InjuryStatus, Side } from '@/lib/injuries';
@@ -43,6 +43,7 @@ type Props = {
  * 前の図は画面の左が本人の右、後ろの図は画面の左が本人の左
  */
 export function MuscleFigure({ name, view: injuryView, width, height, marks = [], selected, onPick, testID }: Props) {
+  const box = useRef<ViewInstance>(null);
   const spec = name != null && injuryView == null ? muscleFigureFor(name) : null;
   const view = injuryView ?? spec?.view ?? 'front';
   const painted = new Set(spec?.muscles ?? []);
@@ -103,9 +104,14 @@ export function MuscleFigure({ name, view: injuryView, width, height, marks = []
       testID={testID}
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
+      ref={box}
       onPress={(e) => {
-        const p = { x: e.nativeEvent.locationX / scale, y: e.nativeEvent.locationY / scale };
-        onPick(pickTarget(view, p), p);
+        // 押した位置は画面の座標から図の左上を引いて求める（locationX は、web では押した中の要素（筋肉のパス）からの位置になるため）
+        const { pageX, pageY } = e.nativeEvent;
+        box.current?.measure((_x, _y, _w, _h, left, top) => {
+          const p = { x: (pageX - left) / scale, y: (pageY - top) / scale };
+          onPick(pickTarget(view, p), p);
+        });
       }}
       style={{ width, height }}
     >

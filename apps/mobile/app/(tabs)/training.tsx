@@ -2,24 +2,25 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { DateSwitcher, DayPickerSheet, NotTodayRow, SwipeArea, usePageSlide } from '@/components/DayPicker';
+import { InjuryListContent } from '@/components/injuries';
 import { Screen } from '@/components/Screen';
 import { TrainingTrend } from '@/components/TrainingTrend';
-import { IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
+import { Fab, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
 import { WorkoutDayContent, WorkoutFooter } from '@/components/WorkoutDay';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
-import { space } from '@/theme';
+import { size, space } from '@/theme';
 
-type Pane = 'record' | 'trend';
+type Pane = 'record' | 'trend' | 'injury';
 
 /** ほかの画面から開くときの view（前の名前の today・history も受ける） */
 const paneOf = (v: string | undefined): Pane | null =>
-  v === 'record' || v === 'today' ? 'record' : v === 'trend' || v === 'history' ? 'trend' : null;
+  v === 'record' || v === 'today' ? 'record' : v === 'trend' || v === 'history' ? 'trend' : v === 'injury' ? 'injury' : null;
 
 /**
- * 筋トレのタブ。上の切り替え（M3 の primary tabs）で「記録」と「推移」（グラフ）を分ける。
+ * 筋トレのタブ。上の切り替え（M3 の primary tabs）で「記録」と「推移」（グラフ）と「ケガ」（ケガの記録の一覧。右下に「ケガを記録」）を分ける。
  * 記録は、上の日付の切り替え（前の日・次の日、日付を押すと「日を選ぶ」のシート、左右のスワイプ）で選んだ日のトレーニングを見て直す。
  * 未来の日へは進めない。ほかの画面から date を渡して開くと、その日の記録になる（/workout?date= もここへ移る）。右上に RM計算機の入口
  */
@@ -49,34 +50,40 @@ export default function TrainingScreen() {
   useBackToToday(view !== 'record' || date === today, () => goTo(today));
   const openDay = (d: string) => { setDate(d); setView('record'); };
 
+  const injury = view === 'injury';
   return (
-    <Screen tab footer={view === 'record' ? <WorkoutFooter date={date} /> : undefined}>
-      <TabHeader title="筋トレ" actions={<IconButton name="calc" label="RM計算機" onPress={() => router.push('/rm')} />} />
-      <PrimaryTabs<Pane>
-        options={[{ key: 'record', label: '記録', icon: 'dumbbell' }, { key: 'trend', label: '推移', icon: 'chart' }]}
-        value={view}
-        onChange={setView}
-      />
-      {view === 'record' ? (
-        <SwipeArea
-          slide={slide} onSwipe={move} canNext={date < today} hint="training-day" testID="training-day"
-          header={(
-            <DateSwitcher
-              label={formatJpDate(date)} prevLabel="前の日" nextLabel="次の日" canNext={date < today}
-              onPrev={() => slide.go('prev', () => move('prev'))} onNext={() => slide.go('next', () => move('next'))}
-              onPick={() => setPicking(true)} style={{ marginTop: space.l }}
-            />
-          )}
-        >
-          {date !== today && <NotTodayRow onToday={() => goTo(today)} />}
-          <WorkoutDayContent date={date} />
-        </SwipeArea>
-      ) : (
-        <View style={{ marginTop: 8 }}>
-          <TrainingTrend onOpenDay={openDay} />
-        </View>
-      )}
-      <DayPickerSheet visible={picking} kind="training" value={date} today={today} onClose={() => setPicking(false)} onPick={goTo} />
-    </Screen>
+    <View style={{ flex: 1 }}>
+      <Screen tab footer={view === 'record' ? <WorkoutFooter date={date} /> : undefined} fab={injury} bottomSpace={injury ? size.fab + space.l * 2 : undefined}>
+        <TabHeader title="筋トレ" actions={<IconButton name="calc" label="RM計算機" onPress={() => router.push('/rm')} />} />
+        <PrimaryTabs<Pane>
+          options={[{ key: 'record', label: '記録', icon: 'dumbbell' }, { key: 'trend', label: '推移', icon: 'chart' }, { key: 'injury', label: 'ケガ', icon: 'alert' }]}
+          value={view}
+          onChange={setView}
+        />
+        {view === 'record' ? (
+          <SwipeArea
+            slide={slide} onSwipe={move} canNext={date < today} hint="training-day" testID="training-day"
+            header={(
+              <DateSwitcher
+                label={formatJpDate(date)} prevLabel="前の日" nextLabel="次の日" canNext={date < today}
+                onPrev={() => slide.go('prev', () => move('prev'))} onNext={() => slide.go('next', () => move('next'))}
+                onPick={() => setPicking(true)} style={{ marginTop: space.l }}
+              />
+            )}
+          >
+            {date !== today && <NotTodayRow onToday={() => goTo(today)} />}
+            <WorkoutDayContent date={date} />
+          </SwipeArea>
+        ) : view === 'trend' ? (
+          <View style={{ marginTop: 8 }}>
+            <TrainingTrend onOpenDay={openDay} />
+          </View>
+        ) : (
+          <InjuryListContent />
+        )}
+        <DayPickerSheet visible={picking} kind="training" value={date} today={today} onClose={() => setPicking(false)} onPick={goTo} />
+      </Screen>
+      {injury && <Fab label="ケガを記録" onPress={() => router.push('/injuries/new')} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="injury-new" />}
+    </View>
   );
 }
