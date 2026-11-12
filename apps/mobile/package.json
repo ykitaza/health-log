@@ -67,7 +67,15 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "<rootDir>/e2e/"
-    ]
+    ],
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|three))",
+      "/node_modules/react-native-reanimated/plugin/",
+      "/node_modules/@react-native/babel-preset/"
+    ],
+    "moduleNameMapper": {
+      "^three$": "<rootDir>/node_modules/three/build/three.module.js"
+    }
   },
   "overrides": {
     "glob@>=9 <14.0.2": "^14.0.4",
