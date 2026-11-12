@@ -74,7 +74,8 @@
       "torelog": {
         "clientId": "3evio7n5uuik3u1jlshp1ld645",
         "cognitoDomain": "https://oidc-study-969624666976.auth.ap-northeast-1.amazoncognito.com",
-        "apiUrl": "https://av0h5py0qa.execute-api.ap-northeast-1.amazonaws.com"
+        "apiUrl": "https://av0h5py0qa.execute-api.ap-northeast-1.amazonaws.com",
+        "authzUrl": "https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com"
       }
     },
     "owner": "ponchulove"
