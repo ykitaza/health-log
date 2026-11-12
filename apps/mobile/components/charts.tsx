@@ -1,4 +1,4 @@
-import { ComponentProps, useEffect, useRef, useState } from 'react';
+import { ComponentProps, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Easing, LayoutChangeEvent, View } from 'react-native';
 import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
@@ -36,11 +36,12 @@ const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 /**
  * グラフを描く動きの進み（0〜1）。開いたときと animKey（期間など）が変わったときに 0 から描き直す。
  * データの読み直しやスクロールでは描き直さない。動きを減らす設定なら、はじめから描き終わった形。
+ * 描く前に 0 に戻す（戻った直後に描き終わった形が1フレーム見えないよう、useLayoutEffect）
  */
 function useDrawProgress(animKey: string | undefined, total: number) {
   const reduced = useReducedMotion();
   const progress = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (reduced) { progress.set(1); return; }
     progress.set(0);
     progress.set(withTiming(1, { duration: total, easing: easeOut }));

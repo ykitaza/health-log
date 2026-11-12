@@ -1,6 +1,6 @@
 // ホームの右列のいちばん下「部位のバランス」（Figma ホーム 1-23）。直近2週の部位ごとのセット数を六角形のレーダーで
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -65,7 +65,7 @@ function Radar({ width, height, from, to, token }: { width: number; height: numb
   const axes = BALANCE_PARTS.map((_, i) => { const p = at(i, R); return `M${cx},${cy}L${p.x},${p.y}`; }).join('');
   const moving = !reduced && to != null;
   const progress = useSharedValue(moving ? 0 : 1);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!moving) { progress.set(1); return; }
     progress.set(0);
     progress.set(withTiming(1, { duration: duration.radar, easing: easeOut }));
