@@ -2,12 +2,13 @@
 import { router, useIsFocused } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncStore } from '@/db/repositories/sync';
 import { useGoalStreak, useGrowthData, useWeeklyAchievement } from '@/hooks/data';
 import { useGrowthShape } from '@/hooks/growthShape';
+import { useProfile } from '@/hooks/profile';
 import { NOTICE_MS, useSync } from '@/hooks/sync';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/date';
 import { allGoalsReached, GoalProgress } from '@/lib/goals';
@@ -16,10 +17,12 @@ import {
   goalA11yLabel, goalRatio, goalStreakText, GROWTH_SCORE_NOTE, homeGrowth, mealRecordTarget, scoreA11yLabel, scoreDiff,
   scoreDiffSpoken, scorePillars, scoreText, scoreTotalText, shouldCelebrate, WEEKLY_GOALS_SECTION, weeklyGoalCardLabel,
 } from '@/lib/home';
+import { HOME_ACCOUNT_LABEL } from '@/lib/profile';
 import { DEFAULT_SHAPE, growthStageLabel } from '@/lib/shapes/labels';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
 import { colors, radius, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
+import { Avatar } from './Avatar';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { GrowthShape } from './growth/GrowthShape';
 import { Icon, IconName } from './Icon';
@@ -29,20 +32,25 @@ import { SettingsButton, Snackbar } from './ui';
 
 /** 形の段の高さ（ステータスバーの下まで含める） */
 const STAGE_HEIGHT = 228;
-/** 形の段の上の行（アイコン・月・歯車）と下の行（成長スコア・成長を見る）の高さ。押せる大きさ（48） */
+/** 形の段の上の行（写真・月・歯車）と下の行（成長スコア・成長を見る）の高さ。押せる大きさ（48） */
 const STAGE_ROW = size.touch;
 /** 形の箱の下の端と、段の下の端のあいだ（形と軌道が下の行に重なりすぎないように） */
 const SHAPE_BOTTOM_GAP = 8;
 
+/** 左上のアカウントの写真の大きさ */
+const AVATAR_SIZE = 40;
+
 /** 成長を見る画面を開く */
 const openGrowth = () => router.push('/growth');
+/** アカウントの画面を開く */
+const openAccount = () => router.push('/account');
 
 /** 先週との差の色（上がった・下がった・同じ。向きは矢印と符号でも伝える） */
 const diffColor = (dir: 'up' | 'down' | 'flat') => (dir === 'up' ? colors.accent : dir === 'down' ? colors.danger : colors.sub);
 
 /**
  * ホームのいちばん上の「記録で育つ形」の段（高さ 228。ステータスバーの下まで含め、中身と一緒にスクロールする）。
- * 上の行：アプリのアイコンと、カレンダーの月の見出し、設定の歯車。まん中：形（押すと成長を見る画面）。
+ * 上の行：アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）と、カレンダーの月の見出し、設定の歯車。まん中：形（押すと成長を見る画面）。
  * 下の行：成長スコア（押すと内訳のシート）と「成長を見る」。地は画面と同じ色なので、段の下の端はそのまま下の中身へつながる
  */
 export function GrowthStage({ today, year, month }: { today: DateKey; year: number; month: number }) {
@@ -50,6 +58,7 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
   const focused = useIsFocused();
   const { data } = useGrowthData(today);
   const { shape } = useGrowthShape();
+  const profile = useProfile();
   const [open, setOpen] = useState(false);
   const growth = useMemo(() => homeGrowth(data?.days ?? [], today, data?.weeklyTrainingGoal ?? null), [data, today]);
   const score = data ? growth.score : null;
@@ -73,10 +82,12 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
         )}
       </PressableScale>
       <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">
-        <Image
-          source={require('@/assets/images/icon.png')} style={s.appIcon}
-          accessible accessibilityRole="image" accessibilityLabel="hlog" testID="home-app-icon"
-        />
+        <PressableScale
+          accessibilityRole="button" accessibilityLabel={HOME_ACCOUNT_LABEL} scaleTo={0.92} onPress={openAccount}
+          style={s.account} testID="home-account"
+        >
+          <Avatar uri={profile.photoUri} size={AVATAR_SIZE} />
+        </PressableScale>
         <T num bold size={28} accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
         <View style={{ marginRight: -12 }}><SettingsButton /></View>
       </View>
@@ -353,7 +364,8 @@ const s = StyleSheet.create({
   // 画面の左右の余白（Screen の paddingHorizontal）の外まで広げる
   stage: { marginHorizontal: -space.screen, backgroundColor: colors.bg },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: STAGE_ROW, paddingHorizontal: space.screen },
-  appIcon: { width: 32, height: 32, borderRadius: radius.s },
+  // 押せる大きさは 48。写真（40）の左の端を、画面の左の余白（16）にそろえる
+  account: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center', marginLeft: -(size.touch - AVATAR_SIZE) / 2 },
   score: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: size.touch, minWidth: size.touch },
   growthLink: { minHeight: size.touch, justifyContent: 'center', paddingLeft: space.s },
 });

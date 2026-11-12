@@ -10,8 +10,8 @@ export async function setDate(page: Page, date: string) {
   await page.clock.setFixedTime(new Date(`${date}T10:00:00+09:00`));
 }
 
-/** ホームのいちばん上（形の段）のアプリのアイコン。ホームが出ていることを確かめるのに使う */
-export const homeIcon = (page: Page) => page.getByTestId('home-app-icon').filter({ visible: true });
+/** ホームのいちばん上（形の段）の左のアカウントの写真（なければアプリのアイコン）。ホームが出ていることを確かめるのに使う */
+export const homeIcon = (page: Page) => page.getByTestId('home-account').filter({ visible: true });
 
 /** 日付を固定してホームを開く。新しいコンテキストなので、データはまっさら */
 export async function openApp(page: Page, date = TODAY) {
@@ -246,36 +246,18 @@ export async function enterBody(page: Page, values: { weight?: string; bodyFat?:
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
 }
 
-/** 設定（ホームか体組成の歯車から）で身長・目標体重を入れて、元の画面に戻る */
-export async function setBodyInfo(page: Page, info: { height?: string; goal?: string }) {
+/** 設定（どのタブの歯車からでも）の「アカウント」の行から、アカウントの画面を開く */
+export async function openAccountFromSettings(page: Page) {
   await openSettings(page);
+  await page.getByTestId('settings-account').filter({ visible: true }).click();
+  await expect(see(page, 'プロフィール', { exact: true })).toBeVisible();
+}
+
+/** アカウントの画面（設定から）で身長・目標体重を入れて、元の画面に戻る */
+export async function setBodyInfo(page: Page, info: { height?: string; goal?: string }) {
+  await openAccountFromSettings(page);
   if (info.height !== undefined) await enter(page, '身長', info.height);
   if (info.goal !== undefined) await enter(page, '目標体重', info.goal);
   await button(page, '戻る').click();
-}
-
-/**
- * 入力欄から離れずに（blur を起こさずに）ボタンを押す。Android の ScrollView（keyboardShouldPersistTaps="handled"）では、
- * 子のボタンを押しても入力欄はフォーカスを失わない。web では押すと先に blur が起きるので、mousedown の既定の動き
- * （フォーカスを移す）を止めて、Android と同じ順にする。押したあとも入力欄にフォーカスが残っていることを確かめる
- */
-export async function pressKeepingFocus(target: Locator) {
-  const page = target.page();
-  type W = { __keepFocus?: (e: MouseEvent) => void; __focused?: Element | null };
-  expect(await page.evaluate(() => {
-    const w = window as unknown as W;
-    w.__focused = document.activeElement;
-    w.__keepFocus = (e: MouseEvent) => e.preventDefault();
-    document.addEventListener('mousedown', w.__keepFocus, true);
-    return w.__focused?.tagName ?? null;
-  })).toBe('INPUT');
-  try {
-    await target.click();
-  } finally {
-    await page.evaluate(() => {
-      const w = window as unknown as W;
-      if (w.__keepFocus) document.removeEventListener('mousedown', w.__keepFocus, true);
-    });
-  }
-  expect(await page.evaluate(() => document.activeElement === (window as unknown as W).__focused)).toBe(true);
+  await button(page, '戻る').click();
 }

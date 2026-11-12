@@ -27,7 +27,7 @@ async function connect(page: Page, context: BrowserContext, server: FakeSyncServ
 /** ログインして同期し、ホームに戻る */
 async function signInAndSync(page: Page) {
   await openSettings(page);
-  await page.getByRole('button', { name: /^ログイン ログイン/ }).click();
+  await page.getByTestId('settings-account').click();
   await button(page, 'パスキーでログイン').click();
   await expect(page.getByTestId('sync-pending').filter({ visible: true })).toHaveText('0件');
   await button(page, '戻る').click();

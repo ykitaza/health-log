@@ -62,7 +62,7 @@ export default function BodyTrendScreen() {
       <View style={{ marginTop: space.s }}>
         <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
       </View>
-      {metric === 'bmi' && height == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、設定で身長を入れると出ます</T>}
+      {metric === 'bmi' && height == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、アカウントの画面で身長を入れると出ます</T>}
       {!last ? (
         <EmptyState icon="chart" title="この期間の記録がありません" body="からだのタブで記録すると、ここに推移が出ます" />
       ) : (

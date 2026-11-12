@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, controlDb, enter, enterBody, goPane, goTab, homeCard, openApp, openBody, openBodySheet, openSettings, pressKeepingFocus, recordToday, saveButton, see, setBodyInfo, recordFromHome } from './helpers';
+import { button, chooseExercise, chooseUnit, enter, enterBody, goPane, goTab, homeCard, openAccountFromSettings, openApp, openBody, openBodySheet, openSettings, recordToday, saveButton, see, setBodyInfo, recordFromHome } from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -29,9 +29,11 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   // lb にする（からだの歯車から）
   await openSettings(page);
   await chooseUnit(page, 'lb');
-  // 目標体重の欄も lb で出る：65 ÷ 0.45359237 = 143.30
+  // アカウントの画面の目標体重の欄も lb で出る：65 ÷ 0.45359237 = 143.30
+  await page.getByTestId('settings-account').click();
   await expect(page.getByRole('textbox', { name: '目標体重' })).toHaveValue('143.3');
   await expect(see(page, 'lb', { exact: true }).last()).toBeVisible();
+  await button(page, '戻る').click();
   await button(page, '戻る').click();
 
   // からだ：70kg = 154.32lb、目標 143.3lb、残り 11.0lb
@@ -74,7 +76,9 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   // kg に戻すと元の値
   await openSettings(page);
   await chooseUnit(page, 'kg');
+  await page.getByTestId('settings-account').click();
   await expect(page.getByRole('textbox', { name: '目標体重' })).toHaveValue('65');
+  await button(page, '戻る').click();
   // CSV は kg のまま書き出す
   await page.getByRole('button', { name: /^筋トレの記録を CSV で書き出す/ }).click();
   await expect.poll(async () => (await shared(page)).length).toBe(1);
@@ -140,9 +144,9 @@ test('休憩のタイマーと今週の目標：初期値が選ばれ、選び�
   await expect(button(page, '睡眠、4日')).toHaveAttribute('aria-selected', 'false');
 });
 
-test('身長と目標体重の不正な値はエラーを出し、空にすると消える。lb の表示では範囲を lb で出す', async ({ page }) => {
+test('身長と目標体重（アカウントの画面）の不正な値はエラーを出し、空にすると消える。lb の表示では範囲を lb で出す', async ({ page }) => {
   await openApp(page);
-  await openSettings(page);
+  await openAccountFromSettings(page);
   await enter(page, '身長', '99.9');
   await expect(see(page, '身長は 100〜250cm で入れてください')).toBeVisible();
   await enter(page, '身長', '250');
@@ -151,13 +155,16 @@ test('身長と目標体重の不正な値はエラーを出し、空にする�
   await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeVisible();
   await enter(page, '目標体重', '60.5');
   await expect(see(page, '目標体重は 30〜300kg で入れてください')).toBeHidden();
+  await button(page, '戻る').click();
 
-  // lb にすると、範囲を lb で出す（30〜300kg = 66.14〜661.39lb を、範囲の内側に丸める）
+  // 設定で lb にすると、範囲を lb で出す（30〜300kg = 66.14〜661.39lb を、範囲の内側に丸める）
   await chooseUnit(page, 'lb');
+  await page.getByTestId('settings-account').click();
   await enter(page, '目標体重', '661.4');
   await expect(see(page, '目標体重は 66.2〜661.3lb で入れてください')).toBeVisible();
   await enter(page, '目標体重', '661.3');
   await expect(see(page, /目標体重は .*で入れてください/)).toHaveCount(0);
+  await button(page, '戻る').click();
   await button(page, '戻る').click();
 
   await openBody(page);
@@ -172,7 +179,7 @@ test('身長と目標体重の不正な値はエラーを出し、空にする�
 
   // 身長を空にすると消える
   await setBodyInfo(page, { height: '' });
-  await expect(see(page, 'BMI は、設定で身長を入れると出ます')).toBeVisible();
+  await expect(see(page, 'BMI は、アカウントの画面で身長を入れると出ます')).toBeVisible();
 });
 
 test('CSV：共有のメニューに渡す。閉じただけならエラーを出さず、共有が使えないときはエラーを出す', async ({ page }) => {
@@ -208,68 +215,30 @@ test('CSV：共有のメニューに渡す。閉じただけならエラーを�
   await expect(see(page, '共有のメニューを開けなかったため、CSV を書き出せませんでした。')).toBeVisible();
 });
 
-test('身長を入れたまま単位を押しても、身長と単位の両方を保存する', async ({ page }) => {
-  // 欄を離れたときの保存と、単位の保存が同時に走る。トランザクションが入れ子になって片方が失敗していた
+// 体の情報（身長・目標体重）はアカウントの画面、重さの単位は設定の画面にある。同じ画面で「入れたまま単位を押す」ことはもうない
+test('アカウントの画面で入れた身長と目標体重は保存され、設定で単位を変えると目標体重はその単位で出る（再読み込みしても残る）', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await openApp(page);
-  await openSettings(page);
-  await page.getByRole('textbox', { name: '身長' }).fill('170');
-  await button(page, 'lb').click();
-  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('textbox', { name: '目標体重' }).fill('150');
+  await openAccountFromSettings(page);
+  const height = page.getByRole('textbox', { name: '身長' });
+  const goal = page.getByRole('textbox', { name: '目標体重' });
+  await enter(page, '身長', '170');
+  await enter(page, '目標体重', '70');
+  await button(page, '戻る').click();
+  await chooseUnit(page, 'lb');
   await button(page, '5セット').click();
   await expect(button(page, '5セット')).toHaveAttribute('aria-selected', 'true');
   await button(page, '戻る').click();
   await openBody(page);
-  await openSettings(page);
-  await expect(page.getByRole('textbox', { name: '目標体重' })).toHaveValue('150');
-  await page.reload();
-  await expect(page.getByRole('textbox', { name: '身長' })).toHaveValue('170');
-  await expect(page.getByRole('textbox', { name: '目標体重' })).toHaveValue('150');
-  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
-  await expect(button(page, '5セット')).toHaveAttribute('aria-selected', 'true');
-  expect(errors).toEqual([]);
-});
-
-test('欄を離れないまま（Android のように blur が起きずに）単位を押しても、入れた値を前の単位で保存する', async ({ page }) => {
-  await openApp(page);
-  await openSettings(page);
-  const height = page.getByRole('textbox', { name: '身長' });
-  const goal = page.getByRole('textbox', { name: '目標体重' });
-  await height.fill('170');
-  await pressKeepingFocus(button(page, 'lb'));
-  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
-  await expect(height).toHaveValue('170');
-  // lb で入れた目標体重は、kg に押し戻す前に lb のまま保存する（150lb = 68.04kg）
-  await goal.fill('150');
-  await pressKeepingFocus(button(page, 'kg'));
-  await expect(button(page, 'kg')).toHaveAttribute('aria-selected', 'true');
-  await expect(goal).toHaveValue('68.04');
-  await page.reload();
-  await expect(height).toHaveValue('170');
-  await expect(goal).toHaveValue('68.04');
-});
-
-test('身長と目標体重の保存が終わる前に単位を変えても、欄は保存したあとの値を出す', async ({ page }) => {
-  // 欄を離れたときの保存と、単位の保存・読み直しが重なるときを、DB の返事を止めて毎回作る
-  const db = await controlDb(page);
-  await openApp(page);
-  await openSettings(page);
-  const height = page.getByRole('textbox', { name: '身長' });
-  const goal = page.getByRole('textbox', { name: '目標体重' });
-  await db.hold();
-  await height.fill('170');
-  await goal.fill('70'); // 身長の欄を離れて保存する（返事は止まっている）
-  await button(page, 'lb').click(); // 目標体重の欄を離れて kg で保存し、単位を lb にする
-  await db.release();
-  await expect(button(page, 'lb')).toHaveAttribute('aria-selected', 'true');
+  await openAccountFromSettings(page);
   // 70kg = 154.32lb
   await expect(goal).toHaveValue('154.32');
   await expect(height).toHaveValue('170');
   await page.reload();
   await expect(goal).toHaveValue('154.32');
   await expect(height).toHaveValue('170');
+  expect(errors).toEqual([]);
 });
 
 test('設定のいちばん下にアプリの版が出る（web は開発版）', async ({ page }) => {

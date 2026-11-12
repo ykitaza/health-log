@@ -383,6 +383,7 @@ describe('別のアカウントでログインし直したとき（docs/sync-des
     await d.r.settings.update({ weightUnit: 'lb' });
     await d.r.settings.setProfile({ sex: 'male', birthYear: 1990 });
     await d.r.settings.setAutoGoalWeight(70);
+    await d.r.settings.setAccountProfile({ displayName: 'たろう', photoUri: 'file:///data/profile/photo-1.jpg' });
 
     const serverB = createFakeSyncServer({ clock: () => '2026-11-08T04:00:00.000Z' });
     serverB.append([
@@ -396,6 +397,8 @@ describe('別のアカウントでログインし直したとき（docs/sync-des
     expect((await d.r.settings.get()).weightUnit).toBe('kg');
     expect(await d.r.settings.profile()).toEqual({ sex: null, birthYear: null });
     expect(await d.r.settings.autoGoalWeight()).toBeNull();
+    // 表示名と写真は端末の持ち主のものなので残す
+    expect(await d.r.settings.accountProfile()).toEqual({ displayName: 'たろう', photoUri: 'file:///data/profile/photo-1.jpg' });
     expect((await d.r.catalog.listExercises()).length).toBe(SEED_EXERCISES.length);
 
     expect(await engineFor(d, serverB).run()).toMatchObject({ ok: true, sent: 0, applied: 2 });

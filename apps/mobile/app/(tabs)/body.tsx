@@ -214,7 +214,7 @@ function WeightCard({ date, day, daily, unit, heightCm, goalKg, onEdit }: {
   const tiles: { label: string; value: string; unit: string; metric: BodyMetric; hint?: string }[] = [
     { label: '体脂肪率', value: src.bodyFatPct == null ? '—' : fmt1(src.bodyFatPct), unit: src.bodyFatPct == null ? '' : '%', metric: 'bodyFat' },
     { label: '除脂肪体重', value: lean == null ? '—' : fmt1(kgToUnit(lean, unit)), unit: lean == null ? '' : unit, metric: 'leanMass' },
-    { label: 'BMI', value: b == null ? '—' : fmt1(b), unit: '', metric: 'bmi', hint: heightCm == null ? '設定で身長を入れると出ます' : undefined },
+    { label: 'BMI', value: b == null ? '—' : fmt1(b), unit: '', metric: 'bmi', hint: heightCm == null ? 'アカウントの画面で身長を入れると出ます' : undefined },
   ];
   const weightText = w == null ? '—' : fmt1(kgToUnit(w, unit));
   return (
@@ -255,7 +255,7 @@ function WeightCard({ date, day, daily, unit, heightCm, goalKg, onEdit }: {
           </PressableScale>
         ))}
       </View>
-      {heightCm == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、設定で身長を入れると出ます</T>}
+      {heightCm == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、アカウントの画面で身長を入れると出ます</T>}
       {!past && day.memo !== '' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.m }}>
           <Icon name="pencil" size={20} color={colors.sub} />

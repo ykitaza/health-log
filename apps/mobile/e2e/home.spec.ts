@@ -162,10 +162,10 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
 
 // 形は web では描かない（components/growth/GrowthShape.web.tsx）。スコアの計算と文言は jest（lib/__tests__/growth.test.ts・home.test.ts）。
 // ここは形の段の文字と押せるものが出ること
-test('形の段：アイコン・月・歯車・成長スコア・「成長を見る」。スコアを押すと内訳のシート', async ({ page }) => {
+test('形の段：アカウントの写真・月・歯車・成長スコア・「成長を見る」。スコアを押すと内訳のシート', async ({ page }) => {
   await openApp(page);
   const stage = visible(page, 'growth-stage');
-  await expect(stage.getByTestId('home-app-icon')).toHaveAttribute('aria-label', 'hlog');
+  await expect(button(stage, 'アカウント。押すとアカウントの画面')).toBeVisible();
   // 月の見出しは段にだけ出す（カレンダーの上に二重に出さない）
   await expect(see(stage, 'November 2026', { exact: true })).toBeVisible();
   await expect(see(page, 'November 2026', { exact: true })).toHaveCount(1);

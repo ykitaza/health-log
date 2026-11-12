@@ -135,7 +135,7 @@ export default function GoalScreen() {
 
       <Card style={{ marginTop: 12, gap: space.m }}>
         <T variant="titleM">自動で計算</T>
-        <T variant="bodyM" color={colors.sub}>体重・体脂肪率の記録と、設定の身長・目標体重・活動の量などから、筋トレの日と休みの日の目標を入れます。入った値は直してから保存できます。</T>
+        <T variant="bodyM" color={colors.sub}>体重・体脂肪率の記録と、アカウントの画面の身長・目標体重・活動の量などから、筋トレの日と休みの日の目標を入れます。入った値は直してから保存できます。</T>
         {changed && (
           <View style={s.notice} accessibilityRole="alert" testID="weight-changed">
             <Icon name="info" size={20} color={colors.onAccentDark} />
@@ -197,7 +197,7 @@ const MISSING_TEXT: Record<Missing, string> = {
   weight: '体重', height: '身長', sex: '性別', birthYear: '生まれた年', activity: 'ふだんの活動の量',
 };
 
-/** 自動で計算するのに足りない入力を、先に入れてもらう（保存先は設定と同じ。性別・生まれた年は端末だけ） */
+/** 自動で計算するのに足りない入力を、先に入れてもらう（保存先はアカウントの画面の体の情報と同じ。性別・生まれた年は端末だけ） */
 function MissingInputs({ missing, ctx, onCancel, onSaved }: { missing: Missing[]; ctx: Ctx; onCancel: () => void; onSaved: () => void }) {
   const repos = useRepos();
   const [sex, setSex] = useState<Sex | null>(ctx.profile.sex);
@@ -242,7 +242,7 @@ function MissingInputs({ missing, ctx, onCancel, onSaved }: { missing: Missing[]
   return (
     <View style={s.panel} testID="auto-missing">
       <T variant="titleS">計算に使う項目を入れてください</T>
-      <T variant="bodyM" color={colors.sub}>足りない項目：{missing.map((k) => MISSING_TEXT[k]).join('・')}。設定にも保存します。性別と生まれた年は、この端末の中だけに置きます。</T>
+      <T variant="bodyM" color={colors.sub}>足りない項目：{missing.map((k) => MISSING_TEXT[k]).join('・')}。アカウントの画面の体の情報にも保存します。性別と生まれた年は、この端末の中だけに置きます。</T>
       {need('sex') && <SexChoice value={sex} onChange={setSex} />}
       {(need('birthYear') || need('height')) && (
         <View style={{ flexDirection: 'row', gap: 10 }}>

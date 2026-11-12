@@ -4,7 +4,7 @@ import { Chip } from '@/components/ui';
 import { ACTIVITIES, ACTIVITY_LABELS, Activity, Sex, SEX_LABELS } from '@/lib/autoGoal';
 import { colors, space } from '@/theme';
 
-/** 性別（食事の目標の自動計算に使う）。設定と、食事の目標の画面の両方で使う */
+/** 性別（食事の目標の自動計算に使う）。アカウントの画面の体の情報と、食事の目標の画面の両方で使う */
 export function SexChoice({ value, onChange }: { value: Sex | null; onChange: (v: Sex) => void }) {
   return (
     <View style={{ gap: space.xs }}>
