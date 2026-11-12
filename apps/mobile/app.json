@@ -73,7 +73,8 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "extraProguardRules": "-keep class expo.modules.gl.** { *; }"
           }
         }
       ],
