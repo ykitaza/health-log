@@ -75,6 +75,8 @@ test('ケガの種目の入力画面に「直すこと」の帯が出る。振�
   await expect(see(page, /振り返り 1回/)).toBeVisible();
   await button(page, '戻る').click();
   await button(page, '戻る').click();
+  // 戻り終わるまで待つ（待たずに開き直すと、あとから戻る動きが走って筋トレのタブに着く）
+  await expect(page).toHaveURL(/\/training$/);
 
   // 次の日：入口がまた出る。直せた → 聞かれて直せたにする → 帯が消える
   await moveToDate(page, '2026-11-09');
