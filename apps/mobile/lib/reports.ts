@@ -5,7 +5,7 @@
 import { movingAverage } from './body';
 import { addDays, addMonths, DateKey, daysBetween, formatJpDate, formatMonthDay, toDateKey } from './date';
 import { tonnes } from './format';
-import { DailyAchievement, weekOf, WeeklyAchievement } from './goals';
+import { DailyAchievement, GoalStreak, weekOf, WeeklyAchievement } from './goals';
 import { formatHM } from './health';
 import { estimated1RM, TrainingSetRow } from './training';
 import { fmtInt, WeightUnit } from './units';
@@ -528,6 +528,29 @@ export function weeklyAchievementRows(w: WeeklyAchievement): { rows: Achievement
     ...row('sleep', '7時間以上寝た日', w.sleep, '日'),
   ];
   return { rows, summary: `${rows.length}つのうち ${rows.filter((r) => r.mark === 'reached').length}つ達成` };
+}
+
+/** 設定で決める目標（筋トレ・食事を記録した日・睡眠（切でなければ））の行だけ。たんぱく質は食事の目標から出すので入れない（レポートのタブの今週の目標） */
+export function settingGoalRows(w: WeeklyAchievement): AchievementRow[] {
+  return weeklyAchievementRows(w).rows.filter((r) => r.key !== 'protein');
+}
+
+/**
+ * 週の目標のカードの連続の一言（すべて達成した週の連続。goalStreak をその週の日で数えたもの）。連続が0なら null（出さない）。
+ * current はその週が今週（途中）か。今週がまだなら先週までの連続を出す。過ぎた週で届かなかったなら、その時点の連続は 0 なので出さない
+ */
+export function weekStreakText(s: GoalStreak, current: boolean): string | null {
+  if (s.weeks <= 0) return null;
+  if (s.thisWeek) return `${s.weeks}週連続で達成`;
+  return current ? `先週まで ${s.weeks}週連続で達成` : null;
+}
+
+/**
+ * レポートのタブの今週の目標のカード全体の読み上げ（押すと設定で目標を変えられる）。
+ * 「今週の目標をすべて達成。筋トレ、2 回、目標 2 回、達成。…。1週連続で達成。押すと設定で目標を変えられます」
+ */
+export function weeklyGoalCardLabel(achieved: boolean, rows: AchievementRow[], streak: string | null): string {
+  return [achieved ? '今週の目標をすべて達成' : '今週の目標', ...rows.map(achievementRowLabel), streak, '押すと設定で目標を変えられます'].filter(Boolean).join('。');
 }
 
 /** 達成の1行の読み上げ（「たんぱく質 98 g、目標 150 g、まだ届いていない」） */

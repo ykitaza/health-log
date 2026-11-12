@@ -1,8 +1,10 @@
 import {
   dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, KIND_SHORT, NEXT_TITLES,
   formatMetricValue, formatPeriod, formatReportDate, Metric, metricLabel, newReportsSummary, orderToggleLabel, parseInline, parseMarkdown, parseReport, pendingReports,
-  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, sortReports, suggestionItems, TAB_AREAS,
+  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, settingGoalRows, sortReports, suggestionItems, TAB_AREAS, weeklyGoalCardLabel,
+  weekStreakText,
 } from '../reports';
+import type { WeeklyAchievement } from '../goals';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
   id: 'r1', title: '今週のまとめ', body: '', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08',
@@ -299,5 +301,34 @@ describe('お知らせの帯のおすすめ（ホームとレポートのタブ�
   test('レポートのタブは2つとも出す（新着があってもおすすめを出す）', () => {
     expect(suggestionItems([{}], pending, true)).toEqual(pending);
     expect(suggestionItems([], null, true)).toEqual([]);
+  });
+});
+
+describe('今週の目標のカード（週のまとめ・レポートのタブ）', () => {
+  const week = (over: Partial<WeeklyAchievement> = {}): WeeklyAchievement => ({
+    start: '2026-11-02', end: '2026-11-08', days: [],
+    training: { days: 2, goal: 2, reached: true },
+    meals: { days: 2, goal: 3, reached: false },
+    protein: { days: 1, goal: 3, reached: false },
+    sleep: { days: 0, goal: null, reached: false },
+    ...over,
+  });
+
+  test('連続：その週も達成していれば「N週連続で達成」。0 なら出さない', () => {
+    expect(weekStreakText({ weeks: 3, thisWeek: true }, false)).toBe('3週連続で達成');
+    expect(weekStreakText({ weeks: 0, thisWeek: false }, true)).toBeNull();
+  });
+  test('連続：今週がまだなら先週までの連続。過ぎた週で届かなかったなら、その時点の連続は 0 なので出さない', () => {
+    expect(weekStreakText({ weeks: 2, thisWeek: false }, true)).toBe('先週まで 2週連続で達成');
+    expect(weekStreakText({ weeks: 2, thisWeek: false }, false)).toBeNull();
+  });
+  test('レポートのタブの行は設定の目標だけ（たんぱく質は入れない。睡眠は切なら出さない）', () => {
+    expect(settingGoalRows(week()).map((r) => r.key)).toEqual(['training', 'meals']);
+    expect(settingGoalRows(week({ sleep: { days: 4, goal: 4, reached: true } })).map((r) => r.key)).toEqual(['training', 'meals', 'sleep']);
+  });
+  test('読み上げは数字と達成を含め、押すと設定で変えられると伝える', () => {
+    const rows = settingGoalRows(week());
+    expect(weeklyGoalCardLabel(false, rows, null)).toBe('今週の目標。筋トレ、2 回、目標 2 回、達成。食事を記録した日、2 日、目標 3 日、まだ届いていない。押すと設定で目標を変えられます');
+    expect(weeklyGoalCardLabel(true, rows, '1週連続で達成')).toMatch(/^今週の目標をすべて達成。.*。1週連続で達成。押すと設定で目標を変えられます$/);
   });
 });

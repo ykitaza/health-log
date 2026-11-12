@@ -25,7 +25,7 @@ export default function SettingsScreen() {
   const { status: authStatus } = useAuth();
   const profile = useProfile();
   const [exportError, setExportError] = useState<string | null>(null);
-  // ホームの今週の目標のカードから開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
+  // レポートの今週の目標（週のまとめの「目標を変える」、レポートのタブの今週の目標）から開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
   const { section } = useLocalSearchParams<{ section?: string }>();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const scrolledToSection = useRef(false);

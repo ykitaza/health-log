@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Locator, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, primaryTab, see, tab, TODAY } from './helpers';
+import { button, goTab, homeIcon, moveToDate, openApp, openSettings, primaryTab, recordOn, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）と、食事の推定の根拠。
@@ -181,6 +181,112 @@ test('週のまとめの「先週やることの振り返り」と、レポー�
   await page.getByRole('button', { name: /先週のまとめ/ }).filter({ visible: true }).click();
   await expect(see(page.getByTestId('report-band').filter({ visible: true }), '10月26日（月）〜11月1日（日）')).toBeVisible();
   await expect(see(page, '先週やることの振り返り', { exact: true })).toHaveCount(0);
+});
+
+/** 今週の目標を小さくする（筋トレ 2回・食事の記録 3日・睡眠 切）。ホームから設定を開き、ホームに戻る */
+async function setSmallGoals(page: Page) {
+  await openSettings(page);
+  for (const name of ['筋トレ、2回', '食事の記録、3日', '睡眠、切']) {
+    await button(page, name).click();
+    await expect(button(page, name)).toHaveAttribute('aria-selected', 'true');
+  }
+  await button(page, '戻る').click();
+  await expect(homeIcon(page)).toBeVisible();
+}
+
+/** 食事のタブで、今の日の昼食を1品だけ記録して、ホームに戻る */
+async function recordMeal(page: Page) {
+  await goTab(page, '食事');
+  await button(page, '昼食を記録').click();
+  await button(page, '品目を入力').click();
+  const field = (label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
+  await field('品目1の品名').fill('おにぎり');
+  await field('品目1の量').fill('1');
+  await field('品目1のエネルギー').fill('200');
+  await button(page, '記録する').click();
+  await expect(page.getByTestId('total-kcal').filter({ visible: true })).toHaveText('200');
+  await goTab(page, 'ホーム');
+}
+
+const settingsGoals = (page: Page) => page.getByTestId('settings-weekly-goals').filter({ visible: true });
+
+// 達成と連続の数え方（任意の週・途切れ・今週を含む・含まない）は jest（lib/__tests__/goals.test.ts、lib/__tests__/reports.test.ts）。ここは画面に出ること
+test('レポートのタブの「やること」のいちばん上に今週の目標。押すと設定の欄へ開き、変えると戻ったときに出る', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, 'レポート');
+  // 「レポート」の側には出さない
+  await expect(page.getByTestId('tab-weekly-goals').filter({ visible: true })).toHaveCount(0);
+  await primaryTab(page, 'やること').click();
+  // 記録がなくても出す（やることが空でも）。設定の目標だけを、数字と読み上げで
+  const card = button(page, '今週の目標。筋トレ、0 回、目標 3 回、まだ届いていない。食事を記録した日、0 日、目標 5 日、まだ届いていない。'
+    + '7時間以上寝た日、0 日、目標 4 日、まだ届いていない。押すと設定で目標を変えられます');
+  await expect(card).toBeVisible();
+  await expect(see(page, 'やることはまだありません')).toBeVisible();
+  await expect(page.getByTestId('tab-goals-achieved').filter({ visible: true })).toHaveCount(0);
+  await card.click();
+  await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
+  await expect(settingsGoals(page)).toBeInViewport();
+  await button(page, '筋トレ、4回').click();
+  await expect(button(page, '筋トレ、4回')).toHaveAttribute('aria-selected', 'true');
+  await button(page, '戻る').click();
+  await expect(primaryTab(page, 'やること')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('tab-goal-training').filter({ visible: true })).toContainText('0／4 回');
+});
+
+test('週のまとめの目標のカード：すべて達成で「✓ 達成」と連続、「目標を変える」で設定の欄へ。過ぎた週で届かなかったなら出さない', async ({ page, context }) => {
+  const server = serverWithReport(); // 今週のまとめ（11月2日〜8日）。11/8 の食事が1件届く
+  server.append([{
+    parent_id: null, changed_at: '2026-11-08T01:00:00.000Z', origin: 'mcp', device_id: null,
+    change_id: crypto.randomUUID(), entity_type: 'report', entity_id: DAILY, op: 'create', fields: {
+      title: '先週のまとめ', kind: 'weekly', period_start: '2026-10-26', period_end: '2026-11-01', overall_tone: 'good',
+      headline: '', highlights: [], next_steps: [], body: '',
+    },
+  }]);
+  await connect(page, context, server);
+  await openApp(page);
+  await setSmallGoals(page);
+  // 11/6・11/7 に筋トレと食事。11/8 の食事は同期で届く（筋トレ 2／2 回・食事 3／3 日）
+  for (const date of ['2026-11-06', '2026-11-07']) {
+    await recordOn(page, date, [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
+    await recordMeal(page);
+  }
+  await moveToDate(page, TODAY);
+  await signInAndSync(page);
+
+  await goTab(page, 'レポート');
+  await page.getByRole('button', { name: /^新着、気をつけたい、今週のまとめ/ }).filter({ visible: true }).click();
+  const goals = page.getByTestId('report-achievement').filter({ visible: true });
+  await expect(goals.getByRole('heading', { name: '今週の目標', exact: true })).toBeVisible();
+  await expect(goals.getByLabel('筋トレ、2 回、目標 2 回、達成', { exact: true })).toBeVisible();
+  await expect(goals.getByLabel('食事を記録した日、3 日、目標 3 日、達成', { exact: true })).toBeVisible();
+  // 睡眠は切なので出さない
+  await expect(see(goals, '7時間以上寝た日')).toHaveCount(0);
+  await expect(goals.getByTestId('report-goals-achieved')).toHaveText('達成');
+  await expect(goals.getByTestId('report-goal-streak')).toHaveText('1週連続で達成');
+  await expect(goals.getByLabel('設定の目標をすべて達成。1週連続で達成', { exact: true })).toBeVisible();
+  // 目標を変える：設定の今週の目標の欄までスクロールして開く。戻るとレポートへ
+  await button(goals, '目標を変える').click();
+  await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
+  await expect(settingsGoals(page)).toBeInViewport();
+  await button(page, '戻る').click();
+  await expect(see(page.getByTestId('report-band').filter({ visible: true }), '11月2日（月）〜11月8日（日）')).toBeVisible();
+
+  // 過ぎた週（10/26〜11/1）は記録がなく届かなかった：「この週の目標」で、達成と連続は出さない
+  await button(page, '戻る').click();
+  await page.getByRole('button', { name: /先週のまとめ/ }).filter({ visible: true }).click();
+  const past = page.getByTestId('report-achievement').filter({ visible: true });
+  await expect(past.getByRole('heading', { name: 'この週の目標', exact: true })).toBeVisible();
+  await expect(past.getByLabel('筋トレ、0 回、目標 2 回、まだ届いていない', { exact: true })).toBeVisible();
+  await expect(past.getByTestId('report-goals-achieved')).toHaveCount(0);
+  await expect(past.getByTestId('report-goal-streak')).toHaveCount(0);
+  await expect(button(past, '目標を変える')).toBeVisible();
+
+  // レポートのタブの「やること」の今週の目標にも、達成と連続
+  await button(page, '戻る').click();
+  await primaryTab(page, 'やること').click();
+  const now = page.getByTestId('tab-weekly-goals').filter({ visible: true });
+  await expect(now.getByTestId('tab-goals-achieved')).toHaveText('達成');
+  await expect(now.getByTestId('tab-goal-streak')).toHaveText('1週連続で達成');
 });
 
 test('日のまとめ（daily）は、種類の名前・その日だけの期間・前の日との比べ・明日の一歩を出す', async ({ page, context }) => {
