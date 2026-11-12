@@ -9,13 +9,36 @@ const shot = async (page: Page, name: string) => {
   if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png`, fullPage: true });
 };
 
-/** 図の横の吹き出しの状態（「● 直し中」）が 1 行（2 行に折り返さない） */
-async function expectCalloutStatusOneLine(page: Page) {
-  const status = see(page.getByTestId('injury-map'), '● 直し中');
-  await expect(status).toHaveCount(2);
-  for (const i of [0, 1]) {
-    const box = (await status.nth(i).boundingBox())!;
-    expect(box.height).toBeLessThanOrEqual(17); // labelS の行の高さは 16
+/**
+ * 一覧の体の図：図が大きい（人の高さが枠の 7 割以上。前は 6 割ほど）。図に重ねた札（count 枚）が枠からはみ出さず、
+ * 文字が切れず（中身が札の幅に収まる）、札どうしが重ならない
+ */
+async function expectBodyMapFits(page: Page, count: number) {
+  const map = page.getByTestId('injury-map').filter({ visible: true });
+  const frame = (await map.boundingBox())!;
+  const figs = (await map.getByTestId('injury-map-figures').boundingBox())!;
+  expect(figs.height / frame.height).toBeGreaterThanOrEqual(0.7);
+  expect(figs.height).toBeGreaterThanOrEqual(240);
+  const callouts = map.getByTestId('injury-callout');
+  await expect(callouts).toHaveCount(count);
+  const boxes = [];
+  for (let i = 0; i < count; i++) {
+    const c = callouts.nth(i);
+    const b = (await c.boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(frame.x);
+    expect(b.x + b.width).toBeLessThanOrEqual(frame.x + frame.width);
+    expect(b.y).toBeGreaterThanOrEqual(frame.y);
+    expect(b.y + b.height).toBeLessThanOrEqual(frame.y + frame.height);
+    // 文字が切れない：中身の幅が見えている幅に収まる
+    expect(await c.evaluate((el) => [...el.querySelectorAll('div')].every((d) => d.scrollWidth <= d.clientWidth + 1))).toBe(true);
+    boxes.push(b);
+  }
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const [a, b] = [boxes[i], boxes[j]];
+      const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+      expect(apart).toBe(true);
+    }
   }
 }
 
@@ -78,7 +101,7 @@ test('ケガを記録して、一覧と1件で見る。振り返りで直せた�
   await page.getByTestId('injury-save').filter({ visible: true }).click();
   await expect(see(page, 'ACTIVE 02 / CLEARED 00')).toBeVisible();
   await shot(page, 'injury-list');
-  await expectCalloutStatusOneLine(page);
+  await expectBodyMapFits(page, 2);
 
   // 1件：振り返りを足す（まだ）→ もう1つ（直せた）で、直せたにするか聞く
   await card.click();
@@ -166,7 +189,26 @@ test.describe('狭い画面（360）', () => {
     const frame = (await page.getByTestId('injury-site').filter({ visible: true }).boundingBox())!;
     const back = (await page.getByTestId('injury-figure-back').filter({ visible: true }).boundingBox())!;
     expect(back.x + back.width).toBeLessThanOrEqual(frame.x + frame.width);
+    // 押しやすいよう図は大きく（360 で 140×280。前は 81×162）
+    expect(back.height).toBeGreaterThanOrEqual(260);
     await expect(page.getByTestId('injury-selected').filter({ visible: true })).toHaveText('右肩の関節');
     await shot(page, 'injury-new-360');
+  });
+
+  test('一覧の体の図が大きく、左右2つずつの札（長い部位の名前も）が切れず重ならず枠に収まる', async ({ page }) => {
+    await openApp(page);
+    await openInjuries(page);
+    // 前の図に2つ（肩・ひざ）、後ろの図に2つ（ふくらはぎ・腰の筋肉）。「右のふくらはぎ」がいちばん長い名前
+    for (const site of ['肩', 'ふくらはぎ', 'ひざ', '腰の筋肉']) {
+      await newInjury(page);
+      await button(page, '一覧から選ぶ').click();
+      await button(page, site).click();
+      await page.getByTestId('injury-save').filter({ visible: true }).click();
+      await expect(page.getByTestId('injury-map').filter({ visible: true })).toBeVisible();
+    }
+    await expect(see(page, 'ACTIVE 04 / CLEARED 00')).toBeVisible();
+    await expect(see(page.getByTestId('injury-map'), '右のふくらはぎ', { exact: true })).toBeVisible();
+    await expectBodyMapFits(page, 4);
+    await shot(page, 'injury-list-360');
   });
 });
