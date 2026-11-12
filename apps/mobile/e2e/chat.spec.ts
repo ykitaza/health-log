@@ -17,7 +17,7 @@ const parse = (url: string) => {
 };
 const CHATGPT = 'https://chatgpt.com/';
 const CLAUDE = 'https://claude.ai/new';
-// 戻るリンクの行き先（app.json の extra.torelog.authzUrl）
+// 戻るリンクの行き先（lib/auth/config.ts の authzUrl）
 const OPEN = 'https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com';
 const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
 const training = (when: string, day: string) => `${C}に${when}の筋トレを記録してください。`
