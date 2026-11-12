@@ -1,4 +1,4 @@
-import { SHAPES } from '@/components/growth/shapes';
+import { shapeBuild, SHAPES } from '@/components/growth/shapes';
 import {
   attractorLayout, attractorPoints, MAX_POINTS, MIN_POINTS, pointTints, SEED_RAMP_DAYS, VOLUME_SCALE_KG,
 } from '../shapes/attractor';
@@ -388,5 +388,22 @@ describe('点の大きさと濃さ（形の大きさに合わせる）', () => {
     // 形を選ぶシートの小さな絵は、下限
     expect(dotStyle(20).size).toBe(DOT_MIN_SCALE);
     expect(dotStyle(0).size).toBe(DOT_MIN_SCALE);
+  });
+});
+
+describe('形ごとに置いた「届く範囲」（extent）', () => {
+  test('shapeExtent の計算と合う（切り上げた値で、0.001 以内。Mac と Linux で三角関数の丸めが少しちがう）。点の並びか tilt を変えたら、ここに出る値に置き換える', () => {
+    for (const kind of ['attractor', 'tree', 'galaxy'] as const) {
+      const def = SHAPES[kind];
+      const e = shapeExtent(def.build().points, def.tilt, PERSPECTIVE);
+      // 置いた値は計算より小さくない（形が箱からはみ出さない）、かつ大きすぎない
+      expect(def.extent.x).toBeGreaterThanOrEqual(e.x);
+      expect(def.extent.y).toBeGreaterThanOrEqual(e.y);
+      expect(def.extent.x - e.x).toBeLessThan(0.001);
+      expect(def.extent.y - e.y).toBeLessThan(0.001);
+    }
+  });
+  test('点の並びは形ごとに1回だけ作る', () => {
+    expect(shapeBuild('tree')).toBe(shapeBuild('tree'));
   });
 });

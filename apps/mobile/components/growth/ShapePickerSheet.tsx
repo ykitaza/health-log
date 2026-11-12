@@ -1,9 +1,11 @@
 // 「形を選ぶ」のシート（成長を見る画面の右上のボタンから）。選んだ形は呼び出し側が保存する
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHAPE_LABELS, SHAPE_PREVIEW_PARAMS, shapeOptionLabel } from '@/lib/shapes/labels';
 import { SHAPE_KINDS, ShapeKind } from '@/lib/shapes/types';
 import { colors, radius, space } from '@/theme';
+import { duration } from '@/theme/motion';
 import { Icon } from '../Icon';
 import { Sheet } from '../motion';
 import { T } from '../Text';
@@ -23,6 +25,13 @@ export function ShapePickerSheet({ visible, value, onSelect, onClose }: {
   visible: boolean; value: ShapeKind | null; onSelect: (kind: ShapeKind) => void; onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // 形の小さな絵（Skia の Canvas を3つ）は、シートが開ききってから描く（開く動きの間に重い処理を重ねて、カクつかないように）
+  const [previews, setPreviews] = useState(false);
+  useEffect(() => {
+    if (!visible) { setPreviews(false); return; }
+    const t = setTimeout(() => setPreviews(true), duration.enter);
+    return () => clearTimeout(t);
+  }, [visible]);
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={{ padding: space.l, paddingBottom: space.l + insets.bottom, gap: space.m }} testID="shape-picker">
@@ -45,7 +54,7 @@ export function ShapePickerSheet({ visible, value, onSelect, onClose }: {
                 testID={`shape-option-${kind}`}
               >
                 <View style={s.preview}>
-                  <GrowthShape shape={kind} params={SHAPE_PREVIEW_PARAMS} width={PREVIEW_W} height={PREVIEW_H} paused />
+                  {previews && <GrowthShape shape={kind} params={SHAPE_PREVIEW_PARAMS} width={PREVIEW_W} height={PREVIEW_H} paused />}
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <T variant="titleM">{SHAPE_LABELS[kind].name}</T>
