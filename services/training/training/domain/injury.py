@@ -122,7 +122,8 @@ def check_injury(i: Injury) -> Injury:
         raise TrainingError(f"{SITES[i.site].name}には左右がありません。side は省いてください")
     if i.status not in STATUS_NAMES:
         raise TrainingError("状態は fixing（直している途中）か fixed（直せた）にしてください")
-    if (i.status == "fixed") != (i.fixed_on is not None):
+    # 直せたで直せた日がないもの（アプリが状態だけを送り、直せた日がまだ届いていないなど）は、読めるように断らない
+    if i.status == "fixing" and i.fixed_on is not None:
         raise TrainingError("直せた日（fixed_on）は、状態が fixed のときだけ入れてください")
     if i.fixed_on is not None and i.fixed_on < i.occurred_on:
         raise TrainingError(f"直せた日（{i.fixed_on}）は、痛めた日（{i.occurred_on}）と同じか後の日にしてください")

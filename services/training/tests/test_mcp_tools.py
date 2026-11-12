@@ -679,3 +679,14 @@ def test_説明文に_ケガの記録の流れがある():
     for words in ("record_injury", "そのまま記録する", "推測で埋めない", "痛みの強さや体調は聞かない", "診断",
                   "アプリに直すことが出る"):
         assert words in mcp_tools.INSTRUCTIONS
+
+
+def test_アプリが状態だけを直せたにしたケガも_MCP_で書き直せる(call, engine):
+    injury = shoulder(call)
+    engine.append("alice", [Change(str(uuid.uuid4()), "injury", injury["injury_id"], None, "update",
+                                   {"status": "fixed"}, "2099-01-01T00:00:00.000Z", "app")])  # 受け付けた時刻で切る
+    updated = call("update_injury", injury_id=injury["injury_id"], fix="肘をたたむ")["injury"]
+    assert (updated["status"], updated["fixed_on"], updated["fix"]) == ("fixed", None, "肘をたたむ")
+    fixed = call("mark_injury_fixed", injury_id=injury["injury_id"])["injury"]
+    assert (fixed["status"], fixed["fixed_on"]) == ("fixed", "2026-11-08")
+
