@@ -7,6 +7,7 @@ import { Big3Badge, PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
 import { PressableScale, useListMotion } from './motion';
 import { LoadError } from './LoadError';
+import { MuscleFigure } from './MuscleFigure';
 import { loadPartDays, PartLastCard } from './partDay';
 import { DailyHighlights } from './reports';
 import { RestTimerBar } from './RestTimer';
@@ -20,6 +21,7 @@ import { big3RoleById } from '@/lib/exercises';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
+import { musclesForParts } from '@/lib/muscleFigure';
 import { bestSet, dayFocus, entryCardLabel, partSuggestion, totalVolume } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
@@ -129,6 +131,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
             <Stat label="セット" value={String(setCount)} center />
             <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
           </Card>
+          {parts.names.length > 0 && <DayPartsFigure parts={parts.names} spoken={parts.spoken} />}
           {entriesMissingBodyweight(entries) && (
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xs }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
           )}
@@ -202,6 +205,30 @@ export function WorkoutDayContent({ date }: { date: string }) {
         busy={busy}
       />
     </>
+  );
+}
+
+/** 部位の図の高さ（前と後ろ。幅は高さの半分） */
+const PART_FIG_H = 132;
+
+/**
+ * その日に鍛えた部位の図（前と後ろ。鍛えた筋肉を緑で塗る。ケガの画面にあった 2D の図を、記録の画面に持ってきたもの）。
+ * 部位はまとめの「部位」と同じ（その日の主な部位）。読み上げでは部位の名前を読む
+ */
+function DayPartsFigure({ parts, spoken }: { parts: string[]; spoken: string }) {
+  const paint = musclesForParts(parts);
+  return (
+    <Card style={{ marginTop: space.s, paddingVertical: space.m }}>
+      <View accessible accessibilityLabel={`鍛えた部位の図 ${spoken}`} testID="day-parts-figure"
+        style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: space.xl }}>
+        {(['front', 'back'] as const).map((view) => (
+          <View key={view} style={{ alignItems: 'center', gap: space.xs }}>
+            <MuscleFigure view={view} paint={paint} width={PART_FIG_H / 2} height={PART_FIG_H} />
+            <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
+          </View>
+        ))}
+      </View>
+    </Card>
   );
 }
 

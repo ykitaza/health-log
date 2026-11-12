@@ -4,7 +4,7 @@ import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, 
 import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
 import type { InjuryStatus, Side } from '@/lib/injuries';
 import {
-  FIGURE_PIECES, FigurePiece, FigureTarget, jointPoints, JOINT_RADIUS, markPoint, muscleFigureFor, MuscleView, piecesFor, pickTarget,
+  FIGURE_PIECES, FigurePiece, FigureTarget, jointPoints, JOINT_RADIUS, markPoint, Muscle, muscleFigureFor, MuscleView, piecesFor, pickTarget,
 } from '@/lib/muscleFigure';
 import { BODY } from '@/lib/muscleFigurePaths';
 import { colors, figureColors, toneColors } from '@/theme';
@@ -22,8 +22,10 @@ export type FigureMark = { key: string; site: string; side: Side | null; status:
 type Props = {
   /** 部位の名前（最近の流れ：その部位の筋肉を緑で塗る）。view を渡したときは使わない */
   name?: string;
-  /** ケガの図：前か後ろ */
+  /** ケガの図：前か後ろ（paint と使うときは、記録の画面の図の向き） */
   view?: MuscleView;
+  /** 塗る筋肉（記録の画面：その日に鍛えた部位の筋肉を緑で塗る。この図にない筋肉は塗らない） */
+  paint?: Muscle[];
   width: number;
   height: number;
   /** ケガの印（この図に置くものだけを描く。lib/muscleFigure.ts の markPoint） */
@@ -38,15 +40,16 @@ type Props = {
 /**
  * 筋肉の図（100×200 の体）：体の前か後ろを、左右に分けた筋肉の片で描く。
  * - name を渡すと（最近の流れ）、その部位の筋肉だけをアクセントの緑で塗る。向きと塗る筋肉は lib/muscleFigure.ts の muscleFigureFor
+ * - view と paint を渡すと（記録の画面）、その向きの図で paint の筋肉を緑で塗る
  * - view を渡すとケガの図：選んだ部位を琥珀色で塗り、ケガの印（直している途中は琥珀色の塗りと二重の輪・光、直せたは緑の中抜きの輪）を置く。
  *   onPick を渡すと、図を押して部位を選べる（関節の点も出す）。図の上の部位は小さいので、画面には近くの部位のチップを添える（48dp）
  * 前の図は画面の左が本人の右、後ろの図は画面の左が本人の左
  */
-export function MuscleFigure({ name, view: injuryView, width, height, marks = [], selected, onPick, testID }: Props) {
+export function MuscleFigure({ name, view: injuryView, paint, width, height, marks = [], selected, onPick, testID }: Props) {
   const box = useRef<ViewInstance>(null);
   const spec = name != null && injuryView == null ? muscleFigureFor(name) : null;
   const view = injuryView ?? spec?.view ?? 'front';
-  const painted = new Set(spec?.muscles ?? []);
+  const painted = new Set(paint ?? spec?.muscles ?? []);
   const chosen = new Set(selected ? piecesFor(view, selected.site, selected.side) : []);
   const placed = marks.map((m) => ({ m, at: markPoint(m.site, m.side) })).filter(({ at }) => at?.view === view);
   const scale = width / 100;
