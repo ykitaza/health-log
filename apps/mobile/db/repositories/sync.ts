@@ -218,13 +218,23 @@ export function syncStore(db: Db) {
         await putMeta('applying', '1');
         try {
           for (const state of states) if ((await tryApply(state)) === 'applied') applied++;
-          // 親や項目がそろって、当てはめられるようになったものを当てはめる
-          for (let progress = true; progress;) {
+          // 親や項目がそろって、当てはめられるようになったものを当てはめる。
+          // 保留の一覧は最初に1回だけ読んで覚え、当てはまったものを外しながら繰り返す
+          // （1件当たるたびに全件を読み直して JSON を戻し直すと、保留の件数の二乗に膨らむため。
+          //   tryApply は state を書き換えないので、覚えたものをそのまま使い回せる）
+          let heldLeft = (await db.getAllAsync<{ state: string }>('SELECT state FROM sync_held ORDER BY seq', []))
+            .map((h) => JSON.parse(h.state) as EntityState);
+          for (let progress = true; progress && heldLeft.length > 0;) {
             progress = false;
-            const held = await db.getAllAsync<{ state: string }>('SELECT state FROM sync_held ORDER BY seq', []);
-            for (const h of held) {
-              if ((await tryApply(JSON.parse(h.state))) === 'applied') { applied++; progress = true; }
+            const remaining: EntityState[] = [];
+            for (const state of heldLeft) {
+              const result = await tryApply(state);
+              if (result === 'applied') { applied++; progress = true; }
+              // skipped は、この呼び出しではもう進まない（当てはめ済みで保留の行は消えたか、
+              // まだ知らない種類）ので外す。保留の行そのものは消えない（消すのは tryApply の側）
+              else if (result === 'held') remaining.push(state);
             }
+            heldLeft = remaining;
           }
           for (const [k, v] of Object.entries(metaUpdates)) await putMeta(k, v);
         } finally {

@@ -40,10 +40,16 @@ export function mealRepository(db: Db, deps: Deps) {
     const items = await db.getAllAsync<ItemRow>(
       `SELECT * FROM meal_items WHERE meal_id IN (${meals.map(() => '?').join(', ')})`, meals.map((m) => m.id),
     );
+    // 品目を食事ごとに振り分ける（食事の数だけ全品目を走査すると、掛け算の回数になるため）
+    const itemsByMeal = new Map<string, ItemRow[]>();
+    for (const i of items) {
+      const list = itemsByMeal.get(i.meal_id);
+      if (list) list.push(i); else itemsByMeal.set(i.meal_id, [i]);
+    }
     const states: MealState[] = meals.map((m) => ({
       id: m.id, deleted: false, createdAt: m.created_at,
       fields: { date: m.date, slot: m.slot, time: m.time, description: m.description, source: m.source, basis: m.basis },
-      items: items.filter((i) => i.meal_id === m.id).map((i) => ({
+      items: (itemsByMeal.get(m.id) ?? []).map((i) => ({
         id: i.id, deleted: i.deleted_at != null, fields: Object.fromEntries(ITEM_COLUMNS.map((c) => [c, i[c]])),
       })),
     }));
