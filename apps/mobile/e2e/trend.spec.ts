@@ -160,9 +160,9 @@ test('記録があるときの推移', async ({ page }) => {
     await button(page, 'これまで').click();
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
 
-    // ホームの部位のバランスを押すと 2週（ホームと同じセット数）
+    // ホームの部位のレーダー（PARTS）を押すと 2週
     await goTab(page, 'ホーム');
-    await home('home-part-balance').click();
+    await home('home-parts').click();
     await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
     await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
     await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
@@ -174,7 +174,7 @@ test('記録があるときの推移', async ({ page }) => {
 
     // 上の切り替えで記録 → 推移に移っても、これまで
     await goTab(page, 'ホーム');
-    await home('home-part-balance').click();
+    await home('home-parts').click();
     await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
     await goPane(page, '記録');
     await goPane(page, '推移');

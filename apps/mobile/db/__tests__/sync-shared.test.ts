@@ -149,6 +149,13 @@ async function appPushes() {
   hc.put(steps('hc-st1', '2026-11-07T01:00:00Z', '2026-11-07T02:00:00Z', 3000));
   hc.put(steps('hc-st2', '2026-11-07T08:00:00Z', '2026-11-07T09:00:00Z', 5240, 'com.example.watch'));
   await importHealthConnect(healthConnectStore(d.db, d.deps), d.deps.now);
+  // フェーズ（版15）：増量を始め、療養に入る（食事の目標・開始時の記録・目標の変更の履歴は JSON の項目）
+  await d.r.phases.start({
+    direction: 'bulk', name: '', startDate: '2026-11-02', weeks: 16, targetWeightKg: 80,
+    mealTargets: { training_day: { kcal: 3000, protein_g: 150 }, rest_day: { kcal: 2600, protein_g: 150 } },
+    snapshot: { weight_kg: 70, body_fat_pct: 18.5, big3: { bench: 100, squat: null, deadlift: 140.5 }, growth_score: 62 },
+  });
+  await d.r.phases.startRehab({ name: '肘', startDate: '2026-11-07', snapshot: null });
   expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   return server.requests.filter((q) => q.method === 'POST').map((q) => {
     const body = q.body as { device_id: string; changes: { change_id: string }[] };
@@ -161,7 +168,7 @@ describe('app_push.json：アプリが送る本文（サーバーの pytest が�
     const pushes = await appPushes();
     if (process.env.UPDATE_TESTDATA) {
       fs.writeFileSync(path.join(DIR, 'app_push.json'), `${JSON.stringify({
-        description: 'アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
+        description: 'アプリで記録した筋トレ・種目・体組成・設定・フェーズと、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
           + 'services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);

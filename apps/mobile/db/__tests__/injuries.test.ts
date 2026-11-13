@@ -162,7 +162,7 @@ describe('版13のマイグレーション', () => {
     }
     db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '42')`).run();
     expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
-    expect(LATEST_VERSION).toBe(14);
+    expect(LATEST_VERSION).toBeGreaterThanOrEqual(14);
     expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
     db.raw.prepare(`INSERT INTO injuries (id, occurred_on, site, status, created_at, updated_at) VALUES ('i1', '2026-11-01', 'neck', 'fixing', 'x', 'x')`).run();
     const row = db.raw.prepare('SELECT entity_type, op, fields FROM sync_outbox').get() as { entity_type: string; op: string; fields: string };

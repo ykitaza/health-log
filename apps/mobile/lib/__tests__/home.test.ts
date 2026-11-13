@@ -1,10 +1,10 @@
 import type { GrowthDay, GrowthScore } from '../growth';
 import {
-  big3Range, goalLine, HOME_BIG3_MONTHS, homeBig3, homeGrowth, mealRecordTarget, previousTodo, scoreA11yLabel, scoreDiff,
-  scoreDiffSpoken, scorePillars, scoreTotalText, signedChange, sleepNote, thisWeekVolume, todoAllDone,
+  goalLine, homeGrowth, mealRecordTarget, previousTodo, scoreA11yLabel, scoreDiff,
+  scoreDiffSpoken, scorePillars, scoreTotalText, thisWeekVolume, todoAllDone,
   todoCount, todoWeeks, toggleTodo, weekRangeLabel, weeklyTodo,
 } from '../home';
-import { big3Trend, TrainingSetRow } from '../training';
+import type { TrainingSetRow } from '../training';
 
 const setRow = (date: string, exerciseId: string, weightKg: number | null, reps: number): TrainingSetRow =>
   ({ date, exerciseId, bodyPartId: 'p', weightKg, reps });
@@ -26,94 +26,6 @@ describe('合計負荷量／今週（月曜始まり）', () => {
   });
 });
 
-describe('ホームの BIG3 推定1RM 合計', () => {
-  const today = '2026-11-08';
-  const assigned = { bench: 'bench', squat: 'squat', deadlift: 'dl' };
-  const rows = [
-    setRow('2026-07-01', 'dl', 120, 5), // 140
-    setRow('2026-09-01', 'bench', 80, 8), // 101.33…
-    setRow('2026-09-10', 'squat', 100, 5), // 116.67…
-    setRow('2026-11-06', 'squat', 110, 5), // 128.33…（1か月前より伸びた）
-  ];
-
-  test('筋トレの推移のグラフと同じ計算（記録が1か月を超えるなら big3Trend の3か月）', () => {
-    const b = homeBig3(rows, assigned, today)!;
-    const t = big3Trend(rows, assigned, today, '2026-08-08');
-    expect(HOME_BIG3_MONTHS).toBe(3);
-    expect(b.from).toBe('2026-08-08');
-    expect(b.diffText).toBe('先月より');
-    expect(b.note).toBeNull();
-    expect(b.totalKg).toBe(t.total);
-    expect(b.diffKg).toBeCloseTo(t.total! - t.totalMonthAgo!, 6);
-    expect(b.diffKg).toBeCloseTo(10 * (1 + 5 / 30), 6);
-    expect(b.points).toEqual(t.points);
-  });
-
-  test('2種目だけのとき：その合計と添え書き。欠けた種目は 0 として、差も同じ', () => {
-    const b = homeBig3(rows.filter((r) => r.exerciseId !== 'dl'), assigned, today)!;
-    expect(b.totalKg).toBeCloseTo(80 * (1 + 8 / 30) + 110 * (1 + 5 / 30), 6);
-    expect(b.diffKg).toBeCloseTo(10 * (1 + 5 / 30), 6);
-    expect(b.note).toBe('2種目の合計（デッドリフトはまだ）');
-    expect(homeBig3(rows.filter((r) => r.exerciseId === 'squat'), { squat: 'squat' }, today)!.note).toBe('1種目の合計（ベンチプレス・デッドリフトはまだ）');
-  });
-
-  test('基準の日は最初の記録の日より後なので、その日までの合計が基準になる（記録が1日だけなら差は 0）', () => {
-    const b = homeBig3([setRow('2026-10-20', 'bench', 100, 5)], assigned, today)!; // 19日前に始めた（15日〜1か月）→ 7日前（11/1）との差
-    expect(b.diffKg).toBe(0);
-    expect(b.diffText).toBe('先週より');
-    expect(b.noDiffText).toBe('先週の記録なし');
-  });
-
-  test('記録が1つもないときは null（「—」を出す）', () => {
-    expect(homeBig3(rows, {}, today)).toBeNull();
-    expect(homeBig3([], assigned, today)).toBeNull();
-    expect(homeBig3([setRow('2026-11-09', 'bench', 100, 5)], assigned, today)).toBeNull();
-  });
-
-  test('始めて7日以内：7日の幅。最初の記録の日との差（始めた日より）', () => {
-    const b = homeBig3([setRow('2026-11-05', 'bench', 100, 5), setRow('2026-11-07', 'bench', 110, 5)], assigned, today)!;
-    expect(b.from).toBe('2026-11-01');
-    expect(b.diffText).toBe('始めた日より');
-    expect(b.diffKg).toBeCloseTo(10 * (1 + 5 / 30), 6);
-    expect(b.points.map((p) => p.date)).toEqual(['2026-11-05', '2026-11-07', '2026-11-08']);
-  });
-
-  test('始めた日だけ記録：差は ±0', () => {
-    const b = homeBig3([setRow('2026-11-08', 'bench', 100, 5)], assigned, today)!;
-    expect(b.diffKg).toBe(0);
-    expect(b.from).toBe('2026-11-01');
-  });
-
-  test('幅の段階の境目：7日・14日・1か月・1か月を超える', () => {
-    const r = (first: string) => big3Range(first, today);
-    // 7日以内
-    expect(r('2026-11-08')).toMatchObject({ from: '2026-11-01', base: '2026-11-08', diffText: '始めた日より' });
-    expect(r('2026-11-01')).toMatchObject({ from: '2026-11-01', base: '2026-11-01', diffText: '始めた日より' }); // ちょうど7日
-    // 8日〜14日
-    expect(r('2026-10-31')).toMatchObject({ from: '2026-10-25', base: '2026-11-01', diffText: '先週より', noDiffText: '先週の記録なし' }); // 8日
-    expect(r('2026-10-25')).toMatchObject({ from: '2026-10-25', base: '2026-11-01', diffText: '先週より' }); // ちょうど14日
-    // 15日〜1か月（今日 11/8 の1か月前は 10/8）
-    expect(r('2026-10-24')).toMatchObject({ from: '2026-10-08', base: '2026-11-01', diffText: '先週より' }); // 15日
-    expect(r('2026-10-08')).toMatchObject({ from: '2026-10-08', base: '2026-11-01', diffText: '先週より' }); // ちょうど1か月
-    // 1か月を超える
-    expect(r('2026-10-07')).toMatchObject({ from: '2026-08-08', base: '2026-10-08', diffText: '先月より', noDiffText: '先月の記録なし' });
-    expect(r('2025-01-01')).toMatchObject({ from: '2026-08-08', base: '2026-10-08' });
-  });
-
-  test('折れ線の幅は段階どおり（8〜14日は14日、15日〜1か月は1か月）', () => {
-    expect(homeBig3([setRow('2026-10-30', 'bench', 100, 5)], assigned, today)!.from).toBe('2026-10-25');
-    expect(homeBig3([setRow('2026-10-20', 'bench', 100, 5)], assigned, today)!.from).toBe('2026-10-08');
-    expect(homeBig3([setRow('2026-10-01', 'bench', 100, 5)], assigned, today)!.from).toBe('2026-08-08');
-  });
-
-  test('先月との差の向きと文字', () => {
-    expect(signedChange(7.5)).toEqual({ dir: 'up', text: '+7.5' });
-    expect(signedChange(-2.46)).toEqual({ dir: 'down', text: '−2.5' });
-    expect(signedChange(0.04)).toEqual({ dir: 'flat', text: '±0' });
-    expect(signedChange(-0.04)).toEqual({ dir: 'flat', text: '±0' });
-  });
-});
-
 describe('今日の体調の2行目（目標体重まで）', () => {
   test('目標と体重があるときだけ。届いていれば届いたと出す。lb の表示', () => {
     expect(goalLine(68.4, 65, 'kg')).toBe('目標まで あと 3.4 kg');
@@ -122,16 +34,6 @@ describe('今日の体調の2行目（目標体重まで）', () => {
     expect(goalLine(70, 65, 'lb')).toBe('目標まで あと 11.0 lb');
     expect(goalLine(null, 65, 'kg')).toBeNull();
     expect(goalLine(68, null, 'kg')).toBeNull();
-  });
-});
-
-describe('寝不足の日のひとこと', () => {
-  test('6時間未満のときだけ', () => {
-    expect(sleepNote(320)).toBe('睡眠 5時間20分。今日は軽めでも大丈夫');
-    expect(sleepNote(359)).toBe('睡眠 5時間59分。今日は軽めでも大丈夫');
-    expect(sleepNote(360)).toBeNull();
-    expect(sleepNote(null)).toBeNull();
-    expect(sleepNote(undefined)).toBeNull();
   });
 });
 

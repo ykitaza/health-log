@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, homeCard, openApp, openSettings, see, tab, TODAY } from './helpers';
+import { button, goTab, homeLatest, openApp, openSettings, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームの、同期で受け取るものに関わる部品：今週やること（週のまとめの次の一歩）と、取り込みの知らせ。
@@ -121,7 +121,7 @@ test('取り込みの知らせ：MCP で記録して戻ると「食事を2件、
   await connect(page, context, server);
   await openApp(page);
   await signInAndSync(page);
-  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(homeLatest(page)).toBeVisible();
   await expect(page.getByTestId('received-notice')).toHaveCount(0);
 
   // ChatGPT で食事を2件と、筋トレ（1日に2種目）を記録した

@@ -21,6 +21,7 @@ from sync.model import Change, EntityState
 from training.domain import bodyweight
 from training.domain.catalog import SEED_BODY_PARTS, SEED_EXERCISES, Catalog
 from training.domain.injury import SITES, Injury, InjuryReview
+from training.domain.phase import Phase, TargetChange
 from training.domain.model import (
     BodyPart,
     BodyRecord,
@@ -47,6 +48,7 @@ REQUIRED = {
     "step_day": {"date", "steps"},
     "injury": {"occurred_on", "site", "status"},
     "injury_review": {"injury_id", "date", "result"},
+    "phase": {"kind", "start_date", "status"},
 }
 _MISSING = object()
 
@@ -199,6 +201,25 @@ class SyncTrainingRepository:
 
     async def injury_reviews(self, trainee: TraineeId) -> list[InjuryReview]:
         return await self._run(self._injury_reviews, trainee.value)
+
+    def _phases(self, user: str) -> list[Phase]:
+        """消していないフェーズ。通常のフェーズで向き・終了日・目標体重のどれかがまだ届いていないものも読む
+        （今のフェーズには選ばない。training.domain.phase.current）。療養の向きと目標は捨てる。"""
+        found = []
+        for s in self._alive(user, "phase"):
+            v = s.values
+            rehab = v["kind"] == "rehab"
+            history = tuple(TargetChange(c["date"], c["target_weight_kg"], c["end_date"], c.get("weight_kg"))
+                            for c in (v.get("target_history") or []))
+            found.append(Phase(
+                s.entity_id, v["kind"], None if rehab else v.get("direction"), v.get("name", ""), v["start_date"],
+                None if rehab else v.get("end_date"), None if rehab else v.get("target_weight_kg"),
+                v.get("meal_targets"), v.get("snapshot"), v["status"], v.get("paused_phase_id") if rehab else None,
+                () if rehab else history, None if v["status"] == "active" else v.get("ended_on"), s.created_at))
+        return found
+
+    async def phases(self, trainee: TraineeId) -> list[Phase]:
+        return await self._run(self._phases, trainee.value)
 
     # --- 書き込み ---
 

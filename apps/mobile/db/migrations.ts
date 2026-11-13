@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V10, TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -439,6 +439,33 @@ ALTER TABLE body_records DROP COLUMN muscle_pct;
 ALTER TABLE body_records DROP COLUMN waist_cm;
 `);
       for (const spec of TRAINING_ENTITIES.filter((s) => s.table === 'body_records')) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // フェーズ（増量・減量・維持と療養の期間）。表とトリガーを作る。版14までの端末は phase を知らない種類として飛ばし、受け取りの
+    // 位置だけ進めていたので、版13と同じく受け取りの位置を消して取り直す（ほかの端末で始めたフェーズを受け取るため）。
+    // 文字・履歴の列は NULL にしない（サーバーは str・list で、null を断る）
+    version: 15,
+    up: async (db) => {
+      await db.execAsync(`
+CREATE TABLE phases (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  direction TEXT,
+  name TEXT NOT NULL DEFAULT '',
+  start_date TEXT NOT NULL,
+  end_date TEXT,
+  target_weight_kg REAL,
+  meal_targets TEXT,
+  snapshot TEXT,
+  status TEXT NOT NULL,
+  paused_phase_id TEXT,
+  target_history TEXT NOT NULL DEFAULT '[]',
+  ended_on TEXT,${SYNC_COLUMNS}
+);
+DELETE FROM sync_meta WHERE key = 'cursor';
+`);
+      for (const spec of PHASE_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];

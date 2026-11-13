@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { button, enterBody, goPane, goTab, homeCard, openApp, openBody, openRm, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
+import { button, enterBody, goPane, goTab, homeLatest, openApp, openBody, openRm, openSettings, recordToday, see, setBodyInfo, tab } from './helpers';
 
 test('5つのタブ、歯車から設定へ行って戻る、設定と RM計算機にタブバーは出ない、知らない道', async ({ page }) => {
   await openApp(page);
-  // タブはホーム・筋トレ・食事・からだ・レポートの5つ（推移は筋トレ・食事・からだのタブの中）
-  await expect(page.getByRole('tab')).toHaveCount(5);
-  await expect(page.getByRole('tab')).toHaveText(['ホーム', '筋トレ', '食事', 'からだ', 'レポート']);
+  // タブはホーム・筋トレ・食事・からだ・レポートの5つ（推移は筋トレ・食事・からだのタブの中。ホームのヒーローのページの切り替えは数えない）
+  const tabs = page.getByRole('tab').and(page.locator(':not([data-testid="hero-pages"] *)'));
+  await expect(tabs).toHaveCount(5);
+  await expect(tabs).toHaveText(['ホーム', '筋トレ', '食事', 'からだ', 'レポート']);
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
 
   await goTab(page, '食事');
@@ -28,14 +29,14 @@ test('5つのタブ、歯車から設定へ行って戻る、設定と RM計算�
 
   // ホームの歯車から設定へ行き、戻るとホーム
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(homeLatest(page)).toBeVisible();
   await openSettings(page);
   await expect(page.getByRole('tablist')).toBeHidden();
   // 設定の「チャットとの連携」（前は準備中だった）
   await expect(see(page, 'チャットとの連携', { exact: true })).toBeVisible();
   await expect(see(page, '準備中', { exact: true })).toHaveCount(0);
   await button(page, '戻る').click();
-  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(homeLatest(page)).toBeVisible();
   await expect(page.getByRole('tablist')).toBeVisible();
 
   // RM計算機は筋トレのタブの右上から開く。タブバーは出ず、戻ると筋トレ
@@ -48,7 +49,7 @@ test('5つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await page.goto('/no-such-page');
   await expect(see(page, '画面が見つかりません')).toBeVisible();
   await see(page, 'ホームへ').click();
-  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(homeLatest(page)).toBeVisible();
 });
 
 test('再読み込みしても記録・体組成・設定が残る', async ({ page }) => {
@@ -63,7 +64,7 @@ test('再読み込みしても記録・体組成・設定が残る', async ({ pa
   await page.reload();
   await expect(page.getByTestId('body-weight').filter({ visible: true })).toContainText('68.4');
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'training')).toContainText('1種目 ・ 1セット ・ 0.64 t');
+  await expect(homeLatest(page)).toHaveAttribute('aria-label', /1種目 1セット 0\.64トン/);
   await expect(page.getByTestId('volume-week')).toContainText('0.64t');
   await goTab(page, '筋トレ');
   await expect(see(page, '80.0 kg × 8 回')).toBeVisible();

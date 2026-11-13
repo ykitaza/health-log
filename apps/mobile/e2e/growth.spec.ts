@@ -1,6 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
 import { button, openApp, recordOn, see, TODAY } from './helpers';
 
+/** ホームのヒーローの GROWTH のページへの切り替え */
+const growthPage = (page: Page) => page.getByTestId('hero-page-growth').filter({ visible: true });
+
 // 成長を見る画面（タイムラプス）。web では形（Skia）を描かないので、文字と操作が出ることを見る。
 // 再生の位置・前後の日の値のつなぎ方・字幕の選び方・指の量と日の数・数え上がりの計算・累計の文字は jest（lib/__tests__/growthPlayer.test.ts）。
 // E2E の時計（Date.now）は止まっているので、再生中の日の数字は確かめず、止めたあと・終わったあとの値を見る
@@ -277,6 +280,8 @@ test('左上の数式：題・式・定数・値・番号が出る（記録が�
 
 test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって閉じる。開き直しても、ホームに戻っても木のまま', async ({ page }) => {
   await openApp(page);
+  // 形はホームのヒーローの GROWTH のページにある
+  await growthPage(page).click();
   await button(page, '成長を見る').click();
   await expect(shapeImage(page, '点の軌跡')).toBeVisible();
 
@@ -306,10 +311,11 @@ test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって�
   await button(page, '閉じる').click();
   await expect(page.getByTestId('shape-picker')).toHaveCount(0);
 
-  // ホームに戻っても、形の段は木
+  // ホームに戻っても、ヒーローの GROWTH のページの形は木
   await button(page, '戻る').click();
   await expect(button(page, '成長の形（木）。押すと成長を見る画面を開く')).toBeVisible();
-  // 開き直しても（端末に置いた値を読む）木のまま
+  // 開き直しても（端末に置いた値を読む）木のまま。開き直すとヒーローは LATEST から
   await page.reload();
+  await growthPage(page).click();
   await expect(button(page, '成長の形（木）。押すと成長を見る画面を開く')).toBeVisible();
 });

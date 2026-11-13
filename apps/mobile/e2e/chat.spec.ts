@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goPane, goTab, homeCard, moveToDate, openApp, openSettings, recordOn, see } from './helpers';
+import { button, goPane, goTab, homeLatest, moveToDate, openApp, openSettings, recordOn, see } from './helpers';
 
 // チャット（ChatGPT・Claude）を開くショートカット。web では Linking.openURL が window.open を呼ぶので、
 // それを見張って、開いた URL（決まった文だけ・エンコード・選んだアプリ）を確かめる
@@ -182,11 +182,11 @@ test('まだ作っていないまとめのおすすめ：ホームの帯と、�
     await button(page, 'Claude で開く（外のアプリ）').click();
     await expect(sheet(page)).toBeHidden();
     await goTab(page, 'ホーム');
-    await expect(homeCard(page, 'training')).toBeVisible();
+    await expect(homeLatest(page)).toBeVisible();
     await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
     // 開き直しても出ない
     await moveToDate(page, '2026-11-10');
-    await expect(homeCard(page, 'training')).toBeVisible();
+    await expect(homeLatest(page)).toBeVisible();
     await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
   });
 });

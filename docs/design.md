@@ -72,7 +72,7 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 | 場所 | 中身 | 知っているもの |
 |---|---|---|
 | `services/meals/meals/presentation/mcp_server.py` | 食事のツール17個を登録する関数（`register_meal_tools`） | 食事 |
-| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール21個（睡眠・心拍・歩数のまとめ、ケガの記録を含む）を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
+| `services/training/training/presentation/mcp_tools.py` | 筋トレのツール22個（睡眠・心拍・歩数のまとめ、ケガの記録、フェーズを読む list_phases を含む）を登録する関数（`register_training_tools`）。scope をツールごとに確かめる | 筋トレ |
 | `services/reports/reports/presentation/mcp_tools.py` | レポートのツール4個を登録する関数（`register_report_tools`）。筋トレの scope をツールごとに確かめる（筋トレと食事の両方をまとめるので、接続の食事の scope と合わせて両方が要る） | レポート |
 | `services/mcp/connector/` | MCP の入口の部品：アクセストークンの検証（`AuthzApiTokenVerifier`）、連携の取り消しと `logout` のツール、アイコン、診断用のログ、設定。期間の材料を1回で読む `period_overview`（筋トレ・食事・設定をまたぐので、組み立ての場所に置く。中身は各コンテキストのユースケースと出力の形を使う） | MCP の SDK、認可API との約束（JWT）、食事・筋トレのユースケース |
 | `services/mcp/main.py` | サーバー（`MCPServer`）と認証を作り、3つの登録の関数を呼ぶ。コンテキストをまたぐもののポートをつなぐ | すべて |
@@ -127,7 +127,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 |---|---|
 | `services/authorization/` | 認可API（Flask ＋ Authlib）。`oauth/`（Authlib の認可サーバーの組み立て、RFC 8707）、`infrastructure/`（CIMD、Cognito、保存先、設定）、`presentation/`（入口、同意画面、プライバシーポリシー `/privacy`） |
 | `services/meals/` | 食事記録（パッケージ `meals`）。MCP のツール（記録・修正・いつもの・目標・今日の残り・週のふり返り・体重と目標までの進み具合の17個）、同期への登録（`meals/infrastructure/sync_entities.py`）、アプリ用の目標の案のルート（`meals/presentation/app_routes.py`）、移行のスクリプト（`scripts/`） |
-| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録、同期された記録の読み書き、MCP のツール（ケガの記録を含めて21個） |
+| `services/training/` | 筋トレ（パッケージ `training`）。部位・種目・トレーニング・体組成・設定と、その計算。同期への登録、同期された記録の読み書き、MCP のツール（ケガの記録とフェーズを含めて22個） |
 | `services/mcp/` | MCP サーバーの組み立て（`main.py`、Lambda の `MealsFunction`）と、MCP の入口の部品（`connector/`） |
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
 | `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |

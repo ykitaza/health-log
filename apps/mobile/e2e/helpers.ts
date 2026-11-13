@@ -20,7 +20,7 @@ export async function setDate(page: Page, date: string) {
   await page.clock.setFixedTime(new Date(`${date}T10:00:00+09:00`));
 }
 
-/** ホームのいちばん上（形の段）の左のアカウントの写真（なければアプリのアイコン）。ホームが出ていることを確かめるのに使う */
+/** ホームのいちばん上（見出しの行）の左のアカウントの写真（なければアプリのアイコン）。ホームが出ていることを確かめるのに使う */
 export const homeIcon = (page: Page) => page.getByTestId('home-account').filter({ visible: true });
 
 /** 日付を固定してホームを開く。新しいコンテキストなので、データはまっさら */
@@ -121,7 +121,7 @@ export async function recordToday(page: Page, entries: { exercise: string; sets:
   await expect(button(page, '前の日')).toBeVisible();
   for (const e of entries) await addEntry(page, e.exercise, e.sets);
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'training')).toBeVisible();
+  await expect(homeIcon(page)).toBeVisible();
 }
 
 /** その日を「今日」にして記録する（過去の日の記録を、画面の操作だけで作る） */
@@ -190,8 +190,13 @@ export async function controlDb(page: Page) {
   };
 }
 
-/** ホームの小さなカード（今日のトレーニング・食事・体調） */
-export const homeCard = (page: Page, which: 'training' | 'meals' | 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
+/** ホームのヒーローの LATEST（直近のトレーニング。左上の日付の押せるもの。読み上げに種目の数・セット・合計負荷量） */
+export const homeLatest = (page: Page) => page.getByTestId('home-latest').filter({ visible: true });
+/** ホームの FUEL（今日の食事。読み上げに kcal と PFC） */
+export const homeFuel = (page: Page) => page.getByTestId('home-fuel').filter({ visible: true });
+
+/** ホームの体調のカード */
+export const homeCard = (page: Page, which: 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
 /** タブの中の切り替え（筋トレの「記録」「推移」「ケガ」、食事の「記録」「推移」、からだの「今日」「推移」） */
 export async function goPane(page: Page, name: '今日' | '記録' | '推移' | 'ケガ') {

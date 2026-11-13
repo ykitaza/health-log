@@ -68,7 +68,7 @@ def test_ツールの一覧():
                      "list_exercises", "update_workout", "delete_workout", "add_exercise", "update_exercise",
                      "record_body", "body_progress", "sleep_summary", "heart_rate_summary", "step_summary",
                      "record_injury", "list_injuries", "add_injury_review", "mark_injury_fixed", "update_injury",
-                     "delete_injury"}
+                     "delete_injury", "list_phases"}
 
 
 def test_記録すると_その日の記録と計算と最後の同期の時刻を返す(call):

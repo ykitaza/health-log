@@ -11,7 +11,7 @@ export type Kind = 'text' | 'int' | 'real' | 'bool' | 'json';
 
 export type SyncType = 'body_part' | 'exercise' | 'workout_entry' | 'workout_set' | 'body_record' | 'setting'
   | 'meal' | 'meal_item' | 'meal_template' | 'nutrition_goal' | 'day_type' | 'sleep_session' | 'heart_rate_day' | 'step_day' | 'report'
-  | 'injury' | 'injury_review';
+  | 'injury' | 'injury_review' | 'phase';
 
 export type EntitySpec = {
   type: SyncType;
@@ -216,7 +216,27 @@ export const INJURY_ENTITIES: EntitySpec[] = [
   },
 ];
 
-export const ENTITIES: EntitySpec[] = [...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES, ...INJURY_ENTITIES];
+/**
+ * フェーズ（版15）。サーバーの services/training/training/infrastructure/sync_entities.py の PhaseFields と同じ項目・必須の項目。
+ * アプリだけが書く（MCP は読むだけ）。食事の目標・開始時の記録・目標の変更の履歴は SQLite では JSON の文字列。
+ * 止めた通常のフェーズ（paused_phase_id）は、外部キーにも refs にもしない（同じ表を指すので、届く順で当てはめを止めないため。
+ * 読む側が、ない ID を無視する）。状態と終えた日、目標と終了日と履歴は、片方だけ変えても組で update に入れる
+ */
+export const PHASE_ENTITIES: EntitySpec[] = [
+  {
+    type: 'phase', table: 'phases',
+    columns: {
+      kind: 'text', direction: 'text', name: 'text', start_date: 'text', end_date: 'text', target_weight_kg: 'real',
+      meal_targets: 'json', snapshot: 'json', status: 'text', paused_phase_id: 'text', target_history: 'json', ended_on: 'text',
+    },
+    required: ['kind', 'start_date', 'status'],
+    together: [['status', 'ended_on'], ['target_weight_kg', 'end_date', 'target_history']],
+  },
+];
+
+export const ENTITIES: EntitySpec[] = [
+  ...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES, ...INJURY_ENTITIES, ...PHASE_ENTITIES,
+];
 
 export const SPEC_BY_TYPE = new Map(ENTITIES.map((s) => [s.type, s]));
 
