@@ -1,0 +1,25 @@
+# 開発用のアプリ hlog (dev)（eas.json の development）の Android のビルド。
+# 標準のビルド（eas/build を展開した手順）に、expo-dev-client を入れる手順を1つ足しただけ。
+#
+# expo-dev-client を package.json に入れない理由：入れると自動リンクのネイティブの依存が増え、
+# fingerprint の runtimeVersion が変わって、入っている preview の APK に配信が届かなくなる。
+# さらに prebuild が expo-dev-client の config plugin を自動で当てるので、preview の APK の中身も変わる。
+# そこで、このビルドの中でだけ入れる（docs/dev-client.md）
+build:
+  name: hlog (dev) の開発ビルド（Android）
+  steps:
+    - eas/checkout
+    - eas/use_npm_token
+    - eas/install_node_modules
+    - run:
+        name: expo-dev-client を入れる（このビルドの中だけ）
+        command: |
+          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/mobile
+          npm install --no-audit --no-fund expo-dev-client@~58.0.20
+    - eas/resolve_build_config
+    - eas/prebuild
+    - eas/configure_eas_update
+    - eas/inject_android_credentials
+    - eas/configure_android_version
+    - eas/run_gradle
+    - eas/find_and_upload_build_artifacts

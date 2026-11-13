@@ -9,7 +9,15 @@
       "distribution": "internal",
       "environment": "development",
       "channel": "development",
-      "node": "24.14.0"
+      "node": "24.14.0",
+      "android": {
+        "buildType": "apk",
+        "config": "development-android.yml"
+      },
+      "env": {
+        "APP_VARIANT": "development",
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
+      }
     },
     "preview": {
       "distribution": "internal",

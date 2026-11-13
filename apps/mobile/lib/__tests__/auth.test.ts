@@ -368,6 +368,15 @@ describe('ログインの戻りのリンク（+native-intent）', () => {
     expect(redirectSystemPath({ path: 'torelog://injuries/abc', initial: false })).toBe('torelog://injuries/abc');
   });
 
+  test('開発用の hlog (dev) の scheme（torelog-dev://）も同じに扱う', () => {
+    expect(redirectSystemPath({ path: 'torelog-dev://callback?code=c&state=s', initial: false })).toBeNull();
+    expect(redirectSystemPath({ path: 'torelog-dev://callback?code=c&state=s', initial: true })).toBe('/account');
+    expect(redirectSystemPath({ path: 'torelog-dev://signout', initial: false })).toBeNull();
+    expect(redirectSystemPath({ path: 'torelog-dev://meals?date=2026-11-12', initial: false })).toBe('/meals?date=2026-11-12');
+    expect(redirectSystemPath({ path: 'torelog-dev://injuries', initial: false })).toBe('/training?view=injury');
+    expect(redirectSystemPath({ path: 'torelog-devx://callback', initial: false })).toBe('torelog-devx://callback');
+  });
+
   test('ほかのリンクはそのまま', () => {
     expect(redirectSystemPath({ path: 'torelog://settings', initial: false })).toBe('torelog://settings');
     expect(redirectSystemPath({ path: '/callbacks', initial: false })).toBe('/callbacks');
