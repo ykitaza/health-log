@@ -1,6 +1,6 @@
 import {
   axisAngle, BALANCE_PARTS, BALANCE_RANGES, balanceAxisOf, balanceRangeFrom, parseBalanceRange, partBalance, partBalanceAnchored,
-  partBalanceBetween, partBalanceForRange, partBalanceLabel, partBalancePeriodLabel, partBalanceRangeLabel,
+  partBalanceBetween, partBalanceForRange, partBalancePeriodLabel, partBalanceRangeLabel,
 } from '../partBalance';
 import type { TrainingSetRow } from '../training';
 
@@ -59,13 +59,6 @@ describe('部位のバランス（直近2週のセット数）', () => {
     const b = partBalance([row('2026-11-12', 'calf')], nameOf, '2026-11-12');
     expect(b.total).toBe(0);
     expect(b.ratios).toEqual([0, 0, 0, 0, 0, 0]);
-  });
-
-  test('読み上げ', () => {
-    const b = partBalance([...rows('2026-11-12', 'chest', 18), ...rows('2026-11-12', 'back', 9)], nameOf, '2026-11-12');
-    expect(partBalanceLabel(b)).toBe('部位のバランス、直近2週のセット数。胸 18、肩 0、背中 9、腕 0、脚 0、腹 0');
-    expect(partBalanceLabel(partBalance([], nameOf, '2026-11-12'))).toBe('部位のバランス、直近2週のセット数。まだ記録がありません');
-    expect(partBalanceLabel(null)).toBe('部位のバランス');
   });
 
   test('軸の向き：胸が左上、背中が右、脚が左下、腹が左', () => {

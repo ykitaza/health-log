@@ -67,6 +67,22 @@ export const figureColors = {
 export const placeholderColor = colors.sub;
 
 /**
+ * ホームの計器の盤（刷新 A）の色。ミント 1 色の濃淡（LOG の負荷量の 3 段・PFC のドーナツ）と、空のマス・輪の地。
+ * mint1 の上の文字は colors.text、mint2・mint3 の上の文字は colors.onAccent（どちらも 4.5:1 以上）
+ */
+export const hudColors = {
+  mint1: '#1F4D35',
+  mint2: colors.accentMuted,
+  mint3: colors.accent,
+  /** 空のマス・計器の棒の地 */
+  empty: colors.input,
+  /** 輪の空の目盛り・方眼の地の線 */
+  ring: '#2A2F37',
+  /** 角の切り欠き（ブラケット） */
+  bracket: colors.accentMuted,
+} as const;
+
+/**
  * レポートの調子（overall_tone・highlights の tone）の色（Figma の color/tone-good・tone-good-container など）。
  * accent はアイコン・ラベル・帯の色、container は面の色、onToneSub は面の上の補足の文字（color/on-tone-variant）。どれも文字が面に対して 4.5:1 以上（lib/__tests__/contrast.test.ts）。
  * 気をつけたいは赤を使わず琥珀色にする（責める感じにしない）

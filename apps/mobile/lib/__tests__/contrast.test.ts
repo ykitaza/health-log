@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { cautionBand, colors, onToneSub, PART_COLORS, toneColors } from '@/theme';
+import { cautionBand, colors, hudColors, onToneSub, PART_COLORS, toneColors } from '@/theme';
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -57,5 +57,14 @@ describe('レポートの調子の色', () => {
   });
   test('「直すこと」の帯：見出し・本文・補足の文字は、帯の地の上で 4.5:1 以上', () => {
     for (const fg of [toneColors.caution.accent, colors.text, onToneSub]) expect(contrastRatio(fg, cautionBand)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('ホームの計器の盤の色', () => {
+  test('LOG のマスの文字（日付・部位の頭文字）は、塗りの上で 4.5:1 以上', () => {
+    expect(contrastRatio(colors.text, hudColors.mint1)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.text, hudColors.empty)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.onAccent, hudColors.mint2)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.onAccent, hudColors.mint3)).toBeGreaterThanOrEqual(4.5);
   });
 });

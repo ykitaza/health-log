@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createFakeSyncServer, FakeSyncServer, ServerChange } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, expectTrainingDay, goPane, goTab, homeCard, homeIcon, openApp, openSettings, recordToday, see } from './helpers';
+import { button, expectTrainingDay, goPane, goTab, homeFuel, homeIcon, openApp, openSettings, recordToday, see } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // 同期。本物の API には当てない。アプリ用の API（execute-api）への通信は、テストの中の偽のサーバー
@@ -246,7 +246,7 @@ test('ホーム：自動の同期が続けて失敗したときだけ知らせ�
   mode.current = 'ok';
   await button(page, '同期できませんでした。やり直す').click();
   await expect(homeAlert(page)).toHaveCount(0);
-  await expect(homeCard(page, 'meals')).not.toContainText('160 kcal');
+  await expect(homeFuel(page)).not.toHaveAttribute('aria-label', /160kcal/);
 
   // ChatGPT に切り替えて MCP で記録し、hlog に戻る
   await setVisible(page, false);
@@ -260,6 +260,6 @@ test('ホーム：自動の同期が続けて失敗したときだけ知らせ�
       fields: { name: '鮭', amount: 80, unit: 'g', kcal: 160, protein_g: 18, fat_g: 9, carbs_g: 0, confidence: 'medium', sort_order: 0 } },
   ]);
   await setVisible(page, true);
-  await expect(homeCard(page, 'meals')).toContainText('160 kcal');
+  await expect(homeFuel(page)).toHaveAttribute('aria-label', /^今日の食事 160kcal/);
   await expect(homeAlert(page)).toHaveCount(0);
 });

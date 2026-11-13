@@ -78,14 +78,6 @@ export function partBalancePeriodLabel(b: PartBalance | null, start: DateKey, en
   return head + BALANCE_PARTS.map((p, i) => `${p} ${b.sets[i]}`).join('、');
 }
 
-/** 読み上げ：「部位のバランス、直近2週のセット数。胸 18、背中 9、…」。記録がなければそのことを */
-export function partBalanceLabel(b: PartBalance | null): string {
-  const head = '部位のバランス、直近2週のセット数。';
-  if (b == null) return '部位のバランス';
-  if (b.total === 0) return `${head}まだ記録がありません`;
-  return head + BALANCE_PARTS.map((p, i) => `${p} ${b.sets[i]}`).join('、');
-}
-
 /** 筋トレの推移の「部位のバランス」の期間。2週はホームと同じ、3か月は推移の折れ線（BIG3 の合計）と同じ、これまでは最初の記録から */
 export type BalanceRange = '2w' | '3m' | 'all';
 export const BALANCE_RANGES: { key: BalanceRange; label: string }[] = [

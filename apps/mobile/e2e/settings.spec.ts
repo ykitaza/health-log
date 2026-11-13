@@ -1,5 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, chooseExercise, chooseUnit, enter, enterBody, goPane, goTab, homeCard, openAccountFromSettings, openApp, openBody, openBodySheet, openSettings, recordToday, saveButton, see, setBodyInfo, recordFromHome } from './helpers';
+import {
+  button, chooseExercise, chooseUnit, enter, enterBody, goPane, goTab, homeLatest, openAccountFromSettings, openApp, openBody, openBodySheet, openSettings, recordFromHome, recordToday, saveButton, see, setBodyInfo,
+} from './helpers';
 
 /** CSV の書き出しは OS の共有のメニュー（web では navigator.share）に渡す。テストでは渡した中身を受け取る */
 async function captureShare(page: Page) {
@@ -51,7 +53,7 @@ test('kg と lb の切り替え：記録・体重・目標体重の表示が換�
   // ホーム：負荷量 640kg = 1410.96lb → 1.41 k lb。筋トレの今日：80kg = 176.4lb、推定1RM 101.33kg = 223.4lb
   await goTab(page, 'ホーム');
   await expect(page.getByTestId('volume-week')).toContainText('1.41k lb');
-  await expect(homeCard(page, 'training')).toContainText('1.41 k lb');
+  await expect(homeLatest(page)).toHaveAttribute('aria-label', /1\.41千ポンド/);
   await goTab(page, '筋トレ');
   await expect(see(page, '176.4 lb × 8 回')).toBeVisible();
   await expect(see(page, '推定1RM 223.4lb')).toBeVisible();

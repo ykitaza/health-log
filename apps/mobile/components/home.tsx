@@ -1,4 +1,4 @@
-// ホームの部品：形の段、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
+// ホームの部品：見出しの行、ヒーローの GROWTH のページ、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View, ViewInstance } from 'react-native';
@@ -28,15 +28,11 @@ import { easeIn, easeOut, PressableScale, Sheet } from './motion';
 import { T } from './Text';
 import { SettingsButton, Snackbar } from './ui';
 
-/** 形の段の高さ（ステータスバーの下まで含める） */
-const STAGE_HEIGHT = 228;
-/** 形の段の上の行（写真・月・歯車）と下の行（成長スコア・成長を見る）の高さ。押せる大きさ（48） */
-const STAGE_ROW = size.touch;
-/** 形の箱の下の端と、段の下の端のあいだ（形と軌道が下の行に重なりすぎないように） */
-const SHAPE_BOTTOM_GAP = 8;
+/** 見出しの行の高さ。押せる大きさ（48） */
+const HEADER_ROW = size.touch;
 
 /** 左上のアカウントの写真の大きさ */
-const AVATAR_SIZE = 40;
+const AVATAR_SIZE = 32;
 
 /** 成長を見る画面を開く */
 const openGrowth = () => router.push('/growth');
@@ -47,66 +43,70 @@ const openAccount = () => router.push('/account');
 const diffColor = (dir: 'up' | 'down' | 'flat') => (dir === 'up' ? colors.accent : dir === 'down' ? colors.danger : colors.sub);
 
 /**
- * ホームのいちばん上の「記録で育つ形」の段（高さ 228。ステータスバーの下まで含め、中身と一緒にスクロールする）。
- * 上の行：アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）と、カレンダーの月の見出し、設定の歯車。まん中：形（押すと成長を見る画面）。
- * 下の行：成長スコア（押すと内訳のシート）と「成長を見る」。地は画面と同じ色なので、段の下の端はそのまま下の中身へつながる。
- * 形は、ほかのタブにいるときと、下へスクロールして段が見えないときは止める
+ * ホームのいちばん上の見出しの行（ステータスバーの下まで含め、中身と一緒にスクロールする）：
+ * アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）、「HLOG // NOV 2026」、設定の歯車
  */
-export function GrowthStage({ today, year, month }: { today: DateKey; year: number; month: number }) {
+export function HomeHeader({ year, month }: { year: number; month: number }) {
   const insets = useSafeAreaInsets();
+  const profile = useProfile();
+  return (
+    <View style={[s.headerRow, { marginTop: insets.top }]} testID="home-header">
+      <PressableScale
+        accessibilityRole="button" accessibilityLabel={HOME_ACCOUNT_LABEL} scaleTo={0.92} onPress={openAccount}
+        style={s.account} testID="home-account"
+      >
+        <Avatar uri={profile.photoUri} size={AVATAR_SIZE} />
+      </PressableScale>
+      <T
+        num bold size={20} color={colors.accent} accessibilityRole="header" numberOfLines={1} style={{ flex: 1, letterSpacing: 2 }}
+        accessibilityLabel={`${year}年${month}月`}
+      >
+        {`HLOG // ${MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase()} ${year}`}
+      </T>
+      <View style={{ marginRight: -12 }}><SettingsButton /></View>
+    </View>
+  );
+}
+
+/**
+ * ヒーローの GROWTH のページ：記録で育つ形（押すと成長を見る画面）、右上に「成長を見る」、右下に成長スコア（押すと内訳のシート）。
+ * width・height はヒーローの大きさ。形の箱は輪の内側。形は、ほかのタブにいるときと、スクロールして見えないときは止める。
+ * 見えているページだけを描く（LATEST のときは、このページごと外す）
+ */
+export function GrowthPage({ today, width, height, box }: { today: DateKey; width: number; height: number; box: number }) {
   const focused = useIsFocused();
   const stageRef = useRef<ViewInstance>(null);
   const stage = useOnScreen(stageRef);
   const { data } = useGrowthData(today);
   const { shape } = useGrowthShape();
-  const profile = useProfile();
   const [open, setOpen] = useState(false);
   const growth = useMemo(() => homeGrowth(data?.days ?? [], today, data?.weeklyTrainingGoal ?? null), [data, today]);
   const score = data ? growth.score : null;
   const diff = score ? scoreDiff(score.diffFromLastWeek) : null;
-  // 形の箱：上の行の下から、段の下の端の少し上まで。幅は画面の左右の余白の内側
-  const [shapeWidth, setShapeWidth] = useState(0);
-  const shapeTop = insets.top + STAGE_ROW;
-  const shapeHeight = Math.max(0, STAGE_HEIGHT - shapeTop - SHAPE_BOTTOM_GAP);
   return (
-    <View
-      style={[s.stage, { height: STAGE_HEIGHT }]} testID="growth-stage" ref={stageRef} collapsable={false}
-      onLayout={(e) => { setShapeWidth(Math.max(0, e.nativeEvent.layout.width - space.screen * 2)); stage.onLayout(); }}
-    >
+    <View style={[StyleSheet.absoluteFill]} testID="growth-stage" ref={stageRef} collapsable={false} onLayout={stage.onLayout} pointerEvents="box-none">
       <PressableScale
         accessibilityRole="button" accessibilityLabel={growthStageLabel(shape ?? DEFAULT_SHAPE)} scaleTo={0.98} onPress={openGrowth} testID="growth-shape"
-        style={{ position: 'absolute', left: space.screen, top: shapeTop, width: shapeWidth, height: shapeHeight }}
+        style={{ position: 'absolute', left: (width - box) / 2, top: (height - box) / 2, width: box, height: box }}
       >
-        {shapeWidth > 0 && shapeHeight > 0 && shape != null && (
+        {shape != null && (
           // 形を変えたら作り直す（形ごとに点の数がちがう）
-          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused || !stage.onScreen} />
+          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={box} height={box} paused={!focused || !stage.onScreen} />
         )}
       </PressableScale>
-      <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">
-        <PressableScale
-          accessibilityRole="button" accessibilityLabel={HOME_ACCOUNT_LABEL} scaleTo={0.92} onPress={openAccount}
-          style={s.account} testID="home-account"
-        >
-          <Avatar uri={profile.photoUri} size={AVATAR_SIZE} />
-        </PressableScale>
-        <T num bold size={28} accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>{MONTH_NAMES_EN[month - 1]} {year}</T>
-        <View style={{ marginRight: -12 }}><SettingsButton /></View>
-      </View>
-      <View style={[s.stageRow, { position: 'absolute', left: 0, right: 0, bottom: 0, justifyContent: 'space-between' }]} pointerEvents="box-none">
-        <PressableScale
-          accessibilityRole="button" accessibilityLabel={scoreA11yLabel(score)} scaleTo={0.96} onPress={() => setOpen(true)} style={s.score} testID="growth-score"
-        >
-          {/* 数え上げる（点が出せないときは「—」） */}
-          <CountToText value={score ? score.total : null} format={(v) => (v == null ? '—' : String(Math.round(v)))} num bold size={28} />
-          <View>
-            <T variant="labelS" bold={false} color={colors.sub}>成長スコア</T>
-            {diff && <T variant="labelS" color={diffColor(diff.dir)}>{diff.text}</T>}
-          </View>
-        </PressableScale>
-        <PressableScale accessibilityRole="button" accessibilityLabel="成長を見る" scaleTo={0.96} onPress={openGrowth} style={s.growthLink} testID="growth-link">
-          <T variant="labelM" color={colors.accent}>成長を見る ›</T>
-        </PressableScale>
-      </View>
+      <PressableScale accessibilityRole="button" accessibilityLabel="成長を見る" scaleTo={0.96} onPress={openGrowth} style={[s.corner, { right: 0, top: 0, alignItems: 'flex-end' }]} testID="growth-link">
+        <T variant="labelM" color={colors.accent}>成長を見る ›</T>
+      </PressableScale>
+      <PressableScale
+        accessibilityRole="button" accessibilityLabel={scoreA11yLabel(score)} scaleTo={0.96} onPress={() => setOpen(true)}
+        style={[s.corner, { right: 0, bottom: 0, alignItems: 'flex-end' }]} testID="growth-score"
+      >
+        <T num size={11} color={colors.accent} style={{ letterSpacing: 1.5 }}>SCORE //</T>
+        {/* 数え上げる（点が出せないときは「—」） */}
+        <CountToText value={score ? score.total : null} format={(v) => (v == null ? '—' : String(Math.round(v)))} num bold size={32} style={{ lineHeight: 36 }} />
+        <T variant="labelS" bold={false} color={colors.sub}>成長スコア</T>
+        {diff && <T variant="labelS" color={diffColor(diff.dir)}>{diff.text}</T>}
+      </PressableScale>
       <GrowthScoreSheet visible={open} score={score} onClose={() => setOpen(false)} />
     </View>
   );
@@ -273,11 +273,9 @@ const s = StyleSheet.create({
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   rowIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
   scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.l, paddingHorizontal: space.l, minHeight: 56 },
-  // 画面の左右の余白（Screen の paddingHorizontal）の外まで広げる
-  stage: { marginHorizontal: -space.screen, backgroundColor: colors.bg },
-  stageRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: STAGE_ROW, paddingHorizontal: space.screen },
-  // 押せる大きさは 48。写真（40）の左の端を、画面の左の余白（16）にそろえる
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: HEADER_ROW },
+  // 押せる大きさは 48。写真（32）の左の端を、画面の左の余白（16）にそろえる
   account: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center', marginLeft: -(size.touch - AVATAR_SIZE) / 2 },
-  score: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: size.touch, minWidth: size.touch },
-  growthLink: { minHeight: size.touch, justifyContent: 'center', paddingLeft: space.s },
+  // ヒーローの隅の押せるもの（48 以上）
+  corner: { position: 'absolute', minHeight: size.touch, minWidth: size.touch, justifyContent: 'center', padding: space.s },
 });
