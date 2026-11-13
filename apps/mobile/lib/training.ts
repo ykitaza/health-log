@@ -1,7 +1,7 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
 import { BIG3_LABELS, type Big3Role } from './exercises';
 import type { SetInput } from './sets';
-import { fmt1, kgToUnit, parseNumber, WeightUnit } from './units';
+import { parseNumber } from './units';
 
 /**
  * 1セット分の値（重さは kg。回数だけの種目は weightKg が null）。

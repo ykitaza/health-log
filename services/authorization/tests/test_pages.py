@@ -89,7 +89,7 @@ def test_csp_allows_only_the_embedded_style_and_script():
     assert "unsafe-inline" not in csp
 
 
-@pytest.mark.parametrize("path", ["/privacy", "/logged-out", "/cognito/callback", "/relogin", "/open/meals", "/open/nope"])
+@pytest.mark.parametrize("path", ["/privacy", "/logged-out", "/cognito/callback", "/relogin", "/open/meals", "/open/injuries", "/open/nope"])
 def test_html_pages_carry_csp_and_x_frame_options(client, path):  # noqa: F811
     res = client.get(path)
     assert res.mimetype == "text/html"
@@ -119,6 +119,9 @@ INTENT = "#Intent;scheme=torelog;package=com.ykitaza.torelog;end"
     ("/open/reports", "reports", "レポート"),
     # レポートは日付を使わない。決まった形でない日付は付けない
     ("/open/reports?date=2026-11-12", "reports", "レポート"),
+    # ケガはアプリの筋トレのタブの「ケガ」へ。日付は使わない
+    ("/open/injuries", "injuries", "ケガの記録"),
+    ("/open/injuries?date=2026-11-12", "injuries", "ケガの記録"),
     ("/open/meals?date=2026-11-12%22%3E%3Cscript%3E", "meals", "食事の記録"),
     ("/open/meals?date=12/11/2026", "meals", "食事の記録"),
 ])
@@ -131,7 +134,7 @@ def test_open_app_page_links_to_the_app_with_fixed_values_only(client, path, tar
     assert "<script>alert" not in body and "%3Cscript" not in body.lower()
 
 
-@pytest.mark.parametrize("path", ["/open/settings", "/open/meals.json", "/open/"])
+@pytest.mark.parametrize("path", ["/open/settings", "/open/meals.json", "/open/", "/open/injury"])
 def test_open_app_page_rejects_other_targets(client, path):  # noqa: F811
     res = client.get(path)
     assert res.status_code == 404

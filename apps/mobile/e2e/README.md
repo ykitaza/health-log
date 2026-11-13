@@ -22,6 +22,7 @@ npm run e2e                          # npx playwright test
 - 画面のコードを変えたら、`npm run e2e:build` で書き出し直す（テストは `dist/` を見る）
 - 配信は `e2e/serve.mjs`（依存なしの小さなサーバー）。Playwright の `webServer` が `http://127.0.0.1:8090` で起動する。ポートは `E2E_PORT` で変えられる（8081 は Metro が使う）
 - 1つだけ流す：`npx playwright test e2e/body.spec.ts -g "目標体重"`
+- CI（`.github/workflows/test.yml` の `mobile (e2e)`）は、テストを2つのジョブに分けて（`--shard`）同時に流す
 - 失敗したときは `test-results/` にトレースとスクリーンショットが残る：`npx playwright show-trace test-results/<テスト>/trace.zip`
 
 ## expo-sqlite を web で動かすための設定
@@ -40,6 +41,8 @@ Android と iOS の動きは、この設定では変わらない。
 - **要素の探し方**：役割と名前（`getByRole`）か、表示の文字（`see`）。数字のカードやカレンダーの日など、文字で探しにくいものは `testID`（web では `data-testid`）
 - **共通の操作**は `helpers.ts` にまとめる（`openApp`、`recordToday`、`addEntry`、`fillSets`、`enter`、`goTab` など）
 - **隠れた画面に注意**：スタックの下の画面やほかのタブも DOM に残っている。ほかのタブは `aria-hidden="true"` で後ろに重なっているだけなので、文字は `see`（見えていて aria-hidden の中にないもの）で探す。画面が切り替わったら、次の画面の見出しなどが出るのを待ってから押す（切り替わりの途中は、前の画面の同じ名前のボタンも見えている）
+- **画面の切り替えを待つ**：Playwright の待ち（`expect` や `waitFor`）は、初めの 0.27 秒は細かく確かめるが、そのあとは 0.5 秒おきになる。この画面の切り替えは 0.3 秒ほどかかるので、そのままだと毎回 0.77 秒待たされる。`helpers.ts` の共通の操作では、`expect` の前に `settle`（上限 2 秒で、0.1 秒おきに確かめる）を置く。2 秒で出なければ、あとの `expect` がいつもの上限で待つ
+- **記録を作る回数を減らす**：`recordOn` は1日につき2秒ほどかかる。同じ記録を使う確かめは、1つのテストに `test.step` で続けて書く（`trend.spec.ts` の「記録があるときの推移」など）
 - **保存を待つ**：体組成と設定は、欄を離れたときに非同期で保存する。再読み込みの前に、計算の値（BMI など）や推移の画面に保存した値が出るのを待つ。決まった時間だけ待つ（`waitForTimeout`）書き方はしない
 - **保存と操作が重なるとき**：`controlDb` で DB の返事を止め（`hold`）、画面を操作してから流す（`release`）。保存や読み直しが終わる前に日付や単位を変えたときを、毎回同じ順で作れる
 - やり直し（retries）はしない。不安定なテストを隠さないため

@@ -12,5 +12,7 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
   // チャット（ChatGPT・Claude）の返事に添えてもらう、アプリへ戻るリンク（torelog://meals?date=… など。lib/chat.ts の backLink）
   const back = /^torelog:\/\/(meals|training|reports)(\?[^#]*)?$/.exec(path);
   if (back) return `/${back[1]}${back[2] ?? ''}`;
+  // ケガ（torelog://injuries）は、筋トレのタブの「ケガ」で開く
+  if (path === 'torelog://injuries') return '/training?view=injury';
   return path;
 }

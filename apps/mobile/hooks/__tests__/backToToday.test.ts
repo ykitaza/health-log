@@ -19,6 +19,8 @@ jest.mock('react-native', () => ({
   },
 }));
 
+// 上の jest.mock を先に定義してから読み込む順序にしたいので、ここに置く
+// eslint-disable-next-line import/first
 import { useBackToToday } from '../backToToday';
 
 beforeEach(() => { listeners.length = 0; cleanup = undefined; });
