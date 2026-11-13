@@ -239,8 +239,8 @@ export default function ReportScreen() {
 
       <View style={{ alignItems: 'center', gap: 4, paddingTop: 4 }}>
         <Micro>Data from your records — End of Report</Micro>
-        <T size={11} color={hud.faint} testID="report-created">{`${KIND_LABELS[report.kind]} ・ ${formatCreated(report.createdAt)}に作成`}</T>
-        <T size={11} color={hud.faint} style={{ textAlign: 'center' }}>Claude・ChatGPT が書いたまとめです。数字はアプリの記録で確かめてください。</T>
+        <T size={11} color={hud.muted} testID="report-created">{`${KIND_LABELS[report.kind]} ・ ${formatCreated(report.createdAt)}に作成`}</T>
+        <T size={11} color={hud.muted} style={{ textAlign: 'center' }}>Claude・ChatGPT が書いたまとめです。数字はアプリの記録で確かめてください。</T>
       </View>
       <ConfirmDialog
         visible={confirm}

@@ -1,5 +1,6 @@
 // レポート詳細の週の表の集計（lib/reportView.ts）：期間の合計負荷量と、日ごとの主な部位の並び
-import { periodPartSequence, periodVolumeKg, weightGoalProgress } from '../reportView';
+import type { InjuryReportEntry } from '../injuryReport';
+import { periodPartSequence, periodVolumeKg, uniqueInjuryEntries, weightGoalProgress } from '../reportView';
 import type { TrainingSetRow } from '../training';
 
 const set = (date: string, part: string, weightKg: number | null, reps: number, bodyweightLoadKg: number | null = null): TrainingSetRow => ({
@@ -50,5 +51,16 @@ describe('weightGoalProgress', () => {
     expect(p.scaleStartKg).toBe(80);
     expect(p.ratio).toBeCloseTo(0.5);
     expect(p.remainingKg).toBe(5);
+  });
+});
+
+describe('uniqueInjuryEntries', () => {
+  const entry = (id: string, periodReviewCount = 0) => ({ id, periodReviewCount, periodReviews: [] } as unknown as InjuryReportEntry);
+  it('3分類に重なるケガは1件にし、振り返ったケガは振り返りのある行を使う', () => {
+    const a = entry('a'); const aReviewed = entry('a', 2); const b = entry('b');
+    const out = uniqueInjuryEntries({ occurred: [a, b], reviewed: [aReviewed], fixing: [a, entry('c')] });
+    expect(out.map((o) => o.entry.id)).toEqual(['a', 'b', 'c']);
+    expect(out[0]).toEqual({ entry: aReviewed, reviewed: true });
+    expect(out[1].reviewed).toBe(false);
   });
 });

@@ -90,13 +90,16 @@ export function Micro({ children, green = false, color, style }: { children: str
  * パネル（.card）：近黒の地と 1px の枠、左上と右下の角を cut だけ斜めに切る。
  * 大きさは onLayout で測り、測るまでは切り欠きのない四角で描く
  */
-export function Panel({ children, style, cut = 8, bg = hud.panel, border = hud.line, testID, accessibilityLabel }: {
+export function Panel({ children, style, cut = 8, bg = hud.panel, border = hud.line, testID, accessibilityLabel, accessible }: {
   children: ReactNode; style?: StyleProp<ViewStyle>; cut?: number; bg?: string; border?: string; testID?: string; accessibilityLabel?: string;
+  /** true で中身を1つにまとめて読ませる（タイル・札など）。中の行を読ませるパネルでは付けない */
+  accessible?: boolean;
 }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   return (
     <View
       testID={testID}
+      accessible={accessible}
       accessibilityLabel={accessibilityLabel}
       onLayout={(e) => {
         const { width: w, height: h } = e.nativeEvent.layout;
@@ -182,11 +185,11 @@ export function StatusRow({ en, ja, value, last = false, wide = false, accessibi
       testID={testID}
       style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 7, borderBottomWidth: last ? 0 : 1, borderBottomColor: hud.rowLine }}
     >
-      <View style={{ flexShrink: 0, maxWidth: wide ? '38%' : '55%' }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Micro style={{ letterSpacing: 1.4 }}>{en}</Micro>
         <T bold size={12.5} color={hud.label} style={{ lineHeight: 17 }}>{ja}</T>
       </View>
-      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+      <View style={{ maxWidth: wide ? '62%' : '75%', flexShrink: 1, alignItems: 'flex-end' }}>
         {typeof value === 'string' ? <Mono size={14} color={hud.white} style={{ textAlign: 'right' }}>{value}</Mono> : value}
       </View>
     </View>

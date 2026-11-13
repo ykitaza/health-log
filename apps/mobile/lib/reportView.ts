@@ -1,6 +1,7 @@
 // レポート詳細の週の表（WEEKLY STATUS）に出す、記録からの集計。DB は読まない（読むのは components/report/WeeklyReportBlocks.tsx）
 import type { DateKey } from './date';
 import { goalProgress } from './goalBar';
+import type { InjuryPeriodReport, InjuryReportEntry } from './injuryReport';
 import { setVolume, TrainingSetRow } from './training';
 
 /** 期間（start〜end）の合計負荷量（kg）。lib/training.ts の setVolume の合計（回数だけの種目は自重の負荷） */
@@ -39,4 +40,21 @@ export function weightGoalProgress(currentKg: number, goalKg: number, startKg: n
   const gain = goalKg >= currentKg;
   const p = gain ? goalProgress({ currentKg, goalKg }) : goalProgress({ currentKg, goalKg, startKg });
   return { ...p, gain, scaleStartKg: gain ? 0 : startKg };
+}
+
+/**
+ * 週のケガの振り返りに1件ずつ出すケガ（3分類のどれかに入るものを重ねずに。並びは 痛めた → 振り返った → 直している途中 の順で最初に出たところ）。
+ * 同じケガが「振り返った」にも入るときは、期間の振り返り（periodReviews）を持つ「振り返った」の行を使う（痛めた・直している途中の行は振り返りが空のため）
+ */
+export function uniqueInjuryEntries(r: Pick<InjuryPeriodReport, 'occurred' | 'reviewed' | 'fixing'>): { entry: InjuryReportEntry; reviewed: boolean }[] {
+  const reviewed = new Map(r.reviewed.map((e) => [e.id, e]));
+  const seen = new Set<string>();
+  const out: { entry: InjuryReportEntry; reviewed: boolean }[] = [];
+  for (const e of [...r.occurred, ...r.reviewed, ...r.fixing]) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    const rv = reviewed.get(e.id);
+    out.push({ entry: rv ?? e, reviewed: rv != null });
+  }
+  return out;
 }

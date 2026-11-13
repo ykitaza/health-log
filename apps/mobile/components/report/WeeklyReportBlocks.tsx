@@ -21,8 +21,9 @@ import { RESULTS } from '@/lib/injuries';
 import { injuryPeriodInjuryCount, loadInjuryPeriodReport, type InjuryReportEntry } from '@/lib/injuryReport';
 import { BALANCE_PARTS, partBalanceAnchored, partBalancePeriodLabel } from '@/lib/partBalance';
 import { achievementRowLabel, AREA_LABELS, deltaLook, formatDelta, formatMetricValue, Highlight, Metric, metricLabel, weeklyAchievementRows, weekStreakText } from '@/lib/reports';
-import { periodPartSequence, periodVolumeKg } from '@/lib/reportView';
+import { periodPartSequence, periodVolumeKg, uniqueInjuryEntries } from '@/lib/reportView';
 import { fmt1, kgToUnit } from '@/lib/units';
+import { fonts } from '@/theme';
 import { T } from '../Text';
 import { dotMonthDay, hud, JaVal, Micro, Mono, Panel, PanelHead, StatusRow, TableHead, ValUnit } from './hud';
 
@@ -72,7 +73,7 @@ export function WeeklyRadarBlock({ end }: { end: DateKey }) {
               </>
             )}
             {BALANCE_PARTS.map((name, i) => (
-              <SvgText key={name} x={labelPos[i].x} y={labelPos[i].y} fontSize={11} fontWeight="700" fill={hud.label} textAnchor="middle" fontFamily="NotoSansJP_700Bold">{name}</SvgText>
+              <SvgText key={name} x={labelPos[i].x} y={labelPos[i].y} fontSize={11} fontWeight="700" fill={hud.label} textAnchor="middle" fontFamily={fonts.bold}>{name}</SvgText>
             ))}
           </Svg>
         )}
@@ -226,9 +227,7 @@ export function InjuryReviewBlock({ start, end }: { start: DateKey; end: DateKey
     { en: 'Reviewed', ja: '期間内に振り返った', n: data.reviewedTotal },
     { en: 'Fixing', ja: '直している途中', n: data.fixingTotal },
   ].filter((c) => c.n > 0);
-  const reviewed = new Set(data.reviewed.map((e) => e.id));
-  const seen = new Set<string>();
-  const entries = [...data.occurred, ...data.reviewed, ...data.fixing].filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
+  const entries = uniqueInjuryEntries(data);
   return (
     <Panel testID="report-injury-review" accessibilityLabel="ケガの振り返り">
       <TableHead left="Injury Review" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
@@ -238,7 +237,7 @@ export function InjuryReviewBlock({ start, end }: { start: DateKey; end: DateKey
             value={<T style={{ textAlign: 'right' }}><Mono size={14} color={hud.white}>{String(c.n)}</Mono><T size={10} color={hud.muted}> 件</T></T>} />
         ))}
       </View>
-      {entries.map((e) => <InjuryGroup key={e.id} entry={e} showReviews={reviewed.has(e.id)} />)}
+      {entries.map(({ entry, reviewed }) => <InjuryGroup key={entry.id} entry={entry} showReviews={reviewed} />)}
     </Panel>
   );
 }
@@ -280,14 +279,14 @@ export function MetricTilesBlock({ tiles, vs }: { tiles: (Highlight & { metric: 
         const m = h.metric;
         const look = deltaLook(m);
         return (
-          <Panel key={i} style={{ flexBasis: '45%', flexGrow: 1, paddingHorizontal: 12, paddingVertical: 10 }} accessibilityLabel={`${AREA_LABELS[h.area]}、${metricLabel(m)}`}>
-            <Micro green={look?.quality === 'good'}>{`${AREA_EN[h.area]} // ${m.label}`}</Micro>
+          <Panel key={i} style={{ flexBasis: '45%', flexGrow: 1, paddingHorizontal: 12, paddingVertical: 10 }} accessible accessibilityLabel={`${AREA_LABELS[h.area]}、${metricLabel(m)}`}>
+            <Micro green={look?.quality === 'good'}>{AREA_EN[h.area]}</Micro>
             <T style={{ marginTop: 4 }}>
               <Mono size={24} color={look?.quality === 'good' ? hud.green : hud.white}>{formatMetricValue(m.value)}</Mono>
               {m.unit !== '' && <T size={12} color={hud.muted}>{m.unit}</T>}
             </T>
             <T size={11} color={hud.muted} style={{ marginTop: 3 }}>
-              {m.delta != null ? `${look?.arrow === 'up' ? '↑' : look?.arrow === 'down' ? '↓' : '→'} ${formatDelta(m.delta)}${m.unit ? ` ${m.unit}` : ''} ${vs}` : m.label}
+              {m.delta != null ? `${m.label} ・ ${look?.arrow === 'up' ? '↑' : look?.arrow === 'down' ? '↓' : '→'} ${formatDelta(m.delta)}${m.unit ? ` ${m.unit}` : ''} ${vs}` : m.label}
             </T>
           </Panel>
         );

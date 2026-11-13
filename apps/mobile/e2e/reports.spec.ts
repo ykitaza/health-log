@@ -425,8 +425,9 @@ test('月のまとめ：つながりのカードと、目標の見直しの「�
   await expect(see(page, 'つながり', { exact: true })).toBeVisible();
   await expect(page.getByLabel('睡眠から筋トレへ（2週）。睡眠が6時間を切った週は、筋トレの回数が半分だった', { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(see(page, '睡眠 → 筋トレ・2週', { exact: true })).toBeVisible();
-  // 体重の記録がないので、体の変化は出さない
-  await expect(page.getByTestId('report-body-change')).toHaveCount(0);
+  // 体重の記録がないので、ヒーローの目標への進捗と、目標への進捗のカードは出さない
+  await expect(page.getByTestId('report-hero-monthly')).toHaveCount(0);
+  await expect(page.getByTestId('report-goal-bar')).toHaveCount(0);
   const review = page.getByTestId('report-review').filter({ visible: true });
   await expect(see(review, '体重のペースが目標より遅めです。食事の目標を少し下げる案があります。')).toBeVisible();
   await expect(see(page, '今月の課題', { exact: true })).toBeVisible();

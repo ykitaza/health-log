@@ -62,9 +62,6 @@ export function ReportHero({ report, scope }: { report: Report; scope: Scope }) 
       {scope?.type === 'day' && <DailyHeroBody date={scope.date} />}
       {scope?.type === 'week' && report.periodStart && report.periodEnd && <WeeklyHeroBody start={report.periodStart} end={report.periodEnd} note={report.headline} />}
       {scope?.type === 'month' && <MonthlyHeroBody start={scope.start} end={scope.end} />}
-      {scope?.type !== 'week' && scope?.type !== 'day' && scope?.type !== 'month' && report.headline !== '' && (
-        <T size={12} color={hud.note} style={{ marginTop: 4, lineHeight: 18 }}>{report.headline}</T>
-      )}
     </Panel>
   );
 }

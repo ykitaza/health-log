@@ -132,7 +132,7 @@ export function DailyChipsBlock({ date }: { date: DateKey }) {
   }, date);
   if (!data || (data.fat == null && data.hr == null)) return null;
   const chip = (name: string, value: string, unit: string) => (
-    <Panel key={name} style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'baseline', gap: 6 }} accessibilityLabel={`${name} ${value} ${unit}`}>
+    <Panel key={name} style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'baseline', gap: 6 }} accessible accessibilityLabel={`${name} ${value} ${unit}`}>
       <T bold size={11} color={hud.muted}>{name}</T>
       <T style={{ marginLeft: 'auto' }}>
         <Mono size={20} color={hud.white}>{value}</Mono>

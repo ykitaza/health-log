@@ -27,7 +27,7 @@ export function GrowthScoreBlock({ asOf }: { asOf: DateKey }) {
   const d = score.diffFromLastWeek;
   const label = `成長スコア ${score.total}点${d == null ? '' : `。先週より ${formatSigned(d)}点`}`;
   return (
-    <Panel style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16 }} testID="report-growth-score" accessibilityLabel={label}>
+    <Panel style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16 }} testID="report-growth-score" accessible accessibilityLabel={label}>
       <Mono size={48} color={hud.white} style={{ lineHeight: 52 }}>{String(score.total)}</Mono>
       <View style={{ gap: 3, flex: 1 }}>
         <Micro green>Growth Score</Micro>
@@ -142,7 +142,7 @@ export function Big3Block({ start, end }: { start: DateKey; end: DateKey }) {
   const since = clipped.length >= 2 ? Math.round(kgToUnit(clipped[clipped.length - 1].total - clipped[0].total, unit) * 10) / 10 : null;
   const label = `BIG3 推定1RM 合計 ${fmt1(kgToUnit(total.totalKg, unit))} ${unit}${since != null ? `。期間の初めより ${formatSigned(since)} ${unit}` : ''}`;
   return (
-    <Panel style={{ paddingHorizontal: 14, paddingVertical: 10 }} testID="report-big3" accessibilityLabel={label}>
+    <Panel style={{ paddingHorizontal: 14, paddingVertical: 10 }} testID="report-big3" accessible accessibilityLabel={label}>
       <Micro green>BIG3 // Estimated 1RM Total</Micro>
       <T bold size={13} color={hud.ink} style={{ marginTop: 4 }} accessibilityRole="header">BIG3 推定1RM 合計</T>
       <T style={{ marginTop: 4 }}>
