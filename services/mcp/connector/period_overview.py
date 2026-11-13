@@ -2,7 +2,8 @@
 
 筋トレ・食事・体組成・睡眠・心拍・歩数と目標をまとめるので、どのコンテキストにも属さない。中身は各コンテキストのユースケースと出力の形を使い、
 ここでは期間を確かめて並べるだけにする（つなぐのは services/mcp/main.py）。
-返す量が大きくなりすぎないよう、期間は31日まで、種目は推定1RM の大きい順に20件まで、ケガは10件・振り返りは1件あたり5件まで、体組成は体重と体脂肪率だけにする。
+返す量が大きくなりすぎないよう、期間は31日まで、種目は推定1RM の大きい順に20件まで、ケガは10件・振り返りは1件あたり5件まで、
+フェーズは5件まで、体組成は体重と体脂肪率だけにする。
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ MAX_DAYS = 31  # 1か月が入る長さ
 MAX_EXERCISES = 20
 MAX_INJURIES = 10  # ケガの一覧（痛めた・振り返った・直している途中）それぞれの件数
 MAX_INJURY_REVIEWS = 5  # ケガ1件に付ける期間の振り返りの数（新しい順）
+MAX_PHASES = 5  # 期間に重なるフェーズの数（新しい順）
 
 
 class Settings(Protocol):
@@ -67,7 +69,12 @@ def register_overview_tools(
         - body：体重・体脂肪率の日ごとの値と期間の平均、end までの28日の体重の週あたりの変化
         - sleep：起きた日ごとの眠っていた時間と寝た・起きた時刻、平均。heart_rate：安静時心拍の日ごとの値と平均
         - steps：日ごとの歩数の合計と、記録がある日の平均（Health Connect の取り込み。記録がない日は含めない）
-        - goals：食事の目標（meals）、目標体重（goal_weight_kg）、今週の目標（weekly。筋トレの回数・食事を記録する日数・
+        - phase：フェーズ（本人がアプリで宣言した、増量 bulk・減量 cut・維持 maintain の期間と療養 rehab）。as_of（end と今日の早いほう）の時点の
+          current（今のフェーズ。療養中なら療養）、paused（療養で止まっている通常のフェーズ）、in_period（期間に重なるもの。新しい順に5件）、
+          rehab_in_period（期間に療養が重なるか）。通常のフェーズには向き（direction）・何週目（week／weeks_total）・目標体重・
+          予定の体重・ペース（pace.status：on_track 順調・fast 早い・slow 遅い、維持は over・under。判定しないときは null と理由）
+        - goals：食事の目標（meals）、目標体重（goal_weight_kg。フェーズがあればフェーズの目標体重。どこからかは goal_weight_source：
+          phase・setting・meals_goal）、今週の目標（weekly。筋トレの回数・食事を記録する日数・
           7時間以上寝る日数。週の日数で、0 は目標を切っている、null は未設定）
         - injuries：ケガの記録（本人の分析をそのまま）。occurred（期間に痛めたもの）、reviewed（期間に振り返りを書いたもの。
           その振り返りの日付・結果 fixed 直せた・not_yet まだ・pain 痛んだ・メモ・種目）、fixing（end の時点で直している途中のもの）。
@@ -105,6 +112,17 @@ def register_overview_tools(
                 await training.injuries(sub), catalog, s, e, MAX_INJURIES, MAX_INJURY_REVIEWS)
             eater = EaterId(sub)
             goal_weight = (await settings.goal_settings(eater)).goal_weight_kg
+            as_of = min(end, today()).isoformat()
+            listed, current, paused = await training.phase_progresses(sub, as_of, start=s, limit=MAX_PHASES)
+            # フェーズ実施中（療養で止まっているときも）は、フェーズの目標体重を先に使う。なければ今までどおり
+            normal = paused or (current if current and current.phase.kind == "normal" else None)
+            if normal is not None and normal.phase.target_weight_kg is not None:
+                goal_weight_kg, goal_source = normal.phase.target_weight_kg, "phase"
+            elif goal_weight is not None:
+                goal_weight_kg, goal_source = goal_weight, "setting"
+            else:
+                goal_weight_kg = (nutrition_goal or {}).get("target_weight_kg")
+                goal_source = "meals_goal" if goal_weight_kg is not None else None
             return {
                 "from": s,
                 "to": e,
@@ -117,12 +135,19 @@ def register_overview_tools(
                 "steps": training_views.period_steps(await training.step_summary(sub, s, e)),
                 "goals": {
                     "meals": nutrition_goal,
-                    # アプリの設定の目標体重。なければ食事の目標の目標体重（suggest_goals と同じ順）
-                    "goal_weight_kg": goal_weight if goal_weight is not None
-                    else (nutrition_goal or {}).get("target_weight_kg"),
+                    # フェーズの目標体重、アプリの設定の目標体重、食事の目標の目標体重の順（後ろの2つは suggest_goals と同じ順）
+                    "goal_weight_kg": goal_weight_kg,
+                    "goal_weight_source": goal_source,
                     "weekly": await settings.weekly_goals(eater),
                 },
                 "injuries": injuries,
+                "phase": {
+                    "as_of": as_of,
+                    "current": training_views.phase_brief(current) if current else None,
+                    "paused": training_views.phase_brief(paused) if paused else None,
+                    "in_period": [training_views.phase_brief(pp) for pp in listed],
+                    "rehab_in_period": any(pp.phase.kind == "rehab" for pp in listed),
+                },
                 "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
                 "last_app_sync_at": await sync_status.last_app_sync_at(sub),
             }

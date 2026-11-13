@@ -180,4 +180,26 @@ describe('3D の体の場面', () => {
     scene.onFirstFrame(() => { late += 1; });
     expect(late).toBe(1);
   });
+
+  test('描く回数を減らしてよいのは、最初のコマを描いたあとで、触っていないとき（なぞる・惰性で回る・押した所を選ぶ前は毎コマ描く）', async () => {
+    const scene = new BodyScene();
+    const cam = camera(348, 380);
+    scene.setModel(await loadBody());
+    expect(scene.idle()).toBe(false);
+    scene.frame(cam, 348, 380, 0, 1 / 60);
+    scene.frame(cam, 348, 380, 0.1, 1 / 60);
+    expect(scene.idle()).toBe(true);
+    scene.tapAt(174, 150);
+    expect(scene.idle()).toBe(false);
+    scene.frame(cam, 348, 380, 0.2, 1 / 60);
+    expect(scene.idle()).toBe(true);
+    // 指を離した直後の惰性（なぞる操作の中で入る値を、直接入れて確かめる）
+    const inner = scene as unknown as { vYaw: number; dragging: boolean };
+    inner.vYaw = 3;
+    expect(scene.idle()).toBe(false);
+    for (let i = 0; i < 200 && !scene.idle(); i++) scene.frame(cam, 348, 380, 0.3 + i / 60, 1 / 60);
+    expect(scene.idle()).toBe(true);
+    inner.dragging = true;
+    expect(scene.idle()).toBe(false);
+  });
 });

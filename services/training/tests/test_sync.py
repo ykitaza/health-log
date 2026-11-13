@@ -141,7 +141,7 @@ def test_体組成の筋肉率とウエストは_前の版のアプリが送っ�
 def test_筋トレの種類は_training_の_scope():
     assert REGISTRY.types_in({"training"}) == {
         "body_part", "exercise", "workout_entry", "workout_set", "body_record", "setting", "sleep_session", "heart_rate_day",
-        "step_day", "injury", "injury_review"}
+        "step_day", "injury", "injury_review", "phase"}
     assert REGISTRY.types_in({"meals"}) == set()
 
 
@@ -267,3 +267,68 @@ def test_ケガ_項目が食い違っていても読み_消したケガの振り
     assert [[r.id for r in record.reviews] for record in records] == [["r2"], ["r1"]]
     assert sorted(r.id for r in asyncio.run(queries.repository.injury_reviews(TraineeId(USER)))) == ["r1", "r2"]
 
+
+
+PHASE = {"kind": "normal", "direction": "bulk", "name": "", "start_date": "2026-11-02", "end_date": "2027-02-21",
+         "target_weight_kg": 80, "status": "active", "paused_phase_id": None, "ended_on": None,
+         "meal_targets": {"training_day": {"kcal": 3000, "protein_g": 150}, "rest_day": {"kcal": 2600, "protein_g": 150}},
+         "snapshot": {"weight_kg": 72.4, "body_fat_pct": 15.2, "big3": {"bench": 100.0, "squat": None, "deadlift": 140},
+                      "growth_score": 62},
+         "target_history": [{"date": "2026-11-02", "target_weight_kg": 80, "end_date": "2027-02-21", "weight_kg": 72.4}]}
+REHAB = {"kind": "rehab", "direction": None, "name": "肘", "start_date": "2026-11-20", "end_date": None,
+         "target_weight_kg": None, "status": "active", "paused_phase_id": "p1", "ended_on": None,
+         "meal_targets": None, "snapshot": None, "target_history": []}
+
+
+def test_フェーズ_アプリから受け付ける範囲():
+    def parse(fields, op="create"):
+        return REGISTRY.parse_change(raw_change("phase", fields, op), set(REGISTRY.specs), "pixel")
+
+    assert isinstance(parse(PHASE), Change)
+    assert isinstance(parse(REHAB), Change)
+    assert isinstance(parse({"kind": "rehab", "start_date": "2026-11-20", "status": "active"}), Change)  # 要るのは3つだけ
+    assert isinstance(parse({"status": "ended", "ended_on": "2026-12-01"}, "update"), Change)
+    assert isinstance(parse({"target_weight_kg": 78.5, "end_date": "2027-03-01"}, "update"), Change)
+    assert isinstance(parse({**PHASE, "name": "あ" * 40, "meal_targets": None, "snapshot": None}), Change)
+    for bad in ({"kind": "bulk"}, {"direction": "up"}, {"status": "paused"}, {"name": "あ" * 41},
+                {"direction": None}, {"end_date": None}, {"target_weight_kg": None}, {"target_weight_kg": 20},
+                {"end_date": "2026-11-01"}, {"ended_on": "2026-12-01"}, {"status": "ended"},
+                {"paused_phase_id": "p0"}, {"start_date": "11/02"},
+                {"meal_targets": {"training_day": {"kcal": 3000}}},
+                {"meal_targets": {"training_day": {"kcal": -1}, "rest_day": {}}},
+                {"snapshot": {"weight_kg": 72, "waist_cm": 80}}, {"snapshot": {"growth_score": 101}},
+                {"target_history": [{"date": "2026-11-02", "target_weight_kg": 80}]},
+                {"target_history": [PHASE["target_history"][0]] * 101}):
+        assert isinstance(parse({**PHASE, **bad}), Rejection), bad
+    for bad in ({"direction": "cut"}, {"target_weight_kg": 70}, {"end_date": "2026-12-01"}, {"paused_phase_id": "x"}):
+        assert isinstance(parse({**REHAB, **bad}), Rejection), bad
+    rejection = parse({"kind": "normal", "start_date": "2026-11-02"})
+    assert isinstance(rejection, Rejection) and rejection.code == "missing_fields"
+    rejection = REGISTRY.parse_change(raw_change("phase", PHASE), REGISTRY.types_in({"meals"}), "pixel")
+    assert isinstance(rejection, Rejection) and rejection.code == "insufficient_scope"
+
+
+def test_フェーズ_読む_療養は向きと目標を捨て_今のフェーズは療養(engine):
+    engine.append(USER, [
+        change("phase", "p1", fields=PHASE),
+        change("phase", "r1", fields=REHAB),
+        # 項目ごとに後勝ちなので、療養に向きが残ることがある（読むときに捨てる）
+        change("phase", "r1", "update", {"kind": "rehab"}, at="2026-11-08T09:10:00.000Z"),
+        change("phase", "old", fields={**PHASE, "start_date": "2026-08-01", "end_date": "2026-10-31", "status": "ended",
+                                       "ended_on": "2026-11-01", "target_history": []}),
+        change("phase", "gone", fields={**PHASE, "start_date": "2026-11-05"}),
+        change("phase", "gone", "delete", at="2026-11-08T09:20:00.000Z"),
+    ])
+    queries = create_queries(engine)
+    phases = asyncio.run(queries.phases(USER))
+    assert [p.id for p in phases] == ["r1", "p1", "old"]
+    assert phases[0].direction is None and phases[0].paused_phase_id == "p1"
+    assert phases[1].snapshot["big3"]["bench"] == 100.0
+    listed, current, paused = asyncio.run(queries.phase_progresses(USER, "2026-11-22"))
+    assert (current.phase.id, current.rehab_days, paused.phase.id, paused.paused) == ("r1", 3, "p1", True)
+    assert paused.pace.reason == "paused" and paused.effective_end == "2027-02-24"
+    # 期間で絞る：前のフェーズは 10/31 で終わった（ended_on は含まない）
+    listed, _, _ = asyncio.run(queries.phase_progresses(USER, "2026-11-22", start="2026-11-01"))
+    assert [pp.phase.id for pp in listed] == ["r1", "p1"]
+    listed, _, _ = asyncio.run(queries.phase_progresses(USER, "2026-11-22", start="2026-10-31"))
+    assert [pp.phase.id for pp in listed] == ["r1", "p1", "old"]

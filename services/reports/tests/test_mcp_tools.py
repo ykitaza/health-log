@@ -143,6 +143,44 @@ def test_日のまとめは_期間が同じ日でないと断る(call, period):
     assert call("list_reports")["reports"] == []
 
 
+def test_save_report_の_kind_は必須で_other_を含まない():
+    mcp = MCPServer(name="test")
+    mcp_tools.register_report_tools(mcp, None)
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    schema = tools["save_report"].input_schema
+    assert "kind" in schema["required"]  # 省くと断る（既定の other はない）
+    assert schema["properties"]["kind"]["enum"] == ["daily", "weekly", "monthly"]
+    # 一覧の絞り込みでは、前に保存した other を探せるよう残す
+    assert tools["list_reports"].input_schema["properties"]["kind"]["anyOf"][0]["enum"] == [
+        "daily", "weekly", "monthly", "other"]
+
+
+def test_other_は保存できない(call):
+    with pytest.raises(ToolError, match="kind"):
+        call("save_report", **{**WEEKLY, "kind": "other"})
+    assert call("list_reports")["reports"] == []
+
+
+def test_kind_を省くと保存できない(call):
+    without_kind = {k: v for k, v in WEEKLY.items() if k != "kind"}
+    with pytest.raises(ToolError, match="kind"):
+        call("save_report", **without_kind)
+    assert call("list_reports")["reports"] == []
+
+
+def test_前に保存した_other_は_一覧と1件で読める(call, engine):
+    # 前の形（kind=other の分析）は同期の記録として残っている。消さずに読めることを確かめる
+    report_id = str(uuid.uuid4())
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", report_id, None, "create",
+                                   {"title": "ベンチプレスの分析", "body": "本文", "kind": "other"},
+                                   "2026-11-08T01:00:00.000Z", "mcp")])
+    listed = call("list_reports")["reports"]
+    assert [r["report_id"] for r in listed] == [report_id] and listed[0]["kind"] == "other"
+    assert [r["report_id"] for r in call("list_reports", kind="other")["reports"]] == [report_id]
+    full = call("get_report", report_id=report_id)
+    assert full["kind"] == "other" and full["title"] == "ベンチプレスの分析"
+
+
 def test_消すと_一覧から消え_もう一度は消せない(call):
     report_id = call("save_report", **WEEKLY)["report"]["report_id"]
     assert call("delete_report", report_id=report_id) == {"deleted": report_id}
@@ -212,11 +250,39 @@ def test_絵文字の多い本文は_大きさの上限で断る(call):
 def test_件数の上限(call, monkeypatch):
     monkeypatch.setattr("reports.application.service.MAX_REPORTS", 2)
     call("save_report", **WEEKLY)
-    call("save_report", **WEEKLY)
+    call("save_report", **{**WEEKLY, "title": "10月のまとめ", "kind": "monthly"})
     with pytest.raises(ToolError, match="2件まで"):
-        call("save_report", **WEEKLY)
+        call("save_report", **{**WEEKLY, "period_start": "2026-11-09", "period_end": "2026-11-15"})  # 別の期間は新しい分として数える
+    # 上限でも、同じ種類・期間の保存し直し（置き換え）はできる
+    replaced = call("save_report", **{**WEEKLY, "title": "今週のまとめ（直した）"})["report"]
+    assert len(call("list_reports")["reports"]) == 2  # 置き換えでは増えない
+    assert call("get_report", report_id=replaced["report_id"])["title"] == "今週のまとめ（直した）"
     call("delete_report", report_id=call("list_reports")["reports"][0]["report_id"])
     call("save_report", **WEEKLY)  # 消せば保存できる
+
+
+def test_同じ種類と期間で保存し直すと_置き換わる(call):
+    first = call("save_report", **WEEKLY)["report"]
+    second = call("save_report", **{**WEEKLY, "title": "今週のまとめ（新しい）", "body": "新しい本文",
+                                     "next_steps": ["新しい一歩"]})["report"]
+    assert second["report_id"] != first["report_id"]  # 消して作り直すので ID は新しい
+    assert [r["report_id"] for r in call("list_reports")["reports"]] == [second["report_id"]]  # 1件だけ残る
+    full = call("get_report", report_id=second["report_id"])
+    assert (full["title"], full["body"], full["next_steps"]) == ("今週のまとめ（新しい）", "新しい本文", ["新しい一歩"])
+    with pytest.raises(ToolError, match="見つかりません"):
+        call("get_report", report_id=first["report_id"])  # 前の方は消えている
+
+
+def test_置き換えで_次の一歩のチェックは_文面が同じものだけ引き継ぐ(call, engine):
+    steps = ["脚の日を2回入れる", "たんぱく質を毎日130gとる", "0時までに寝る"]
+    saved = call("save_report", **{**WEEKLY, "next_steps": steps})["report"]
+    engine.append("alice", [Change(str(uuid.uuid4()), "report", saved["report_id"], None, "update",
+                                   {"next_steps_done": [0, 2]}, "2026-11-09T02:00:00.000Z", "app")])
+    # 並びを変え、1件は文面を変えて保存し直す（チェックは文面で引き継ぐので、番号は新しい並びに移る）
+    new_steps = ["朝食を抜かない", "0時までに寝る", "脚の日を2回入れる"]
+    replaced = call("save_report", **{**WEEKLY, "next_steps": new_steps})["report"]
+    full = call("get_report", report_id=replaced["report_id"])
+    assert full["next_steps"] == new_steps and full["next_steps_done"] == [1, 2]
 
 
 def test_説明に_前の週の次の一歩を振り返ってから書くとある():

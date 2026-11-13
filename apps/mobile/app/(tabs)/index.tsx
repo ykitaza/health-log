@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { CountToText, Sparkline } from '@/components/charts';
 import { PartBadge } from '@/components/ExerciseFields';
@@ -37,9 +37,6 @@ import { colors, radius, size, space, toneColors } from '@/theme';
 
 const VEHICLE_ICON: Record<Vehicle, IconName> = { car: 'car', bus: 'bus', jumbo: 'plane' };
 
-// 読み込みが終わるまでの空の行（毎回の描画で新しい配列にすると、useMemo の材料が変わってしまうため使い回す）
-const EMPTY_ROWS: TrainingSetRow[] = [];
-
 export default function HomeScreen() {
   // 開いたまま日をまたいでも、前の日を「今日」として出さない（前の日に記録を足してしまうため）
   const today = useToday();
@@ -72,14 +69,10 @@ export default function HomeScreen() {
   const dayEntries = data?.day === selected ? data.todays : null;
   const meal = data?.day === selected ? data.meal : null;
 
-  const rows = data?.rows ?? EMPTY_ROWS;
+  const rows = data?.rows ?? [];
   const unit = data?.settings.weightUnit ?? 'kg';
-  // 全履歴の行への集計は、行と今日が変わったときだけ計算する（描き直しのたびに走らせない）
-  const dates = useMemo(() => trainingDates(rows), [rows]);
-  const weekVolume = useMemo(() => thisWeekVolume(rows, today), [rows, today]);
-  const markedDates = useMemo(() => new Set(dates), [dates]);
-  const monthDays = useMemo(() => daysInMonth(dates, year, month), [dates, year, month]);
-  const missingBodyweight = useMemo(() => recentMissingBodyweight(rows, today), [rows, today]);
+  const dates = trainingDates(rows);
+  const weekVolume = thisWeekVolume(rows, today);
   const condition = data?.day === selected ? data : null;
   // 寝不足の日のひとこと（今日だけ。今日の体調と同じ、その日に起きた睡眠）
   const sleepy = isToday ? sleepNote(condition?.sleep?.asleepMin) : null;
@@ -92,10 +85,7 @@ export default function HomeScreen() {
   // 記録のある日：見出しの右にその日の部位の札（「胸」、2つなら「胸」「肩」）
   const focus = dayEntries && dayEntries.length > 0 ? dayFocus(dayEntries) : null;
   // 部位のバランス：今日までの直近2週の、部位ごとのセット数（選んだ日ではなく今日が基準）
-  const balance = useMemo(
-    () => (partDays ? partBalance(rows, (id) => partDays.nameById.get(id) ?? '', today) : null),
-    [partDays, rows, today],
-  );
+  const balance = partDays ? partBalance(rows, (id) => partDays.nameById.get(id) ?? '', today) : null;
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
@@ -112,7 +102,7 @@ export default function HomeScreen() {
         <View style={{ flex: 1.55 }}>
           {/* 大きさは Figma（ホーム 1. ホーム）に合わせる：日の丸 26、行の間 8、曜日の下に線。月の見出しは上の形の段 */}
           <MonthCalendar
-            year={year} month={month} today={today} marked={markedDates} dotted={data?.mealDates} cell={26} rowGap={8} divider testID="home-calendar"
+            year={year} month={month} today={today} marked={new Set(dates)} dotted={data?.mealDates} cell={26} rowGap={8} divider testID="home-calendar"
             selected={selected} maxDate={today} onPressDay={(d) => setPicked(d === today ? null : d)}
             // 凡例は出さない（Figma ホーム 1-17）。印の意味は読み上げで伝える
             accessibilityLabel="カレンダー。緑の丸の枠は筋トレ、白い点は食事の記録"
@@ -126,7 +116,7 @@ export default function HomeScreen() {
               <T num bold size={15} style={{ lineHeight: 14 }}>{'MONTHLY\nARCHIVE'}</T>
               <View style={{ width: 2, height: 30, backgroundColor: colors.text }} />
               {/* 数字は数え上げる（読み込む前は 0 のまま動かさない） */}
-              <CountToText value={data ? monthDays : null} format={(v) => String(Math.round(v ?? 0))} num bold size={36} />
+              <CountToText value={data ? daysInMonth(dates, year, month) : null} format={(v) => String(Math.round(v ?? 0))} num bold size={36} />
               <T num size={15}>days</T>
             </View>
             <View style={{ alignItems: 'center' }}>
@@ -148,7 +138,7 @@ export default function HomeScreen() {
       </View>
       <ReportSuggestion />
 
-      {data != null && missingBodyweight && (
+      {data != null && recentMissingBodyweight(rows, today) && (
         <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
       )}
       {!isToday && (
@@ -266,14 +256,11 @@ function SummaryCard({ testID, icon, title, badge, parts, body, sub, lines, note
 function Big3Card({ rows, assignments, today, unit }: {
   rows: TrainingSetRow[]; assignments: Parameters<typeof homeBig3>[1] | null; today: DateKey; unit: 'kg' | 'lb';
 }) {
-  const big3 = useMemo(() => (assignments ? homeBig3(rows, assignments, today) : null), [assignments, rows, today]);
+  const big3 = assignments ? homeBig3(rows, assignments, today) : null;
   const total = big3 ? fmt1(kgToUnit(big3.totalKg, unit)) : null;
   const change = big3?.diffKg != null ? signedChange(kgToUnit(big3.diffKg, unit)) : null;
   const changeColor = change?.dir === 'down' ? colors.danger : colors.accent;
-  const points = useMemo(
-    () => (big3 ? datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today) : null),
-    [big3, today, unit],
-  );
+  const points = big3 ? datePoints(big3.points, (p) => kgToUnit(p.total, unit), big3.from, today) : null;
   // 折れ線は、ホームが見えるたびと、形が変わったときに左から描く（見えているあいだの同じ値の読み直しでは描き直さない）
   const lineSig = points ? points.map((p) => `${p.x.toFixed(4)}:${p.y}`).join(',') : null;
   const line = useEntrance(points, lineSig);

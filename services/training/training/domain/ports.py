@@ -6,6 +6,7 @@ from typing import Protocol
 
 from training.domain.catalog import Catalog
 from training.domain.injury import Injury, InjuryReview
+from training.domain.phase import Phase
 from training.domain.model import (
     BodyPart,
     BodyRecord,
@@ -53,6 +54,10 @@ class TrainingRepository(Protocol):
 
     async def step_days(self, trainee: TraineeId) -> list[StepDay]:
         """消していない歩数の日の合計（Health Connect の取り込み）。"""
+        ...
+
+    async def phases(self, trainee: TraineeId) -> list[Phase]:
+        """消していないフェーズ（並びは決めない）。アプリだけが書くので、書き込みはない。"""
         ...
 
     # --- 書き込み（変更の記録を通す。アプリに同期で降りる） ---

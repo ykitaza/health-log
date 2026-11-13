@@ -1,4 +1,4 @@
-// 週のまとめの次の一歩のチェック：ホームの「今週やること」、レポートのタブの「やること」、週のまとめの中身の「先週やることの振り返り」。
+// 週のまとめの次の一歩のチェック：ホームの「今週やること」、週のまとめの中身の「来週の焦点」と「先週やることの振り返り」。
 // チェックはレポートの next_steps_done（端末の表に書き、同期でサーバーに送る。次の週のまとめで Claude・ChatGPT が振り返る）。
 // どの画面も同じレポートの同じ値を見る
 import { router } from 'expo-router';
@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useFocusData, useRepos } from '@/hooks/data';
-import { addDays, DateKey } from '@/lib/date';
+import { DateKey } from '@/lib/date';
 import { TodoWeek, todoAllDone, todoCount, toggleTodo, weekRangeLabel, weeklyTodo } from '@/lib/home';
 import { colors, radius, space } from '@/theme';
 import { duration, HOLD_MS, motionDuration } from '@/theme/motion';
@@ -80,13 +80,16 @@ function TodoCount({ steps, done }: { steps: string[]; done: number[] }) {
   );
 }
 
-/** ホームの今週やることから、レポートのタブの「やること」を開く入口（押せる大きさ 48） */
-function TodoAllLink() {
+/**
+ * ホームの今週やることから、その一歩を書いた週のまとめの詳細（締めの「来週の焦点」で同じチェックができる）を直接開く入口（押せる大きさ 48）。
+ * レポートのタブを通すと、タブが裏に残るため2回目以降は詳細に着かない
+ */
+function TodoAllLink({ reportId }: { reportId: string }) {
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel="やることをすべて見る"
-      onPress={() => router.navigate({ pathname: '/reports', params: { view: 'todo' } })}
+      accessibilityLabel="週のまとめで、来週の焦点を見る"
+      onPress={() => router.push({ pathname: '/reports/[id]', params: { id: reportId } })}
       style={s.allLink}
       testID="weekly-todo-all"
     >
@@ -113,7 +116,7 @@ const COLLAPSE_AFTER_DRAW = duration.enter + HOLD_MS;
  * ホームの「今週やること」：最新の週のまとめの次の一歩をチェックの一覧で。週のまとめがなければ出さない。
  * 全部できたら1行にたたむ（［✓］今週やることを全部できた［3／3］［⌄］）。押すと一覧を開き、見直し・チェックを外せる。
  * 最後の1つをチェックした瞬間だけ、✓ が線を描くように出てから、たたむ（250ms。開くのも同じ）。動きを減らす設定なら動かさない。
- * 右上（たたんだ行の右）の「すべて」で、レポートのタブの「やること」（週ごとの一覧）を開く
+ * 右上（たたんだ行の右）の「すべて」で、その一歩を書いた週のまとめの詳細を開く
  */
 export function WeeklyTodoCard({ today }: { today: DateKey }) {
   const { data } = useFocusData(async (r) => weeklyTodo(await r.reports.list(), today), today);
@@ -157,13 +160,13 @@ export function WeeklyTodoCard({ today }: { today: DateKey }) {
             <T variant="bodyM" color={colors.sub}>{count}／{total}</T>
             <Chevron open={expanded} />
           </PressableScale>
-          <TodoAllLink />
+          <TodoAllLink reportId={data.reportId} />
         </View>
       ) : (
         <View style={s.head}>
           <T variant="titleM" accessibilityRole="header" style={{ flex: 1 }}>今週やること</T>
           <T variant="bodyM" color={colors.sub} accessibilityLabel={countLabel}>{count}／{total}</T>
-          <TodoAllLink />
+          <TodoAllLink reportId={data.reportId} />
         </View>
       )}
       <Collapse open={open} closeDelay={afterDraw ? COLLAPSE_AFTER_DRAW : 0} testID="weekly-todo-list">
@@ -171,34 +174,6 @@ export function WeeklyTodoCard({ today }: { today: DateKey }) {
           <TodoList steps={data.steps} done={done} onToggle={onToggle} />
         </View>
       </Collapse>
-    </View>
-  );
-}
-
-/**
- * レポートのタブの「やること」の1週分：見出し（今週なら「今週 11月9日〜15日」）、右に「2／3」、チェックの一覧。
- * どの週もチェックを付け外しできる（ホームと同じレポートの同じ値）。見出しの行を押すと、もとの週のまとめを開く
- */
-export function TodoWeekCard({ week, today }: { week: TodoWeek; today: DateKey }) {
-  const { done, toggle } = useTodoChecks(week.reportId, week.done);
-  const range = weekRangeLabel(week.start);
-  const title = week.start <= today && today < addDays(week.start, 7) ? `今週 ${range}` : range;
-  return (
-    <View style={s.card} testID={`todo-week-${week.start}`}>
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel={`${title}にやること、${week.steps.length}つのうち${todoCount(week.steps, done)}つ済み`}
-        accessibilityHint="もとの週のまとめを開きます"
-        scaleTo={0.98}
-        onPress={() => router.push({ pathname: '/reports/[id]', params: { id: week.reportId } })}
-        style={[s.head, { minHeight: 48, marginVertical: -space.s }]}
-      >
-        <T variant="titleM" style={{ flex: 1 }}>{title}</T>
-        <TodoCount steps={week.steps} done={done} />
-      </PressableScale>
-      <View style={{ marginTop: space.xs }}>
-        <TodoList steps={week.steps} done={done} onToggle={toggle} />
-      </View>
     </View>
   );
 }

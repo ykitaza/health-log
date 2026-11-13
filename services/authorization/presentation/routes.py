@@ -26,9 +26,11 @@ NOT_FOUND = "認可リクエストが見つかりません（最初からやり�
 EXPIRED = "認可リクエストが見つかりません（期限切れの可能性があります）"
 # アプリへ戻る案内（/open/<画面>）で開ける画面と、ページに出す名前。ほかの値は受け付けない（リンクに入る値を決まったものだけにする）
 OPEN_TARGETS = {"meals": "食事の記録", "training": "筋トレの記録", "reports": "レポート", "injuries": "ケガの記録"}
-# 日付を付ける画面（レポートとケガは日付を使わない）
-DATED_TARGETS = {"meals", "training"}
+# 日付を付ける画面（ケガは日付を使わない）
+DATED_TARGETS = {"meals", "training", "reports"}
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# レポートで開く期間のタブ（日・週・月）。ほかの値は付けない
+REPORT_KINDS = {"daily", "weekly", "monthly"}
 
 
 class LoginGateway(Protocol):
@@ -188,11 +190,15 @@ def create_blueprint(
 
     @bp.get("/open/<target>")
     def open_app(target: str):
-        """チャットの返事のリンクから、アプリの画面へ戻る案内。決まった画面と、決まった形の日付だけを使う。セッションは使わない。"""
+        """チャットの返事のリンクから、アプリの画面へ戻る案内。決まった画面と、決まった形の日付（レポートは決まった種類も）だけを使う。セッションは使わない。"""
         if target not in OPEN_TARGETS:
             return Response(render_error_page("このリンクは使えません。"), status=404, mimetype="text/html")
         date = request.args.get("date", "")
-        path = f"{target}?date={date}" if target in DATED_TARGETS and DATE.fullmatch(date) else target
+        params = [f"date={date}"] if target in DATED_TARGETS and DATE.fullmatch(date) else []
+        kind = request.args.get("kind", "")
+        if target == "reports" and kind in REPORT_KINDS:
+            params.append(f"kind={kind}")
+        path = f"{target}?{'&'.join(params)}" if params else target
         return Response(render_open_app_page(path, OPEN_TARGETS[target]), mimetype="text/html")
 
     @bp.get("/privacy")

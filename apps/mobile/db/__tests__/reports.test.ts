@@ -271,11 +271,8 @@ describe('版9のマイグレーション', () => {
     expect((await d.r.reports.unread()).map((r) => r.id)).toEqual([WEEK]);
   });
 
-  test('一覧の並び順（初めは新しい順）と、自動で作るを頼んだ日を端末に覚える。同期しない', async () => {
+  test('自動で作るを頼んだ日を端末に覚える。同期しない', async () => {
     const d = await device();
-    expect(await d.r.reports.listOrder()).toBe('newest');
-    await d.r.reports.setListOrder('oldest');
-    expect(await d.r.reports.listOrder()).toBe('oldest');
     expect(await d.r.reports.scheduleRequestedOn()).toBeNull();
     await d.r.reports.setScheduleRequestedOn('2026-11-11');
     expect(await d.r.reports.scheduleRequestedOn()).toBe('2026-11-11');

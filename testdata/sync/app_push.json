@@ -1,5 +1,5 @@
 {
-  "description": "アプリで記録した筋トレ・種目・体組成・設定と、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。",
+  "description": "アプリで記録した筋トレ・種目・体組成・設定・フェーズと、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。",
   "pushes": [
     {
       "device_id": "<device_id>",
@@ -292,6 +292,75 @@
           "fields": {
             "date": "2026-11-07",
             "steps": 8240
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "phase",
+          "entity_id": "id-10",
+          "op": "create",
+          "changed_at": "2026-11-08T04:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "kind": "normal",
+            "direction": "bulk",
+            "name": "",
+            "start_date": "2026-11-02",
+            "end_date": "2027-02-21",
+            "target_weight_kg": 80,
+            "meal_targets": {
+              "training_day": {
+                "kcal": 3000,
+                "protein_g": 150
+              },
+              "rest_day": {
+                "kcal": 2600,
+                "protein_g": 150
+              }
+            },
+            "snapshot": {
+              "weight_kg": 70,
+              "body_fat_pct": 18.5,
+              "big3": {
+                "bench": 100,
+                "squat": null,
+                "deadlift": 140.5
+              },
+              "growth_score": 62
+            },
+            "status": "active",
+            "paused_phase_id": null,
+            "target_history": [
+              {
+                "date": "2026-11-02",
+                "target_weight_kg": 80,
+                "end_date": "2027-02-21",
+                "weight_kg": 70
+              }
+            ],
+            "ended_on": null
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "phase",
+          "entity_id": "id-11",
+          "op": "create",
+          "changed_at": "2026-11-08T04:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "kind": "rehab",
+            "direction": null,
+            "name": "肘",
+            "start_date": "2026-11-07",
+            "end_date": null,
+            "target_weight_kg": null,
+            "meal_targets": null,
+            "snapshot": null,
+            "status": "active",
+            "paused_phase_id": "id-10",
+            "target_history": [],
+            "ended_on": null
           }
         }
       ]

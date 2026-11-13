@@ -204,6 +204,68 @@ export function Sparkline({ points, height = 44, animKey }: { points: Point[]; h
   );
 }
 
+/** ゴールリングの1つ。ratio は 0〜1（null なら目標がない・記録がないので輪だけ）。state は達成かどうかを言葉で（色では伝えない） */
+export type RingItem = {
+  key: string;
+  label: string;
+  /** 値の文字（「2,480」「98」「6:56」。記録がなければ「記録なし」） */
+  value: string;
+  /** 目標の文字（なければ null） */
+  goal: string | null;
+  unit: string;
+  ratio: number | null;
+  /** 達成の言葉（「達成」「まだ届いていない」。なければ空） */
+  state: string;
+};
+
+/**
+ * ゴールリング（日のまとめの kcal・たんぱく質・睡眠）。達成した分だけミント色の弧、残りは濃い灰色の輪（track）。
+ * 達成かどうかは色ではなく、下のラベルと値・state の言葉で伝える。開いたときは弧が ratio まで伸びる（動きを減らす設定なら描き終わった形）
+ */
+export function GoalRings({ items, animKey }: { items: RingItem[]; animKey?: string }) {
+  const { progress, reduced } = useDrawProgress(animKey, duration.draw);
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }} testID="goal-rings">
+      {items.map((item) => <GoalRing key={item.key} item={item} progress={progress} reduced={reduced} />)}
+    </View>
+  );
+}
+
+function GoalRing({ item, progress, reduced }: { item: RingItem; progress: SharedValue<number>; reduced: boolean }) {
+  const size = 88;
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const ratio = item.ratio == null ? 0 : Math.min(1, Math.max(0, item.ratio));
+  const center = size / 2;
+  const arc = useAnimatedProps(() => ({ strokeDashoffset: c * (1 - ratio * progress.get()) }));
+  const unit = item.unit !== '' ? ` ${item.unit}` : '';
+  const valueText = item.value === '記録なし' ? '記録なし' : `${item.value}${unit}`;
+  const goalText = item.goal != null ? `目標 ${item.goal}${unit}` : null;
+  const label = [item.label, valueText, goalText, item.state || null].filter(Boolean).join('、');
+  return (
+    <View style={{ flex: 1, alignItems: 'center', gap: 4 }} accessible accessibilityLabel={label} testID={`goal-ring-${item.key}`}>
+      <Svg width={size} height={size}>
+        <Circle cx={center} cy={center} r={r} stroke={colors.line} strokeWidth={stroke} fill="none" />
+        {item.ratio != null && (reduced ? (
+          <Circle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+            strokeDasharray={[c, c]} strokeDashoffset={c * (1 - ratio)} transform={`rotate(-90 ${center} ${center})`} />
+        ) : (
+          <AnimatedCircle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+            strokeDasharray={[c, c]} transform={`rotate(-90 ${center} ${center})`} animatedProps={arc} />
+        ))}
+        <SvgText x={center} y={center + 5} fill={colors.text} fontSize={16} fontFamily={fonts.num} textAnchor="middle">
+          {item.ratio == null ? '—' : `${Math.round(ratio * 100)}%`}
+        </SvgText>
+      </Svg>
+      <T size={12} color={colors.sub} numberOfLines={1}>{item.label}</T>
+      <T num bold size={14} numberOfLines={1}>{valueText}</T>
+      {goalText && <T size={11} color={colors.sub} numberOfLines={1}>{goalText}</T>}
+      {item.state !== '' && <T size={11} bold color={colors.sub} numberOfLines={1}>{item.state}</T>}
+    </View>
+  );
+}
+
 /**
  * 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大）。
  * peak を渡すと、その棒の上に値を出す（棒が伸びきったら出る）。accessibilityLabel は読み上げのグラフの要約

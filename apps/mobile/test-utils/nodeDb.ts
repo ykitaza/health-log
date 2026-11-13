@@ -6,6 +6,7 @@ import { catalogRepository } from '@/db/repositories/catalog';
 import { healthRepository } from '@/db/repositories/health';
 import { injuryRepository } from '@/db/repositories/injuries';
 import { mealRepository } from '@/db/repositories/meals';
+import { phaseRepository } from '@/db/repositories/phases';
 import { reportRepository } from '@/db/repositories/reports';
 import { settingsRepository } from '@/db/repositories/settings';
 import { workoutRepository } from '@/db/repositories/workouts';
@@ -54,5 +55,6 @@ export function repos(db: Db, deps: Deps) {
     reports: reportRepository(db, deps),
     achievements: achievementRepository(db, deps),
     injuries: injuryRepository(db, deps),
+    phases: phaseRepository(db, deps),
   };
 }

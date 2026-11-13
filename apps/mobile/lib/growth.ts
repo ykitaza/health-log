@@ -183,7 +183,12 @@ const weeklyTargetOf = (goal: number | null) => (goal != null && goal > 0 ? goal
 
 /** 直近7日（today を含む）のスコアの、柱ごとの数え方（growthScore と同じ計算） */
 export function scoreDetail(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null = null): ScoreDetail {
-  return scoreAt(new Map(days.map((d) => [d.date, d])), today, weeklyTargetOf(weeklyTrainingGoal)).detail;
+  return scoreDetailAsOf(days, today, weeklyTrainingGoal);
+}
+
+/** asOf で終わる7日のスコアの、柱ごとの数え方（scoreDetail の as-of 版。月末アンカー用） */
+export function scoreDetailAsOf(days: GrowthDay[], asOf: DateKey, weeklyTrainingGoal: number | null = null): ScoreDetail {
+  return scoreAt(new Map(days.map((d) => [d.date, d])), asOf, weeklyTargetOf(weeklyTrainingGoal)).detail;
 }
 
 /** 週ごとの点数の1本。start〜end の7日（end で終わる）の成長スコア */
@@ -206,17 +211,27 @@ export function weeklyScores(days: GrowthDay[], today: DateKey, weeklyTrainingGo
 }
 
 /**
+ * asOf で終わる7日の成長スコア（0〜100 点）と内訳（growthScore の as-of 版）。
+ * 月のまとめで「月末時点のスコア」を出すために使う。計算は growthScore とまったく同じで、
+ * アンカーの日だけが違う（asOf より後の記録は、scoreAt の範囲と firstRecordDate の上限で見ない）。
+ * diffFromLastWeek は asOf の7日前で終わる7日との差（その週が計算できなければ null）
+ */
+export function growthScoreAsOf(days: GrowthDay[], asOf: DateKey, weeklyTrainingGoal: number | null = null): GrowthScore {
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const target = weeklyTargetOf(weeklyTrainingGoal);
+  const { total, training, meal, sleep } = scoreAt(byDate, asOf, target);
+  const lastWeekEnd = addDays(asOf, -7);
+  const first = firstRecordDate(days, asOf);
+  const diffFromLastWeek = first != null && first <= lastWeekEnd ? total - scoreAt(byDate, lastWeekEnd, target).total : null;
+  return { total, training, meal, sleep, diffFromLastWeek };
+}
+
+/**
  * 直近7日（today を含む）の成長スコア（0〜100 点）と内訳。
  * weeklyTrainingGoal：週の目標の筋トレの回数（未設定・0 以下なら 3 回とみなす）
  */
 export function growthScore(days: GrowthDay[], today: DateKey, weeklyTrainingGoal: number | null = null): GrowthScore {
-  const byDate = new Map(days.map((d) => [d.date, d]));
-  const target = weeklyTargetOf(weeklyTrainingGoal);
-  const { total, training, meal, sleep } = scoreAt(byDate, today, target);
-  const lastWeekEnd = addDays(today, -7);
-  const first = firstRecordDate(days, today);
-  const diffFromLastWeek = first != null && first <= lastWeekEnd ? total - scoreAt(byDate, lastWeekEnd, target).total : null;
-  return { total, training, meal, sleep, diffFromLastWeek };
+  return growthScoreAsOf(days, today, weeklyTrainingGoal);
 }
 
 export type PlaybackSpeed = 1 | 2 | 4;

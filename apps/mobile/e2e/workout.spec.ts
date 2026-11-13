@@ -18,7 +18,7 @@ const entryOrder = (page: Page) =>
 test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画面（回数だけの種目も）。選択と入力の画面にタブバーは出ない', async ({ page }) => {
   await openApp(page);
   await openToday(page);
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
   // 今日なら「今日ではない日」の知らせは出ず、次の日へは進めない
   await expect(see(page, '今日ではない日を見ています')).toHaveCount(0);
   await expect(button(page, '次の日')).toHaveAttribute('aria-disabled', 'true');
@@ -239,7 +239,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
     await button(page.getByRole('dialog'), '外す').click();
     await expect(page.getByRole('dialog')).toBeHidden();
   }
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
   // 途中で再読み込みしたので、画面のスタックはこの画面から始まっている。ホームを開き直す
   await page.goto('/');
   await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
@@ -275,7 +275,7 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   await chooseExercise(page, 'ベンチプレス');
   await button(page, 'セットを追加').click();
   await button(page, '戻る').click();
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // 入れてから戻ると確かめる。「入力を続ける」なら入力はそのまま
@@ -292,7 +292,7 @@ test('入力の途中で戻るときは「入力をやめますか？」と確�
   // 「保存せずに戻る」と、保存せずに戻る
   await button(page, '戻る').click();
   await button(page.getByRole('dialog'), '保存せずに戻る').click();
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
 
   // 保存して戻るときは確かめない
   await addEntry(page, 'ベンチプレス', [{ weight: '80', reps: '8' }]);

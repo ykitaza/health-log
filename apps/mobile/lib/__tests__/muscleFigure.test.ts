@@ -1,5 +1,5 @@
 import { SITE_CODES } from '../injuries';
-import { FIGURE_PIECES, FIGURE_TARGETS, markPoint, muscleFigureFor, musclesForParts, pickTarget, sideAt, subpaths, targetsNear } from '../muscleFigure';
+import { FIGURE_PIECES, FIGURE_TARGETS, markPoint, muscleFigureFor, musclesForParts, pairFigureFor, pickTarget, sideAt, subpaths, targetsNear } from '../muscleFigure';
 import { SEED_BODY_PARTS } from '@/db/seed';
 
 describe('ケガの部位：図の左右と、押して選ぶ', () => {
@@ -100,5 +100,12 @@ describe('musclesForParts（記録の画面：その日に鍛えた部位の筋�
     expect(musclesForParts(['上腕二頭筋', '腕', '腹筋'])).toEqual(['biceps', 'forearm', 'abs', 'obliques']);
     expect(musclesForParts(['背中', 'ふくらはぎ'])).toEqual(['trapezius', 'lats', 'erectorsUpper', 'erectorsLower']);
     expect(musclesForParts([])).toEqual([]);
+  });
+
+  test('上腕三頭筋は後ろの図の三頭筋と前腕（札と同じ所）。ホームの小さな図（muscleFigureFor）は前の図のまま', () => {
+    expect(musclesForParts(['上腕三頭筋'])).toEqual(['triceps', 'forearm']);
+    expect(pairFigureFor('上腕三頭筋')).toEqual({ view: 'back', muscles: ['triceps', 'forearm'] });
+    expect(muscleFigureFor('上腕三頭筋')).toEqual({ view: 'front', muscles: ['biceps', 'forearm'] });
+    expect(pairFigureFor('胸')).toEqual(muscleFigureFor('胸'));
   });
 });

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN, STEPS_MAX, STEPS_MIN } from '../healthConnect/importer';
 import { SITE_CODES, SITES } from '../injuries';
+import { MIN_WEIGH_INS, PACE_BAND_CENTS, PACE_WINDOW_DAYS, PHASE_LIMITS, RECOVERY_DAYS } from '../phases';
 import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, INJURY_LIMITS, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
@@ -104,6 +105,23 @@ describe('同期のサーバーの決まりと合っている', () => {
       .map(([, code, name, kind, sided]) => ({ code, name, kind, sided: sided === 'True' }));
     expect(server.length).toBeGreaterThan(0);
     expect(SITE_CODES.map((code) => ({ code, name: SITES[code].name, kind: SITES[code].kind, sided: SITES[code].sided }))).toEqual(server);
+  });
+
+  test('フェーズの上限とペースの決まり（幅・測った日・7日・戻って14日）は、サーバーの phase.py と同じ', () => {
+    const phase = read('services/training/training/domain/phase.py');
+    const constant = (name: string) => {
+      const m = new RegExp(`^${name} = (\\d+)\\b`, 'm').exec(phase);
+      if (!m) throw new Error(`${name} がない`);
+      return Number(m[1]);
+    };
+    expect({
+      name: constant('MAX_NAME'), weeks: constant('MAX_WEEKS'), targetHistory: constant('MAX_TARGET_HISTORY'), phases: constant('MAX_PHASES'),
+    }).toEqual(PHASE_LIMITS);
+    expect([constant('PACE_BAND_CENTS'), constant('MIN_WEIGH_INS'), constant('PACE_WINDOW_DAYS'), constant('RECOVERY_DAYS')])
+      .toEqual([PACE_BAND_CENTS, MIN_WEIGH_INS, PACE_WINDOW_DAYS, RECOVERY_DAYS]);
+    // 同期の項目も同じ定数を使う
+    expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+name: Annotated\[str, Field\(max_length=MAX_PHASE_NAME\)\]/m);
+    expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+target_history: Annotated\[list\[PhaseTargetChange\], Field\(max_length=MAX_TARGET_HISTORY\)\]/m);
   });
 
   test('設定の値（身長・目標体重などを文字にしたもの）は、サーバーの上限に収まる', () => {
