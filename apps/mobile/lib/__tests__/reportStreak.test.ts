@@ -30,6 +30,12 @@ describe('明日の一歩のストリーク', () => {
     expect(dailyReportStreak([rep('b', '2026-11-11', [], 'daily', [])], 'b')).toBe(0);
   });
 
+  test('まとめが作られなかった日が挟まれば切れる（日数で数える）', () => {
+    const gapped = [rep('g3', '2026-11-11', [0]), rep('g1', '2026-11-09', [0])]; // 11-10 のまとめがない
+    expect(dailyReportStreak(gapped, 'g3')).toBe(1);
+    expect(dailyReportStreak(gapped, 'g1')).toBe(1);
+  });
+
   test('対象が一覧にない・日次でなければ 0', () => {
     expect(dailyReportStreak(list, 'none')).toBe(0);
     expect(dailyReportStreak(list, 'w1')).toBe(0);

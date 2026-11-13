@@ -1,5 +1,5 @@
 // レポートの週次の中身のうち、アプリが端末の記録から組み立てるブロック（レポート再設計の週次ビュー）。
-// - WeeklyRadarBlock：その週（start〜end）の部位のバランスのレーダー（lib/partBalance.ts の期間指定）
+// - WeeklyRadarBlock：レポートの週の終わりを起点にした直近14日の部位のバランスのレーダー（lib/partBalance.ts のアンカー版。ホームのレーダーと同じ集計）
 // - InjuryReviewBlock：その週のケガの振り返り（lib/injuryReport.ts の3分類。Report のスキーマには関わらない）
 // 並びは週次の詳細で「週間平均のヒーロー → レーダー（このブロック）→ 数値の表 → INJURY REVIEW（このブロック）→ 来週の焦点」。
 // 色はミント（colors.accent）＋モノクロだけ（ケガの画面の琥珀色も、調子の色も使わない）
@@ -9,12 +9,12 @@ import Animated from 'react-native-reanimated';
 import { useEntrance } from '@/hooks/entrance';
 import { useFocusData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
-import { formatMonthDay } from '@/lib/date';
+import { addDays, formatMonthDay } from '@/lib/date';
 import { RESULTS } from '@/lib/injuries';
 import {
   injuryPeriodInjuryCount, loadInjuryPeriodReport, type InjuryPeriodReport, type InjuryReportEntry,
 } from '@/lib/injuryReport';
-import { BALANCE_PARTS, partBalanceForPeriod, partBalancePeriodLabel } from '@/lib/partBalance';
+import { BALANCE_PARTS, partBalanceAnchored, partBalancePeriodLabel } from '@/lib/partBalance';
 import { colors, fonts, radius, space } from '@/theme';
 import { PartStackRadar } from '../PartBalance';
 import { useEntering } from '../reports';
@@ -36,27 +36,29 @@ function BlockHead({ en, title, start, end }: { en: string; title: string; start
 const cardStyle = { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l, gap: space.m } as const;
 
 /**
- * 週次の部位のバランスのレーダー：レポートの期間（start〜end、両端を含む）のセット数を、ホームの大きなレーダーと同じ描き方で。
- * 軸の名前の横にその期間のセット数（PartStackRadar）。ホームのレーダー（直近14日・今日アンカー）とは別に、期間にアンカーする
+ * 週次の部位のバランスのレーダー：レポートの週の終わりの日（end）を起点にした直近14日のセット数を、ホームの大きなレーダーと同じ描き方で。
+ * 集計はホームと同じ直近14日（lib/partBalance.ts の partBalanceAnchored）。週の7日間だけでは記録が薄く形が読めないため、
+ * 「その週の終わり時点のバランス」として14日で見る（ホームのレーダーと見比べもできる）
  */
 export function WeeklyRadarBlock({ start, end, index = 0 }: { start: DateKey; end: DateKey; index?: number }) {
   const enter = useEntering();
+  const spanStart = addDays(end, -13);
   const { data: balance } = useFocusData(async (r) => {
     const [rows, parts] = await Promise.all([r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true })]);
     const names = new Map(parts.map((p) => [p.id, p.name]));
-    return partBalanceForPeriod(rows, (id) => names.get(id) ?? '', start, end);
+    return partBalanceAnchored(rows, (id) => names.get(id) ?? '', end);
   }, `${start}:${end}`);
   const [width, setWidth] = useState(0);
   const { token } = useEntrance(balance, balance ? balance.sets.join(',') : null);
   if (!balance) return null;
   const topIdx = balance.sets.indexOf(Math.max(...balance.sets));
   const note = balance.total === 0
-    ? 'この期間の記録はありません（胸・肩・背中・腕・脚・腹のセット数を数えます）'
+    ? '直近14日間の記録はありません（胸・肩・背中・腕・脚・腹のセット数を数えます）'
     : `いちばん多いのは${BALANCE_PARTS[topIdx]}（${balance.sets[topIdx]}セット）`;
   return (
     <Animated.View entering={enter(index)} style={cardStyle} testID="report-weekly-radar">
-      <BlockHead en="BODY PART BALANCE" title="部位のバランス" start={start} end={end} />
-      <View accessible accessibilityLabel={partBalancePeriodLabel(balance, start, end)} style={{ gap: space.s }}>
+      <BlockHead en="BODY PART BALANCE" title="部位のバランス" start={spanStart} end={end} />
+      <View accessible accessibilityLabel={partBalancePeriodLabel(balance, spanStart, end)} style={{ gap: space.s }}>
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
           {width > 0 && (
             <PartStackRadar all={balance} recent={null} width={width} token={token} fillId="weeklyReportPartFill" testID="report-weekly-radar-chart" />
