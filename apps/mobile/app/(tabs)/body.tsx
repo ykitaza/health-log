@@ -7,6 +7,7 @@ import { takeBodyInputRequest } from '@/components/home';
 import { Icon, IconName } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { PressableScale, RollNumber } from '@/components/motion';
+import { RecoveryInput, RecoveryMapCard } from '@/components/RecoveryMap';
 import { DailyHighlights } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -52,17 +53,25 @@ export default function BodyScreen() {
     const from = addDays(today, -6);
     // その日の記録がない行に出す、その日までの7日の平均の材料（推移のタブの7日は今日まで）
     const dayFrom = addDays(date, -6);
-    const [daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, sleepUpTo, heartUpTo, stepUpTo] = await Promise.all([
+    const [daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, sleepUpTo, heartUpTo, stepUpTo, rows, parts, exercises, injuries] = await Promise.all([
       r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date), r.health.stepDay(date), r.body.getImportedDay(date),
       r.health.sleepDays(from, today), r.health.heartRateDays(from, today), r.health.stepDays(from, today),
       r.health.sleepDays(dayFrom, date), r.health.heartRateDays(dayFrom, date), r.health.stepDays(dayFrom, date),
+      // 回復マップ：筋トレのセット・部位・種目・ケガ
+      r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true }), r.injuries.list(),
     ]);
+    const nameById = new Map(parts.map((p) => [p.id, p.name]));
+    const exPart = new Map(exercises.map((e) => [e.id, nameById.get(e.bodyPartId) ?? null]));
+    const recovery: RecoveryInput = {
+      rows, partName: (id) => nameById.get(id) ?? '', names: parts.filter((p) => !p.hidden).map((p) => p.name),
+      partOfExercise: (id) => exPart.get(id) ?? null, injuries,
+    };
     const avg = {
       sleep: sevenDayAverage(sleepUpTo.map((d) => ({ date: d.date, value: d.asleepMin })), date),
       restingBpm: sevenDayAverage(heartUpTo.filter((d) => d.restingBpm != null).map((d) => ({ date: d.date, value: d.restingBpm! })), date),
       steps: sevenDayAverage(stepUpTo.map((d) => ({ date: d.date, value: d.steps })), date),
     };
-    return { date, daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, avg };
+    return { date, daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, avg, recovery };
   }, `${date}|${today}`);
   const unit = data?.settings.weightUnit ?? 'kg';
   const day = data?.daily.find((d) => d.date === date) ?? null;
@@ -104,6 +113,10 @@ export default function BodyScreen() {
           <T variant="titleM">{formatJpDate(date)}</T>
           <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && setDate(addDays(date, 1))} />
         </Card>
+
+        {/* 回復マップ（ヒーロービュー）：開いてすぐ見えるよう、日の切り替えのすぐ下。その日までの記録で数える。
+            日を変えても読み終わるまで前の日のまま出し、カードを作り直さない（3D の体を読み込み直さない） */}
+        {data && <RecoveryMapCard input={data.recovery} date={data.date} />}
 
         {data && (
           <WeightCard
@@ -161,6 +174,7 @@ export default function BodyScreen() {
             line
           />
         </Card>
+
         <DailyHighlights date={date} areas={TAB_AREAS.body} />
       </>)}
 

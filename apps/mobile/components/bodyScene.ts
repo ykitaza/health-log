@@ -1,4 +1,4 @@
-// ケガの画面の 3D の体の場面（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。
+// 3D の体の場面（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。ケガの画面と、からだのタブの回復マップで使う。
 // three.js の物を毎コマ書き換えるので React の外に置く。React と R3F は使わない（jest で GLB を読み込んで確かめる：lib/__tests__/bodyScene.test.ts）
 import { PanResponder } from 'react-native';
 import * as THREE from 'three';
@@ -13,6 +13,18 @@ const AUTO_SPEED = 0.25;
 const AUTO_DELAY = 2500;
 /** 最初の向き（少し斜め） */
 const START_YAW = 0.35;
+
+/** 回復の光：明るさ 1（いちばん強い）のときの部品の光の強さ。0 はふだんの光（RECOVERY_IDLE）。間はまっすぐ混ぜる */
+const RECOVERY_IDLE = { base: 0.13, rim: 1.2 };
+const RECOVERY_FULL = { base: 0.55, rim: 2.4 };
+/** 回復マップのケガの印：部品をケガの色で塗って脈打たせ（脈の深さ）、にじみはケガの画面の 0.8 倍 */
+const QUIET_MARK = { base: 0.45, rim: 1.9, pulse: 0.5 };
+const QUIET_GLOW = 0.8;
+/**
+ * 回復マップの走査の帯と輪の強さ（ケガの画面を 1 として）。加算合成なので、暖色の部位の上を帯が通ると白く飛んで
+ * ちらついて見える。回復マップは色で状態を伝えるので、帯は控えめにする
+ */
+const QUIET_SCAN = 0.35;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -30,7 +42,7 @@ const HOLO_VERT = `
   }`;
 const HOLO_FRAG = `
   uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uSel;
+  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel;
   varying vec3 vN; varying vec3 vV; varying float vY;
   void main() {
     float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
@@ -39,7 +51,7 @@ const HOLO_FRAG = `
     float d = vY - uScanY;
     float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
     float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 + uSel * (0.4 + 0.9 * f);
+    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
     gl_FragColor = vec4(uColor, clamp(a, 0.0, 1.0));
   }`;
 /** 琥珀色の光のにじみ（ポストエフェクトの代わり。中心から外へ薄くなる板） */
@@ -51,13 +63,13 @@ const DISC_FRAG = `
   uniform vec3 uColor; varying vec2 vU;
   void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }`;
 
-type Shared = { uTime: { value: number }; uScanY: { value: number } };
+type Shared = { uTime: { value: number }; uScanY: { value: number }; uScanAmp: { value: number } };
 function holoMat(shared: Shared, color: THREE.Color, base: number, rim: number, pulse = 0) {
   return new THREE.ShaderMaterial({
     vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG,
     uniforms: {
       uColor: { value: color.clone() }, uBase: { value: base }, uRim: { value: rim }, uPulse: { value: pulse },
-      uSel: { value: 0 }, uTime: shared.uTime, uScanY: shared.uScanY,
+      uSel: { value: 0 }, uTime: shared.uTime, uScanY: shared.uScanY, uScanAmp: shared.uScanAmp,
     },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
@@ -100,7 +112,7 @@ function makeDeck() {
  * three.js の物は毎コマ書き換えるので、React の state にせず、このクラスの中だけで持つ
  */
 export class BodyScene {
-  readonly shared: Shared = { uTime: { value: 1 }, uScanY: { value: -1 } };
+  readonly shared: Shared = { uTime: { value: 1 }, uScanY: { value: -1 }, uScanAmp: { value: 1 } };
   readonly body = new THREE.Group();
   readonly deck: THREE.Group;
   private readonly ticks: THREE.Group;
@@ -109,7 +121,26 @@ export class BodyScene {
   private pickables: THREE.Mesh[] = [];
   private byName: Record<string, THREE.Mesh> = {};
   private glows: { mesh: THREE.Mesh; anchor: THREE.Vector3 }[] = [];
-  private selected: THREE.Mesh | null = null;
+  private selected: THREE.Mesh[] = [];
+  /** 画面から選んだ部品（読み込む前に選んでも、読み込んだあとに付ける） */
+  private selNames: string[] = [];
+  /** 部品ごとの回復の光の明るさ（0〜1） */
+  private levels: Record<string, number> = {};
+  /** ケガの印を控えめにする（回復マップ） */
+  private quiet = false;
+  /** 土台の色（部品のふだんの光・皮膚・台・走査の輪）。ケガの画面は緑 */
+  private base = GREEN.clone();
+  /** 明るさ k の色。渡さなければ緑のまま強さだけを変える */
+  private levelColor: ((k: number) => string) | null = null;
+  /** ケガの印の色（回復マップの控えめな印と、にじみ）。ケガの画面は琥珀色 */
+  private injury = AMBER.clone();
+  /** 土台の色に寄せる、台・走査の輪・皮膚の材質 */
+  private tinted: (THREE.LineBasicMaterial | THREE.ShaderMaterial)[] = [];
+  private readonly tmpC = new THREE.Color();
+  /** 最初のコマを描いたか（読み込み中の表示を消す） */
+  private drawn = false;
+  private onDrawn: (() => void) | null = null;
+  private frames = 0;
   private loaded: THREE.Object3D | null = null;
   private readonly ray = new THREE.Raycaster();
   private readonly tmp = new THREE.Vector3();
@@ -133,6 +164,19 @@ export class BodyScene {
     const { deck, ticks } = makeDeck();
     this.deck = deck;
     this.ticks = ticks;
+    deck.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (m instanceof THREE.LineBasicMaterial || m instanceof THREE.ShaderMaterial) this.tinted.push(m);
+    });
+    this.tinted.push(this.scanRing.material as THREE.LineBasicMaterial);
+  }
+
+  /** 台・走査の輪・皮膚を土台の色にする */
+  private tint() {
+    for (const m of this.tinted) {
+      if (m instanceof THREE.LineBasicMaterial) m.color.copy(this.base);
+      else m.uniforms.uColor.value = this.base.clone();
+    }
   }
 
   /**
@@ -152,6 +196,7 @@ export class BodyScene {
       const core = o.name === 'skin';
       o.material = core ? holoMat(this.shared, GREEN, 0.004, 0.32) : holoMat(this.shared, GREEN, 0.13, 1.2);
       if (core) {
+        this.tinted.push(o.material as THREE.ShaderMaterial, skinWire);
         o.add(new THREE.LineSegments(new THREE.WireframeGeometry(o.geometry), skinWire));
         o.renderOrder = 2;
       } else {
@@ -170,14 +215,30 @@ export class BodyScene {
     this.body.add(root);
     // 終わってから印を付ける（途中で失敗したら、次の描画でやり直す）
     this.loaded = loaded;
+    this.tint();
     this.setMarks(this.marks);
+    this.select(this.selNames);
   }
 
   private marks: Mark[] = [];
 
-  /** 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき） */
-  configure(o: { marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void }) {
+  /**
+   * 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき）。
+   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）も渡す
+   */
+  configure(o: {
+    marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
+    levels?: Record<string, number>; quietMarks?: boolean;
+    baseColor?: string; levelColor?: (k: number) => string; injuryColor?: string;
+  }) {
     this.reduced = o.reduced;
+    this.levels = o.levels ?? {};
+    this.quiet = o.quietMarks ?? false;
+    this.shared.uScanAmp.value = this.quiet ? QUIET_SCAN : 1;
+    this.base.set(o.baseColor ?? GREEN);
+    this.levelColor = o.levelColor ?? null;
+    this.injury.set(o.injuryColor ?? AMBER);
+    this.tint();
     this.tipMarks = o.tipMarks;
     this.onPick = o.onPick;
     this.onTips = o.onTips;
@@ -185,22 +246,52 @@ export class BodyScene {
     this.setMarks(o.marks);
   }
 
-  /** ケガの印：直している途中（琥珀色で脈打つ）が、直せた（控えめな緑）より強い。にじみは直している途中の付け根ごと */
+  /** 画面から部品を選ぶ（回復マップ：押した部位の部品をまとめて光らせる）。空なら選ぶのをやめる */
+  select(names: string[]) {
+    this.selNames = names;
+    for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 0;
+    this.selected = names.map((n) => this.byName[n]).filter((m): m is THREE.Mesh => m != null && this.pickables.includes(m));
+    for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 1;
+  }
+
+  /** 最初のコマを描いたら1回だけ呼ぶ。もう描いていたら、すぐ呼ぶ */
+  onFirstFrame(cb: () => void) {
+    if (this.drawn) { cb(); return; }
+    this.onDrawn = cb;
+  }
+
+  /**
+   * 光らせ方：ふだんの光 → 回復の光（明るさの表）→ ケガの印。
+   * ケガの印は、直している途中（琥珀色で脈打つ）が、直せた（控えめな緑）より強い。にじみは直している途中の付け根ごと。
+   * 控えめにするとき（回復マップ）は、部品の色は変えず、小さなにじみだけを脈打たせる
+   */
   private setMarks(marks: Mark[]) {
     const set = (m: THREE.Mesh | undefined, color: THREE.Color, base: number, rim: number, pulse: number) => {
       if (!m) return;
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
-    for (const m of this.pickables) set(m, GREEN, 0.13, 1.2, 0);
-    for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
-    for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
+    for (const m of this.pickables) set(m, this.base, 0.13, 1.2, 0);
+    for (const [p, v] of Object.entries(this.levels)) {
+      const k = Math.min(1, Math.max(0, v));
+      const lerp = (a: number, b: number) => a + (b - a) * k;
+      const color = this.levelColor ? this.tmpC.set(this.levelColor(k)) : this.base;
+      if (k > 0) set(this.byName[p], color, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
+    }
+    if (this.quiet) {
+      for (const mk of marks.filter((k) => k.fixing)) {
+        for (const p of mk.parts) set(this.byName[p], this.injury, QUIET_MARK.base, QUIET_MARK.rim, this.reduced ? 0 : QUIET_MARK.pulse);
+      }
+    } else {
+      for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
+      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
+    }
     for (const g of this.glows) { g.mesh.geometry.dispose(); (g.mesh.material as THREE.Material).dispose(); }
     this.glowGroup.clear();
     this.glows = marks.filter((m) => m.fixing).map((m) => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
-        uniforms: { uColor: { value: AMBER }, uOpacity: { value: 0.5 } }, vertexShader: UV_VERT, fragmentShader: GLOW_FRAG,
+        uniforms: { uColor: { value: this.injury.clone() }, uOpacity: { value: 0.5 } }, vertexShader: UV_VERT, fragmentShader: GLOW_FRAG,
       }));
       this.glowGroup.add(mesh);
       return { mesh, anchor: new THREE.Vector3(...m.anchor) };
@@ -247,7 +338,7 @@ export class BodyScene {
     const sy = !reduced && cyc <= 1 ? cyc * 1.85 : -1;
     this.shared.uScanY.value = sy;
     this.scanRing.position.y = sy;
-    (this.scanRing.material as THREE.LineBasicMaterial).opacity = sy >= 0 ? 0.55 * Math.sin(cyc * Math.PI) : 0;
+    (this.scanRing.material as THREE.LineBasicMaterial).opacity = sy >= 0 ? 0.55 * Math.sin(cyc * Math.PI) * this.shared.uScanAmp.value : 0;
     const rs = 0.36 - 0.12 * Math.max(0, (sy - 1.45) / 0.4);
     this.scanRing.scale.set(rs / 0.36, 1, (rs / 0.36) * 0.7);
 
@@ -262,12 +353,13 @@ export class BodyScene {
 
     // にじみ：付け根に置き、カメラに向ける。2 秒で脈打つ
     const pul = 0.5 + 0.5 * Math.sin(t * Math.PI);
+    const q = this.quiet ? QUIET_GLOW : 1;
     for (const gl of this.glows) {
       gl.mesh.position.copy(gl.anchor);
       g.localToWorld(gl.mesh.position);
       gl.mesh.quaternion.copy(camera.quaternion);
-      gl.mesh.scale.setScalar(reduced ? 0.3 : 0.26 + 0.08 * pul);
-      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = reduced ? 0.5 : 0.25 + 0.45 * pul;
+      gl.mesh.scale.setScalar((reduced ? 0.3 : 0.26 + 0.08 * pul) * q);
+      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (reduced ? 0.5 : 0.25 + 0.45 * pul) * q;
     }
 
     // 押した所の部品を選ぶ（筋肉を先に。同じ部品・皮膚・外を押したら選ぶのをやめる）
@@ -275,10 +367,8 @@ export class BodyScene {
       this.ray.setFromCamera(new THREE.Vector2((this.tap.x / width) * 2 - 1, -(this.tap.y / height) * 2 + 1), camera);
       this.tap = null;
       const hit = this.ray.intersectObjects(this.pickables, false)[0];
-      const mesh = hit && hit.object !== this.selected ? (hit.object as THREE.Mesh) : null;
-      if (this.selected) (this.selected.material as THREE.ShaderMaterial).uniforms.uSel.value = 0;
-      this.selected = mesh;
-      if (mesh) (mesh.material as THREE.ShaderMaterial).uniforms.uSel.value = 1;
+      const mesh = hit && !this.selected.includes(hit.object as THREE.Mesh) ? (hit.object as THREE.Mesh) : null;
+      this.select(mesh ? [mesh.name] : []);
       this.onPick(mesh?.name ?? null);
     }
 
@@ -294,5 +384,10 @@ export class BodyScene {
       out.push((this.tmp.x * 0.5 + 0.5) * width, (-this.tmp.y * 0.5 + 0.5) * height, facing ? 1 : 0);
     }
     this.onTips(out);
+
+    // 最初のコマ：このコマは呼んだあとに描かれるので、次のコマで「描いた」とする（体を読み込んでから）
+    if (!this.drawn && this.loaded) {
+      if (this.frames++ >= 1) { this.drawn = true; this.onDrawn?.(); this.onDrawn = null; }
+    }
   }
 }
