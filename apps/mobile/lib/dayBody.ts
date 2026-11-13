@@ -1,5 +1,6 @@
-// その日の体（3D の体と種目の札 EX-01〜）の札の置き場所と、記録から札を作るところ。ホームの LATEST と、筋トレの記録の画面（予定）で使う。
+// その日の体（3D の体と種目の札 EX-01〜）の札の置き場所と、記録から札を作るところ、光らせ方。ホームの LATEST と、筋トレの記録の画面で使う。
 // three.js は読まない（jest で確かめる）
+import { colors } from '@/theme';
 import { boxOf, projectFront, Vec3 } from './bodyModel';
 import { calloutSet } from './dayCallouts';
 import { recoveryAnchor, recoveryMeshesFor } from './recoveryMap';
@@ -13,6 +14,29 @@ export function dayBodyEntries(entries: { id: string; exerciseName: string; body
     entries: list.map((e, i) => ({ key: e.id, no: i + 1, name: e.exerciseName, set: calloutSet(e.sets, unit), part: e.bodyPartName })),
     parts: dayFocus(list).names,
   };
+}
+
+/** 鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑） */
+export const TRAINED_GLOW = colors.onAccentDark;
+
+/**
+ * 3D の体の光らせ方。parts（その日・前回の部位）の部品は明るさ 1（ミント）、recovery（部品ごとの回復の明るさ。lib/recoveryMap.ts の recoveryLevels）が
+ * 0 より大きい部品はその明るさ（暖色。ミントより優先）。warm は暖色にする部品
+ */
+export function dayBodyGlow(parts: string[], recovery: Record<string, number>): { levels: Record<string, number>; warm: Set<string> } {
+  const levels: Record<string, number> = Object.fromEntries(parts.flatMap((p) => recoveryMeshesFor(p).map((m) => [m, 1])));
+  const warm = new Set<string>();
+  for (const [m, k] of Object.entries(recovery)) {
+    if (k <= 0) continue;
+    levels[m] = k;
+    warm.add(m);
+  }
+  return { levels, warm };
+}
+
+/** 3D の体で押した部品にあたる部位（チップの並びのまま。前腕のように、いくつかの部位にあたる部品もある）。どれにもなければ空 */
+export function partsOfMesh<T extends { name: string }>(mesh: string, parts: T[]): T[] {
+  return parts.filter((b) => recoveryMeshesFor(b.name).includes(mesh));
 }
 
 /** 3D の体の種目の札（EX-01〜）。no は種目の番号（1 から） */

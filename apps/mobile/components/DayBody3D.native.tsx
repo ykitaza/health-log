@@ -1,24 +1,27 @@
-// その日の体（3D）：その日のトレーニングの部位を明るいミントで光らせ、種目の札（EX-01〜）を引き出し線でつなぐ（ホームの LATEST。筋トレの記録の画面でも使う予定）。
+// その日の体（3D）：その日のトレーニングの部位を明るいミントで光らせ、種目の札（EX-01〜）を引き出し線でつなぐ（ホームの LATEST と、筋トレの記録の画面）。
+// 記録の画面の記録のない日は、前回の部位をミントで光らせ、回復中の部位（暖色）とケガ（赤）を重ねる（回復マップと同じ色。ミントより優先）。
 // 場面は回復マップと同じ（components/bodyScene.ts）。描くのは BodyCanvas（画面を離れた・スクロールして見えないときは止め、触っていないときは 30fps）。
 // 札は体が正面を向いたときの位置で止め、線の先だけが部位を追う（回復マップと同じ）。左右になぞると回る
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
-import { dayBodyCallouts } from '@/lib/dayBody';
-import { recoveryMeshesFor, REST_GREEN } from '@/lib/recoveryMap';
+import type { Injury } from '@/db/repositories/injuries';
+import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
+import { dayBodyCallouts, dayBodyGlow, TRAINED_GLOW } from '@/lib/dayBody';
+import { INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
 import { colors } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
 import type { DayBody3DProps } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
 
-/** 鍛えた部位の色（明るいミント。ふだんの体はアクセントの緑） */
-const TRAINED = colors.onAccentDark;
 const PER_SIDE = 3;
 const GAP = 4;
+const NO_RECOVERY: Record<string, number> = {};
+const NO_INJURIES: Injury[] = [];
 
-function Stage({ width, height, entries, parts, band }: Omit<DayBody3DProps, 'fallback'>) {
+function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, injuries = NO_INJURIES, onPick }: Omit<DayBody3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const layout = useMemo(() => dayBodyCallouts(
@@ -26,15 +29,23 @@ function Stage({ width, height, entries, parts, band }: Omit<DayBody3DProps, 'fa
     { perSide: PER_SIDE, height: DAY_TAG_H, gap: GAP, top: band.top, bottom: band.bottom },
   ), [entries, width, height, band.top, band.bottom]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
-  const levels = useMemo(() => Object.fromEntries(parts.flatMap((p) => recoveryMeshesFor(p).map((m) => [m, 1]))), [parts]);
+  const glow = useMemo(() => dayBodyGlow(parts, recovery), [parts, recovery]);
+  // ケガの印（回復マップと同じ：控えめに赤で脈打つ）
+  const marks = useMemo<Mark[]>(() => injuries.flatMap((i) => {
+    const anchor = anchorFor(i.site, i.side);
+    return anchor ? [{ id: i.id, parts: partsFor(i.site, i.side), anchor, facing: facingOf(i.site, i.side), fixing: true }] : [];
+  }), [injuries]);
+  // 押したときは最新の onPick を呼ぶ（渡す関数が変わっても場面を設定し直さない）
+  const pick = useRef(onPick);
+  useLayoutEffect(() => { pick.current = onPick; });
   const tips = useSharedValue<number[]>([]);
   useEffect(() => {
     const tipMarks: Mark[] = layout.placed.map((p) => ({ id: p.key, parts: [], anchor: p.anchor, facing: p.facing, fixing: false }));
     scene.configure({
-      marks: [], reduced, tipMarks, onPick: () => {}, onTips: (v) => tips.set(v), levels, quietMarks: true,
-      baseColor: REST_GREEN, levelColor: () => TRAINED,
+      marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
+      baseColor: REST_GREEN, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k) : TRAINED_GLOW), injuryColor: INJURY_RED,
     });
-  }, [scene, reduced, layout, levels, tips]);
+  }, [scene, reduced, layout, glow, marks, tips]);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <BodyCanvas scene={scene} />

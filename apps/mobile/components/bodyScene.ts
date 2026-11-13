@@ -130,8 +130,8 @@ export class BodyScene {
   private quiet = false;
   /** 土台の色（部品のふだんの光・皮膚・台・走査の輪）。ケガの画面は緑 */
   private base = GREEN.clone();
-  /** 明るさ k の色。渡さなければ緑のまま強さだけを変える */
-  private levelColor: ((k: number) => string) | null = null;
+  /** 明るさ k の色（mesh は部品の名前。部品ごとに色を変えるとき）。渡さなければ緑のまま強さだけを変える */
+  private levelColor: ((k: number, mesh: string) => string) | null = null;
   /** ケガの印の色（回復マップの控えめな印と、にじみ）。ケガの画面は琥珀色 */
   private injury = AMBER.clone();
   /** 土台の色に寄せる、台・走査の輪・皮膚の材質 */
@@ -229,7 +229,7 @@ export class BodyScene {
   configure(o: {
     marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
     levels?: Record<string, number>; quietMarks?: boolean;
-    baseColor?: string; levelColor?: (k: number) => string; injuryColor?: string;
+    baseColor?: string; levelColor?: (k: number, mesh: string) => string; injuryColor?: string;
   }) {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
@@ -275,7 +275,7 @@ export class BodyScene {
     for (const [p, v] of Object.entries(this.levels)) {
       const k = Math.min(1, Math.max(0, v));
       const lerp = (a: number, b: number) => a + (b - a) * k;
-      const color = this.levelColor ? this.tmpC.set(this.levelColor(k)) : this.base;
+      const color = this.levelColor ? this.tmpC.set(this.levelColor(k, p)) : this.base;
       if (k > 0) set(this.byName[p], color, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
     }
     if (this.quiet) {

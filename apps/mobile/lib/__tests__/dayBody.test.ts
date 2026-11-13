@@ -1,5 +1,5 @@
 import { projectFront } from '../bodyModel';
-import { dayBodyCallouts, dayBodyEntries } from '../dayBody';
+import { dayBodyCallouts, dayBodyEntries, dayBodyGlow, partsOfMesh } from '../dayBody';
 
 const W = 328, H = 328;
 const opts = { perSide: 3, height: 44, gap: 4, top: 70, bottom: H - 70 };
@@ -52,5 +52,27 @@ describe('その日の体の札', () => {
     const r = dayBodyCallouts([{ key: 'x', no: 1, part: 'ふくらはぎ' }], W, H, opts);
     expect(r.placed).toEqual([]);
     expect(r.more).toEqual([1]);
+  });
+});
+
+describe('その日の体の光らせ方と、押した部品', () => {
+  test('部位はミント（明るさ 1）、回復中の部品は回復の明るさで暖色（ミントより優先）。回復済み（0）はミントのまま', () => {
+    const { levels, warm } = dayBodyGlow(['胸', '上腕三頭筋'], { pec_r: 0.67, pec_l: 0.67, triceps_r: 0, quad_r: 0.5 });
+    expect(levels.pec_r).toBe(0.67);
+    expect(levels.triceps_r).toBe(1);
+    expect(levels.triceps_l).toBe(1);
+    expect(levels.quad_r).toBe(0.5);
+    expect([...warm].sort()).toEqual(['pec_l', 'pec_r', 'quad_r']);
+  });
+
+  test('部位がなく回復もなければ光らない', () => {
+    expect(dayBodyGlow([], {})).toEqual({ levels: {}, warm: new Set() });
+  });
+
+  test('押した部品の部位（チップの並びのまま）。前腕は腕の部位すべて、知らない部品は空', () => {
+    const chips = [{ id: '1', name: '胸' }, { id: '2', name: '上腕二頭筋' }, { id: '3', name: '上腕三頭筋' }, { id: '4', name: '脚' }];
+    expect(partsOfMesh('pec_l', chips).map((c) => c.id)).toEqual(['1']);
+    expect(partsOfMesh('forearm_r', chips).map((c) => c.id)).toEqual(['2', '3']);
+    expect(partsOfMesh('skin', chips)).toEqual([]);
   });
 });

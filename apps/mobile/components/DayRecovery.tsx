@@ -1,23 +1,28 @@
-// 記録の画面の、記録のない日のヒーロー：その日の時点の回復マップ（2D の前と後ろの図）。
-// 色・数え方・回復の日数・ケガの結びつけは、からだのタブの回復マップと同じ lib/recoveryMap.ts。
-// 回復中とケガの部位に札と引き出し線（並べ方は種目の札と同じ lib/dayCallouts.ts の layoutCallouts）、回復済みの部位を1つすすめ、
-// 下に「部位から記録」のチップ（図の筋肉を押すと、近い部位のチップが先頭に）
+// 記録の画面の、記録のない日のヒーロー：その日の時点の体の図。
+// Android は 3D のその日の体（components/DayBody.tsx）：前回の部位をミントで光らせ、前回の種目の札（EX-01〜）を付け、回復中（暖色）とケガ（赤）を重ねる。
+// web と 3D が描けないときは 2D の回復マップ（前と後ろの図。回復中とケガの部位に札と引き出し線。並べ方は種目の札と同じ lib/dayCallouts.ts の layoutCallouts）。
+// 色・数え方・回復の日数・ケガの結びつけは、からだのタブの回復マップと同じ lib/recoveryMap.ts。回復済みの部位を1つすすめ、
+// 下に「部位から記録」のチップ（体・図の筋肉を押すと、その部位のチップが先頭に）
 import { router } from 'expo-router';
-import { ReactNode, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, ViewInstance } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import type { RecoveryInput } from './RecoveryMap';
+import { DayBodyAttribution, DayBodyBox, useDayBody3D } from './DayBody';
+import type { DayBodyEntry } from './DayBody3D';
 import { MuscleFigure } from './MuscleFigure';
 import { PartBadge } from './ExerciseFields';
 import { T } from './Text';
 import { Button, Card, Chip, ChipRow } from './ui';
 import { DateKey, relativeDays } from '@/lib/date';
+import { dayBodyGlow, partsOfMesh, TRAINED_GLOW } from '@/lib/dayBody';
 import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { siteLabel } from '@/lib/injuries';
 import { MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, REST_GREEN, suggestRecovered,
+  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels, REST_GREEN,
+  suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
 import { colors, space } from '@/theme';
@@ -37,8 +42,28 @@ export function trainedBy(input: RecoveryInput, date: DateKey): boolean {
 /** 部位（チップの ID と名前） */
 export type PickPart = { id: string; name: string };
 
-/** 図で押した所：向き・図の座標の点・まわりの部位（近い順。ユーザーの部位にあるものだけ） */
-export type Picked = { view: MuscleView; point: { x: number; y: number }; parts: PickPart[] };
+/** 押した所のまわりの部位（チップの先頭に出す。ユーザーの部位にあるものだけ）。3D の体で押したときはこれだけ */
+export type PickedParts = { parts: PickPart[] };
+
+/** 2D の図で押した所：向き・図の座標の点・まわりの部位（近い順） */
+export type Picked = PickedParts & { view: MuscleView; point: { x: number; y: number } };
+
+/** 3D の体で押した部品の部位。なければ null */
+export function pickMesh(mesh: string | null, pickParts: PickPart[]): PickedParts | null {
+  const parts = mesh ? partsOfMesh(mesh, pickParts) : [];
+  return parts.length > 0 ? { parts } : null;
+}
+
+/** 押した所（日を変えたら消す）。2D の図は輪を描くので Picked、3D は部位だけ */
+export function usePicked(date: string) {
+  const [state, setState] = useState<{ date: string; picked: Picked | PickedParts | null }>({ date, picked: null });
+  const picked = state.date === date ? state.picked : null;
+  const setPicked = useCallback((p: Picked | PickedParts | null) => setState({ date, picked: p }), [date]);
+  return [picked, setPicked] as const;
+}
+
+/** 2D の図に輪を描く所（3D で押したときはない） */
+export const pickedPoint = (p: Picked | PickedParts | null): Picked | null => (p && 'view' in p ? p : null);
 
 /** 押した点のまわりの部位（ユーザーの部位にあるもの）。なければ null */
 export function pickAt(view: MuscleView, point: { x: number; y: number }, pickParts: PickPart[]): Picked | null {
@@ -69,7 +94,7 @@ export function FigurePress({ scale, onPick, style, testID }: { scale: number; o
  * チップを押すと、その部位で絞った種目の選択。note を渡すと、チップに状態（色の点と「あと1日」）を添える
  */
 export function PartChips({ date, pickParts, picked, note, testID }: {
-  date: string; pickParts: PickPart[]; picked: Picked | null; testID: string;
+  date: string; pickParts: PickPart[]; picked: PickedParts | null; testID: string;
   note?: (name: string) => { dot: string; text: string; spoken: string } | null;
 }) {
   const nearIds = new Set(picked?.parts.map((b) => b.id) ?? []);
@@ -103,6 +128,8 @@ const CALLOUT_MIN_W = 68;
 /** 札と図のあいだ、前と後ろの図のあいだ */
 const CALLOUT_INSET = space.xs;
 const FIG_GAP = space.s;
+/** 3D の体の高さ */
+const STAGE_H = 340;
 /** 図の高さの上限・下限（幅は高さの半分） */
 const FIG_MAX_H = 200;
 const FIG_MIN_H = 132;
@@ -117,15 +144,17 @@ const CALLOUTS_PER_SIDE = 4;
 const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level) : REST_GREEN);
 
 /**
- * 記録のない日のヒーロー：その日の時点の回復マップ（2D）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
+ * 記録のない日のヒーロー：その日の時点の体（3D は前回の部位と回復、2D は回復マップ）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
+ * previous は前回の種目の札とその日の部位（3D で光らせる）。
  * 一度も記録がなければ、色を付けない体の図（押して部位から記録できる）
  */
-// key に日付を渡す（日を変えたら、押した所を消す）
-export function RecoveryHero({ date, today, input, pickParts, foot, testID = 'recovery-hero' }: {
-  date: DateKey; today: DateKey; input: RecoveryInput; pickParts: PickPart[]; foot?: ReactNode; testID?: string;
+export function RecoveryHero({ date, today, input, pickParts, previous, foot, testID = 'recovery-hero' }: {
+  date: DateKey; today: DateKey; input: RecoveryInput; pickParts: PickPart[];
+  previous?: { entries: DayBodyEntry[]; parts: string[] } | null; foot?: ReactNode; testID?: string;
 }) {
   const [width, setWidth] = useState(0);
-  const [picked, setPicked] = useState<Picked | null>(null);
+  const [picked, setPicked] = usePicked(date);
+  const body3D = useDayBody3D();
   const list = useMemo(() => partRecoveries(input.rows, input.partName, input.names, date), [input, date]);
   const injuries = useMemo(() => fixingOn(input.injuries, date), [input.injuries, date]);
   const hurtOf = useMemo(() => new Map(list.map((p) => [p.name, injuriesForPart(p, injuries)])), [list, injuries]);
@@ -158,11 +187,18 @@ export function RecoveryHero({ date, today, input, pickParts, foot, testID = 're
   });
   const fills = trained ? muscleFills(list) : undefined;
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
-  const mark = picked ? toScreen(picked.view, picked.point) : null;
+  const point = pickedPoint(picked);
+  const mark = point ? toScreen(point.view, point.point) : null;
+  // 3D：回復中の部品の明るさ。前回の部位のうち、回復中でない部品があればミントで光る（凡例に出す）
+  const levels = useMemo(() => recoveryLevels(list), [list]);
+  const prevParts = previous?.parts ?? [];
+  const mint = body3D.on && Object.keys(dayBodyGlow(prevParts, levels).levels).some((m) => !(levels[m] > 0));
+  const legend = mint ? [LEGEND[0], { color: TRAINED_GLOW, label: '前回' }, ...LEGEND.slice(1)] : LEGEND;
+  const onPick = useCallback((mesh: string | null) => setPicked(pickMesh(mesh, pickParts)), [setPicked, pickParts]);
 
   const recovering = list.filter((p) => p.level > 0);
   const spoken = trained ? [
-    '回復マップ。緑は回復済み、暖色は回復中、赤はケガ',
+    `回復マップ。緑は回復済み、${mint ? 'ミントは前回の部位、' : ''}暖色は回復中、赤はケガ`,
     recovering.length > 0 ? `回復中の部位、${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '回復中の部位はありません',
     injuries.length > 0 ? `直している途中のケガ、${injuries.map((i) => siteLabel(i.site, i.side)).join('、')}` : '',
   ].filter(Boolean).join('。') : '体の図';
@@ -180,7 +216,7 @@ export function RecoveryHero({ date, today, input, pickParts, foot, testID = 're
         <T variant="labelM" color={colors.sub} accessibilityRole="header">{trained ? (date === today ? '今日の回復マップ' : 'この日の回復マップ') : '体の図'}</T>
         {trained && (
           <View style={s.legend} testID={`${testID}-legend`} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            {LEGEND.map((l) => (
+            {legend.map((l) => (
               <View key={l.label} style={s.legendItem}>
                 <View style={[s.swatch, { backgroundColor: l.color }]} />
                 <T variant="bodyS" color={colors.sub}>{l.label}</T>
@@ -189,40 +225,50 @@ export function RecoveryHero({ date, today, input, pickParts, foot, testID = 're
           </View>
         )}
       </View>
-      <View accessible accessibilityLabel={spoken} testID={testID} onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: layout.height }}>
-        {width > 0 && (
-          <>
-            {(['front', 'back'] as const).map((view) => (
-              <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, alignItems: 'center' }}>
-                <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={figW} height={figH} />
-                <View style={{ height: LABEL_H, justifyContent: 'flex-end' }}>
-                  <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
-                </View>
-              </View>
-            ))}
-            {/* 引き出し線と、その部位の点（回復の色。ケガは赤）。押した所は輪 */}
-            <Svg width={width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
-              {lines.map((l) => (
-                <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.sub} strokeWidth={1} strokeOpacity={0.7} />
-              ))}
-              {lines.map((l) => <Circle key={`dot-${l.key}`} cx={l.x} cy={l.y} r={3} fill={l.color} stroke={colors.card} strokeWidth={1.5} />)}
-              {mark && <Circle cx={mark.x} cy={mark.y} r={8} fill="none" stroke={colors.text} strokeWidth={1.5} />}
-            </Svg>
-            {(['front', 'back'] as const).map((view) => (
-              <FigurePress key={view} testID={`${testID}-press-${view}`} scale={scale} onPick={(p) => setPicked(pickAt(view, p, pickParts))}
-                style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, height: figH }} />
-            ))}
-            {(['left', 'right'] as const).flatMap((side) => layout[side].map((c) => (
-              <PartCallout
-                key={c.kind === 'entry' ? c.key : `more-${side}`} callout={c} align={side === 'left' ? 'right' : 'left'}
-                part={c.kind === 'entry' ? byName.get(c.key) : undefined} hurt={c.kind === 'entry' ? hurtOf.get(c.key) ?? [] : []}
-                moreNames={c.kind === 'more' ? c.nos.map((n) => marked[n - 1].name) : []}
-                style={{ [side]: 0, top: c.top, width: calloutW }}
-              />
-            )))}
-          </>
+      <View accessible accessibilityLabel={spoken} testID={testID}>
+        {body3D.on ? (
+          <DayBodyBox
+            height={STAGE_H} entries={previous?.entries ?? []} parts={prevParts} recovery={levels} injuries={injuries}
+            onPick={pickParts.length > 0 ? onPick : undefined} onFail={body3D.fail} style={{ marginHorizontal: -space.s }}
+          />
+        ) : (
+          <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: layout.height }}>
+            {width > 0 && (
+              <>
+                {(['front', 'back'] as const).map((view) => (
+                  <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, alignItems: 'center' }}>
+                    <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={figW} height={figH} />
+                    <View style={{ height: LABEL_H, justifyContent: 'flex-end' }}>
+                      <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
+                    </View>
+                  </View>
+                ))}
+                {/* 引き出し線と、その部位の点（回復の色。ケガは赤）。押した所は輪 */}
+                <Svg width={width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
+                  {lines.map((l) => (
+                    <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.sub} strokeWidth={1} strokeOpacity={0.7} />
+                  ))}
+                  {lines.map((l) => <Circle key={`dot-${l.key}`} cx={l.x} cy={l.y} r={3} fill={l.color} stroke={colors.card} strokeWidth={1.5} />)}
+                  {mark && <Circle cx={mark.x} cy={mark.y} r={8} fill="none" stroke={colors.text} strokeWidth={1.5} />}
+                </Svg>
+                {(['front', 'back'] as const).map((view) => (
+                  <FigurePress key={view} testID={`${testID}-press-${view}`} scale={scale} onPick={(p) => setPicked(pickAt(view, p, pickParts))}
+                    style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, height: figH }} />
+                ))}
+                {(['left', 'right'] as const).flatMap((side) => layout[side].map((c) => (
+                  <PartCallout
+                    key={c.kind === 'entry' ? c.key : `more-${side}`} callout={c} align={side === 'left' ? 'right' : 'left'}
+                    part={c.kind === 'entry' ? byName.get(c.key) : undefined} hurt={c.kind === 'entry' ? hurtOf.get(c.key) ?? [] : []}
+                    moreNames={c.kind === 'more' ? c.nos.map((n) => marked[n - 1].name) : []}
+                    style={{ [side]: 0, top: c.top, width: calloutW }}
+                  />
+                )))}
+              </>
+            )}
+          </View>
         )}
       </View>
+      {body3D.on && DayBodyAttribution && <DayBodyAttribution />}
       {suggest && (
         <View style={s.suggest} testID={`${testID}-suggest`}>
           <View
