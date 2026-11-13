@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from training.domain import big3, body, bodyweight
+from training.application.queries import phase_progress
+from training.domain import big3, body, bodyweight, phase
 from training.domain import calculations as c
 from training.domain.model import BodyRecord, Exercise, RecordType, SetRow
 
@@ -98,3 +99,29 @@ def test_体組成():
 def test_週の始まりは月曜():
     assert [c.week_start(d) for d in ("2026-11-08", "2026-11-09", "2026-11-11", "2026-11-15", "2026-11-16")] == [
         "2026-11-02", "2026-11-09", "2026-11-09", "2026-11-09", "2026-11-16"]
+
+
+def _phase(d: dict) -> phase.Phase:
+    history = tuple(phase.TargetChange(c["date"], c["target_weight_kg"], c["end_date"], c.get("weight_kg"))
+                    for c in d["target_history"])
+    return phase.Phase(d["id"], d["kind"], d["direction"], d["name"], d["start_date"], d["end_date"],
+                       d["target_weight_kg"], d["meal_targets"], d["snapshot"], d["status"], d["paused_phase_id"],
+                       history, d["ended_on"], d["created_at"])
+
+
+@pytest.mark.parametrize("group", load("phases.json")["groups"], ids=lambda g: g["name"])
+def test_フェーズの計算(group):
+    phases = [_phase(d) for d in group["phases"]]
+    weights = [(d, kg) for d, kg in group["weights"]]
+    for check in group["checks"]:
+        p = next(x for x in phases if x.id == check["phase_id"])
+        pp = phase_progress(p, phases, weights, check["as_of"])
+        pace = None if pp.pace is None else {
+            "status": pp.pace.status, "reason": pp.pace.reason, "weigh_ins": pp.pace.weigh_ins,
+            "week_avg_kg": pp.pace.week_avg_kg, "plan_kg": pp.pace.plan_kg, "diff_kg": pp.pace.diff_kg}
+        assert {"label": phase.label(p), "paused": pp.paused, "week": pp.week, "weeks_total": pp.weeks_total,
+                "effective_end": pp.effective_end, "remaining_days": pp.remaining_days, "rehab_days": pp.rehab_days,
+                "plan_kg": pp.plan_kg, "pace": pace} == check["expected"], (check["phase_id"], check["as_of"])
+    for c in group["current"]:
+        current, paused = phase.current(phases, c["as_of"])
+        assert (current and current.id, paused and paused.id) == (c["current"], c["paused"]), c["as_of"]

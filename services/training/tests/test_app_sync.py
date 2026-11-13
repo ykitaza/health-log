@@ -132,6 +132,14 @@ def test_アプリで記録したものが_MCP_から見える_同じ本文を2�
     assert [(c["origin"], c["fields"]) for c in steps] == [("import", {"date": "2026-11-07", "steps": 8240})]
     summary = tool("step_summary")
     assert (summary["days"], summary["average_steps"]) == ([{"date": "2026-11-07", "steps": 8240}], 8240)
+    # フェーズ：増量を始めて療養に入った（JSON の項目も strict な項目のモデルで受け付ける）。MCP からは読むだけ
+    phases = tool("list_phases")
+    assert (phases["current"]["kind"], phases["current"]["label"], phases["current"]["rehab_days"]) == ("rehab", "肘", 2)
+    paused = phases["paused"]
+    assert (paused["direction"], paused["label"], paused["week"], paused["paused_by_rehab"]) == ("bulk", "増量 16週", 1, True)
+    assert paused["snapshot"]["big3"] == {"bench": 100, "squat": None, "deadlift": 140.5}
+    assert paused["meal_targets"]["rest_day"] == {"kcal": 2600, "protein_g": 150}
+    assert paused["effective_end_date"] == "2027-02-23" and paused["pace"]["not_judged_reason"] == "paused"
 
 
 def normalize(value, ids: dict):

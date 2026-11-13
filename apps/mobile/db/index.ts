@@ -5,6 +5,7 @@ import { catalogRepository } from './repositories/catalog';
 import { healthRepository } from './repositories/health';
 import { injuryRepository } from './repositories/injuries';
 import { mealRepository } from './repositories/meals';
+import { phaseRepository } from './repositories/phases';
 import { reportRepository } from './repositories/reports';
 import { settingsRepository } from './repositories/settings';
 import { workoutRepository } from './repositories/workouts';
@@ -23,6 +24,7 @@ export function createRepositories(db: Db, deps: Deps = defaultDeps) {
     reports: reportRepository(db, deps),
     achievements: achievementRepository(db, deps),
     injuries: injuryRepository(db, deps),
+    phases: phaseRepository(db, deps),
   };
 }
 

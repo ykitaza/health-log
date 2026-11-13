@@ -55,6 +55,8 @@ INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
 週のまとめでは、period_overview の injuries（reviewed は期間に振り返りを書いたケガ、fixing は直している途中のケガ）を見て、直し方（fix）を守れたかを振り返りに書く。ケガは、本人の分析（原因 cause・直し方 fix）をそのまま使って振り返り、原因を推測しない。診断や治療の助言はしない。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
+tone の良し悪しは、本人がアプリで宣言したフェーズ（period_overview の phase）の向きで決める。増量（bulk）なら体重が増えたのが good、減量（cut）なら減ったのが good（たんぱく質を保ち BIG3 が落ちていなければなおよい）、維持（maintain）なら体重がほぼ変わらず BIG3 や記録が伸びたのが good。ペース（pace.status）が on_track なら順調、fast・slow・over・under は予定からずれている（判定しないとき status は null で、遅れと書かない）。フェーズがなければ今までどおり目標体重（goals.goal_weight_kg）に近づいたかで決める。
+療養中（phase.current.kind が rehab、または rehab_in_period）は、体重や体の目標で tone を決めず、筋トレができていない・総負荷量が減ったことを caution にしない。見るのは睡眠・たんぱく質（食事が足りているか）・ケガの振り返りで、療養中に kcal を大きく減らすことを good にしない。診断や治療の助言はしない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 
 READ = ToolAnnotations(read_only_hint=True)
@@ -76,7 +78,9 @@ class MetricInput(BaseModel):
     unit: str = Field("", max_length=MAX_UNIT, description="単位。例：t、kcal、g、kg、時間、回")
     delta: Number | None = Field(None, description="前の期間からの変化（value と同じ単位。増えたら正、減ったら負）。比べられなければ省く")
     delta_good: bool | None = Field(
-        None, description="その変化の向きが利用者の目標にとって良いか（減量中の体重の減りは true）。delta を省いたら省く")
+        None, description=(
+            "その変化の向きが利用者の目標にとって良いか。向きはフェーズ（period_overview の phase）で決める"
+            "（減量 cut の体重の減りは true、増量 bulk の増えは true。療養中の体重は判定しないので省く）。delta を省いたら省く"))
 
 
 AreaName = Literal["training", "meals", "body", "sleep"]
@@ -85,7 +89,9 @@ AreaName = Literal["training", "meals", "body", "sleep"]
 class HighlightInput(BaseModel):
     area: AreaName = Field(
         description="分野：training（筋トレ）、meals（食事）、body（体組成・歩数）、sleep（睡眠・心拍）")
-    tone: ToneName = Field(description="その分野の調子。good（良い）、steady（変わらない）、caution（気をつけたい）")
+    tone: ToneName = Field(description=(
+        "その分野の調子。good（良い）、steady（変わらない）、caution（気をつけたい）。体重の良し悪しはフェーズの向き"
+        "（減量なら減ったのが good）で決め、療養中は筋トレの少なさを caution にしない"))
     text: str = Field(min_length=1, max_length=MAX_HIGHLIGHT_TEXT, description="一文で。例：脚の日が2回に増えた")
     metric: MetricInput | None = Field(None, description="その分野の主な数字（あれば1つ）")
 
@@ -123,7 +129,9 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
     async def save_report(
         title: Annotated[str, Field(min_length=1, max_length=MAX_TITLE, description="題。例：今週のまとめ（11/2〜11/8）")],
         overall_tone: Annotated[ToneName, Field(
-            description="全体の調子：good（良い調子）、steady（いつもどおり）、caution（気をつけたい）。記録の数字にもとづいて決める")],
+            description=("全体の調子：good（良い調子）、steady（いつもどおり）、caution（気をつけたい）。記録の数字にもとづき、"
+                         "フェーズの向きで決める（減量期は体重が減ったのが good。療養中は体の目標で判定せず、"
+                         "筋トレできていないことを caution にしない）"))],
         headline: Annotated[str, Field(max_length=MAX_HEADLINE, description="ひと言の要約（40字ほど）。例：脚の日が増え、たんぱく質も目標どおり")],
         kind: Annotated[SaveKindName, Field(description="種類（必須）：daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）。この3つ以外は保存できない")],
         highlights: Annotated[list[HighlightInput], Field(
@@ -157,6 +165,9 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）、
           今月の課題に相当する一歩を3つまで
         tone は数字で決める（目標に近づいた・増えたなら good、変わらないなら steady、離れた・少ないなら caution）。責める言い方はしない。
+        目標の向きはフェーズ（period_overview の phase）で決める：減量（cut）なら体重が減ったのが good、増量（bulk）なら増えたのが good、
+        維持（maintain）なら体重がほぼ変わらないのが good。療養中（phase.current.kind が rehab）は体の目標で判定せず、
+        筋トレができていないことを caution にしない（見るのは睡眠・たんぱく質・ケガの振り返り。診断や治療の助言はしない）。
         保存は1回の依頼につき1回。同じ種類・期間でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える。
         """
         sub = subject(WRITE_SCOPE)
