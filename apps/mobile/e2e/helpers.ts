@@ -1,5 +1,15 @@
 import { expect, Locator, Page } from '@playwright/test';
 
+/**
+ * 画面の切り替えのあとに出る（消える）ものを、細かい間隔で待つ。expect の前に置く（確かめるのは expect のほう）。
+ * Playwright の待ちは、0.27 秒までは細かく確かめるが、そのあとは 0.5 秒おきになる（上限が 2.5 秒以上のとき）。
+ * この画面の切り替えは 0.3 秒ほどかかるので、毎回 0.77 秒まで待たされる。上限を 2 秒にすると 0.1 秒おきに確かめる。
+ * 2 秒で出なければ何もせずに戻り、あとの expect がいつもの上限で待つ
+ */
+export async function settle(target: Locator, state: 'visible' | 'hidden' = 'visible') {
+  await target.waitFor({ state, timeout: 2_000 }).catch(() => {});
+}
+
 /** テストの「今日」。2026-11-08 は日曜（週は月曜始まりなので、11/2〜11/8 が今週。カレンダーは日曜始まり） */
 export const TODAY = '2026-11-08';
 
@@ -17,6 +27,7 @@ export const homeIcon = (page: Page) => page.getByTestId('home-account').filter(
 export async function openApp(page: Page, date = TODAY) {
   await setDate(page, date);
   await page.goto('/');
+  await settle(homeIcon(page));
   await expect(homeIcon(page)).toBeVisible();
 }
 
@@ -24,6 +35,7 @@ export async function openApp(page: Page, date = TODAY) {
 export async function moveToDate(page: Page, date: string) {
   await setDate(page, date);
   await page.goto('/');
+  await settle(homeIcon(page));
   await expect(homeIcon(page)).toBeVisible();
 }
 
@@ -48,9 +60,11 @@ export const button = (scope: Page | Locator, name: string) => scope.getByRole('
 
 /** 種目の選択の画面で、種目の行を押す */
 export async function chooseExercise(page: Page, name: string) {
+  await settle(see(page, '種目を選ぶ', { exact: true }));
   await expect(see(page, '種目を選ぶ', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`^${name} `) }).click();
   // 記録の入力の画面は、読み込みが終わってから見出しと保存のボタンが出る
+  await settle(saveButton(page));
   await expect(saveButton(page)).toBeVisible();
   await expect(page.getByRole('button', { name: new RegExp(`^${name} `) })).toBeHidden();
 }
@@ -79,18 +93,21 @@ export async function addEntry(page: Page, exercise: string, sets: SetSpec[]) {
   await chooseExercise(page, exercise);
   await fillSets(page, sets);
   await saveButton(page).click();
+  await settle(page.getByRole('button', { name: `${exercise}を直す` }));
   await expect(page.getByRole('button', { name: `${exercise}を直す` })).toBeVisible();
 }
 
 /** ホームの「記録する」のシートを開き、行（筋トレ・食事・体重・AI で記録）を押す */
 export async function recordFromHome(page: Page, row: 'training' | 'meal' | 'body' | 'ai') {
   await button(page, '記録する').click();
+  await settle(page.getByTestId('record-sheet'));
   await expect(page.getByTestId('record-sheet')).toBeVisible();
   await page.getByTestId(`record-${row}`).click();
 }
 
 /** 筋トレのタブの「記録」が、その日（「11月8日（日）」など）を出すまで待つ */
 export async function expectTrainingDay(page: Page, label: string) {
+  await settle(button(page, `日を選ぶ（${label}）`));
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: '記録', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
   await expect(button(page, `日を選ぶ（${label}）`)).toBeVisible();
@@ -99,6 +116,7 @@ export async function expectTrainingDay(page: Page, label: string) {
 /** ホームから、今日の記録を足してホームに戻る（「記録する」の筋トレで、筋トレのタブの「記録」の今日が開く） */
 export async function recordToday(page: Page, entries: { exercise: string; sets: SetSpec[] }[]) {
   await recordFromHome(page, 'training');
+  await settle(button(page, '前の日'));
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
   await expect(button(page, '前の日')).toBeVisible();
   for (const e of entries) await addEntry(page, e.exercise, e.sets);
@@ -115,6 +133,7 @@ export async function recordOn(page: Page, date: string, entries: { exercise: st
 /** 設定の画面を開く（ホームか体組成の歯車から） */
 export async function openSettings(page: Page) {
   await button(page, '設定').click();
+  await settle(see(page, '重さの単位', { exact: true }));
   await expect(see(page, '重さの単位', { exact: true })).toBeVisible();
 }
 
@@ -194,6 +213,7 @@ export const trendDay = (page: Page, date: string) => page.getByTestId(`trend-da
 export async function openRm(page: Page) {
   await goTab(page, '筋トレ');
   await button(page, 'RM計算機').click();
+  await settle(see(page, 'RM計算機', { exact: true }));
   await expect(see(page, 'RM計算機', { exact: true })).toBeVisible();
 }
 
@@ -226,12 +246,14 @@ export async function openMealWeek(page: Page) {
 export async function openBody(page: Page) {
   await goTab(page, 'からだ');
   await goPane(page, '今日');
+  await settle(button(page, '前の日'));
   await expect(button(page, '前の日')).toBeVisible();
 }
 
 /** からだの今日で、計測を入れるシートを開く（記録がある日は「入力・編集」、ない日は「計測を入れる」） */
 export async function openBodySheet(page: Page) {
   await page.getByRole('button', { name: /^(入力・編集|計測を入れる)$/ }).filter({ visible: true }).click();
+  await settle(page.getByRole('textbox', { name: '体重', exact: true }));
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeVisible();
 }
 
@@ -243,6 +265,7 @@ export async function enterBody(page: Page, values: { weight?: string; bodyFat?:
   await fill('体脂肪率', values.bodyFat);
   await fill('体組成のメモ', values.memo);
   await button(page, '保存').click();
+  await settle(page.getByRole('textbox', { name: '体重', exact: true }), 'hidden');
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
 }
 
@@ -250,6 +273,7 @@ export async function enterBody(page: Page, values: { weight?: string; bodyFat?:
 export async function openAccountFromSettings(page: Page) {
   await openSettings(page);
   await page.getByTestId('settings-account').filter({ visible: true }).click();
+  await settle(see(page, 'プロフィール', { exact: true }));
   await expect(see(page, 'プロフィール', { exact: true })).toBeVisible();
 }
 
