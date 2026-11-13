@@ -382,8 +382,8 @@ export type SuccessNow = {
   growthScore: number | null;
 };
 
-/** BIG3 の合計。開始時と今の両方に値がある役だけを足す（片方にしかない役で増減が出ないように） */
-function big3Totals(start: PhaseSnapshot['big3'], now: SuccessNow['big3']): [number, number] | null {
+/** BIG3 の合計。開始時と今の両方に値がある役だけを足す（片方にしかない役で増減が出ないように）。ホームの BIG3 の Δ PHASE でも使う */
+export function big3Totals(start: PhaseSnapshot['big3'], now: SuccessNow['big3']): [number, number] | null {
   if (!start || !now) return null;
   const roles = (['bench', 'squat', 'deadlift'] as const).filter((r) => start[r] != null && now[r] != null);
   if (roles.length === 0) return null;
