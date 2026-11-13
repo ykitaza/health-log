@@ -99,8 +99,8 @@ def register_overview_tools(
             raise ToolError(f"期間は{MAX_DAYS}日までにしてください")
         s, e = start.isoformat(), end.isoformat()
 
-        # 材料の読み取りは、同じ種類の全件読み（全セット・全体組成・設定など）が何度も重なる
-        # （食事のまとめ経由の筋トレ日と period_training で全セットを2回、体組成を3回など）。
+        # 材料の読み取りは、同じ種類の全件読み（全セット・全体組成・設定・フェーズなど）が何度も重なる
+        # （食事のまとめ経由の筋トレ日と period_training で全セットを2回、体組成はフェーズの進み具合を含めて何度もなど）。
         # このツールの1回の実行の間だけ使い回す（戻り値の中身は変えない。読み取り専用なので安全）
         with read_cache_scope():
             catalog = await training.catalog(sub)

@@ -1,8 +1,8 @@
 """読み取りの整合性の切り分け（store.py の DynamoDB 版）。
 
-commit の楽観的ロックの材料（head・seen・get_docs）は強い整合性、
-集計・参照・表示の読み（read_log・scan_docs・docs_of_type・docs_by_index・last_app_received_at）は
-結果整合で呼んでいることを、DynamoDB への呼び出しの引数で確かめる。
+表示用の last_app_received_at だけが結果整合で、ほか（commit の材料の head・seen・get_docs、
+pull の read_log、snapshot の scan_docs、MCP が書く前後に読む docs_of_type・docs_by_index）は
+強い整合性で呼んでいることを、DynamoDB への呼び出しの引数で確かめる。理由は store.py の注記。
 """
 
 from sync.store import DynamoDBSyncStore
@@ -57,13 +57,18 @@ def test_commitの材料は強い整合性(dynamodb_table):
         assert request[dynamodb_table]["ConsistentRead"] is True
 
 
-def test_集計と参照の読みは結果整合(dynamodb_table):
+def test_同期とMCPの読みは強い整合性(dynamodb_table):
+    # pull・snapshot が古いと、カーソルの手前の変更が端末に二度と届かない。
+    # MCP の読みが古いと、書いた直後の応答や、読んで決める並び順・件数の上限が崩れる
     store, table, _ = _recorded(dynamodb_table)
     store.read_log("u1", 0, 10)
     store.scan_docs("u1", None, 10)
     store.docs_of_type("u1", "meal")
     store.docs_by_index("u1", "meal", "2026-11-08#", "2026-11-08#z")
-    assert [c[1]["ConsistentRead"] for c in table.calls] == [False] * 4
+    assert [c[1]["ConsistentRead"] for c in table.calls] == [True] * 4
 
+
+def test_最後の同期の時刻だけ結果整合(dynamodb_table):
+    store, table, _ = _recorded(dynamodb_table)
     assert store.last_app_received_at("u1") is None
     assert table.calls[-1][1]["ConsistentRead"] is False

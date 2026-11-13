@@ -154,16 +154,17 @@ class InMemorySyncStore:
 
 
 class DynamoDBSyncStore:
-    """読み取りの整合性の切り分け（強い読みは RCU が2倍で遅いので、必要な所だけにする）：
+    """読み取りの整合性の切り分け：
 
-    - 強い整合性のまま：head・seen・get_docs（_batch_get）。commit の楽観的ロックの材料で、
-      _append_chunk が「読んだ状態のままなら書く」ことを保証するために使う。古い値を掴むと、
-      競合の検出や冪等の印（duplicate の応答）が崩れるので下げない。
-    - 結果整合に下げる：read_log（pull）・scan_docs（snapshot）・docs_of_type・docs_by_index・
-      last_app_received_at。どれも集計・参照・表示のための読みで、競合検出には使われない。
-      pull はカーソルが「最後に届いた seq」までしか進まないので、伝播の遅れは次回の pull で届くだけで、
-      取りこぼしにはならない。snapshot は途中の変更がこのあと changes で届く設計（http_api の注記どおり）。
-      集計読みは単一利用者の自分の記録で、レポートや画面の材料として少し古くても実害がない。
+    - 結果整合：last_app_received_at だけ。MCP が「最後の同期」として見せる表示用の時刻で、少し古くても実害がない。
+    - ほかは強い整合性のまま：
+      - head・seen・get_docs（_batch_get）：commit の楽観的ロックと冪等の印（duplicate の応答）の材料。
+      - read_log（pull）：結果整合の Query が「途切れのない先頭から」を返すとは保証されない。
+        抜けた seq の先までカーソルが進むと、その変更は二度と届かない。
+      - scan_docs（snapshot）：http_api.snapshot は先に head を強く読んでカーソルにする。走査が古いと、
+        カーソル以前の変更が状態にも changes にも入らず、端末に届かない。
+      - docs_of_type・docs_by_index：MCP の書き込みのツールが、書いた直後に読み直して返す（record_meal の today、
+        筋トレの総負荷量・自己ベストなど）ほか、読んだ一覧から次の並び順・セットの番号や件数の上限を決めて書く。
     """
     def __init__(self, table_name: str, index_key: IndexKey = lambda doc: None):
         import boto3  # Lambda の実行環境に入っている
@@ -192,7 +193,6 @@ class DynamoDBSyncStore:
         return {d.key: d for d in docs}
 
     def _batch_get(self, keys: list[dict]) -> list[dict]:
-        # seen と get_docs（commit 経路の楽観的ロックの材料）だけが使うので、強い整合性のまま
         items = []
         for i in range(0, len(keys), 100):
             request = {self.table_name: {"Keys": keys[i:i + 100], "ConsistentRead": True}}
@@ -244,7 +244,7 @@ class DynamoDBSyncStore:
             return [], False
         res = self.table.query(
             KeyConditionExpression=Key("pk").eq(pk(user)) & Key("sk").between(log_sk(after + 1), log_sk(MAX_SEQ)),
-            Limit=limit, ConsistentRead=False)
+            Limit=limit, ConsistentRead=True)
         entries = [LogEntry.from_json(json.loads(item["data"])) for item in res["Items"]]
         return entries, "LastEvaluatedKey" in res
 
@@ -254,7 +254,7 @@ class DynamoDBSyncStore:
         kwargs = {"ExclusiveStartKey": {"pk": pk(user), "sk": start_after}} if start_after else {}
         res = self.table.query(
             KeyConditionExpression=Key("pk").eq(pk(user)) & Key("sk").begins_with(STATE_PREFIX),
-            Limit=limit, ConsistentRead=False, **kwargs)
+            Limit=limit, ConsistentRead=True, **kwargs)
         docs = [Doc.from_json(json.loads(item["data"])) for item in res["Items"]]
         last = res.get("LastEvaluatedKey")
         return docs, (last["sk"] if last else None)
@@ -263,7 +263,7 @@ class DynamoDBSyncStore:
         from boto3.dynamodb.conditions import Key
 
         condition = Key("pk").eq(pk(user)) & Key("sk").begins_with(state_sk(entity_type, ""))
-        items = self._query_all(KeyConditionExpression=condition, ConsistentRead=False)
+        items = self._query_all(KeyConditionExpression=condition, ConsistentRead=True)
         return [Doc.from_json(json.loads(i["data"])) for i in items]
 
     def docs_by_index(self, user, entity_type, start, end):
@@ -273,7 +273,7 @@ class DynamoDBSyncStore:
         items = self._query_all(
             IndexName=BY_DAY_INDEX,
             KeyConditionExpression=Key("pk").eq(pk(user)) & Key("day_key").between(start, end),
-            FilterExpression=Attr("sk").begins_with(state_sk(entity_type, "")), ConsistentRead=False)
+            FilterExpression=Attr("sk").begins_with(state_sk(entity_type, "")), ConsistentRead=True)
         return [Doc.from_json(json.loads(i["data"])) for i in items]
 
     def _query_all(self, **kwargs) -> list[dict]:
