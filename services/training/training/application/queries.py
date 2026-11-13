@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from training.domain import body, bodyweight, calculations, health
+from training.domain import phase as phase_rules
 from training.domain.catalog import Catalog
 from training.domain.injury import Injury, InjuryReview
+from training.domain.phase import Pace, Phase
 from training.domain.model import HeartRateDay, SetRow, StepDay, TraineeId, Workout
 from training.domain.ports import TrainingRepository
 
@@ -72,6 +74,35 @@ class StepSummary:
 class InjuryRecord:
     injury: Injury
     reviews: list[InjuryReview]  # 古い順（試した日、同じなら記録した順）
+
+
+@dataclass(frozen=True)
+class PhaseProgress:
+    """フェーズの as_of の時点の進み具合（training.domain.phase の決まり）。"""
+
+    phase: Phase
+    as_of: str
+    paused: bool  # 療養で止まっている（通常のフェーズだけ）
+    week: int  # 何週目（通常は止まった日を数えない。療養は開始日から）
+    weeks_total: int | None
+    effective_end: str | None  # 実際の終わり（止まった日数だけ後ろにずれる）
+    remaining_days: int | None
+    rehab_days: int  # 通常：療養で止まった日数。療養：開始日から as_of まで（終わったものは終わった日まで）の日数
+    pace: Pace | None  # 通常のフェーズだけ
+    plan_kg: float | None  # as_of の予定の体重
+
+
+def phase_progress(p: Phase, phases: list[Phase], weights: list[tuple[str, float]], as_of: str) -> PhaseProgress:
+    if p.kind == "rehab":
+        last = as_of if p.status == "active" or not p.ended_on else min(as_of, calculations.add_days(p.ended_on, -1))
+        days = max(0, calculations.days_between(p.start_date, last) + 1)
+        return PhaseProgress(p, as_of, False, max(0, days - 1) // 7 + 1, None, None, None, days, None, None)
+    spans = phase_rules.pauses(p, phases, as_of)
+    plan = phase_rules.plan_value(p, spans, as_of)
+    return PhaseProgress(
+        p, as_of, phase_rules.is_paused(spans, as_of), phase_rules.week(p, spans, as_of), phase_rules.weeks_total(p),
+        phase_rules.effective_end(p, spans), phase_rules.remaining_days(p, spans, as_of), phase_rules.paused_days(spans),
+        phase_rules.pace(p, phases, weights, as_of), None if plan is None else phase_rules.cents(plan) / 100)
 
 
 class TrainingQueries:
@@ -165,3 +196,25 @@ class TrainingQueries:
         found = [i for i in await self.repository.injuries(trainee) if status is None or i.status == status]
         found.sort(key=lambda i: (i.occurred_on, i.created_at, i.id), reverse=True)
         return [InjuryRecord(i, reviews.get(i.id, [])) for i in found]
+
+    async def phases(self, subject: str) -> list[Phase]:
+        """フェーズ。新しい順（開始日、同じなら記録の新しいもの）。"""
+        found = await self.repository.phases(TraineeId(subject))
+        return sorted(found, key=lambda p: (p.start_date, p.created_at, p.id), reverse=True)
+
+    async def phase_progresses(self, subject: str, as_of: str, start: str | None = None,
+                               limit: int = 50) -> tuple[list[PhaseProgress], PhaseProgress | None, PhaseProgress | None]:
+        """(一覧, 今のフェーズ, 療養で止まっている通常のフェーズ)。どれも as_of の時点。
+        start を渡すと、一覧は [start, as_of] に重なるものだけ（中断したものも含む）。渡さなければ全部（これから始まるものも）。一覧は新しい順に limit 件まで。"""
+        phases = await self.phases(subject)
+        if not phases:  # フェーズがなければ体重は読まない
+            return [], None, None
+        weights = await self.body_weights(subject)
+        current, paused = phase_rules.current(phases, as_of)
+        listed = [p for p in phases if start is None
+                  or (p.start_date <= as_of and phase_rules.end_of(p, phases, as_of) >= start)][:limit]
+
+        def progress(p: Phase | None) -> PhaseProgress | None:
+            return None if p is None else phase_progress(p, phases, weights, as_of)
+
+        return [phase_progress(p, phases, weights, as_of) for p in listed], progress(current), progress(paused)

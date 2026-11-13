@@ -1,0 +1,1544 @@
+{
+ "description": "フェーズの計算（何週目・全体の週数・実際の終わり・残り・療養の日数・予定の体重・ペース・今のフェーズ）。アプリ（lib/phases.ts）とサーバー（training.domain.phase、training.application.queries.phase_progress）で確かめる。phases は同期の項目（id・created_at つき）、weights は日ごとの体重",
+ "groups": [
+  {
+   "name": "増量16週：2週目、7日に4回測って予定どおり（予定は 72→80 を111日で）",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-09",
+     72.5
+    ],
+    [
+     "2026-11-11",
+     72.6
+    ],
+    [
+     "2026-11-13",
+     72.9
+    ],
+    [
+     "2026-11-15",
+     73.0
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-02",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 1,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 111,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-15",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 98,
+      "rehab_days": 0,
+      "plan_kg": 72.94,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 4,
+       "week_avg_kg": 72.75,
+       "plan_kg": 72.72,
+       "diff_kg": 0.03
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2027-02-21",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 16,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 0,
+      "rehab_days": 0,
+      "plan_kg": 80.0,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2027-03-10",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 16,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 0,
+      "rehab_days": 0,
+      "plan_kg": 80.0,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": [
+    {
+     "as_of": "2026-11-15",
+     "current": "p1",
+     "paused": null
+    }
+   ]
+  },
+  {
+   "name": "7日に1回しか測っていない週は判定しない（7日より前の記録は使わない）",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-01",
+     71.0
+    ],
+    [
+     "2026-11-07",
+     72.0
+    ],
+    [
+     "2026-11-15",
+     73.0
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-15",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 98,
+      "rehab_days": 0,
+      "plan_kg": 72.94,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 1,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-08",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 1,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 105,
+      "rehab_days": 0,
+      "plan_kg": 72.43,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 1,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "維持（72→72）：直近7日の平均が ちょうど +0.3",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "maintain",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 72.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "m"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-10",
+     72.3
+    ],
+    [
+     "2026-11-12",
+     72.3
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "m",
+     "as_of": "2026-11-12",
+     "expected": {
+      "label": "維持 8週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 45,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 72.3,
+       "plan_kg": 72.0,
+       "diff_kg": 0.3
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "維持（72→72）：直近7日の平均が +0.31",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "maintain",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 72.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "m"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-10",
+     72.31
+    ],
+    [
+     "2026-11-12",
+     72.31
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "m",
+     "as_of": "2026-11-12",
+     "expected": {
+      "label": "維持 8週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 45,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": "over",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 72.31,
+       "plan_kg": 72.0,
+       "diff_kg": 0.31
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "維持（72→72）：直近7日の平均が −0.31",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "maintain",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 72.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "m"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-10",
+     71.69
+    ],
+    [
+     "2026-11-12",
+     71.69
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "m",
+     "as_of": "2026-11-12",
+     "expected": {
+      "label": "維持 8週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 45,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": "under",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 71.69,
+       "plan_kg": 72.0,
+       "diff_kg": -0.31
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "維持（72→72）：直近7日の平均が ちょうど −0.3",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "maintain",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 72.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "m"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-10",
+     71.7
+    ],
+    [
+     "2026-11-12",
+     71.7
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "m",
+     "as_of": "2026-11-12",
+     "expected": {
+      "label": "維持 8週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 45,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 71.7,
+       "plan_kg": 72.0,
+       "diff_kg": -0.3
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "減量 8週（80→76）：予定より減っていれば早い",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "cut",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 76.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 80.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "c"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-20",
+     77.5
+    ],
+    [
+     "2026-11-22",
+     77.4
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "c",
+     "as_of": "2026-11-22",
+     "expected": {
+      "label": "減量 8週",
+      "paused": false,
+      "week": 3,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 35,
+      "rehab_days": 0,
+      "plan_kg": 78.55,
+      "pace": {
+       "status": "fast",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 77.45,
+       "plan_kg": 78.62,
+       "diff_kg": -1.17
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "減量 8週（80→76）：予定より減っていなければ遅い",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "cut",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2026-12-27",
+     "target_weight_kg": 76.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 80.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "c"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-20",
+     79.9
+    ],
+    [
+     "2026-11-22",
+     80.0
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "c",
+     "as_of": "2026-11-22",
+     "expected": {
+      "label": "減量 8週",
+      "paused": false,
+      "week": 3,
+      "weeks_total": 8,
+      "effective_end": "2026-12-27",
+      "remaining_days": 35,
+      "rehab_days": 0,
+      "plan_kg": 78.55,
+      "pace": {
+       "status": "slow",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 79.95,
+       "plan_kg": 78.62,
+       "diff_kg": 1.33
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "療養（11/10〜11/16 の7日）で止まった：週と予定は止まった日を数えず、終わりは7日後ろへ。戻って14日は判定しない",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    },
+    {
+     "kind": "rehab",
+     "direction": null,
+     "name": "肘",
+     "start_date": "2026-11-10",
+     "end_date": null,
+     "target_weight_kg": null,
+     "meal_targets": null,
+     "snapshot": null,
+     "status": "ended",
+     "paused_phase_id": "p1",
+     "target_history": [],
+     "ended_on": "2026-11-17",
+     "created_at": "2026-11-10T00:00:00.000Z",
+     "id": "r1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-12",
+     75.0
+    ],
+    [
+     "2026-11-14",
+     75.0
+    ],
+    [
+     "2026-11-20",
+     72.9
+    ],
+    [
+     "2026-11-22",
+     73.0
+    ],
+    [
+     "2026-11-27",
+     73.2
+    ],
+    [
+     "2026-11-29",
+     73.3
+    ],
+    [
+     "2026-12-05",
+     73.5
+    ],
+    [
+     "2026-12-07",
+     73.6
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-24",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 3,
+      "weeks_total": 16,
+      "effective_end": "2027-02-28",
+      "remaining_days": 96,
+      "rehab_days": 7,
+      "plan_kg": 73.08,
+      "pace": {
+       "status": null,
+       "reason": "recovering",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-30",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 4,
+      "weeks_total": 16,
+      "effective_end": "2027-02-28",
+      "remaining_days": 90,
+      "rehab_days": 7,
+      "plan_kg": 73.51,
+      "pace": {
+       "status": null,
+       "reason": "recovering",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-12-01",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 4,
+      "weeks_total": 16,
+      "effective_end": "2027-02-28",
+      "remaining_days": 89,
+      "rehab_days": 7,
+      "plan_kg": 73.59,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 73.25,
+       "plan_kg": 73.37,
+       "diff_kg": -0.12
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-12-07",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 16,
+      "effective_end": "2027-02-28",
+      "remaining_days": 83,
+      "rehab_days": 7,
+      "plan_kg": 74.02,
+      "pace": {
+       "status": "slow",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 73.55,
+       "plan_kg": 73.95,
+       "diff_kg": -0.4
+      }
+     }
+    },
+    {
+     "phase_id": "r1",
+     "as_of": "2026-11-24",
+     "expected": {
+      "label": "肘",
+      "paused": false,
+      "week": 1,
+      "weeks_total": null,
+      "effective_end": null,
+      "remaining_days": null,
+      "rehab_days": 7,
+      "plan_kg": null,
+      "pace": null
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "療養が実施中：通常のフェーズは止まっていて判定しない。終わりは今日まで延びる",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    },
+    {
+     "kind": "rehab",
+     "direction": null,
+     "name": "肘",
+     "start_date": "2026-11-10",
+     "end_date": null,
+     "target_weight_kg": null,
+     "meal_targets": null,
+     "snapshot": null,
+     "status": "active",
+     "paused_phase_id": "p1",
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-10T00:00:00.000Z",
+     "id": "r1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-12",
+     75.0
+    ],
+    [
+     "2026-11-14",
+     75.0
+    ],
+    [
+     "2026-11-20",
+     72.9
+    ],
+    [
+     "2026-11-22",
+     73.0
+    ],
+    [
+     "2026-11-27",
+     73.2
+    ],
+    [
+     "2026-11-29",
+     73.3
+    ],
+    [
+     "2026-12-05",
+     73.5
+    ],
+    [
+     "2026-12-07",
+     73.6
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-14",
+     "expected": {
+      "label": "増量 16週",
+      "paused": true,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-02-26",
+      "remaining_days": 104,
+      "rehab_days": 5,
+      "plan_kg": 72.58,
+      "pace": {
+       "status": null,
+       "reason": "paused",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-20",
+     "expected": {
+      "label": "増量 16週",
+      "paused": true,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-03-04",
+      "remaining_days": 104,
+      "rehab_days": 11,
+      "plan_kg": 72.58,
+      "pace": {
+       "status": null,
+       "reason": "paused",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "r1",
+     "as_of": "2026-11-20",
+     "expected": {
+      "label": "肘",
+      "paused": false,
+      "week": 2,
+      "weeks_total": null,
+      "effective_end": null,
+      "remaining_days": null,
+      "rehab_days": 11,
+      "plan_kg": null,
+      "pace": null
+     }
+    }
+   ],
+   "current": [
+    {
+     "as_of": "2026-11-09",
+     "current": "p1",
+     "paused": null
+    },
+    {
+     "as_of": "2026-11-14",
+     "current": "r1",
+     "paused": "p1"
+    }
+   ]
+  },
+  {
+   "name": "11/30 に目標を 78kg に変えた：その日の体重 73kg から線を引き直す",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 78.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [
+      {
+       "date": "2026-11-02",
+       "target_weight_kg": 80.0,
+       "end_date": "2027-02-21",
+       "weight_kg": 72.0
+      },
+      {
+       "date": "2026-11-30",
+       "target_weight_kg": 78.0,
+       "end_date": "2027-02-21",
+       "weight_kg": 73.0
+      }
+     ],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-12-05",
+     73.4
+    ],
+    [
+     "2026-12-07",
+     73.5
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-29",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 4,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 84,
+      "rehab_days": 0,
+      "plan_kg": 73.95,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-30",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 83,
+      "rehab_days": 0,
+      "plan_kg": 73.0,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-12-07",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 6,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 76,
+      "rehab_days": 0,
+      "plan_kg": 73.42,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 73.45,
+       "plan_kg": 73.36,
+       "diff_kg": 0.09
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "11/30 に4週延長（線の始まりの体重がない）：前の線の 11/30 の値から引き直す",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-03-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [
+      {
+       "date": "2026-11-02",
+       "target_weight_kg": 80.0,
+       "end_date": "2027-02-21",
+       "weight_kg": 72.0
+      },
+      {
+       "date": "2026-11-30",
+       "target_weight_kg": 80.0,
+       "end_date": "2027-03-21",
+       "weight_kg": null
+      }
+     ],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-30",
+     "expected": {
+      "label": "増量 20週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 20,
+      "effective_end": "2027-03-21",
+      "remaining_days": 111,
+      "rehab_days": 0,
+      "plan_kg": 74.02,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-12-28",
+     "expected": {
+      "label": "増量 20週",
+      "paused": false,
+      "week": 9,
+      "weeks_total": 20,
+      "effective_end": "2027-03-21",
+      "remaining_days": 83,
+      "rehab_days": 0,
+      "plan_kg": 75.53,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "開始時の体重がない：予定の線は引けない",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": null,
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-10",
+     72.0
+    ],
+    [
+     "2026-11-12",
+     72.1
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-12",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 101,
+      "rehab_days": 0,
+      "plan_kg": null,
+      "pace": {
+       "status": null,
+       "reason": "no_plan",
+       "weigh_ins": 2,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": []
+  },
+  {
+   "name": "実施中が2つ（端末どうしの同期）：開始日の新しいもの、同じなら記録の新しいもの",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    },
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-03T00:00:00.000Z",
+     "id": "p2"
+    },
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "冬の増量",
+     "start_date": "2026-11-20",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p3"
+    }
+   ],
+   "weights": [],
+   "checks": [
+    {
+     "phase_id": "p3",
+     "as_of": "2026-11-20",
+     "expected": {
+      "label": "冬の増量",
+      "paused": false,
+      "week": 1,
+      "weeks_total": 14,
+      "effective_end": "2027-02-21",
+      "remaining_days": 93,
+      "rehab_days": 0,
+      "plan_kg": 72.0,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": [
+    {
+     "as_of": "2026-11-10",
+     "current": "p2",
+     "paused": null
+    },
+    {
+     "as_of": "2026-11-20",
+     "current": "p3",
+     "paused": null
+    }
+   ]
+  },
+  {
+   "name": "12/1 に終えたフェーズ：11/30 には続いていた（過去の期間のレポート）。12/1 からは判定しない",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "ended",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": "2026-12-01",
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-29",
+     73.9
+    ],
+    [
+     "2026-11-30",
+     74.0
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-30",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 83,
+      "rehab_days": 0,
+      "plan_kg": 74.02,
+      "pace": {
+       "status": "on_track",
+       "reason": null,
+       "weigh_ins": 2,
+       "week_avg_kg": 73.95,
+       "plan_kg": 73.98,
+       "diff_kg": -0.03
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-12-01",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 16,
+      "effective_end": "2027-02-21",
+      "remaining_days": 82,
+      "rehab_days": 0,
+      "plan_kg": 74.09,
+      "pace": {
+       "status": null,
+       "reason": "not_active",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": [
+    {
+     "as_of": "2026-11-30",
+     "current": "p1",
+     "paused": null
+    },
+    {
+     "as_of": "2026-12-01",
+     "current": null,
+     "paused": null
+    }
+   ]
+  },
+  {
+   "name": "11/20 に終えた療養を、11/14 の時点で見る：その日は療養中で、そのあとの日は数えない",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-02-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    },
+    {
+     "kind": "rehab",
+     "direction": null,
+     "name": "肘",
+     "start_date": "2026-11-10",
+     "end_date": null,
+     "target_weight_kg": null,
+     "meal_targets": null,
+     "snapshot": null,
+     "status": "ended",
+     "paused_phase_id": "p1",
+     "target_history": [],
+     "ended_on": "2026-11-20",
+     "created_at": "2026-11-10T00:00:00.000Z",
+     "id": "r1"
+    }
+   ],
+   "weights": [
+    [
+     "2026-11-12",
+     75.0
+    ],
+    [
+     "2026-11-14",
+     75.0
+    ],
+    [
+     "2026-11-20",
+     72.9
+    ],
+    [
+     "2026-11-22",
+     73.0
+    ],
+    [
+     "2026-11-27",
+     73.2
+    ],
+    [
+     "2026-11-29",
+     73.3
+    ],
+    [
+     "2026-12-05",
+     73.5
+    ],
+    [
+     "2026-12-07",
+     73.6
+    ]
+   ],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-14",
+     "expected": {
+      "label": "増量 16週",
+      "paused": true,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-02-26",
+      "remaining_days": 104,
+      "rehab_days": 5,
+      "plan_kg": 72.58,
+      "pace": {
+       "status": null,
+       "reason": "paused",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-25",
+     "expected": {
+      "label": "増量 16週",
+      "paused": false,
+      "week": 2,
+      "weeks_total": 16,
+      "effective_end": "2027-03-03",
+      "remaining_days": 98,
+      "rehab_days": 10,
+      "plan_kg": 72.94,
+      "pace": {
+       "status": null,
+       "reason": "recovering",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    },
+    {
+     "phase_id": "r1",
+     "as_of": "2026-11-14",
+     "expected": {
+      "label": "肘",
+      "paused": false,
+      "week": 1,
+      "weeks_total": null,
+      "effective_end": null,
+      "remaining_days": null,
+      "rehab_days": 5,
+      "plan_kg": null,
+      "pace": null
+     }
+    }
+   ],
+   "current": [
+    {
+     "as_of": "2026-11-14",
+     "current": "r1",
+     "paused": "p1"
+    },
+    {
+     "as_of": "2026-11-20",
+     "current": "p1",
+     "paused": null
+    }
+   ]
+  },
+  {
+   "name": "開始日に延長した（履歴の最初の1件に体重がない）：開始時の記録の体重から線を引く",
+   "phases": [
+    {
+     "kind": "normal",
+     "direction": "bulk",
+     "name": "",
+     "start_date": "2026-11-02",
+     "end_date": "2027-03-21",
+     "target_weight_kg": 80.0,
+     "meal_targets": null,
+     "snapshot": {
+      "weight_kg": 72.0
+     },
+     "status": "active",
+     "paused_phase_id": null,
+     "target_history": [
+      {
+       "date": "2026-11-02",
+       "target_weight_kg": 80.0,
+       "end_date": "2027-03-21",
+       "weight_kg": null
+      }
+     ],
+     "ended_on": null,
+     "created_at": "2026-11-02T00:00:00.000Z",
+     "id": "p1"
+    }
+   ],
+   "weights": [],
+   "checks": [
+    {
+     "phase_id": "p1",
+     "as_of": "2026-11-30",
+     "expected": {
+      "label": "増量 20週",
+      "paused": false,
+      "week": 5,
+      "weeks_total": 20,
+      "effective_end": "2027-03-21",
+      "remaining_days": 111,
+      "rehab_days": 0,
+      "plan_kg": 73.61,
+      "pace": {
+       "status": null,
+       "reason": "few_weigh_ins",
+       "weigh_ins": 0,
+       "week_avg_kg": null,
+       "plan_kg": null,
+       "diff_kg": null
+      }
+     }
+    }
+   ],
+   "current": []
+  }
+ ]
+}

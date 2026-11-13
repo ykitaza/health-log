@@ -885,6 +885,176 @@ components:
           pattern: ^[A-Za-z0-9_-]+$
           description: 試した種目（なければ null）
       description: ケガの振り返り（その後に直し方を試した結果）。create では injury_id, date, result が要る。update では変えた項目だけを送る。消えたケガの振り返りは、MCP では読まない
+    PhaseDayTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        kcal:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 20000
+        protein_g:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 5000
+    PhaseTargetChange:
+      type: object
+      additionalProperties: false
+      required:
+      - date
+      - target_weight_kg
+      - end_date
+      properties:
+        date:
+          type: string
+          format: date
+          description: 変えた日（最初の1件は開始日）。この日から予定の線を引き直す
+        target_weight_kg:
+          type: number
+          minimum: 30
+          maximum: 300
+        end_date:
+          type: string
+          format: date
+          description: その時点の終了日（療養で止まった日を含まない）
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 300
+          description: 線の始まりの体重（変えたときの週の平均。最初の1件は開始時の体重）。null なら前の線のその日の値
+    PhaseFields:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+          - normal
+          - rehab
+          description: normal（通常）・rehab（療養）
+        direction:
+          type:
+          - string
+          - 'null'
+          enum:
+          - bulk
+          - cut
+          - maintain
+          - null
+          description: bulk（増量）・cut（減量）・maintain（維持・リコンプ）。通常だけ（同じ変更に kind があるとき、normal で null・rehab で値は断る）
+        name:
+          type: string
+          maxLength: 40
+          description: 名前（任意）。空なら「増量 16週」のように出す
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: 予定の終わり（週数から。開始日＋7×週数−1）。療養で止まった日は含まない（実際の終わりは止まった日数だけ後ろにずれる。計算で出す）。療養は null
+        target_weight_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 30
+          maximum: 300
+          description: 目標体重。通常だけ（フェーズ実施中は、設定の目標体重よりこちらを使う）
+        meal_targets:
+          type:
+          - object
+          - 'null'
+          additionalProperties: false
+          required:
+          - training_day
+          - rest_day
+          properties:
+            training_day:
+              $ref: '#/components/schemas/PhaseDayTarget'
+            rest_day:
+              $ref: '#/components/schemas/PhaseDayTarget'
+          description: 食事の目標（筋トレの日・休みの日の kcal とたんぱく質）。1つの項目で置き換わる
+        snapshot:
+          type:
+          - object
+          - 'null'
+          additionalProperties: false
+          properties:
+            weight_kg:
+              type:
+              - number
+              - 'null'
+              minimum: 30
+              maximum: 300
+              description: 開始時の体重
+            body_fat_pct:
+              type:
+              - number
+              - 'null'
+              minimum: 0
+              maximum: 100
+            big3:
+              type:
+              - object
+              - 'null'
+              additionalProperties: false
+              properties:
+                bench:
+                  type: [number, 'null']
+                  exclusiveMinimum: 0
+                  maximum: 1000
+                squat:
+                  type: [number, 'null']
+                  exclusiveMinimum: 0
+                  maximum: 1000
+                deadlift:
+                  type: [number, 'null']
+                  exclusiveMinimum: 0
+                  maximum: 1000
+              description: BIG3 の推定1RM（kg）
+            growth_score:
+              type:
+              - integer
+              - 'null'
+              minimum: 0
+              maximum: 100
+          description: 開始時の記録（振り返りの before に使う）。ウエストは持たない
+        status:
+          type: string
+          enum:
+          - active
+          - ended
+          - aborted
+          description: active（実施中）・ended（終了）・aborted（中断）。療養で止まっているかは状態に持たず、療養の行（paused_phase_id）から求める
+        paused_phase_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 療養だけ：止めた通常のフェーズの ID。療養の [start_date, ended_on) が、そのフェーズの止まった日
+        target_history:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PhaseTargetChange'
+          description: 目標と終了日の変更の履歴（最初の1件は開始日）。一覧ごと置き換わる。null は断る（療養は空の一覧）
+        ended_on:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: 終えた・中断した日（この日はフェーズに含まない）。同じ変更に status もあるときは、active なら null、ended・aborted なら日付でないと断る
+      description: フェーズ（増量・減量・維持と療養の期間）。アプリだけが書く（MCP は list_phases・period_overview で読むだけ）。create では kind, start_date, status が要る。update では変えた項目だけを送る。同時に実施中は1つ（読む側が決める。2つあれば開始日の新しいもの）
     ReportTone:
       type: string
       enum:
@@ -1081,6 +1251,7 @@ components:
       - step_day
       - injury
       - injury_review
+      - phase
       - report
       description: 対象の種類。meal・meal_item・meal_template・nutrition_goal・day_type は meals.*、それ以外（report も）は training.* の scope で扱う
     MealChange:
@@ -1932,6 +2103,59 @@ components:
         fields:
           $ref: '#/components/schemas/InjuryReviewFields'
           description: create・update のとき。delete・restore では送らない
+    PhaseChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: phase
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID
+        parent_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: meal_item だけ：親の食事の ID（必須）。品目は parent_id と entity_id の組で指す（別の parent_id なら別の品目）。ほかの種類は null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/PhaseFields'
+          description: create・update のとき。delete・restore では送らない
     ReportChange:
       type: object
       additionalProperties: false
@@ -2001,6 +2225,7 @@ components:
       - $ref: '#/components/schemas/StepDayChange'
       - $ref: '#/components/schemas/InjuryChange'
       - $ref: '#/components/schemas/InjuryReviewChange'
+      - $ref: '#/components/schemas/PhaseChange'
       - $ref: '#/components/schemas/ReportChange'
       discriminator:
         propertyName: entity_type
@@ -2021,6 +2246,7 @@ components:
           step_day: '#/components/schemas/StepDayChange'
           injury: '#/components/schemas/InjuryChange'
           injury_review: '#/components/schemas/InjuryReviewChange'
+          phase: '#/components/schemas/PhaseChange'
           report: '#/components/schemas/ReportChange'
     PushRequest:
       type: object
