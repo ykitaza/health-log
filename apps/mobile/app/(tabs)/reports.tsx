@@ -10,7 +10,7 @@ import { Button, Card, EmptyState, Fab, TabHeader } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { colors, size, space } from '@/theme';
 
-const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレと食事をふり返って、レポートに残して」', '「ベンチプレスが伸びない理由を分析して保存して」'];
+const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレと食事をふり返って、レポートに残して」', '「先月のまとめを作って」'];
 
 /** 期間タブの種類（'other'＝分析レポートはアプリに出さないので、ここでも受けない） */
 type PeriodKind = 'daily' | 'weekly' | 'monthly';

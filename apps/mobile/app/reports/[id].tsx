@@ -37,7 +37,7 @@ const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
  * - 日：調子の帯 → 今日の達成（ゴールリング＋行） → 分野ごと → この日の数字（ステータス表） → 明日の一歩（チェックできる。
  *   連続達成は lib/reportStreak.ts） → つながり → 目標の見直し → くわしく
  * - 週：調子の帯 → 今週の目標 → 部位バランスのレーダー（レポートの週にアンカー） → 先週やることの振り返り（前の週のまとめの次の一歩と済んだか。見るだけ。前の週のまとめがなければ出さない）
- *   → 指標のタイル → ケガの振り返り（INJURY REVIEW。端末のケガ記録から3分類） → 分野ごと → 来週の焦点 → つながり → くわしく。来週の焦点のチェックは、ホームの「今週やること」で
+ *   → 指標のタイル → ケガの振り返り（INJURY REVIEW。端末のケガ記録から3分類） → 分野ごと → 来週の焦点（チェックできる。ホームの「今週やること」と同じ next_steps_done を共有する） → つながり → くわしく
  * - 月：調子の帯 → 体の変化 → 成長スコア → 目標バー → BIG3（スパークライン付き） → 指標のタイル → 分野ごと → 今月の課題 → つながり → 目標の見直し → くわしく
  * 達成（今日の達成・今週の目標・体の変化）はアプリが記録から出す。前の形のレポート（達成の期間に合わない・つながりがない）は、ある分だけ出す。
  * レポートのタブ（最新の詳細へ直行）・ホーム・各タブの日のまとめのカードから開く。消せる（確認のダイアログ）。
@@ -65,7 +65,7 @@ export default function ReportScreen() {
   const openedRaw = data?.report ?? null;
   const opened = openedRaw?.kind === 'other' ? (data?.latest ?? null) : openedRaw;
   const report: Report | null = data == null ? null : pickedKind ? data.latestByKind[pickedKind] : opened;
-  // 明日の一歩のチェック（日次だけ。既存の next_steps_done の仕組み：components/WeeklyTodo の useTodoChecks）
+  // 次の一歩のチェック（日次＝明日の一歩、週次＝来週の焦点。月次は見るだけ。既存の next_steps_done の仕組み：components/WeeklyTodo の useTodoChecks）
   const { done, toggle } = useTodoChecks(report?.id, report?.nextStepsDone ?? []);
   const openedId = report?.id;
   useEffect(() => {
@@ -100,6 +100,7 @@ export default function ReportScreen() {
   }
 
   const daily = report.kind === 'daily';
+  const weekly = report.kind === 'weekly';
   const scope = achievementScope(report);
   const tiles = daily ? [] : report.highlights.filter((h): h is Highlight & { metric: Metric } => h.metric != null);
   const prevTodo = previousTodo(data.reports, report);
@@ -164,13 +165,13 @@ export default function ReportScreen() {
           </ReportSection>
         )}
         {scope?.type === 'day' && <DailyStatTableBlock date={scope.date} index={next()} />}
-        {report.nextSteps.length > 0 && (daily ? (
+        {report.nextSteps.length > 0 && (daily || weekly ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
               <T bold size={14} color={colors.sub} accessibilityRole="header">{NEXT_TITLES[report.kind]}</T>
               {streakText && <T size={12} color={colors.sub} testID="report-daily-streak">{streakText}</T>}
             </View>
-            <View style={{ backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 4 }} testID="report-daily-steps">
+            <View style={{ backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 4 }} testID={daily ? 'report-daily-steps' : 'report-weekly-steps'}>
               <TodoList steps={report.nextSteps} done={done} onToggle={toggle} />
             </View>
           </View>
