@@ -49,10 +49,11 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・分析）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
+INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
-ケガ（period_overview の injuries）は、本人の分析（原因 cause・直し方 fix）をそのまま使って振り返り、原因を推測しない。直し方を守れたか（振り返りの結果）は、週のまとめの振り返りに入れてよい。診断や治療の助言はしない。
+次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
+週のまとめでは、period_overview の injuries（reviewed は期間に振り返りを書いたケガ、fixing は直している途中のケガ）を見て、直し方（fix）を守れたかを振り返りに書く。ケガは、本人の分析（原因 cause・直し方 fix）をそのまま使って振り返り、原因を推測しない。診断や治療の助言はしない。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
 
@@ -61,7 +62,8 @@ WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
 
 ToneName = Literal["good", "steady", "caution"]
-KindName = Literal["daily", "weekly", "monthly", "other"]
+KindName = Literal["daily", "weekly", "monthly", "other"]  # 一覧の絞り込み用。other は前に保存したものを探すために残す
+SaveKindName = Literal["daily", "weekly", "monthly"]  # 保存できる種類はこの3つだけ（kind は必須）
 Number = Annotated[float, Field(ge=-MAX_METRIC_VALUE, le=MAX_METRIC_VALUE)]
 
 
@@ -123,11 +125,12 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         overall_tone: Annotated[ToneName, Field(
             description="全体の調子：good（良い調子）、steady（いつもどおり）、caution（気をつけたい）。記録の数字にもとづいて決める")],
         headline: Annotated[str, Field(max_length=MAX_HEADLINE, description="ひと言の要約（40字ほど）。例：脚の日が増え、たんぱく質も目標どおり")],
+        kind: Annotated[SaveKindName, Field(description="種類（必須）：daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）。この3つ以外は保存できない")],
         highlights: Annotated[list[HighlightInput], Field(
             max_length=MAX_HIGHLIGHTS, description=f"分野ごとの要点（{MAX_HIGHLIGHTS}件まで）。数字があれば metric に入れる")] = [],
         next_steps: Annotated[list[Annotated[str, Field(min_length=1, max_length=MAX_NEXT_STEP_TEXT)]], Field(
             max_length=MAX_NEXT_STEPS,
-            description="次の一歩（短い文）。日のまとめは明日の一歩を1つ、週・月のまとめは次の期間にやることを3つまで")] = [],
+            description="次の一歩（短い文）。日は明日の一歩を1つ、週は来週の焦点に相当する一歩を3つまで、月は今月の課題に相当する一歩を3つまで")] = [],
         links: Annotated[list[LinkInput], Field(max_length=MAX_LINKS, description=(
             f"つながり：分野をまたぐ気づき（{MAX_LINKS}件まで）。週・月のまとめで、記録の数字から言えるものだけ。なければ省く"))] = [],
         review: Annotated[ReviewInput | None, Field(description=(
@@ -135,25 +138,26 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
         body: Annotated[str, Field(max_length=MAX_BODY, description=(
             "くわしい本文（Markdown。見出し #、箇条書き - と 1.、太字 ** だけを使う。"
             "表・リンク・画像・HTML はアプリでは文字のまま出る）"))] = "",
-        kind: Annotated[KindName, Field(description="daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）、other（種目の分析など）")] = "other",
         period_start: Annotated[date | None, Field(description="対象の期間の初日（YYYY-MM-DD）。期間がなければ省く")] = None,
         period_end: Annotated[date | None, Field(description="対象の期間の最後の日（YYYY-MM-DD。両端を含む）")] = None,
     ) -> dict:
-        """まとめ・分析（レポート）を保存し、スマホのアプリ（hlog）で読めるようにする。
+        """まとめ（レポート）を保存し、スマホのアプリ（hlog）で読めるようにする。
 
-        「今日のまとめを作って」「今週のまとめを作って」「月のふり返りをレポートにして」「この分析を残して」と頼まれたときに呼ぶ。
+        「今日のまとめを作って」「今週のまとめを作って」「月のふり返りをレポートにして」と頼まれたときに呼ぶ。
         先に period_overview で期間の材料を読み、それにもとづいて書く（くわしくは get_workout、today_status、weekly_training_review、
         body_progress、sleep_summary、heart_rate_summary、step_summary など）。数字（metric の value・delta）は記録のツールが返したものだけを使い、推測で作らない。
         達成の数字（今日の達成、今週の目標の達成、体の変化のグラフ）はアプリが記録から計算して見せるので、書くのは見出し・分野ごとの一言・
         つながり・次の一歩・目標の見直しにする。
         種類ごとに書くこと：
         - 日（kind は daily。period_start と period_end をその日にする）：その日の目標に対する一言（highlights は3件ほど）と、明日の一歩を1つ
-        - 週（weekly。月曜〜日曜）：今週の目標の達成についての一言、分野をまたぐ気づき（links）、来週の一歩を3つまで。
+        - 週（weekly。月曜〜日曜）：今週の目標の達成についての一言、分野をまたぐ気づき（links）、来週の焦点に相当する一歩を3つまで。
           前の週の次の一歩の結果（period_overview の previous_next_steps。done が true なら済んだ、false ならまだ）を振り返ってから、
-          次の一歩を書く（済んだものは一言ほめて次へ進め、まだのものは続けるか、やりやすい形に小さくする。責めない）
-        - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）
+          次の一歩を書く（済んだものは一言ほめて次へ進め、まだのものは続けるか、やりやすい形に小さくする。責めない）。
+          ケガは period_overview の injuries（reviewed・fixing）を見て、直し方を守れたかを振り返りに書く（highlights の分野には入れない）
+        - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）、
+          今月の課題に相当する一歩を3つまで
         tone は数字で決める（目標に近づいた・増えたなら good、変わらないなら steady、離れた・少ないなら caution）。責める言い方はしない。
-        保存は1回の依頼につき1回。同じ内容を2回保存しない。保存したら、アプリのホームに出ることを一言伝える。
+        保存は1回の依頼につき1回。同じ種類・期間でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える。
         """
         sub = subject(WRITE_SCOPE)
         with report_errors():

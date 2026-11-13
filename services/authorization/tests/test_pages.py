@@ -117,8 +117,13 @@ INTENT = "#Intent;scheme=torelog;package=com.ykitaza.torelog;end"
     ("/open/meals?date=2026-11-12", "meals?date=2026-11-12", "食事の記録"),
     ("/open/training?date=2026-11-12", "training?date=2026-11-12", "筋トレの記録"),
     ("/open/reports", "reports", "レポート"),
-    # レポートは日付を使わない。決まった形でない日付は付けない
-    ("/open/reports?date=2026-11-12", "reports", "レポート"),
+    # レポートは日付と種類（daily・weekly・monthly）で、その日を含む期間のタブを開く。決まった形でないものは付けない
+    ("/open/reports?date=2026-11-12", "reports?date=2026-11-12", "レポート"),
+    ("/open/reports?date=2026-11-12&kind=weekly", "reports?date=2026-11-12&amp;kind=weekly", "レポート"),
+    ("/open/reports?kind=monthly", "reports?kind=monthly", "レポート"),
+    ("/open/reports?date=2026-11-12&kind=other", "reports?date=2026-11-12", "レポート"),
+    ("/open/reports?date=2026/11/12&kind=daily%22%3E", "reports", "レポート"),
+    ("/open/meals?date=2026-11-12&kind=weekly", "meals?date=2026-11-12", "食事の記録"),
     # ケガはアプリの筋トレのタブの「ケガ」へ。日付は使わない
     ("/open/injuries", "injuries", "ケガの記録"),
     ("/open/injuries?date=2026-11-12", "injuries", "ケガの記録"),
