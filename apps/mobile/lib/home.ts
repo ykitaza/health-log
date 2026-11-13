@@ -1,13 +1,11 @@
 // ホームの画面に出す言葉と、カードを出すかどうかの決まり（app/(tabs)/index.tsx と components/home.tsx が使う）
 import { goalProgress } from './body';
-import { addDays, addMonths, DateKey, daysBetween, formatMonthDay, weekStart } from './date';
-import type { Big3Role } from './exercises';
+import { addDays, DateKey, formatMonthDay, weekStart } from './date';
 import { weekOf } from './goals';
 import { GrowthDay, GrowthParams, growthScore, GrowthScore, growthSeries, NO_PART_SETS, satellites, SatState, SCORE_MAX } from './growth';
-import { formatMinutes } from './health';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
 import type { Report } from './reports';
-import { big3PartialNote, big3Trend, TrainingSetRow, volumeBetween } from './training';
+import { TrainingSetRow, volumeBetween } from './training';
 import { fmt1, kgToUnit, WeightUnit } from './units';
 
 /** 今日の体調のカードの2行目。目標体重とその日の体重があるときだけ（からだの画面と同じ lib/body.ts の goalProgress） */
@@ -15,15 +13,6 @@ export function goalLine(weightKg: number | null, goalKg: number | null, unit: W
   if (weightKg == null || goalKg == null) return null;
   const p = goalProgress(weightKg, goalKg, null);
   return p.direction === 'reached' ? '目標に届きました' : `目標まで あと ${fmt1(kgToUnit(p.remaining, unit))} ${unit}`;
-}
-
-/** 寝不足とみなす睡眠（分）。これ未満の日に、今日のトレーニングのカードにひとこと出す */
-export const SHORT_SLEEP_MIN = 6 * 60;
-
-/** 寝不足の日のひとこと。前の夜の睡眠が6時間未満のときだけ */
-export function sleepNote(asleepMin: number | null | undefined): string | null {
-  if (asleepMin == null || asleepMin >= SHORT_SLEEP_MIN) return null;
-  return `睡眠 ${formatMinutes(asleepMin)}。今日は軽めでも大丈夫`;
 }
 
 /** 設定の「今週の目標」の欄を開く道（settings?section=weekly-goals） */
@@ -118,53 +107,6 @@ export function thisWeekVolume(rows: TrainingSetRow[], today: DateKey): number {
   return volumeBetween(rows, weekStart(today), today);
 }
 
-/** ホームの BIG3 のカードの折れ線の、いちばん広い期間（上限の3か月。筋トレの推移の「BIG3 の推定1RM（合計）」と同じ） */
-export const HOME_BIG3_MONTHS = 3;
-
-/** 折れ線の始まりの日（from）、差の基準の日（base）、差の言葉（「先週より」「先週の記録なし」） */
-export type Big3Range = { from: DateKey; base: DateKey; diffText: string; noDiffText: string };
-
-/**
- * ホームのカードの折れ線の幅と、差の基準。BIG3 の最初の記録の日（first）から今日までの長さで、段階で広げる。
- * - 7日以内：7日。最初の記録の日との差（「始めた日より」）
- * - 8〜14日：14日。7日前との差（「先週より」）
- * - 15日〜1か月：1か月。7日前との差（「先週より」）
- * - 1か月を超える：3か月（上限）。1か月前との差（「先月より」）
- */
-export function big3Range(first: DateKey, today: DateKey): Big3Range {
-  const days = daysBetween(first, today);
-  const monthAgo = addMonths(today, -1);
-  const make = (from: DateKey, base: DateKey, word: string): Big3Range => ({ from, base, diffText: `${word}より`, noDiffText: `${word}の記録なし` });
-  if (days <= 7) return make(addDays(today, -7), first, '始めた日');
-  if (days <= 14) return make(addDays(today, -14), addDays(today, -7), '先週');
-  if (first >= monthAgo) return make(monthAgo, addDays(today, -7), '先週');
-  return make(addMonths(today, -HOME_BIG3_MONTHS), monthAgo, '先月');
-}
-
-/**
- * ホームの「BIG3 推定1RM 合計」。筋トレの推移のグラフと同じ big3Trend で、今の合計・基準の日との差・折れ線の点を出す。
- * 折れ線の幅と差の基準は big3Range。記録がある種目だけの合計で、3種目そろっていなければ添え書き（note）も返す。
- * 1種目も記録がない（割り当てがない・記録がない）あいだは null
- */
-export function homeBig3(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey) {
-  const widest = addMonths(today, -HOME_BIG3_MONTHS);
-  const wide = big3Trend(rows, assignments, today, widest);
-  if (wide.total == null) return null;
-  // 最初の記録の日。点は記録の日と from から並ぶので、先頭が from なら記録は from 以前（1か月を超える昔）で、段階は同じになる
-  const range = big3Range(wide.points[0].date, today);
-  const trend = range.from === widest ? wide : big3Trend(rows, assignments, today, range.from);
-  const base = trend.points.filter((p) => p.date <= range.base).pop();
-  return {
-    totalKg: wide.total,
-    diffKg: base ? wide.total - base.total : null,
-    points: trend.points,
-    from: range.from,
-    diffText: range.diffText,
-    noDiffText: range.noDiffText,
-    note: big3PartialNote(wide),
-  };
-}
-
 /** 成長スコアの内訳のシートのひとこと */
 export const GROWTH_SCORE_NOTE = '直近7日の記録から計算します。記録がない日は数えません';
 
@@ -227,10 +169,4 @@ export function scorePillars(score: GrowthScore | null): { key: keyof typeof PIL
     const n = Math.round(points);
     return { key, name, text: `${n} / ${max}`, label: `${name} ${n}点、${max}点満点` };
   });
-}
-
-/** 先月との差の向きと文字（「+7.5」「−2.5」「±0」）。0.05 未満の差は ±0 とする（筋トレの推移のカードと同じ） */
-export function signedChange(v: number): { dir: 'up' | 'down' | 'flat'; text: string } {
-  if (Math.abs(v) < 0.05) return { dir: 'flat', text: '±0' };
-  return v > 0 ? { dir: 'up', text: `+${fmt1(v)}` } : { dir: 'down', text: `−${fmt1(-v)}` };
 }

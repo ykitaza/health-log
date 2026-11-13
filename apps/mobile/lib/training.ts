@@ -444,14 +444,6 @@ export function partSuggestion(days: { date: DateKey; parts: string[] }[], names
 }
 
 /**
- * ホームの「最近の流れ」：今日より前の、直近 n 回の筋トレの日（古い順）と、今日の部位（今日やっていなければ null）
- */
-export function recentFlow(days: { date: DateKey; parts: string[] }[], today: DateKey, n = 3): { past: { date: DateKey; parts: string[] }[]; today: string[] | null } {
-  const past = days.filter((d) => d.date < today).slice(-n);
-  return { past, today: days.find((d) => d.date === today)?.parts ?? null };
-}
-
-/**
  * 記録のタブの種目のカードの読み上げ：「ベンチプレスを直す。部位 胸、BIG3、推定1RM 101.3kg」。
  * 押したときの動き（◯◯を直す）を先に言い、あとに2行目の札と数字を並べる。部位・BIG3・推定1RM はあるものだけ
  */

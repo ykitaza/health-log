@@ -2,7 +2,7 @@ import {
   bestSet, estimated1RM, exerciseDailySeries, filterSince, periodStart,
   lastTopSets, personalBests, rmTable, setVolume, topSet, totalVolume, TrainingSetRow, trainingDates,
   daysInMonth, vehicleRatio, weeklyVolumeByBodyPart, dailyVolumeByBodyPart, dailySummary, dayFocus, entryCardLabel,
-  focusByDate, focusParts, partSuggestion, recentFlow,
+  focusByDate, focusParts, partSuggestion,
 } from '../training';
 
 const row = (date: string, weightKg: number | null, reps: number, exerciseId = 'bench', bodyPartId = 'chest'): TrainingSetRow =>
@@ -241,7 +241,7 @@ describe('その日の部位（focusParts・dayFocus）', () => {
   });
 });
 
-describe('日ごとの部位・部位ごとの前回とおすすめ・最近の流れ', () => {
+describe('日ごとの部位・部位ごとの前回とおすすめ', () => {
   const names: Record<string, string> = { chest: '胸', back: '背中', legs: '脚', shoulder: '肩' };
   const partName = (id: string) => names[id] ?? '';
   const days = focusByDate([
@@ -290,12 +290,6 @@ describe('日ごとの部位・部位ごとの前回とおすすめ・最近の�
     expect(r.rows.map((x) => x.name)).toEqual(['胸', '背中']);
     expect(partSuggestion(days, ['肩', '下半身'], TODAY)).toEqual({ rows: [], suggest: null });
     expect(partSuggestion([{ date: '2026-11-06', parts: ['肩'] }], ['胸', '背中', '脚'], TODAY)).toEqual({ rows: [], suggest: null });
-  });
-  test('最近の流れ：今日より前の直近3回（古い順）と、今日の部位', () => {
-    const more = [{ date: '2026-10-30', parts: ['胸'] }, ...days];
-    expect(recentFlow(more, TODAY)).toEqual({ past: days, today: null });
-    expect(recentFlow([...more, { date: TODAY, parts: ['背中'] }], TODAY)).toEqual({ past: days, today: ['背中'] });
-    expect(recentFlow([], TODAY)).toEqual({ past: [], today: null });
   });
 });
 

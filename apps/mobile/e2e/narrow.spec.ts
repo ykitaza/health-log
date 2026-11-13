@@ -4,29 +4,24 @@ import { button, openApp, openMealWeek, see, tab, TabName } from './helpers';
 // 412 より狭い画面（360×800 など）での崩れ
 test.use({ viewport: { width: 360, height: 800 } });
 
-test('360 の幅でも、ホームのカレンダーが負荷量のカードに潜らない', async ({ page }) => {
+test('360 の幅でも、ホームの計器の段・LOG・PARTS の文字がはみ出さない', async ({ page }) => {
   await openApp(page);
-  const calendar = page.getByTestId('home-calendar');
-  const saturday = calendar.getByTestId('day-2026-11-07');
-  const volume = page.getByTestId('volume-week');
-  const sat = (await saturday.boundingBox())!;
-  const vol = (await volume.boundingBox())!;
-  expect(sat.x + sat.width).toBeLessThanOrEqual(vol.x);
-  // 日付の丸は正円のまま
-  expect(Math.abs(sat.width - sat.height)).toBeLessThan(1);
-  // 右の列の部位のバランスの軸の名前が、カードからはみ出さない。左右の列の下の端がそろう
-  const balance = (await page.getByTestId('home-part-balance').boundingBox())!;
+  // 計器の段の 3 つは横に並び、重ならない
+  const [big3, load, sleep] = await Promise.all(['home-big3', 'volume-week', 'home-sleep'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
+  expect(big3.x + big3.width).toBeLessThanOrEqual(load.x);
+  expect(load.x + load.width).toBeLessThanOrEqual(sleep.x);
+  expect(sleep.x + sleep.width).toBeLessThanOrEqual(360);
+  // LOG の日曜のマスは方眼の中
+  const log = (await page.getByTestId('home-log').boundingBox())!;
+  const sunday = (await page.getByTestId('log-2026-11-08').boundingBox())!;
+  expect(sunday.x + sunday.width).toBeLessThanOrEqual(log.x + log.width);
+  // PARTS の軸の名前が、枠からはみ出さない
+  const parts = (await page.getByTestId('home-parts').boundingBox())!;
   for (const name of ['背中', '腹']) {
-    const label = (await page.getByTestId('home-part-balance').locator('text', { hasText: name }).boundingBox())!;
-    expect(label.x).toBeGreaterThanOrEqual(balance.x);
-    expect(label.x + label.width).toBeLessThanOrEqual(balance.x + balance.width);
+    const label = (await page.getByTestId('home-parts').locator('text', { hasText: name }).boundingBox())!;
+    expect(label.x).toBeGreaterThanOrEqual(parts.x);
+    expect(label.x + label.width).toBeLessThanOrEqual(parts.x + parts.width);
   }
-  // 下の端は、読み込みが済んで高さが決まってから比べる（読み込みの途中で2つを測ると、間に高さが変わって食い違う。CI で 74 ずれた）
-  await expect.poll(async () => {
-    const archive = (await page.getByTestId('archive').boundingBox())!;
-    const b = (await page.getByTestId('home-part-balance').boundingBox())!;
-    return Math.abs(archive.y + archive.height - (b.y + b.height));
-  }).toBeLessThan(1);
 });
 
 test('360 の幅でも、食事の推移の週（いちばん長い「10月26日〜11月1日」）がカレンダーのアイコンと1行に収まる', async ({ page }) => {

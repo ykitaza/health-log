@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 import {
-  addEntry, button, chooseExercise, controlDb, expectTrainingDay, fillSets, goTab, homeCard, moveToDate, openApp, recordOn, saveButton, TODAY, see, recordFromHome, tab,
+  addEntry, button, chooseExercise, controlDb, expectTrainingDay, fillSets, goTab, homeLatest, moveToDate, openApp, recordFromHome, recordOn, saveButton, see, tab, TODAY,
 } from './helpers';
 
 /** ホームから今日のトレーニング（筋トレのタブの「記録」の今日）を開く */
@@ -58,7 +58,7 @@ test('空の画面 → 種目の選択 → 記録の入力 → 追加後の画�
 
   // 下のタブでホームへ
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'training')).toContainText('2種目 ・ 3セット ・ 1.12 t');
+  await expect(homeLatest(page)).toHaveAttribute('aria-label', /2種目 3セット 1\.12トン/);
 });
 
 test('前回の表示と「前回をコピー」、自己ベスト', async ({ page }) => {
@@ -242,7 +242,7 @@ test('並べ替え（↑ の2回押し、端、再読み込み）、同じ種目
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
   // 途中で再読み込みしたので、画面のスタックはこの画面から始まっている。ホームを開き直す
   await page.goto('/');
-  await expect(homeCard(page, 'training')).toContainText('まだ記録がありません');
+  await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング。まだ記録がありません');
   await expect(page.getByTestId('volume-week')).toContainText('0.00t');
 });
 
