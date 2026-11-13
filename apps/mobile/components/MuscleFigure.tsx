@@ -26,6 +26,10 @@ type Props = {
   view?: MuscleView;
   /** 塗る筋肉（記録の画面：その日に鍛えた部位の筋肉を緑で塗る。この図にない筋肉は塗らない） */
   paint?: Muscle[];
+  /** 筋肉ごとの塗りの色（回復マップ：温存は青、最近の負荷は暖色）。渡した筋肉は paint より先 */
+  fills?: Partial<Record<Muscle, string>>;
+  /** ケガの印の色（回復マップは赤）。渡さなければ琥珀色 */
+  markColor?: string;
   width: number;
   height: number;
   /** ケガの印（この図に置くものだけを描く。lib/muscleFigure.ts の markPoint） */
@@ -45,7 +49,7 @@ type Props = {
  *   onPick を渡すと、図を押して部位を選べる（関節の点も出す）。図の上の部位は小さいので、画面には近くの部位のチップを添える（48dp）
  * 前の図は画面の左が本人の右、後ろの図は画面の左が本人の左
  */
-export function MuscleFigure({ name, view: injuryView, paint, width, height, marks = [], selected, onPick, testID }: Props) {
+export function MuscleFigure({ name, view: injuryView, paint, fills, markColor = INJURY_AMBER, width, height, marks = [], selected, onPick, testID }: Props) {
   const box = useRef<ViewInstance>(null);
   const spec = name != null && injuryView == null ? muscleFigureFor(name) : null;
   const view = injuryView ?? spec?.view ?? 'front';
@@ -53,7 +57,7 @@ export function MuscleFigure({ name, view: injuryView, paint, width, height, mar
   const chosen = new Set(selected ? piecesFor(view, selected.site, selected.side) : []);
   const placed = marks.map((m) => ({ m, at: markPoint(m.site, m.side) })).filter(({ at }) => at?.view === view);
   const scale = width / 100;
-  const pieceFill = (p: FigurePiece) => (chosen.has(p) ? INJURY_AMBER : painted.has(p.muscle) ? colors.accent : figureColors.muscle);
+  const pieceFill = (p: FigurePiece) => (chosen.has(p) ? INJURY_AMBER : fills?.[p.muscle] ?? (painted.has(p.muscle) ? colors.accent : figureColors.muscle));
   // 直している途中のケガの筋肉は琥珀色で塗る（関節は点で示す）
   const hurt = new Set(placed.filter(({ m }) => m.status === 'fixing').flatMap(({ m }) => piecesFor(view, m.site, m.side)));
 
@@ -66,7 +70,7 @@ export function MuscleFigure({ name, view: injuryView, paint, width, height, mar
       <Path d={BODY[view]} fill={figureColors.body} />
       {FIGURE_PIECES[view].map((p) => (
         <G key={`${p.muscle}-${p.side}-${p.clip ?? ''}`} clipPath={p.clip ? `url(#fig-${p.clip}-${view})` : undefined}>
-          <Path d={p.d} fill={hurt.has(p) && !chosen.has(p) ? INJURY_AMBER : pieceFill(p)} fillOpacity={hurt.has(p) && !chosen.has(p) ? 0.85 : 1} />
+          <Path d={p.d} fill={hurt.has(p) && !chosen.has(p) ? markColor : pieceFill(p)} fillOpacity={hurt.has(p) && !chosen.has(p) ? 0.85 : 1} />
         </G>
       ))}
       {onPick && jointPoints(view).map((j) => {
@@ -78,10 +82,10 @@ export function MuscleFigure({ name, view: injuryView, paint, width, height, mar
       })}
       {placed.map(({ m, at }) => (m.status === 'fixing' ? (
         <G key={m.key}>
-          <Circle cx={at!.point.x} cy={at!.point.y} r={9} fill={INJURY_AMBER} fillOpacity={0.18} />
-          <Circle cx={at!.point.x} cy={at!.point.y} r={2.4} fill={INJURY_AMBER} />
-          <Circle cx={at!.point.x} cy={at!.point.y} r={4.5} fill="none" stroke={INJURY_AMBER} strokeWidth={1} />
-          <Circle cx={at!.point.x} cy={at!.point.y} r={7} fill="none" stroke={INJURY_AMBER} strokeWidth={0.6} strokeOpacity={0.6} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={9} fill={markColor} fillOpacity={0.18} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={2.4} fill={markColor} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={4.5} fill="none" stroke={markColor} strokeWidth={1} />
+          <Circle cx={at!.point.x} cy={at!.point.y} r={7} fill="none" stroke={markColor} strokeWidth={0.6} strokeOpacity={0.6} />
         </G>
       ) : (
         <Circle key={m.key} cx={at!.point.x} cy={at!.point.y} r={3.5} fill="none" stroke={FIXED_RING} strokeWidth={1.2} />
@@ -90,7 +94,7 @@ export function MuscleFigure({ name, view: injuryView, paint, width, height, mar
   );
 
   const pulses = placed.filter(({ m }) => m.status === 'fixing').map(({ m, at }) => (
-    <Pulse key={m.key} x={at!.point.x * scale} y={at!.point.y * scale} size={14 * scale} />
+    <Pulse key={m.key} x={at!.point.x * scale} y={at!.point.y * scale} size={14 * scale} color={markColor} />
   ));
 
   if (!onPick) {
@@ -127,7 +131,7 @@ export function MuscleFigure({ name, view: injuryView, paint, width, height, mar
 }
 
 /** 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定なら出さない */
-function Pulse({ x, y, size }: { x: number; y: number; size: number }) {
+function Pulse({ x, y, size, color }: { x: number; y: number; size: number; color: string }) {
   const reduced = useReducedMotion();
   const t = useSharedValue(0);
   useEffect(() => {
@@ -140,7 +144,7 @@ function Pulse({ x, y, size }: { x: number; y: number; size: number }) {
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size, borderRadius: size / 2, borderWidth: 1.5, borderColor: INJURY_AMBER }, style]}
+      style={[{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size, borderRadius: size / 2, borderWidth: 1.5, borderColor: color }, style]}
     />
   );
 }
