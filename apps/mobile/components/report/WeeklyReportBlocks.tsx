@@ -15,7 +15,7 @@ import {
   injuryPeriodInjuryCount, loadInjuryPeriodReport, type InjuryPeriodReport, type InjuryReportEntry,
 } from '@/lib/injuryReport';
 import { BALANCE_PARTS, partBalanceAnchored, partBalancePeriodLabel } from '@/lib/partBalance';
-import { colors, radius, space } from '@/theme';
+import { colors, space } from '@/theme';
 import { PartStackRadar } from '../PartBalance';
 import { ReportMicro, reportPanelStyle } from './panel';
 import { useEntering } from '../reports';
