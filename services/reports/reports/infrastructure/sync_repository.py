@@ -26,7 +26,9 @@ REQUIRED = {"title", "body", "kind"}
 
 def report_fields(r: Report) -> dict:
     """保存する項目。構造のある項目は、入っているものだけ（前の形のレポートと同じく、なければ持たない）。
-    次の一歩の済んだ番号（next_steps_done）はアプリだけが書くので、ここには入れない。"""
+    次の一歩の済んだ番号（next_steps_done）はアプリだけが書くものだが、置き換えのときだけ例外にする：
+    サービス（application/service.py の _carried_done）が前のレポートから引き継いだ分が入っていたら、一緒に書く
+    （新しいレポートにチェックが付いた状態で届き、利用者のチェックが置き換えで消えないようにするため）。"""
     fields: dict = {
         "title": r.title, "body": r.body, "kind": r.kind.value,
         "period_start": r.period_start.isoformat() if r.period_start else None,
@@ -40,6 +42,8 @@ def report_fields(r: Report) -> dict:
         fields["highlights"] = [_highlight_fields(h) for h in r.highlights]
     if r.next_steps:
         fields["next_steps"] = list(r.next_steps)
+    if r.next_steps_done:
+        fields["next_steps_done"] = list(r.next_steps_done)
     if r.links:
         fields["links"] = [{"from_area": link.from_area.value, "to_area": link.to_area.value, "text": link.text,
                             "basis": link.basis} for link in r.links]

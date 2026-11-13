@@ -45,7 +45,7 @@ class Kind(StrEnum):
     DAILY = "daily"  # 日のまとめ（period_start と period_end が同じ日）
     WEEKLY = "weekly"  # 週のまとめ
     MONTHLY = "monthly"  # 月のまとめ
-    OTHER = "other"  # その他（種目の分析など）
+    OTHER = "other"  # その他。前は保存できたが、いまは保存を受け付けない（前に保存したものを読むためにだけ残す。service.save が断る）
 
 
 class Tone(StrEnum):

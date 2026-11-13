@@ -57,8 +57,8 @@ export const KIND_LABELS: Record<ReportKind, string> = { daily: '日のまとめ
 /** 一覧のカードの種類の四角の1文字（読み上げは KIND_LABELS） */
 export const KIND_SHORT: Record<ReportKind, string> = { daily: '日', weekly: '週', monthly: '月', other: '他' };
 export const AREA_LABELS: Record<Area, string> = { training: '筋トレ', meals: '食事', body: 'からだ', sleep: '睡眠' };
-/** 次の一歩の見出し（日のまとめなら明日、週のまとめなら来週、月なら来月） */
-export const NEXT_TITLES: Record<ReportKind, string> = { daily: '明日の一歩', weekly: '来週の一歩', monthly: '来月の一歩', other: '次の一歩' };
+/** 次の一歩の見出し（日のまとめなら明日、週のまとめなら来週の焦点、月なら今月の課題） */
+export const NEXT_TITLES: Record<ReportKind, string> = { daily: '明日の一歩', weekly: '来週の焦点', monthly: '今月の課題', other: '次の一歩' };
 
 const TONES: Tone[] = ['good', 'steady', 'caution'];
 const AREAS: Area[] = ['training', 'meals', 'body', 'sleep'];
