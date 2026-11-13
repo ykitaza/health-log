@@ -1,6 +1,5 @@
 // レポート詳細の週の表（WEEKLY STATUS）に出す、記録からの集計。DB は読まない（読むのは components/report/WeeklyReportBlocks.tsx）
 import type { DateKey } from './date';
-import { goalProgress } from './goalBar';
 import type { InjuryPeriodReport, InjuryReportEntry } from './injuryReport';
 import { setVolume, TrainingSetRow } from './training';
 
@@ -29,17 +28,6 @@ export function periodPartSequence(rows: TrainingSetRow[], partName: (bodyPartId
     for (const [name, c] of byDate.get(d)!) if (c > n) { best = name; n = c; }
     return best;
   });
-}
-
-/**
- * レポート詳細の目標体重の棒（モックの GOAL PROGRESS）。増量（目標が今より上）は 0kg から目標までの棒（モックと同じ：現在÷目標、節目÷目標）。
- * 減量は 0kg からだと棒がいつも満杯に近くなるので、startKg（期間や28日の初めの体重）から目標までの棒にする（lib/goalBar.ts の startKg つき）。
- * scaleStartKg は棒の左端の値（増量は 0、減量は startKg）
- */
-export function weightGoalProgress(currentKg: number, goalKg: number, startKg: number) {
-  const gain = goalKg >= currentKg;
-  const p = gain ? goalProgress({ currentKg, goalKg }) : goalProgress({ currentKg, goalKg, startKg });
-  return { ...p, gain, scaleStartKg: gain ? 0 : startKg };
 }
 
 /**

@@ -144,6 +144,8 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await expect(see(page, '平日は 23時半までに寝る', { exact: true })).toBeVisible();
   // 前の週のまとめがなければ「先週やることの振り返り」は出さない
   await expect(see(page, '先週やることの振り返り', { exact: true })).toHaveCount(0);
+  // つながり・目標の見直し・本文は、たたんで下に置く（押すと開く）
+  await button(page, 'つながり・目標の見直し・本文').click();
   const body = page.getByTestId('report-body').filter({ visible: true });
   await expect(see(body, '[ここを押す](https://example.invalid)')).toBeVisible();
   await expect(body.locator('a')).toHaveCount(0);
@@ -175,10 +177,12 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await expect(see(band(page), '11月2日（月）〜11月8日（日）')).toBeVisible();
 
   // 消す：確認のダイアログ → サーバーにも delete が届く。レポートのタブは空の状態になる
+  await button(page, 'メニュー').click();
   await button(page, 'このレポートを消す').click();
   await expect(see(page, 'レポートを消しますか？')).toBeVisible();
   await button(page, 'やめる').click();
   await expect(see(page, 'レポートを消しますか？')).toHaveCount(0);
+  await button(page, 'メニュー').click();
   await button(page, 'このレポートを消す').click();
   await button(page, '消す').click();
   await expect.poll(() => server.state('report', REPORT)?.deleted, { timeout: 15_000 }).toBe(true);
@@ -422,6 +426,7 @@ test('月のまとめ：つながりのカードと、目標の見直しの「�
   await openApp(page);
   await signInAndSync(page);
   await page.getByRole('button', { name: /^気をつけたい、10月のまとめ、/ }).filter({ visible: true }).click();
+  await button(page, 'つながり・目標の見直し・本文').click();
   await expect(see(page, 'つながり', { exact: true })).toBeVisible();
   await expect(page.getByLabel('睡眠から筋トレへ（2週）。睡眠が6時間を切った週は、筋トレの回数が半分だった', { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(see(page, '睡眠 → 筋トレ・2週', { exact: true })).toBeVisible();

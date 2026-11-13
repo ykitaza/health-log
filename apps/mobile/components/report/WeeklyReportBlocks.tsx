@@ -1,7 +1,7 @@
 // 週のまとめの中身（モックの「今週」のタブ）のうち、アプリが端末の記録から組み立てるブロック。
 // - WeeklyRadarBlock：レポートの週の終わりを起点にした直近14日の部位のバランス（lib/partBalance.ts のアンカー版。ホームのレーダーと同じ集計）
-// - WeeklyStatusBlock：WEEKLY STATUS の表。今週の目標（lib/reports.ts の weeklyAchievementRows と連続）、週の平均の体重、合計負荷量、最近の部位。
-//   目標の行の下に「達成」と連続、「目標を変える ›」（設定の今週の目標の欄へ）
+// - WeeklyStatusBlock：WEEKLY STATUS の表。週の平均の体重、筋トレの日数、合計負荷量、最近の部位
+// - WeeklyGoalsBlock：今週の目標（lib/reports.ts の weeklyAchievementRows と連続）。「達成」と連続、「目標を変える ›」（設定の今週の目標の欄へ）
 // - InjuryReviewBlock：その週のケガの振り返り（lib/injuryReport.ts の3分類。数を表にし、ケガは1件ずつ2段の行で）
 // - PrevTodoBlock：先週やることの振り返り（前の週のまとめの次の一歩と済んだか。見るだけ）
 // - MetricTilesBlock：レポートの highlights の指標のタイル（2列）
@@ -89,13 +89,11 @@ const openGoalSettings = () => router.push({ pathname: '/settings', params: { se
 const GOAL_EN: Record<string, string> = { training: 'Training', meals: 'Meals Logged', protein: 'Protein Days', sleep: 'Sleep 7H+' };
 
 /**
- * WEEKLY STATUS の表（モックの .week-table-card）。上から今週の目標の行（目標は設定の今の値。印と言葉で達成を伝える）、
- * 週の平均の体重、合計負荷量、最近の部位（週の筋トレの日ごとの主な部位）。目標の行の下に、設定の目標（筋トレ・食事の記録・睡眠）が
- * すべて届いたら「✓ 達成」とその週の時点の連続（weekStreakText）、右に「目標を変える ›」
+ * WEEKLY STATUS の表（モックの .week-table-card）：週の平均の体重、筋トレの日数（セットの記録がある日）、合計負荷量、
+ * 最近の部位（週の筋トレの日ごとの主な部位）
  */
 export function WeeklyStatusBlock({ start, end }: { start: DateKey; end: DateKey }) {
   const { data: w } = useWeeklyAchievement(start);
-  const { data: streak } = useGoalStreak(start);
   const { data } = useFocusData(async (r) => {
     const [rows, parts, daily, s] = await Promise.all([
       r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true }), r.body.listDaily(), r.settings.get(),
@@ -108,21 +106,45 @@ export function WeeklyStatusBlock({ start, end }: { start: DateKey; end: DateKey
     };
   }, `${start}:${end}`);
   if (!w || !data) return null;
-  const { rows } = weeklyAchievementRows(w);
-  const current = weekOf(todayKey()).start === w.start;
-  const achieved = rows.length > 0 && allGoalsReached(w);
-  const streakText = streak ? weekStreakText(streak, current) : null;
-  const status = [achieved && '設定の目標をすべて達成', streakText].filter(Boolean).join('。');
   const U = data.unit.toUpperCase();
   return (
-    <Panel testID="report-achievement">
+    <Panel testID="report-weekly-status">
       <TableHead left="Weekly Status" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
-        {rows.map((r) => (
+        <StatusRow en="Week Avg" ja="週間平均体重" value={data.avg != null ? <ValUnit value={fmt1(kgToUnit(data.avg, data.unit))} unit={U} /> : '—'} />
+        <StatusRow en="Training" ja="筋トレ" value={<ValUnit value={String(w.training.days)} unit="DAYS" />} accessibilityLabel={`筋トレ ${w.training.days}日`} />
+        <StatusRow en="Total Load" ja="合計負荷量" value={<ValUnit value={tonnes(data.volumeKg, data.unit)} unit={data.unit === 'kg' ? 'T' : 'K LB'} />} />
+        <StatusRow en="Recent" ja="最近の部位" last wide value={data.parts.length > 0 ? <JaVal>{data.parts.join(' → ')}</JaVal> : <Mono size={12} color={hud.muted}>記録なし</Mono>} />
+      </View>
+    </Panel>
+  );
+}
+
+/**
+ * 今週の目標のパネル（モックにない既存の機能。WEEKLY STATUS の下）：目標の行（目標は設定の今の値。印と言葉で達成を伝える）、
+ * 設定の目標（筋トレ・食事の記録・睡眠）がすべて届いたら「✓ 達成」とその週の時点の連続（weekStreakText）、右に「目標を変える ›」。
+ * 目標がひとつもなければ出さない
+ */
+export function WeeklyGoalsBlock({ start, end }: { start: DateKey; end: DateKey }) {
+  const { data: w } = useWeeklyAchievement(start);
+  const { data: streak } = useGoalStreak(start);
+  if (!w) return null;
+  const { rows } = weeklyAchievementRows(w);
+  if (rows.length === 0) return null;
+  const current = weekOf(todayKey()).start === w.start;
+  const achieved = allGoalsReached(w);
+  const streakText = streak ? weekStreakText(streak, current) : null;
+  const status = [achieved && '設定の目標をすべて達成', streakText].filter(Boolean).join('。');
+  return (
+    <Panel testID="report-achievement">
+      <TableHead left="Weekly Goals" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
+      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+        {rows.map((r, i) => (
           <StatusRow
             key={r.key}
             en={GOAL_EN[r.key] ?? r.key}
             ja={r.label}
+            last={i === rows.length - 1}
             accessibilityLabel={achievementRowLabel(r)}
             value={(
               <T style={{ textAlign: 'right' }}>
@@ -134,22 +156,17 @@ export function WeeklyStatusBlock({ start, end }: { start: DateKey; end: DateKey
             )}
           />
         ))}
-        <StatusRow en="Week Avg" ja="週間平均体重" value={data.avg != null ? <ValUnit value={fmt1(kgToUnit(data.avg, data.unit))} unit={U} /> : '—'} />
-        <StatusRow en="Total Load" ja="合計負荷量" value={<ValUnit value={tonnes(data.volumeKg, data.unit)} unit={data.unit === 'kg' ? 'T' : 'K LB'} />} />
-        <StatusRow en="Recent" ja="最近の部位" last wide value={data.parts.length > 0 ? <JaVal>{data.parts.join(' → ')}</JaVal> : <Mono size={12} color={hud.muted}>記録なし</Mono>} />
       </View>
-      {rows.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: hud.line2, paddingLeft: 14 }}>
-          <View accessible={status !== ''} accessibilityLabel={status || undefined} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
-            {achieved && <T bold size={12.5} color={hud.green} testID="report-goals-achieved">✓ 達成</T>}
-            {streakText && <T size={11.5} color={hud.muted} testID="report-goal-streak">{streakText}</T>}
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="目標を変える" onPress={openGoalSettings} testID="report-goals-edit"
-            style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
-            <T bold size={12} color={hud.green}>目標を変える ›</T>
-          </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: hud.line2, paddingLeft: 14 }}>
+        <View accessible={status !== ''} accessibilityLabel={status || undefined} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
+          {achieved && <T bold size={12.5} color={hud.green} testID="report-goals-achieved">✓ 達成</T>}
+          {streakText && <T size={11.5} color={hud.muted} testID="report-goal-streak">{streakText}</T>}
         </View>
-      )}
+        <Pressable accessibilityRole="button" accessibilityLabel="目標を変える" onPress={openGoalSettings} testID="report-goals-edit"
+          style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+          <T bold size={12} color={hud.green}>目標を変える ›</T>
+        </Pressable>
+      </View>
     </Panel>
   );
 }

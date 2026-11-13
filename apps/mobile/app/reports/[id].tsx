@@ -3,12 +3,12 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LoadError } from '@/components/LoadError';
-import { BodyBlock, CheckSteps, LinksBlock, MonthlyTaskBlock, ReviewBlock } from '@/components/report/ClosingBlocks';
+import { CheckSteps, MonthlyTaskBlock, MoreFold } from '@/components/report/ClosingBlocks';
 import { ByFieldPanel, DailyChipsBlock, DailyDetailsBlock, DailyRingsBlock, WeekRhythmBlock } from '@/components/report/DailyReportBlocks';
 import { dotDate, dotMonthDay, hud, HudFonts, Insight, Micro, Mono, Panel, SlantFill } from '@/components/report/hud';
 import { Big3Block, GoalBarBlock, GrowthScoreBlock } from '@/components/report/MonthlyReportBlocks';
 import { ReportHero } from '@/components/report/ReportHero';
-import { InjuryReviewBlock, MetricTilesBlock, PrevTodoBlock, WeeklyRadarBlock, WeeklyStatusBlock } from '@/components/report/WeeklyReportBlocks';
+import { InjuryReviewBlock, MetricTilesBlock, PrevTodoBlock, WeeklyGoalsBlock, WeeklyRadarBlock, WeeklyStatusBlock } from '@/components/report/WeeklyReportBlocks';
 import { T } from '@/components/Text';
 import { ConfirmDialog, IconButton } from '@/components/ui';
 import { useTodoChecks } from '@/components/WeeklyTodo';
@@ -27,25 +27,46 @@ const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
   { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
 ];
 
-/** 画面の枠：モックの近黒の地（この画面だけ。共通の Screen は colors.bg なので使わない）。上に戻る・システムの行・消す */
-function Frame({ sys, onBack, right, children }: { sys: string | null; onBack: () => void; right?: ReactNode; children: ReactNode }) {
+/** 画面の枠：モックの近黒の地（この画面だけ。共通の Screen は colors.bg なので使わない）。上の段はモックの HLOG // REPORT の行に、左端に小さな戻る、右端に「…」のメニュー（menu） */
+function Frame({ sys, onBack, menu, children }: { sys: string | null; onBack: () => void; menu?: ReactNode; children: ReactNode }) {
   // 中身の幅はモックと同じく 400 まで（広い画面では左右に余白）。左右の余白は 12
   const { width } = useWindowDimensions();
   const side = 12 + Math.max(0, (width - 400) / 2);
   return (
     <HudFonts>
       <SafeAreaView style={{ flex: 1, backgroundColor: hud.bg }} edges={['top', 'bottom']}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 48 }}>
-          <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.label} />
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 44, zIndex: 2 }}>
+          <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />
+          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
             <Micro>HLOG // REPORT</Micro>
             {sys && <Micro>{sys}</Micro>}
           </View>
-          {right ?? <View style={{ width: 48 }} />}
+          {menu ?? <View style={{ width: 44 }} />}
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingBottom: 20, gap: 6 }}>{children}</ScrollView>
       </SafeAreaView>
     </HudFonts>
+  );
+}
+
+/** 右上の「…」のメニュー。いまは「このレポートを消す」だけ（押すと確かめのダイアログ） */
+function ReportMenu({ onDelete, disabled }: { onDelete: () => void; disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="メニュー" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)}
+        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} testID="report-menu">
+        <Mono size={16} color={hud.muted} spacing={1}>…</Mono>
+      </Pressable>
+      {open && (
+        <Panel bg={hud.panel2} cut={6} style={{ position: 'absolute', top: 42, right: 4, minWidth: 180 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="このレポートを消す" disabled={disabled}
+            onPress={() => { setOpen(false); onDelete(); }} style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+            <T bold size={13} color={colors.danger}>このレポートを消す</T>
+          </Pressable>
+        </Panel>
+      )}
+    </View>
   );
 }
 
@@ -77,11 +98,11 @@ function PeriodTabs({ value, onChange }: { value: ReportKind; onChange: (k: Peri
  * 見た目と並びは承認済みのモック（ブランチ docs/report-mock の docs/report-mock/index.html。Issue #203）。部品は components/report/：
  * - 日：ヒーロー（体重のリング・28日の傾向・目標の棒） → リング（kcal・たんぱく質・睡眠） → 解釈（要約） → 今週のリズム →
  *   明日の一歩（チェックできる。連続達成は lib/reportStreak.ts） → 安静時心拍・体脂肪率 → くわしく（ステータス表と分野ごとの解釈）
- * - 週：ヒーロー（週の平均の体重・要約・目標の棒） → 部位のバランス（レポートの週にアンカー） → WEEKLY STATUS（今週の目標・平均・負荷量・最近の部位）
- *   → 先週やることの振り返り（前の週のまとめがあるときだけ。見るだけ） → ケガの振り返り（端末のケガ記録から3分類） → 来週の焦点（チェックできる。
+ * - 週：ヒーロー（週の平均の体重・要約・目標の棒） → 部位のバランス（レポートの週にアンカー） → WEEKLY STATUS（平均・筋トレの日数・負荷量・最近の部位）
+ *   → 今週の目標（達成・連続・目標を変える） → 先週やることの振り返り（前の週のまとめがあるときだけ。見るだけ） → ケガの振り返り（端末のケガ記録から3分類） → 来週の焦点（チェックできる。
  *   ホームの「今週やること」と同じ next_steps_done を共有する） → 今週のリズム → 指標のタイル → 分野ごと
  * - 月：ヒーロー（目標への進捗） → 成長スコア → 目標への進捗（節目つき） → BIG3（スパークライン付き） → 解釈（要約） → 今月の課題 → 分野ごと
- * どの種類も、そのあとに つながり → 目標の見直し → くわしく（本文）があれば出す。
+ * どの種類も、そのあとに つながり・目標の見直し・本文があれば、たたんで出す（モックにないため）。消すのは右上の「…」のメニューから。
  * 達成（リング・今週の目標）と体重・BIG3 はアプリが記録から出す。前の形のレポート（達成の期間に合わない・つながりがない）は、ある分だけ出す。
  * レポートのタブ（最新の詳細へ直行）・ホーム・各タブの日のまとめのカードから開く。消せる（確認のダイアログ）。
  * 開いたら「見た」にする（新しいレポートのお知らせと「新着」の札を消す。端末だけ。期間タブで切り替えた先も同じ）
@@ -163,6 +184,11 @@ export default function ReportScreen() {
     ? `${dotDate(report.periodStart)}${report.periodEnd && report.periodEnd !== report.periodStart ? `–${dotMonthDay(report.periodEnd)}` : ''}`
     : null;
   const today = todayKey();
+  // 状態行：日のまとめが最新で、今日の分がまだないときはモックの形（「2026.11.13分は未生成のため…」）。ほかは期間と、最新ならその旨
+  const missingToday = isLatest && report.kind === 'daily' && report.periodEnd != null && report.periodEnd < today;
+  const latestNote = missingToday
+    ? `${dotDate(today)}分は未生成のため、最新の生成済みレポート（${dotDate(report.periodEnd!)}分）を表示しています`
+    : `${period ? `${period}のレポート` : `${formatCreated(report.createdAt)}に作成したレポート`}${isLatest ? ' ・ 最新の生成済みレポートを表示しています' : ''}`;
   // 週のリズムの基準の日：日のまとめはその日、週のまとめは今週なら今日（過ぎた週は基準なし）
   const weekAnchor = scope?.type === 'week' && report.periodEnd && report.periodStart && today >= report.periodStart && today <= report.periodEnd ? today : null;
   const fieldRight = periodDots ?? '';
@@ -172,7 +198,7 @@ export default function ReportScreen() {
     <Frame
       sys={periodDots ? `RPT-${periodDots}` : null}
       onBack={back}
-      right={<IconButton name="trash" label="このレポートを消す" color={colors.danger} bg="transparent" disabled={busy} onPress={() => setConfirm(true)} />}
+      menu={<ReportMenu disabled={busy} onDelete={() => setConfirm(true)} />}
     >
       <View style={{ gap: 2, paddingHorizontal: 2, paddingTop: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -181,8 +207,7 @@ export default function ReportScreen() {
           {periodDots && <Mono size={14} color={hud.white} spacing={0.8}>{periodDots}</Mono>}
         </View>
         <T size={11} color={hud.muted} style={{ lineHeight: 17, paddingLeft: isLatest ? 15 : 0 }} testID="report-latest-line">
-          {period ? `${period}のレポート` : `${formatCreated(report.createdAt)}に作成したレポート`}
-          {isLatest && ' ・ 最新の生成済みレポートを表示しています'}
+          {latestNote}
         </T>
       </View>
       {periodTabs}
@@ -207,6 +232,7 @@ export default function ReportScreen() {
         <>
           <WeeklyRadarBlock end={report.periodEnd} />
           <WeeklyStatusBlock start={report.periodStart} end={report.periodEnd} />
+          <WeeklyGoalsBlock start={report.periodStart} end={report.periodEnd} />
         </>
       )}
       {prevTodo && <PrevTodoBlock week={prevTodo} />}
@@ -232,10 +258,8 @@ export default function ReportScreen() {
       {report.kind === 'monthly' && hasSteps && <MonthlyTaskBlock steps={report.nextSteps} />}
       {report.kind === 'monthly' && <ByFieldPanel highlights={report.highlights} right={fieldRight} metricVs="先月より" />}
 
-      {/* どの種類も：つながり・目標の見直し・本文 */}
-      {report.links.length > 0 && <LinksBlock links={report.links} />}
-      {report.review && <ReviewBlock review={report.review} />}
-      {report.body.trim() !== '' && <BodyBlock body={report.body} />}
+      {/* どの種類も：つながり・目標の見直し・本文（モックにないので、たたんで下に置く） */}
+      <MoreFold links={report.links} review={report.review} body={report.body} />
 
       <View style={{ alignItems: 'center', gap: 4, paddingTop: 4 }}>
         <Micro>Data from your records — End of Report</Micro>

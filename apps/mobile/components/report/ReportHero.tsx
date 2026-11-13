@@ -1,8 +1,9 @@
 // レポート詳細のいちばん上のパネル（モックの .hero）。種類で中身を変える：
 // - 日：その日の体重のリング（次の節目までの進み具合）、前の日との差、28日の傾向、28日の体重の折れ線、目標体重までの棒
 // - 週：週の体重の平均（大きな数字）、最新の体重と平均の比べ、要約、目標体重までの棒
-// - 月：目標への進み具合（大きな現在の値。MonthlyReportBlocks の目標と同じ bodyChange・weightGoalProgress）、節目、目標体重までの棒
-// 目標体重までの棒は lib/reportView.ts の weightGoalProgress（増量は 0kg から目標まで、減量は初めの体重から目標まで）
+// - 月：目標への進み具合（大きな現在の値。MonthlyReportBlocks の目標と同じ bodyChange・goalProgress）、節目、目標体重までの棒
+// 目標体重までの棒は lib/goalBar.ts の goalProgress（startKg つき。期間の初めの体重から目標まで。0kg からだと、いつも 9 割近く埋まって進みが読めないため）。
+// 期間の初め：日は28日の窓の最初の体重、週はその週の最初の体重、月は bodyChange の first
 // 上の段（種類と期間のマイクロラベル、期間、調子の札、題、STATUS の行）はどの種類も同じ。
 // 数字はアプリの記録から出す（lib/body.ts・lib/goalBar.ts・lib/reports.ts の既存の計算）。体重の記録や目標がなければ、その部分を出さない
 import { ReactNode } from 'react';
@@ -12,7 +13,7 @@ import { weekAverage, weeklyPace } from '@/lib/body';
 import { addDays, DateKey, formatMonthDay, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { DAY_TYPE_LABELS } from '@/lib/meals';
-import { weightGoalProgress } from '@/lib/reportView';
+import { goalProgress } from '@/lib/goalBar';
 import { bodyChange, formatPeriod, Report, TONE_LABELS, Tone } from '@/lib/reports';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { T } from '../Text';
@@ -103,9 +104,9 @@ function DailyHeroBody({ date }: { date: DateKey }) {
   const pace = weeklyPace(weights.map((w) => ({ date: w.date, weightKg: w.value })), date);
   const spark = weights.filter((w) => w.date > addDays(date, -28) && w.date <= date).map((w) => u(w.value));
   const goal = data.goal;
-  // 減量の棒の左端は、28日の窓の最初の体重
+  // 棒の左端は、28日の窓の最初の体重
   const first28 = weights.find((w) => w.date > addDays(date, -28) && w.date <= date)?.value ?? day;
-  const p = goal != null ? weightGoalProgress(day, goal, first28) : null;
+  const p = goal != null ? goalProgress({ currentKg: day, goalKg: goal, startKg: first28 }) : null;
   // 円は次の節目までの進み具合（増量なら 現在÷節目、減量なら 節目÷現在）
   const ringRatio = p && !p.reached ? (goal! > day ? day / p.milestoneKg : p.milestoneKg / day) : p ? 1 : null;
   const ringLabel = p
@@ -171,7 +172,7 @@ function WeeklyHeroBody({ start, end, note }: { start: DateKey; end: DateKey; no
   const last = inWeek[inWeek.length - 1] ?? null;
   const goal = data.goal;
   const current = last?.value ?? null;
-  const p = goal != null && current != null ? weightGoalProgress(current, goal, inWeek[0].value) : null;
+  const p = goal != null && current != null ? goalProgress({ currentKg: current, goalKg: goal, startKg: inWeek[0].value }) : null;
   const lastName = last ? (last.date === todayKey() ? '今日' : formatMonthDay(last.date)) : '';
   const diff = last && avg != null ? last.value - avg : null;
   const cmp = diff == null ? '' : Math.abs(diff) < 0.05 ? '平均どおり' : diff > 0 ? '平均超え' : '平均より下';
@@ -212,7 +213,7 @@ function MonthlyHeroBody({ start, end }: { start: DateKey; end: DateKey }) {
   const { unit } = data;
   const u = (kg: number) => kgToUnit(kg, unit);
   const goal = data.goal;
-  const p = weightGoalProgress(c.last.value, goal, c.first.value);
+  const p = goalProgress({ currentKg: c.last.value, goalKg: goal, startKg: c.first.value });
   return (
     <View testID="report-hero-monthly">
       <Micro style={{ marginTop: 8 }}>{`Goal Progress // ${fmt1(u(goal))}${unit}`}</Micro>

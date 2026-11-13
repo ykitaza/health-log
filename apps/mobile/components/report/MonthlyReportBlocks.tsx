@@ -6,9 +6,9 @@ import { useFocusData, useGrowthData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
 import { big3Assignments, completeBig3 } from '@/lib/exercises';
 import { formatSigned } from '@/lib/format';
+import { goalProgress } from '@/lib/goalBar';
 import { growthScoreAsOf } from '@/lib/growth';
 import { big3Total, bodyChange } from '@/lib/reports';
-import { weightGoalProgress } from '@/lib/reportView';
 import { big3Trend } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { T } from '../Text';
@@ -43,8 +43,7 @@ export function GrowthScoreBlock({ asOf }: { asOf: DateKey }) {
 
 /**
  * 目標への進捗（モックの .month-card）：現在（体重の7日移動平均の最後の点。bodyChange の last）›› 目標、太い棒と節目の目盛り、
- * 棒の両端の値、節目と目標の一覧。棒は lib/reportView.ts の weightGoalProgress（増量は 0kg から、減量は期間の初めの体重から目標まで）、
- * 残り・節目は lib/goalBar.ts（節目は10kg刻みで自動）。
+ * 棒の両端の値（期間の初めの体重と目標）、節目と目標の一覧。進み具合・残り・節目は lib/goalBar.ts（startKg つき。節目は10kg刻みで自動）。
  * 目標体重が未設定、または体重の記録が足りなければ出さない
  */
 export function GoalBarBlock({ start, end }: { start: DateKey; end: DateKey }) {
@@ -58,7 +57,7 @@ export function GoalBarBlock({ start, end }: { start: DateKey; end: DateKey }) {
   const { unit } = data;
   const goal = data.goal;
   const u = (kg: number) => fmt1(kgToUnit(kg, unit));
-  const p = weightGoalProgress(c.last.value, goal, c.first.value);
+  const p = goalProgress({ currentKg: c.last.value, goalKg: goal, startKg: c.first.value });
   const showMilestone = !p.reached && p.milestoneKg !== goal;
   const label = `目標への進捗。現在 ${u(c.last.value)} ${unit}、目標 ${u(goal)} ${unit}。${p.reached ? '目標に届いています' : `あと ${u(p.remainingKg)} ${unit}`}${showMilestone ? `。節目 ${u(p.milestoneKg)} ${unit} まで あと ${u(p.toMilestoneKg)} ${unit}` : ''}`;
   const pct = `${Math.round(p.milestoneRatio * 1000) / 10}%` as const;
@@ -84,14 +83,20 @@ export function GoalBarBlock({ start, end }: { start: DateKey; end: DateKey }) {
         <View style={{ marginTop: 8 }}>
           <GoalTrack ratio={p.ratio} tick={showMilestone ? p.milestoneRatio : null} big testIDTick="report-goal-milestone" />
           {showMilestone && (
-            <View style={{ position: 'absolute', top: 16, left: pct, width: 120, marginLeft: -60, alignItems: 'center' }}>
+            // 節目の札は目盛りの下。棒の端に近いときは、パネルからはみ出さないよう端にそろえる
+            <View style={[
+              { position: 'absolute', top: 16, width: 120 },
+              p.milestoneRatio < 0.15 ? { left: 0, alignItems: 'flex-start' }
+                : p.milestoneRatio > 0.85 ? { right: 0, alignItems: 'flex-end' }
+                  : { left: pct, marginLeft: -60, alignItems: 'center' },
+            ]}>
               <T bold size={11} color={hud.ink}>{`${kgLabel(kgToUnit(p.milestoneKg, unit))}${unit}`}</T>
               <T bold size={10} color={hud.green}>{`あと${u(p.toMilestoneKg)}${unit}`}</T>
             </View>
           )}
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: showMilestone ? 34 : 8 }}>
-          <Mono size={10} color={hud.faint}>{`${kgLabel(kgToUnit(p.scaleStartKg, unit))}${unit}`}</Mono>
+          <Mono size={10} color={hud.faint}>{`${u(c.first.value)}${unit}`}</Mono>
           <Mono size={10} color={hud.faint}>{`${kgLabel(kgToUnit(goal, unit))}${unit}`}</Mono>
         </View>
         <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: hud.line2 }}>
