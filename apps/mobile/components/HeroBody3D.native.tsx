@@ -21,11 +21,19 @@ function Stage({ width, height, band, injuries, numbers, rotate }: Omit<HeroBody
     const anchor = anchorFor(i.site, i.side);
     return anchor ? [{ id: i.id, parts: partsFor(i.site, i.side), anchor, facing: facingOf(i.site, i.side), fixing: true }] : [];
   }), [injuries]);
-  // 札。左右それぞれ 2 つまで、四隅の数字の間に収める
-  const places = useMemo(() => (layoutCallouts(
-    marks.map((m) => ({ id: m.id, anchor: m.anchor, facing: m.facing, fixing: true, occurredOn: injuries.find((i) => i.id === m.id)!.occurredOn })),
-    width, height, { perSide: PER_SIDE, height: HERO_TAG_H },
-  ).map((p) => ({ ...p, top: Math.min(Math.max(p.top, band.top), band.bottom - HERO_TAG_H) }))), [marks, injuries, width, height, band.top, band.bottom]);
+  // 札。左右それぞれ 2 つまで、四隅の数字の間に収める（下へはみ出したら、側ごとに下から詰め直して重ねない）
+  const places = useMemo(() => {
+    const raw = layoutCallouts(
+      marks.map((m) => ({ id: m.id, anchor: m.anchor, facing: m.facing, fixing: true, occurredOn: injuries.find((i) => i.id === m.id)!.occurredOn })),
+      width, height, { perSide: PER_SIDE, height: HERO_TAG_H },
+    );
+    return (['left', 'right'] as const).flatMap((side) => {
+      const list = raw.filter((p) => p.side === side).map((p) => ({ ...p, top: Math.max(p.top, band.top) }));
+      let limit = band.bottom - HERO_TAG_H;
+      for (let i = list.length - 1; i >= 0; i--) { list[i].top = Math.max(band.top, Math.min(list[i].top, limit)); limit = list[i].top - HERO_TAG_H - 4; }
+      return list;
+    });
+  }, [marks, injuries, width, height, band.top, band.bottom]);
   const tips = useSharedValue<number[]>([]);
   useEffect(() => {
     scene.configure({

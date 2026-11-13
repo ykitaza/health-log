@@ -134,14 +134,15 @@ export function HomeHero({ today, unit, latest, ready, data }: {
                 </GrowthPage>
               )}
             </Animated.View>
-            {footer && (
-              <View style={s.footer} pointerEvents="none">
-                <T size={12} color={colors.sub} testID="hero-ring-footer">{footer}</T>
-              </View>
-            )}
           </>
         )}
       </View>
+      {/* 輪の下の 1 行（輪とページの印の間） */}
+      {footer && (
+        <View style={s.footer} pointerEvents="none">
+          <T size={12} color={colors.sub} testID="hero-ring-footer">{footer}</T>
+        </View>
+      )}
       <View style={s.pager} testID="hero-pages">
         {(pages ?? ['latest' as const]).map((p) => {
           const on = p === page;
@@ -223,7 +224,7 @@ function Ring({ width, height, r, ring, inner }: { width: number; height: number
 /** 値の文字の大きさ：日本語の長い部位名（「右肩の関節」）でも四隅に収める */
 function valueSize(v: string): number {
   const n = [...v].length;
-  if (/[^\x20-\x7E]/.test(v)) return n <= 2 ? 34 : n <= 3 ? 28 : 22;
+  if (/[^\x20-\x7E]/.test(v)) return n <= 2 ? 34 : n <= 3 ? 28 : n <= 4 ? 22 : 18;
   return n <= 5 ? 34 : 26;
 }
 
@@ -254,7 +255,7 @@ function Corners({ children }: { children: [ReactNode, ReactNode, ReactNode, Rea
 }
 
 /**
- * 体の列の外に重ねる面（LATEST・RECOVERY）。その日の体（DayBody）の 3D はヒーロー全面でなぞる操作を受けるので、列の外に指が届かないように
+ * 体の列の外に重ねる面（3D のページすべて）。その日の体（DayBody）の 3D と Canvas はヒーロー全面で指を受けるので、列の外に指が届かないように
  * 何もしない面を重ね、そこからの横スワイプをページの切り替えに回す（DayBody の部品は変えない）
  */
 function SwipeShield({ width, rotate }: { width: number; rotate: { left: number; width: number } }) {
@@ -358,6 +359,7 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <HeroBody kind="injury" width={width} height={height} band={band} list={data.recovery.list} levels={{}}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} />
+      <SwipeShield width={width} rotate={rotate} />
       <PressableScale accessibilityRole="button" accessibilityLabel={spoken} scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]} testID="hero-injury"
         onPress={() => router.navigate({ pathname: '/training', params: { view: 'injury' } })}>
         <Corner align="left" label="INJURY //" labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub="ACTIVE" />
@@ -405,7 +407,7 @@ const s = StyleSheet.create({
   stage: { overflow: 'hidden' },
   corner: { position: 'absolute', minWidth: size.touch, minHeight: size.touch, padding: space.s },
   shield: { position: 'absolute', top: 0, bottom: 0 },
-  footer: { position: 'absolute', left: 0, right: 0, bottom: 4, alignItems: 'center' },
+  footer: { alignItems: 'center', marginTop: space.xs },
   pager: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   pageTab: { minHeight: size.touch, minWidth: 28, alignItems: 'center', justifyContent: 'center' },
   pageDash: { height: 3, borderRadius: 2 },

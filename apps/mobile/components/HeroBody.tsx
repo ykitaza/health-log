@@ -7,9 +7,14 @@ import type { Injury } from '@/db/repositories/injuries';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { colors } from '@/theme';
 import { DayBody } from './DayBody';
+import type { DayBodyEntry } from './DayBody3D';
 import { HeroBody3D } from './HeroBody3D';
 import { HERO_TAG_H, HERO_TAG_W, HeroInjuryTag } from './heroInjuryTag';
 import { MuscleFigure } from './MuscleFigure';
+
+/** RECOVERY は種目の札も部位の光もない（描くたびに新しい配列を渡さない） */
+const NO_ENTRIES: DayBodyEntry[] = [];
+const NO_PARTS: string[] = [];
 
 type Props = {
   kind: 'recovery' | 'injury';
@@ -30,7 +35,7 @@ type Props = {
 export function HeroBody({ kind, width, height, band, list, levels, injuries, numbers, rotate }: Props) {
   const fallback = <Figure2D kind={kind} width={width} band={band} list={list} injuries={injuries} numbers={numbers} />;
   if (kind === 'recovery') {
-    return <DayBody width={width} height={height} entries={[]} parts={[]} band={band} recovery={levels} injuries={injuries} fallback={fallback} />;
+    return <DayBody width={width} height={height} entries={NO_ENTRIES} parts={NO_PARTS} band={band} recovery={levels} injuries={injuries} fallback={fallback} />;
   }
   if (!HeroBody3D) return fallback;
   return <HeroBody3D width={width} height={height} band={band} injuries={injuries} numbers={numbers} rotate={rotate} fallback={fallback} />;
