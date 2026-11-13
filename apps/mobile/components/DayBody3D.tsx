@@ -1,6 +1,7 @@
 // web（e2e）では、その日の体（DayBody）の 3D を使わない（expo-gl と three を web の束に入れない）。2D の図（components/DayBody.tsx）を出す。
 // Android と iOS は DayBody3D.native.tsx
 import type { ComponentType, ReactNode } from 'react';
+import type { Injury } from '@/db/repositories/injuries';
 
 /** 種目の札（EX-01〜）：番号・種目・いちばん重いセット・部位 */
 export type DayBodyEntry = { key: string; no: number; name: string; set: string; part: string };
@@ -15,6 +16,12 @@ export type DayBody3DProps = {
   band: { top: number; bottom: number };
   /** 描けないときに出すもの（2D の図） */
   fallback: ReactNode;
+  /** 部品ごとの回復の明るさ（0〜1。0 より大きい部品は暖色で、parts のミントより優先）。筋トレの記録の画面の、記録のない日 */
+  recovery?: Record<string, number>;
+  /** 直している途中のケガ（赤で脈打つ）。記録のない日 */
+  injuries?: Injury[];
+  /** 体を押した（押した部品の名前。同じ部品・皮膚・外を押して選ぶのをやめたら null） */
+  onPick?: (mesh: string | null) => void;
 };
 
 export const DayBody3D: ComponentType<DayBody3DProps> | null = null;

@@ -262,6 +262,24 @@ describe('同期の1回分（送る → 受け取る → 当てはめる）', ()
     expect(d.db.raw.prepare('SELECT COUNT(*) AS n FROM sync_held').get()).toEqual({ n: 0 });
   });
 
+  test('保留が鎖のようにつながっていても、そろった順に何周かして全部当てはめる', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
+    const d = await device(server);
+    await d.engine.run();
+    // セット → 種目の記録 → 種目 → 部位 の順に頼る。部位より先に、子の側から届く
+    server.append([
+      mcp('workout_set', 's1', 'create', { entry_id: 'e1', set_index: 0, weight_kg: 50, reps: 10, memo: '', done: false }),
+      mcp('workout_entry', 'e1', 'create', { date: '2026-11-07', exercise_id: 'ex1', sort_order: 0 }),
+      mcp('exercise', 'ex1', 'create', { body_part_id: 'bp1', name: '新しい種目', record_type: 'weight_reps', sort_order: 99, hidden: false }),
+    ]);
+    expect(await d.engine.run()).toMatchObject({ ok: true, applied: 0 });
+    expect(d.db.raw.prepare('SELECT COUNT(*) AS n FROM sync_held').get()).toEqual({ n: 3 });
+    server.append([mcp('body_part', 'bp1', 'create', { name: '新しい部位', sort_order: 99, hidden: false })]);
+    expect(await d.engine.run()).toMatchObject({ ok: true, applied: 4 });
+    expect((await d.r.workouts.getDay('2026-11-07'))[0].sets.map((s) => s.reps)).toEqual([10]);
+    expect(d.db.raw.prepare('SELECT COUNT(*) AS n FROM sync_held').get()).toEqual({ n: 0 });
+  });
+
   test('受け取るあいだに端末で変えた項目は、サーバーの状態で上書きせずに残し、次に送る', async () => {
     const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
     const d = await device(server);

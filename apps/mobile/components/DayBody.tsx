@@ -1,7 +1,7 @@
 // その日の体：その日のトレーニングの部位と種目の札（EX-01〜）。Android は 3D（DayBody3D.native.tsx。見えないとき・ほかの画面では止め、
-// 触っていないときは 30fps）、web と 3D が描けないときは 2D の図（前と後ろ）。ホームの LATEST で使い、筋トレの記録の画面でも使う予定。
-// DayBody は札と部位を渡す形、DayBodyForDate は日付を渡すとその日の記録を読む形
-import { ReactNode } from 'react';
+// 触っていないときは 30fps）、web と 3D が描けないときは 2D の図（前と後ろ）。ホームの LATEST と、筋トレの記録の画面で使う。
+// DayBody は札と部位を渡す形、DayBodyForDate は日付を渡すとその日の記録を読む形。DayBodyBox は画面の流れの中に置く形（記録の画面）
+import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { useFocusData } from '@/hooks/data';
@@ -10,7 +10,7 @@ import { dayBodyEntries } from '@/lib/dayBody';
 import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { musclesForParts, MuscleView } from '@/lib/muscleFigure';
 import { colors, space } from '@/theme';
-import { DayBody3D, DayBodyEntry } from './DayBody3D';
+import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
 import { MuscleFigure } from './MuscleFigure';
 
@@ -22,13 +22,47 @@ export type DayBodyProps = {
   parts: string[];
   /** 札を置ける上下の範囲（省くと上から下まで） */
   band?: { top: number; bottom: number };
-};
+  /** 3D を描けないときに出すもの（省くと、この部品の 2D の図） */
+  fallback?: ReactNode;
+} & Pick<DayBody3DProps, 'recovery' | 'injuries' | 'onPick'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
-export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height } }: DayBodyProps) {
-  const fallback = <Figure2D width={width} band={band} entries={entries} parts={parts} />;
-  return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={fallback} /> : fallback;
+export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, ...rest }: DayBodyProps) {
+  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} />;
+  return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={figure2D} {...rest} /> : figure2D;
 }
+
+/**
+ * 3D の体を画面の流れの中に置くか（3D を描ける端末で、まだ描けなかったことがない）と、描けなかったときに知らせる関数。
+ * 描けないときは、その画面の 2D の図（大きさは 2D の図が決める）に代える
+ */
+export function useDayBody3D(): { on: boolean; fail: () => void } {
+  const [failed, setFailed] = useState(false);
+  return { on: DayBody3D != null && !failed, fail: useCallback(() => setFailed(true), []) };
+}
+
+/** 描けなかったことを知らせる（3D の代わりに置く） */
+function Failed({ onFail }: { onFail: () => void }) {
+  useEffect(() => { onFail(); }, [onFail]);
+  return null;
+}
+
+/**
+ * 画面の流れの中に置く 3D のその日の体（筋トレの記録の画面）。幅は親いっぱい、高さは height。札は上から下まで。
+ * 描けなかったら onFail を呼ぶ（親が 2D の図に代える。useDayBody3D）
+ */
+export function DayBodyBox({ height, onFail, style, ...rest }: Omit<DayBodyProps, 'width' | 'band' | 'fallback'> & {
+  onFail: () => void; style?: object;
+}) {
+  const [width, setWidth] = useState(0);
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={[{ height }, style]}>
+      {width > 0 && <DayBody {...rest} width={width} height={height} fallback={<Failed onFail={onFail} />} />}
+    </View>
+  );
+}
+
+export { DayBodyAttribution };
 
 /** 日付を渡すと、その日の記録を読んで体を描く（記録がなければ札のない体） */
 export function DayBodyForDate({ date, unit, ...rest }: Omit<DayBodyProps, 'entries' | 'parts'> & { date: DateKey; unit: 'kg' | 'lb' }): ReactNode {
