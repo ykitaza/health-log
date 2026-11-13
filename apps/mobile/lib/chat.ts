@@ -55,7 +55,7 @@ function args(pairs: [string, string | null][]): string {
 }
 
 const CONNECTOR = 'hlog（健康記録の MCP コネクタ）';
-const FACTS_ONLY = '数字は記録の値だけを使い推測で補わないでください';
+const FACTS_ONLY = '数字は記録の値だけを使ってください';
 const AFTER_SAVE = '保存したら、記録した内容を短く見せてください。';
 
 /**
@@ -97,11 +97,15 @@ function call(name: string, pairs: [string, string | null][]): string {
 const WRITE: Record<ReportKind, string> = {
   daily: '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ',
   weekly: '分野ごとに一言、分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで',
-  monthly: '体重の推移と目標までのペース、分野ごとに一言、links、目標の見直しを review に（食事の目標なら target=meals_goal）、来月の一歩を3つまで',
+  monthly: '体重の推移と目標までのペース、links、目標の見直しを review に（食事の目標なら target=meals_goal）、来月の一歩を3つまで',
 };
 const ACHIEVED_BY_APP = '達成の数字はアプリが出します。';
 const KIND_OF_SPAN: Record<ReportSpan, ReportKind> = { day: 'daily', week: 'weekly', month: 'monthly' };
 
+/**
+ * 1件のまとめを頼む文。同じ期間のまとめがあれば作らないよう、初めに list_reports で確かめてもらう（スケジュールの文と同じ）。
+ * URL の上限（2,000 文字）に収めるため文は短く保つ（月がいちばん長く、FACTS_ONLY と月の書き方はその分短くしてある）
+ */
 function reportText(span: ReportSpan, rawToday: string, base: string): string {
   const today = validDate(rawToday);
   const kind = KIND_OF_SPAN[span];
@@ -111,9 +115,10 @@ function reportText(span: ReportSpan, rawToday: string, base: string): string {
     : span === 'week' ? (!start ? '今週' : start === today ? `今週（${todayText(today)}）` : `今週（${dayText(start)}〜${todayText(today)}）`)
     : (start ? `今月（${dayText(start)}〜${todayText(today)}）` : '今月');
   return `${CONNECTOR}で${period}のまとめを作ってください。`
+    + `${call('list_reports', [['kind', kind]])}に同じ期間があれば作らない。`
     + `${call('period_overview', [['start', start], ['end', today]])}を読み、${FACTS_ONLY}。${ACHIEVED_BY_APP}`
     + `${WRITE[kind]}、責めない言い方で書き、${call('save_report', [['kind', kind], ['period_start', start], ['period_end', today]])}で保存してください。`
-    + (base ? `保存したら、${backLink('reports', base, 'hlog で見る')}` : '');
+    + (base ? backLink('reports', base, 'hlog で見る') : '');
 }
 
 /**
