@@ -203,8 +203,8 @@ test.describe('動きを減らす設定がオフ', () => {
     // 見えている範囲の上の外（止めずに描いておく余白 64 より外）まで出す
     await expect.poll(async () => { const b = (await pulse.boundingBox())!; return b.y + b.height; }).toBeLessThan(-64);
     await expect.poll(moving).toBe(false);
-    await page.mouse.wheel(0, -3000);
-    await pulse.scrollIntoViewIfNeeded();
+    // 戻す（脈打つ輪は動いていて「止まった要素」にならないので、動かない図の枠を見えるところまで戻す）
+    await page.getByTestId('injury-map').filter({ visible: true }).scrollIntoViewIfNeeded();
     await expect.poll(moving).toBe(true);
   });
 });
