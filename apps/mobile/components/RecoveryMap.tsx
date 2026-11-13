@@ -26,8 +26,6 @@ export type RecoveryInput = {
   partName: (bodyPartId: string) => string;
   /** 非表示でない部位の名前（並びのまま） */
   names: string[];
-  /** 種目の ID → 部位の名前 */
-  partOfExercise: (exerciseId: string) => string | null;
   injuries: Injury[];
 };
 
@@ -58,7 +56,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   const list = useMemo(() => partRecoveries(input.rows, input.partName, input.names, date), [input, date]);
   const levels = useMemo(() => recoveryLevels(list), [list]);
   const injuries = useMemo(() => fixingOn(input.injuries, date), [input.injuries, date]);
-  const hurtOf = useMemo(() => new Map(list.map((p) => [p.name, injuriesForPart(p, injuries, input.partOfExercise)])), [list, injuries, input.partOfExercise]);
+  const hurtOf = useMemo(() => new Map(list.map((p) => [p.name, injuriesForPart(p, injuries)])), [list, injuries]);
   const callouts = useMemo<RecoveryCallout[]>(() => list.flatMap((p) => {
     const hurt = hurtOf.get(p.name) ?? [];
     const at = recoveryAnchor(p.name);

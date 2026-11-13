@@ -1,5 +1,5 @@
 import { calloutSet, CalloutOptions, dayFigureLabel, exerciseNumber, layoutCallouts, partAnchor, PlacedCallout } from '../dayCallouts';
-import { FIGURE_PIECES, MUSCLE_PARTS, muscleFigureFor, partsAt } from '../muscleFigure';
+import { FIGURE_PIECES, MUSCLE_PARTS, pairFigureFor, partsAt } from '../muscleFigure';
 import { SEED_BODY_PARTS } from '@/db/seed';
 
 // 記録の画面の図（66×132、下に「前・後ろ」の行 20）と、札（高さ 48、あいだ 4、片側 4 つ）
@@ -9,11 +9,11 @@ const inBox = (view: 'front' | 'back', muscle: string, p: { x: number; y: number
   FIGURE_PIECES[view].some((pc) => pc.muscle === muscle && p.x >= pc.box.x0 && p.x <= pc.box.x1 && p.y >= pc.box.y0 && p.y <= pc.box.y1);
 
 describe('partAnchor（種目の部位 → 図の向きと点）', () => {
-  test('初期の部位はすべて点がある。背中だけ後ろの図、ほかは前の図', () => {
+  test('初期の部位はすべて点がある。背中と上腕三頭筋は後ろの図、ほかは前の図', () => {
     for (const { name } of SEED_BODY_PARTS) {
       const a = partAnchor(name)!;
       expect(a).not.toBeNull();
-      expect(a.view).toBe(name === '背中' ? 'back' : 'front');
+      expect(a.view).toBe(name === '背中' || name === '上腕三頭筋' ? 'back' : 'front');
       expect(inBox(a.view, a.muscle, a.point)).toBe(true);
     }
   });
@@ -27,8 +27,10 @@ describe('partAnchor（種目の部位 → 図の向きと点）', () => {
     expect(partAnchor('腹筋')!.point.x).toBeCloseTo(50, 0);
   });
 
-  test('上腕三頭筋は塗る図と同じ前の図の腕（二頭筋と同じ点）。名前の前後の空白は無視', () => {
-    expect(partAnchor('上腕三頭筋')).toEqual(partAnchor('上腕二頭筋'));
+  test('上腕三頭筋は後ろの図の三頭筋（札は右、点は画面の右の腕）。名前の前後の空白は無視', () => {
+    expect(partAnchor('上腕三頭筋')).toMatchObject({ view: 'back', muscle: 'triceps' });
+    expect(partAnchor('上腕三頭筋')!.point.x).toBeGreaterThan(50);
+    expect(partAnchor(' 上腕三頭筋 ')).toEqual(partAnchor('上腕三頭筋'));
     expect(partAnchor(' 胸 ')).toEqual(partAnchor('胸'));
   });
 
@@ -68,11 +70,13 @@ describe('layoutCallouts（札の並べ方）', () => {
     expect(l.height).toBe(4 * 48 + 3 * 4);
   });
 
-  test('片側が多い日（胸 4・肩・三頭）：3 つと「+3」。まず筋肉ごとに 1 つ、残りは番号の順', () => {
-    const l = layoutCallouts(entries(['胸', '胸', '胸', '胸', '肩', '上腕三頭筋']), OPT);
+  test('片側が多い日（胸 4・肩・二頭）：3 つと「+3」。まず筋肉ごとに 1 つ、残りは番号の順。三頭は後ろの図の札（右）', () => {
+    const l = layoutCallouts(entries(['胸', '胸', '胸', '胸', '肩', '上腕二頭筋']), OPT);
     expect(l.right).toEqual([]);
     // 肩・胸・腕の点に 1 つずつ（上から点の順）、出せなかった 2〜4 は下の「+3」
     expect(nos(l.left)).toEqual([5, 1, 6, '+2,3,4']);
+    const t = layoutCallouts(entries(['胸', '肩', '上腕三頭筋']), OPT);
+    expect([nos(t.left), nos(t.right)]).toEqual([[2, 1], [3]]);
     noOverlap(l.left, l.height);
     expect(l.height).toBe(4 * 48 + 3 * 4);
   });
@@ -120,11 +124,7 @@ describe('札の文字と読み上げ', () => {
 describe('partsAt・MUSCLE_PARTS（図の筋肉を押して部位を選ぶ）', () => {
   test('塗る図の逆：初期の部位の筋肉は、その部位を候補に持つ。どの筋肉にも部位がある', () => {
     for (const { name } of SEED_BODY_PARTS) {
-      for (const m of muscleFigureFor(name).muscles) {
-        // 上腕三頭筋の日は前の図の二頭筋と前腕を塗るが、二頭筋を押したときは上腕二頭筋（三頭筋は後ろの図の三頭筋）
-        if (name === '上腕三頭筋' && m === 'biceps') continue;
-        expect(MUSCLE_PARTS[m]).toContain(name);
-      }
+      for (const m of pairFigureFor(name).muscles) expect(MUSCLE_PARTS[m]).toContain(name);
     }
     for (const view of ['front', 'back'] as const) for (const p of FIGURE_PIECES[view]) expect(MUSCLE_PARTS[p.muscle].length).toBeGreaterThan(0);
   });
@@ -132,7 +132,6 @@ describe('partsAt・MUSCLE_PARTS（図の筋肉を押して部位を選ぶ）', 
   test('札の点を押すと、その部位がいちばん近い候補', () => {
     for (const { name } of SEED_BODY_PARTS) {
       const a = partAnchor(name)!;
-      if (name === '上腕三頭筋') continue; // 札の点は前の図の腕（二頭筋）
       expect(partsAt(a.view, a.point)[0]).toBe(name);
     }
   });
