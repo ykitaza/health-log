@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BodyScene, Mark } from '@/components/bodyScene';
 import { anchorFor, CAMERA, facingOf, partsFor } from '@/lib/bodyModel';
+import { colors, toneColors } from '@/theme';
 
 async function loadBody(): Promise<THREE.Object3D> {
   const buf = readFileSync(join(__dirname, '../../assets/models/body.glb'));
@@ -79,5 +80,104 @@ describe('3D の体の場面', () => {
     scene.tapAt(5, 5);
     scene.frame(cam, 348, 380, 0.2, 1 / 60);
     expect(picked).toBeNull();
+  });
+
+  test('ケガの画面の光り方は変えない（ふだん・直せた・直している途中の強さと、にじみの大きさ）', async () => {
+    const scene = new BodyScene();
+    scene.configure({ marks: [mark('a', 'chest', 'right', true), mark('b', 'biceps', 'left', false)], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} });
+    scene.setModel(await loadBody());
+    const all = meshesIn(scene.body);
+    const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
+    const pick = (name: string) => [u(name).uBase.value, u(name).uRim.value, u(name).uPulse.value];
+    expect(pick('quad_r')).toEqual([0.13, 1.2, 0]);
+    expect(pick('biceps_l')).toEqual([0.32, 1.8, 0]);
+    expect(pick('pec_r')).toEqual([0.7, 2.2, 1]);
+    expect(scene.shared.uScanAmp.value).toBe(1);
+    // 色：ふだんと台・皮膚は緑、直している途中とにじみは琥珀色
+    const green = new THREE.Color(colors.accent).getHexString();
+    const amber = new THREE.Color(toneColors.caution.accent).getHexString();
+    expect((u('quad_r').uColor.value as THREE.Color).getHexString()).toBe(green);
+    expect((u('skin').uColor.value as THREE.Color).getHexString()).toBe(green);
+    expect((u('pec_r').uColor.value as THREE.Color).getHexString()).toBe(amber);
+    const deckLine = scene.deck.children.find((c) => c instanceof THREE.LineLoop) as THREE.LineLoop;
+    expect((deckLine.material as THREE.LineBasicMaterial).color.getHexString()).toBe(green);
+    scene.frame(camera(348, 380), 348, 380, 0.5, 1 / 60);
+    const glow = scene.glowGroup.children[0] as THREE.Mesh;
+    expect(scene.glowGroup.children).toHaveLength(1);
+    expect(glow.scale.x).toBeCloseTo(0.26 + 0.08 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
+    expect((glow.material as THREE.ShaderMaterial).uniforms.uOpacity.value).toBeCloseTo(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(0.5 * Math.PI)));
+    expect(((glow.material as THREE.ShaderMaterial).uniforms.uColor.value as THREE.Color).getHexString()).toBe(amber);
+  });
+
+  test('回復マップ：土台の色・明るさの表の色と強さ・ケガの色を渡せる。台と皮膚も土台の色。走査の帯は控えめ。画面から部品を選べる', async () => {
+    const scene = new BodyScene();
+    let picked: string | null | undefined;
+    const marks = [mark('a', 'chest', 'right', true)];
+    // 読み込む前に渡しても、読み込んだあとに付く
+    scene.configure({
+      marks: [...marks, mark('b', 'biceps', 'left', false)], reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {},
+      levels: { pec_r: 1, pec_l: 1, quad_l: 0.5, nope: 1 }, quietMarks: true,
+      baseColor: '#0000FF', levelColor: (k) => (k >= 1 ? '#FF8000' : '#FFFF00'), injuryColor: '#FF0000',
+    });
+    scene.select(['biceps_r', 'biceps_l', 'skin']);
+    scene.setModel(await loadBody());
+    const all = meshesIn(scene.body);
+    const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
+    const hexOf = (name: string) => (u(name).uColor.value as THREE.Color).getHexString();
+    // 土台の色（縁の光はケガの画面のふだんと同じ強さ）、回復中は明るさの色と強さ
+    expect([hexOf('quad_r'), u('quad_r').uBase.value, u('quad_r').uRim.value]).toEqual(['0000ff', 0.13, 1.2]);
+    expect([hexOf('pec_l'), u('pec_l').uBase.value, u('pec_l').uRim.value]).toEqual(['ff8000', 0.55, 2.4]);
+    expect(hexOf('quad_l')).toBe('ffff00');
+    expect(u('quad_l').uBase.value).toBeCloseTo(0.34);
+    expect(u('quad_l').uRim.value).toBeCloseTo(1.8);
+    // 直している途中の右胸はケガの赤で脈打つ。直せたケガ（左の二頭筋）は印を付けない
+    expect([hexOf('pec_r'), u('pec_r').uBase.value, u('pec_r').uRim.value, u('pec_r').uPulse.value]).toEqual(['ff0000', 0.45, 1.9, 0.5]);
+    // 走査の帯は控えめ（ケガの画面は 1）
+    expect(scene.shared.uScanAmp.value).toBe(0.35);
+    expect([hexOf('biceps_l'), u('biceps_l').uBase.value]).toEqual(['0000ff', 0.13]);
+    // 皮膚と台も土台の色
+    expect(hexOf('skin')).toBe('0000ff');
+    const deckLine = scene.deck.children.find((c) => c instanceof THREE.LineLoop) as THREE.LineLoop;
+    expect((deckLine.material as THREE.LineBasicMaterial).color.getHexString()).toBe('0000ff');
+    // 選んだ部品（皮膚は選ばない）
+    expect([u('biceps_r').uSel.value, u('biceps_l').uSel.value, u('skin').uSel.value]).toEqual([1, 1, 0]);
+
+    const cam = camera(348, 380);
+    scene.frame(cam, 348, 380, 0.5, 1 / 60);
+    const glow = scene.glowGroup.children[0] as THREE.Mesh;
+    expect(glow.scale.x).toBeCloseTo((0.26 + 0.08) * 0.8);
+    expect(((glow.material as THREE.ShaderMaterial).uniforms.uColor.value as THREE.Color).getHexString()).toBe('ff0000');
+    // 選んだ部品の1つを押すと、まとめて選ぶのをやめる
+    scene.select(['pec_r', 'pec_l']);
+    scene.tapAt(174, 150);
+    scene.frame(cam, 348, 380, 0.6, 1 / 60);
+    // 押した所が胸なら選ぶのをやめ（null）、ほかの部品ならその部品だけを選ぶ。どちらでも左胸は選んでいない
+    expect(u('pec_l').uSel.value).toBe(0);
+    if (picked != null) expect(u(picked).uSel.value).toBe(1);
+    scene.select([]);
+    expect(all.filter((m) => (m.material as THREE.ShaderMaterial).uniforms?.uSel?.value === 1)).toHaveLength(0);
+    // 明るさの表を外すと、ふだんの光に戻る
+    scene.configure({ marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} });
+    expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.13, 1.2]);
+  });
+
+  test('最初のコマを描いたことを1回だけ知らせる。体を読み込む前は知らせない。あとから受けてもすぐ知らせる', async () => {
+    const scene = new BodyScene();
+    const cam = camera(348, 380);
+    let n = 0;
+    scene.onFirstFrame(() => { n += 1; });
+    scene.frame(cam, 348, 380, 0, 1 / 60);
+    scene.frame(cam, 348, 380, 0.1, 1 / 60);
+    expect(n).toBe(0);
+    scene.setModel(await loadBody());
+    scene.frame(cam, 348, 380, 0.2, 1 / 60);
+    expect(n).toBe(0);
+    scene.frame(cam, 348, 380, 0.3, 1 / 60);
+    expect(n).toBe(1);
+    scene.frame(cam, 348, 380, 0.4, 1 / 60);
+    expect(n).toBe(1);
+    let late = 0;
+    scene.onFirstFrame(() => { late += 1; });
+    expect(late).toBe(1);
   });
 });

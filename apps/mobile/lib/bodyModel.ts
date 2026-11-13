@@ -133,9 +133,12 @@ export type CalloutPlace = { id: string; side: 'left' | 'right'; top: number };
 /**
  * 吹き出しの置き場所。体が正面を向いたときの印の位置で決めて、回しても動かさない（引き出し線の先だけが印を追う）。
  * 画面の左の印は左に、右の印は右に。まん中の印（腹筋・腰・首）は、体の前なら左、後ろなら右。
- * 左右それぞれ2つまで（直している途中を先に、痛めた日の新しい順）。高さは印に合わせ、重ならないように下へずらす
+ * 左右それぞれ2つまで（直している途中を先に、痛めた日の新しい順）。高さは印に合わせ、重ならないように下へずらす。
+ * 回復マップは、左右に出す数（perSide）と吹き出しの高さ（height）を変えて使う（fixing はケガのある部位、occurredOn は最後に鍛えた日）
  */
-export function layoutCallouts(items: CalloutInput[], w: number, h: number): CalloutPlace[] {
+export function layoutCallouts(
+  items: CalloutInput[], w: number, h: number, opts: { perSide: number; height: number } = { perSide: CALLOUTS_PER_SIDE, height: CALLOUT_H },
+): CalloutPlace[] {
   const placed = items.map((it) => {
     const p = projectFront(it.anchor, w, h);
     const side: 'left' | 'right' = Math.abs(p.x - w / 2) > 12 ? (p.x < w / 2 ? 'left' : 'right') : (it.facing === 'front' ? 'left' : 'right');
@@ -146,11 +149,11 @@ export function layoutCallouts(items: CalloutInput[], w: number, h: number): Cal
     return placed
       .filter((p) => p.side === side)
       .sort((a, b) => Number(b.it.fixing) - Number(a.it.fixing) || (a.it.occurredOn < b.it.occurredOn ? 1 : -1))
-      .slice(0, CALLOUTS_PER_SIDE)
+      .slice(0, opts.perSide)
       .sort((a, b) => a.y - b.y)
       .map((p) => {
-        const top = Math.min(Math.max(next, p.y - 16), h - CALLOUT_H);
-        next = top + CALLOUT_H + 4;
+        const top = Math.min(Math.max(next, p.y - 16), h - opts.height);
+        next = top + opts.height + 4;
         return { id: p.it.id, side, top };
       });
   });
