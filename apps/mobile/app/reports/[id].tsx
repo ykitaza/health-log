@@ -52,7 +52,7 @@ export default function ReportScreen() {
   // 読み込み中（null）と、ないレポート（report が null）を分ける
   const { data, error, reload, repos } = useFocusData(async (r) => {
     const [report, reports, dailyLatest, weeklyLatest, monthlyLatest, latest] = await Promise.all([
-      r.reports.get(id), r.reports.list(),
+      r.reports.get(id), r.reports.listWithoutBody(),
       r.reports.latestOfKind('daily'), r.reports.latestOfKind('weekly'), r.reports.latestOfKind('monthly'), r.reports.latest(),
     ]);
     const latestByKind: Record<PeriodKind, Report | null> = { daily: dailyLatest, weekly: weeklyLatest, monthly: monthlyLatest };

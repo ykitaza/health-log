@@ -4,6 +4,8 @@ import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
 const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, created_at';
+/** 本文を除いた列（listWithoutBody 用。本文は最大20,000字あるので、要らない用途では読まない） */
+const LIGHT_COLUMNS = 'id, title, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, created_at';
 
 /** 閉じた「まだ作っていないまとめ」の key（lib/reports.ts の PendingReport）。端末だけに覚える（同期しない sync_meta に置く） */
 const DISMISSED_PENDING = 'reports.dismissed_pending';
@@ -47,6 +49,18 @@ export function reportRepository(db: Db, deps: Deps) {
   }
 
   /**
+   * 本文（body）を除いた一覧（並びは list と同じ。本文は '' になる）。
+   * 詳細画面のストリークと「先週やることの振り返り」のように、期間と次の一歩だけが要る用途で使う
+   * （本文は1件最大20,000字あり、開くたびに全件分を読むと無駄が大きいため）
+   */
+  async function listWithoutBody(): Promise<Report[]> {
+    const rows = await db.getAllAsync<Omit<ReportRow, 'body'>>(
+      `SELECT ${LIGHT_COLUMNS} FROM reports WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [],
+    );
+    return rows.map((row) => parseReport({ ...row, body: '' }));
+  }
+
+  /**
    * 見たレポートの ID。まだ覚えていなければ（この機能が入って初めて動いたとき）、今あるレポートを全部見たことにする
    * （古いレポートが全部お知らせにならないように）
    */
@@ -61,6 +75,9 @@ export function reportRepository(db: Db, deps: Deps) {
   return serializeWrites(db, {
     /** 消していないレポート（作った時刻の新しい順、同じなら ID の順。一覧の並びは lib/reports.ts の sortReports） */
     list,
+
+    /** 本文を除いた一覧（listWithoutBody。詳細画面のストリーク・先週の振り返り用） */
+    listWithoutBody,
 
     /** 見たレポートの ID（初めて呼んだときは、今あるものを全部見たことにする） */
     seenIds,

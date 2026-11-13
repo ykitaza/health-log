@@ -50,3 +50,26 @@ describe('latest と latestOfKind（other は出さない）', () => {
     expect((await d.r.reports.unread()).map((r) => r.id)).toEqual([DAY2]);
   });
 });
+
+describe('listWithoutBody（本文を読まない一覧）', () => {
+  test('本文は空になり、それ以外（種類・期間・次の一歩）は list と同じ。list は本文を返す', async () => {
+    const d = await device();
+    saveReport(d, DAY, '2026-11-09T01:00:00.000Z', {
+      title: '11月8日のまとめ', kind: 'daily', period_start: '2026-11-08', period_end: '2026-11-08',
+      body: 'くわしい本文', next_steps: ['朝ごはんに卵を足す'], next_steps_done: [0],
+    });
+    saveReport(d, WEEK, '2026-11-10T01:00:00.000Z', {
+      title: '今週のまとめ', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08', body: '週の本文',
+    });
+    await d.engine.run();
+    const light = await d.r.reports.listWithoutBody();
+    expect(light.map((r) => r.id)).toEqual([WEEK, DAY]); // 新しい順は list と同じ
+    expect(light.every((r) => r.body === '')).toBe(true);
+    const day = light.find((r) => r.id === DAY)!;
+    expect(day.kind).toBe('daily');
+    expect(day.periodStart).toBe('2026-11-08');
+    expect(day.nextSteps).toEqual(['朝ごはんに卵を足す']);
+    expect(day.nextStepsDone).toEqual([0]);
+    expect((await d.r.reports.list()).find((r) => r.id === DAY)?.body).toBe('くわしい本文');
+  });
+});
