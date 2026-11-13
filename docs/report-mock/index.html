@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>hlog レポート — 11月12日</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Share+Tech+Mono&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#080A09; --page:#030504;
+  --panel:#0E1210; --panel2:#0B0F0D;
+  --line:#2E3A32; --line2:#232B26;
+  --ink:#E6EDE8; --muted:#8A9A8F; --faint:#5F6F65;
+  --green:#5BE49B; --green-dim:#234434;
+  --clip:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+  --clip-sm:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--ink);font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;-webkit-font-smoothing:antialiased}
+.num,.mono{font-family:"Share Tech Mono","JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.micro{font-family:"Share Tech Mono","JetBrains Mono",monospace;text-transform:uppercase;letter-spacing:.18em;font-size:9px;line-height:1.4;color:var(--faint)}
+.micro.g{color:#7AA88A}
+[hidden]{display:none!important}
+.phone{max-width:400px;margin:0 auto;background:var(--bg);min-height:100vh;padding:8px 12px 20px;display:flex;flex-direction:column;gap:6px}
+@media(min-width:440px){.phone{border-left:1px solid var(--line2);border-right:1px solid var(--line2)}}
+.sys{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;display:flex;justify-content:space-between;padding:2px 2px 0}
+.latest{display:flex;flex-direction:column;gap:2px;padding:4px 2px 0}
+.latest-row{display:flex;align-items:center;gap:8px}
+.latest-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.latest-date{font-family:"Share Tech Mono",monospace;font-size:14px;color:#fff;letter-spacing:.06em;line-height:1}
+.latest-note{margin:0;font-size:11px;color:var(--muted);line-height:1.55;padding-left:15px}
+.tabs{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);padding:3px;clip-path:var(--clip-sm)}
+.tab{flex:1;appearance:none;border:0;cursor:pointer;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:700;padding:7px 0;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%,0 6px)}
+.tab[aria-selected="true"]{background:var(--green);color:#06130C}
+.card{background:var(--panel);border:1px solid var(--line);clip-path:var(--clip)}
+/* HERO flat */
+.hero{position:relative;padding:10px 14px 9px;background:var(--panel);border:1px solid var(--line);clip-path:var(--clip)}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-top:4px}
+.hero-date{font-size:12.5px;font-weight:700;color:#CBD5CE}
+.hero-rest{font-size:11px;font-weight:700;background:var(--green);color:#06130C;padding:3px 8px;white-space:nowrap;clip-path:var(--clip-sm)}
+.hero-verdict{margin:5px 0 0;font-size:15px;font-weight:900;color:var(--ink);letter-spacing:.04em}
+.hero-status{font-family:"Share Tech Mono",monospace;font-size:9.5px;letter-spacing:.18em;color:var(--faint);margin:2px 0 0}
+.hero-note{margin:4px 0 0;font-size:12px;line-height:1.5;color:#B7C2BA}
+.hero-main{display:flex;align-items:center;gap:12px;margin-top:6px}
+.hero-circle{position:relative;flex:0 0 auto;width:112px;height:112px}
+.hero-circle svg{transform:rotate(-90deg);display:block;width:112px;height:112px}
+.ring-bg{stroke:#222B25}
+.hero-ring-fg{stroke-linecap:butt;stroke-dasharray:364;stroke-dashoffset:364;transition:stroke-dashoffset 1s ease .15s}
+.hero-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 8px}
+.hero-weight{font-size:29px;line-height:1;color:#fff}
+.hero-weight .unit{font-size:14px;color:var(--muted)}
+.hero-sub{font-size:10px;font-weight:700;color:var(--green);margin-top:4px}
+.hero-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.hero-delta{font-size:15px;color:var(--green);border:1px solid var(--line);padding:5px 8px;background:var(--panel2)}
+.hero-delta small{display:block;font-size:10px;color:var(--muted);font-family:"Noto Sans JP",sans-serif}
+.hero-side-text{font-size:12px;line-height:1.6;color:#B7C2BA;margin:0}
+.hero-big{font-size:42px;line-height:1;margin-top:4px;color:#fff}
+.hero-big .unit{font-size:20px;color:var(--muted)}
+.hero-pill{display:inline-block;margin-top:8px;font-size:12px;font-weight:700;border:1px solid var(--line);padding:5px 9px;background:var(--panel2)}
+.spark{display:block;width:100%;height:28px;margin-top:6px}
+.goal{margin-top:10px}
+.goal-track{height:6px;background:#1E2621;position:relative;border:1px solid var(--line2)}
+.goal-fill{height:100%;width:0;background:var(--green);transition:width 1s ease}
+.goal-tick{position:absolute;top:-3px;width:2px;height:12px;background:#E6EDE8}
+.goal-meta{display:flex;justify-content:space-between;gap:8px;margin-top:7px;flex-wrap:wrap;align-items:center}
+.goal-label{font-size:12.5px;font-weight:700}.goal-label b{color:var(--green)}
+.milestone{font-size:11px;font-weight:700;border:1px solid var(--line);padding:4px 8px;color:#CBD5CE}
+/* RINGS dense */
+.rings{padding:8px 6px 7px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px}
+.ring-cell{display:flex;flex-direction:column;align-items:center;text-align:center}
+.ring-wrap{position:relative;width:72px;height:72px}
+.ring-wrap svg{transform:rotate(-90deg);display:block;width:72px;height:72px}
+.ring-fg{stroke-linecap:butt;stroke-dasharray:238;stroke-dashoffset:238;transition:stroke-dashoffset 1s ease .1s}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-value{font-size:19px;line-height:1;color:#fff}
+.ring-target{font-size:10px;color:var(--muted)}
+.ring-name{margin-top:4px;font-size:12.5px;font-weight:700}
+.ring-status{margin-top:2px;font-size:11px;font-weight:700}
+.done{color:var(--green)} .co{color:var(--muted)} .cp{color:var(--muted)}
+.ring-status span{color:var(--muted);font-weight:500}
+.insight{padding:10px 12px;font-size:14px;line-height:1.65;font-weight:500;color:#DCE3DE;background:var(--panel2);border:1px solid var(--line2);clip-path:var(--clip-sm);margin:0}
+.insight b{color:var(--green);font-weight:700}
+.week{padding:12px 14px 10px}
+.week-head{display:flex;justify-content:space-between;align-items:baseline}
+.week-title{font-size:13px;font-weight:900}
+.week-note{font-size:11.5px;color:var(--muted)} .week-note b{color:var(--green)}
+.week-days{display:grid;grid-template-columns:repeat(7,1fr);margin-top:10px}
+.day{display:flex;flex-direction:column;align-items:center;gap:5px}
+.day .dow{font-size:10px;font-weight:700;color:var(--muted);font-family:"Share Tech Mono",monospace}
+.day .dot{width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;clip-path:var(--clip-sm)}
+.day.done .dot{background:var(--green);color:#06130C}
+.day.today .dot{background:transparent;color:var(--green);border:1.5px solid var(--green)}
+.day.future .dot{border:1px solid var(--line)}
+.day .cap{font-size:9.5px;color:var(--faint);white-space:nowrap}
+.stack{display:flex;flex-direction:column;gap:6px}
+.tiles{display:flex;gap:8px}
+.tile{flex:1;padding:10px 12px}
+.tile-value{font-size:24px;margin-top:4px;line-height:1;color:#fff}
+.tile-value small{font-size:12px;color:var(--muted)}
+.tile-value.g{color:var(--green)}
+.tile-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.month-card{padding:10px 14px}
+.month-head{display:flex;justify-content:space-between;align-items:baseline}
+.month-title{font-size:13px;font-weight:900}
+.month-remain{font-size:12px;color:var(--muted)} .month-remain b{color:var(--green)}
+.month-nums{display:flex;align-items:flex-end;justify-content:space-between;margin-top:6px}
+.mn-value{font-size:32px;line-height:1;color:#fff}.mn-value .unit{font-size:14px;color:var(--muted)}
+.month-target .mn-value{font-size:26px;color:#CBD5CE}
+.month-arrow{color:var(--green);font-weight:800;padding-bottom:6px}
+.big-track{height:10px;background:#1E2621;position:relative;margin-top:8px;border:1px solid var(--line2)}
+.big-fill{height:100%;width:0;background:var(--green);transition:width 1s ease}
+.big-marker{position:absolute;top:-4px;width:2px;height:18px;background:#E6EDE8;transform:translateX(-50%)}
+.big-marker-label{position:absolute;top:16px;transform:translateX(-50%);font-size:11px;font-weight:700;white-space:nowrap;text-align:center}
+.big-marker-label small{display:block;font-size:10px;color:var(--green)}
+.big-scale{display:flex;justify-content:space-between;margin-top:34px;font-size:10px;color:var(--faint)}
+.mile-list{margin-top:6px;border-top:1px solid var(--line2)}
+.mile-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line2)}
+.mile-row:last-child{border:0}
+.mile-dot{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:11px;clip-path:var(--clip-sm);border:1px solid var(--line);flex:0 0 auto}
+.mile-dot.goal{background:var(--green);color:#06130C;border-color:var(--green)}
+.mile-text{flex:1;font-size:13px;font-weight:700}.mile-text small{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.mile-remain{font-size:12px;color:var(--green)}
+.next{background:var(--panel);border:1px solid var(--line);padding:12px 14px;clip-path:var(--clip)}
+.next-row{display:flex;align-items:center;gap:12px;margin-top:8px;width:100%;background:none;border:0;padding:4px 0;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.check{flex:0 0 auto;width:44px;height:44px;border:1.5px solid var(--line);background:var(--panel2);display:flex;align-items:center;justify-content:center;clip-path:var(--clip-sm)}
+.check svg{width:22px;height:22px;opacity:0}
+.next-row[aria-checked="true"] .check{background:var(--green);border-color:var(--green)}
+.next-row[aria-checked="true"] .check svg{opacity:1}
+.next-text{font-size:15.5px;font-weight:700;line-height:1.5}
+.next-sub{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
+.streak{display:none;margin:8px 0 0 56px;font-size:11.5px;font-weight:700;color:var(--green);font-family:"Share Tech Mono",monospace}
+.streak.show{display:block}
+.chips{display:flex;gap:8px}
+.chip{flex:1;padding:9px 12px;display:flex;align-items:baseline;gap:6px}
+.chip-name{font-size:11px;font-weight:700;color:var(--muted)}
+.chip-value{font-size:20px;margin-left:auto;color:#fff}.chip-value small{font-size:11px;color:var(--muted)}
+/* STATUS TABLE - dense honke style */
+details.details{overflow:hidden}
+details.details summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:13.5px;font-weight:700}
+details.details summary::-webkit-details-marker{display:none}
+details.details summary .chev{color:var(--green)}
+.stat-table{border-top:1px solid var(--line2);padding:2px 14px 6px}
+.s-row{display:flex;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid #1C231E}
+.s-row:last-child{border-bottom:0}
+.s-label{flex:1;min-width:0}
+.s-label .en{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;display:block;line-height:1.3}
+.s-label .ja{font-size:12.5px;font-weight:700;color:#CBD5CE;line-height:1.3}
+.s-val{font-family:"Share Tech Mono",monospace;font-size:14px;color:#fff;text-align:right;white-space:nowrap}
+.s-val small{font-size:10px;color:var(--muted)}
+.s-val .dim{color:var(--muted);font-size:12px}
+.s-val .up{color:var(--green)}
+footer{text-align:center;font-size:9px;color:var(--faint);padding:4px 0 0;font-family:"Share Tech Mono",monospace;letter-spacing:.14em;text-transform:uppercase}
+.week-large{padding:16px 14px 12px}.week-large .dot{width:34px;height:34px;font-size:14px}
+.hero-trend{display:inline-flex;align-items:baseline;gap:6px;margin-top:8px;border:1px solid var(--line);background:var(--panel2);padding:4px 7px;font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:.08em;color:#CBD5CE}
+.hero-trend .lbl{color:var(--faint);font-size:9px;letter-spacing:.14em}
+.hero-trend .down{color:var(--muted)}
+.s-val .down{color:var(--muted)}
+.s-val.long{white-space:normal;line-height:1.45;max-width:62%}
+.field-list{border-top:1px solid var(--line);padding:2px 14px 8px}
+.field-head{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0 4px}
+.f-row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #1C231E;align-items:flex-start}
+.f-row:last-child{border-bottom:0}
+.f-main{flex:1;min-width:0}
+.f-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.f-name{font-size:12.5px;font-weight:700;color:#CBD5CE}
+.f-name .en{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;margin-right:6px}
+.f-badge{font-size:10px;font-weight:700;padding:2px 6px;border:1px solid var(--line);line-height:1.3;white-space:nowrap}
+.f-badge.good{color:var(--green);border-color:var(--line)}
+.f-badge.flat{color:var(--muted)}
+.f-text{margin:4px 0 0;font-size:12.5px;line-height:1.6;color:#B7C2BA}
+.f-text b{color:var(--ink)}
+/* WEEK UNIQUE: radar */
+.radar-card{padding:8px 14px 7px}
+.radar-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.radar-title{font-size:13px;font-weight:900}
+.radar-note{font-size:11px;color:var(--muted);white-space:nowrap}
+.radar-wrap{margin-top:2px;display:flex;justify-content:center}
+.radar-wrap svg{width:100%;max-width:212px;height:auto;display:block}
+.radar-grid{fill:none;stroke:#2A332D;stroke-width:1}
+.radar-axis{stroke:#232B26;stroke-width:1}
+.radar-shape{fill:rgba(91,228,155,.16);stroke:var(--green);stroke-width:1.6;stroke-linejoin:round}
+.radar-dot{fill:var(--green)}
+.radar-lbl{font-family:"Noto Sans JP",sans-serif;font-size:11px;font-weight:700;fill:#CBD5CE}
+.week-table-card{padding:0}
+.week-table-head{padding:10px 14px 2px;display:flex;justify-content:space-between;align-items:baseline}
+/* MONTH UNIQUE: growth + BIG3 */
+.growth-card{padding:10px 14px;display:flex;align-items:center;gap:16px}
+.growth-score{font-size:48px;line-height:1;color:#fff}
+.growth-meta{display:flex;flex-direction:column;gap:3px}
+.growth-label{font-size:13px;font-weight:700;color:#CBD5CE}
+.growth-delta{font-size:15px;color:var(--green);font-weight:700}
+.growth-sub{font-size:11px;color:var(--muted);line-height:1.5}
+.big3-card{padding:10px 14px}
+.big3-value{font-size:36px;line-height:1;color:#fff;margin-top:4px}
+.big3-value .unit{font-size:16px;color:var(--muted)}
+.big3-spark{display:block;width:100%;height:38px;margin-top:6px}
+.big3-delta{margin-top:8px;font-size:13px;color:var(--green);font-weight:700}
+.big3-delta small{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:2px;font-family:"Noto Sans JP",sans-serif}
+/* CLOSING + INJURY — same dense table grammar */
+.s-val .task-main{color:#fff;font-family:"Noto Sans JP",sans-serif;font-size:13px;font-weight:700}
+.s-val.jp{font-family:"Noto Sans JP",sans-serif;font-size:13px;font-weight:700;color:#E6EDE8;white-space:normal}
+.s-val.jp small{font-family:"Noto Sans JP",sans-serif}
+.inj-group{border-top:1px solid var(--line2)}
+.inj-group-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:9px 14px 0}
+.inj-id{font-family:"Share Tech Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--green)}
+.inj-date{font-family:"Share Tech Mono",monospace;font-size:12px;color:var(--muted)}
+.inj-status{display:inline-flex;align-items:center;gap:6px;font-family:"Noto Sans JP",sans-serif;font-size:12.5px;font-weight:700;color:#CBD5CE}
+.inj-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#8A9A8F;flex:0 0 auto}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="phone">
+  <div class="sys"><span>HLOG // REPORT</span><span>RPT-2026.11.12</span></div>
+
+  <div class="latest" role="status" aria-label="表示中のレポートについて">
+    <div class="latest-row"><span class="latest-dot" aria-hidden="true"></span><span class="micro g">Latest Report</span><span class="latest-date">2026.11.12</span></div>
+    <p class="latest-note">2026.11.13分は未生成のため、最新の生成済みレポートを表示しています</p>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="期間">
+    <button type="button" class="tab" role="tab" id="tab-today" aria-selected="true" aria-controls="panel-today" data-tab="today">今日</button>
+    <button type="button" class="tab" role="tab" id="tab-week" aria-selected="false" aria-controls="panel-week" data-tab="week">今週</button>
+    <button type="button" class="tab" role="tab" id="tab-month" aria-selected="false" aria-controls="panel-month" data-tab="month">今月</button>
+  </nav>
+
+  <section class="hero" aria-label="体重と目標">
+    <div class="micro">Daily Report // 2026.11.12</div>
+    <div class="hero-top"><span class="hero-date">11月12日（木）・休みの日</span><span class="hero-rest">回復の日</span></div>
+
+    <div data-hero="today">
+      <p class="hero-verdict">増量方向へ</p>
+      <p class="hero-status">STATUS: GAINING — RECOVERY DAY</p>
+      <div class="hero-main">
+        <div class="hero-circle" role="img" aria-label="次の節目70kgまでの進捗。現在69.8kg、あと0.2kg">
+          <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+            <circle class="ring-bg" cx="66" cy="66" r="58" fill="none" stroke-width="6"/>
+            <circle class="hero-ring-fg" data-pct="99.7" cx="66" cy="66" r="58" fill="none" stroke="#5BE49B" stroke-width="6"/>
+          </svg>
+          <div class="hero-center"><span class="micro">Body Mass</span><span class="hero-weight num">69.8<span class="unit">kg</span></span><span class="hero-sub">70kgまで あと0.2kg</span></div>
+        </div>
+        <div class="hero-side">
+          <span class="hero-delta num">↑ +0.4<small>前日より</small></span>
+          <p class="hero-side-text">円は次の節目<b>70kg</b>までの進捗。あと少しで到達です。</p>
+          <span class="micro">Next: 70.0kg</span>
+          <span class="hero-trend"><span class="lbl">28D TREND</span><span class="down num">−0.35 KG/W</span></span>
+        </div>
+      </div>
+      <svg class="spark" viewBox="0 0 340 44" preserveAspectRatio="none" aria-hidden="true"><path d="M0,32 L26,30 L52,28 L78,26 L104,25 L130,22 L156,21 L182,19 L208,18 L234,16 L260,14 L286,12 L312,10 L340,6" fill="none" stroke="#5BE49B" stroke-width="1.5"/><circle cx="334" cy="7" r="3" fill="#5BE49B"/></svg>
+      <div class="goal"><div class="micro g" style="margin-bottom:5px">Goal Progress — 80.0kg</div><div class="goal-track"><div class="goal-fill" data-w="87%"></div><div class="goal-tick" style="left:87.5%"></div></div><div class="goal-meta"><span class="goal-label">目標80kgまで <b class="num">あと10.2kg</b></span><span class="milestone">70kgまで あと0.2kg</span></div></div>
+    </div>
+
+    <div data-hero="week" hidden>
+      <p class="hero-verdict">今週の平均</p><p class="hero-status">STATUS: GAINING — WEEKLY AVG</p>
+      <div class="micro" style="margin-top:8px">Weekly Avg // Body Mass</div>
+      <div class="hero-big num">69.4<span class="unit">kg</span></div>
+      <span class="hero-pill">今日は <b class="num">69.8kg</b> で平均超え</span>
+      <p class="hero-note">月〜水で筋トレ3日。今日（木）は休みの日で、体重は週間平均を上回っています。</p>
+      <div class="goal"><div class="goal-track"><div class="goal-fill" data-w="87%"></div><div class="goal-tick" style="left:87.5%"></div></div><div class="goal-meta"><span class="goal-label">目標80kgまで <b class="num">あと10.2kg</b></span><span class="milestone">70kgまで あと0.2kg</span></div></div>
+    </div>
+
+    <div data-hero="month" hidden>
+      <p class="hero-verdict">目標への進捗</p><p class="hero-status">STATUS: GAINING — GOAL PROGRESS</p>
+      <div class="micro" style="margin-top:8px">Goal Progress // 80.0kg</div>
+      <div class="hero-big num">69.8<span class="unit">kg</span></div>
+      <span class="hero-pill">目標 <b class="num">80kg</b> まで あと <b class="num">10.2kg</b></span>
+      <p class="hero-note">次の節目は70kg、あと0.2kgです。</p>
+      <div class="goal"><div class="goal-track"><div class="goal-fill" data-w="87%"></div><div class="goal-tick" style="left:87.5%"></div></div><div class="goal-meta"><span class="goal-label">現在 <b class="num">69.8kg</b></span><span class="milestone">目標：80kg</span></div></div>
+    </div>
+  </section>
+
+  <div id="panel-today" role="tabpanel" aria-labelledby="tab-today" data-panel="today" class="stack">
+    <section class="rings card" aria-label="この日の達成">
+      <div class="ring-cell"><div class="ring-wrap"><svg width="84" height="84" viewBox="0 0 84 84"><circle class="ring-bg" cx="42" cy="42" r="38" fill="none" stroke-width="6"/><circle class="ring-fg" data-pct="100" cx="42" cy="42" r="38" fill="none" stroke="#5BE49B" stroke-width="6"/></svg><div class="ring-center"><span class="ring-value num">2,396</span><span class="ring-target num">/ 2,290</span></div></div><div class="ring-name">kcal</div><div class="micro">Energy</div><div class="ring-status done">✓ 達成</div></div>
+      <div class="ring-cell"><div class="ring-wrap"><svg width="84" height="84" viewBox="0 0 84 84"><circle class="ring-bg" cx="42" cy="42" r="38" fill="none" stroke-width="6"/><circle class="ring-fg" data-pct="87" cx="42" cy="42" r="38" fill="none" stroke="#5BE49B" stroke-width="6"/></svg><div class="ring-center"><span class="ring-value num">122</span><span class="ring-target num">/ 140 g</span></div></div><div class="ring-name">たんぱく質</div><div class="micro">Protein</div><div class="ring-status co">あと18g <span>・あと少し</span></div></div>
+      <div class="ring-cell"><div class="ring-wrap"><svg width="84" height="84" viewBox="0 0 84 84"><circle class="ring-bg" cx="42" cy="42" r="38" fill="none" stroke-width="6"/><circle class="ring-fg" data-pct="92" cx="42" cy="42" r="38" fill="none" stroke="#5BE49B" stroke-width="6"/></svg><div class="ring-center"><span class="ring-value num">6:27</span><span class="ring-target num">/ 7:00</span></div></div><div class="ring-name">睡眠（昨夜）</div><div class="micro">Sleep</div><div class="ring-status cp">あと33分 <span>・あと少し</span></div></div>
+    </section>
+    <p class="insight">今日は今週の平均を超えた。ただ28日の流れは週あたり<b>−0.35kg</b>で、まだ下向き。食べる量を保てると流れが変わりやすくなります。</p>
+    <section class="week card" aria-label="今週のリズム">
+      <div class="micro g">Weekly Rhythm</div>
+      <div class="week-head"><span class="week-title">今週のリズム</span><span class="week-note">筋トレ 3日済み</span></div>
+      <div class="week-days">
+        <div class="day done"><span class="dow">MON</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day done"><span class="dow">TUE</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day done"><span class="dow">WED</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day today"><span class="dow">THU</span><span class="dot">–</span><span class="cap">今日・休み</span></div>
+        <div class="day future"><span class="dow">FRI</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+        <div class="day future"><span class="dow">SAT</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+        <div class="day future"><span class="dow">SUN</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="panel-week" role="tabpanel" aria-labelledby="tab-week" data-panel="week" class="stack" hidden>
+    <section class="radar-card card" aria-label="部位のバランス（2週）">
+      <div class="micro g">Body-Part Balance</div>
+      <div class="radar-head"><span class="radar-title">部位のバランス</span><span class="radar-note">2週</span></div>
+      <div class="radar-wrap">
+        <svg viewBox="0 0 220 186" role="img" aria-label="部位のバランスのレーダーチャート。背中が最も大きく、次に脚、胸が中程度で、肩・腕・腹は小さめです">
+          <!-- grid hexagons -->
+          <polygon class="radar-grid" points="98.5,75 121.6,75 133.1,95 121.6,115 98.5,115 86.9,95"/>
+          <polygon class="radar-grid" points="86.9,55 133.1,55 156.2,95 133.1,135 86.9,135 63.8,95"/>
+          <polygon class="radar-grid" points="75,34.4 145,34.4 180,95 145,155.6 75,155.6 40,95"/>
+          <!-- axes -->
+          <line class="radar-axis" x1="110" y1="95" x2="75" y2="34.4"/>
+          <line class="radar-axis" x1="110" y1="95" x2="145" y2="34.4"/>
+          <line class="radar-axis" x1="110" y1="95" x2="180" y2="95"/>
+          <line class="radar-axis" x1="110" y1="95" x2="145" y2="155.6"/>
+          <line class="radar-axis" x1="110" y1="95" x2="75" y2="155.6"/>
+          <line class="radar-axis" x1="110" y1="95" x2="40" y2="95"/>
+          <!-- shape: back largest, legs next, chest mid, shoulder/arm/abdomen small -->
+          <polygon class="radar-shape" points="90.7,61.7 119.8,78 180,95 121.2,114.4 83.8,140.5 96,95"/>
+          <circle class="radar-dot" cx="90.7" cy="61.7" r="2.4"/>
+          <circle class="radar-dot" cx="119.8" cy="78" r="2.4"/>
+          <circle class="radar-dot" cx="180" cy="95" r="2.6"/>
+          <circle class="radar-dot" cx="121.2" cy="114.4" r="2.4"/>
+          <circle class="radar-dot" cx="83.8" cy="140.5" r="2.4"/>
+          <circle class="radar-dot" cx="96" cy="95" r="2.4"/>
+          <!-- labels (no numeric axis values) -->
+          <text class="radar-lbl" x="62" y="28" text-anchor="middle">胸</text>
+          <text class="radar-lbl" x="158" y="28" text-anchor="middle">肩</text>
+          <text class="radar-lbl" x="196" y="99" text-anchor="middle">背中</text>
+          <text class="radar-lbl" x="158" y="172" text-anchor="middle">腕</text>
+          <text class="radar-lbl" x="62" y="172" text-anchor="middle">脚</text>
+          <text class="radar-lbl" x="22" y="99" text-anchor="middle">腹</text>
+        </svg>
+      </div>
+      <p style="margin:2px 0 2px;font-size:11.5px;line-height:1.6;color:var(--muted)">背中が最も大きく、脚が次に続きます。肩・腕・腹は小さめです。</p>
+    </section>
+    <section class="week-table-card card" aria-label="今週のステータス">
+      <div class="week-table-head"><span class="micro g">Weekly Status</span><span class="micro">WEEK</span></div>
+      <div class="stat-table" role="table" aria-label="今週の詳細ステータス">
+        <div class="s-row"><div class="s-label"><span class="en">Week Avg</span><span class="ja">週間平均体重</span></div><div class="s-val">69.4 <small>KG</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Training</span><span class="ja">筋トレ</span></div><div class="s-val">3 <small>DAYS</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Total Load</span><span class="ja">合計負荷量</span></div><div class="s-val">7.72 <small>T</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Recent</span><span class="ja">最近の部位</span></div><div class="s-val long">胸 → 脚 → 胸 → 背中</div></div>
+      </div>
+    </section>
+    <section class="week-table-card card" aria-label="ケガの振り返り">
+      <div class="week-table-head"><span class="micro g">Injury Review</span><span class="micro">WEEK</span></div>
+      <div class="stat-table" role="table" aria-label="ケガの概要">
+        <div class="s-row"><div class="s-label"><span class="en">Occurred</span><span class="ja">期間内に痛めた</span></div><div class="s-val">2 <small>件</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Fixing</span><span class="ja">直している途中</span></div><div class="s-val">2 <small>件</small></div></div>
+      </div>
+      <div class="inj-group">
+        <div class="inj-group-head"><span class="inj-id">INJ-01</span><span class="inj-date">11.11</span></div>
+        <div class="stat-table" role="table" aria-label="INJ-01 右肩の関節">
+          <div class="s-row"><div class="s-label"><span class="en">Site</span><span class="ja">部位</span></div><div class="s-val jp">右肩の関節</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Date</span><span class="ja">発生日</span></div><div class="s-val">11.11</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Exercise</span><span class="ja">種目</span></div><div class="s-val jp">ベンチプレス</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Phase</span><span class="ja">場面</span></div><div class="s-val jp">ラックアップ時</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Symptom</span><span class="ja">症状</span></div><div class="s-val long jp" style="font-size:12.5px;font-weight:500;line-height:1.55">ラックアップした瞬間に右肩に違和感が走った</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Status</span><span class="ja">状態</span></div><div class="s-val"><span class="inj-status">直している途中</span></div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Reviews</span><span class="ja">振り返り</span></div><div class="s-val">0 <small>回</small></div></div>
+        </div>
+      </div>
+      <div class="inj-group">
+        <div class="inj-group-head"><span class="inj-id">INJ-02</span><span class="inj-date">11.10</span></div>
+        <div class="stat-table" role="table" aria-label="INJ-02 腰の筋肉">
+          <div class="s-row"><div class="s-label"><span class="en">Site</span><span class="ja">部位</span></div><div class="s-val jp">腰の筋肉</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Date</span><span class="ja">発生日</span></div><div class="s-val">11.10</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Exercise</span><span class="ja">種目</span></div><div class="s-val jp">スクワット</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Symptom</span><span class="ja">症状</span></div><div class="s-val long jp" style="font-size:12.5px;font-weight:500;line-height:1.55">トレーニング中ではなく終わった頃に発症</div></div>
+          <div class="s-row"><div class="s-label"><span class="en">Status</span><span class="ja">状態</span></div><div class="s-val"><span class="inj-status">直している途中</span></div></div>
+        </div>
+      </div>
+    </section>
+    <section class="week-table-card card" aria-label="来週の焦点">
+      <div class="week-table-head"><span class="micro g">Next Focus</span><span class="micro">Next Week</span></div>
+      <div class="stat-table" role="table" aria-label="来週の焦点">
+        <div class="s-row"><div class="s-label"><span class="en">Next Focus</span><span class="ja">来週の焦点</span></div><div class="s-val"><span style="color:var(--green)">肩</span></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Reason</span><span class="ja">根拠</span></div><div class="s-val long" style="font-family:'Noto Sans JP',sans-serif;font-size:12.5px;font-weight:700;color:#CBD5CE">部位バランスで最も手薄</div></div>
+      </div>
+    </section>
+    <section class="week week-large card" aria-label="今週のリズム（詳細）">
+      <div class="micro g">Weekly Rhythm</div>
+      <div class="week-head"><span class="week-title">今週のリズム</span><span class="week-note">筋トレ <b>3日</b>済み</span></div>
+      <div class="week-days">
+        <div class="day done"><span class="dow">MON</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day done"><span class="dow">TUE</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day done"><span class="dow">WED</span><span class="dot">✓</span><span class="cap">筋トレ</span></div>
+        <div class="day today"><span class="dow">THU</span><span class="dot">–</span><span class="cap">今日・休み</span></div>
+        <div class="day future"><span class="dow">FRI</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+        <div class="day future"><span class="dow">SAT</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+        <div class="day future"><span class="dow">SUN</span><span class="dot"></span><span class="cap">&nbsp;</span></div>
+      </div>
+    </section>
+    <div class="tiles">
+      <div class="tile card"><div class="micro">Weekly Avg</div><div class="tile-value num">69.4<small>kg</small></div><div class="tile-sub">今週の平均体重</div></div>
+      <div class="tile card"><div class="micro g">Today</div><div class="tile-value g num">69.8<small>kg</small></div><div class="tile-sub">平均を超えています</div></div>
+    </div>
+    <div class="tiles">
+      <div class="tile card"><div class="micro">Training</div><div class="tile-value num">3<small>日</small></div><div class="tile-sub">月〜水で実施済み</div></div>
+      <div class="tile card"><div class="micro g">Thu // Recovery</div><div class="tile-value g" style="font-size:20px;padding-top:2px">休みの日</div><div class="tile-sub">体を回復させる日です</div></div>
+    </div>
+    <p class="insight">月〜水で筋トレ3日、今日は回復の日。体重は週間平均を<b>上回っています</b>。</p>
+  </div>
+
+  <div id="panel-month" role="tabpanel" aria-labelledby="tab-month" data-panel="month" class="stack" hidden>
+    <section class="growth-card card" aria-label="成長スコア">
+      <div class="growth-score num">76</div>
+      <div class="growth-meta">
+        <span class="micro g">Growth Score</span>
+        <span class="growth-label">成長スコア</span>
+        <span class="growth-delta num">↑ +34</span>
+        <span class="growth-sub">スコアは76まで伸びています</span>
+      </div>
+    </section>
+    <section class="month-card card" aria-label="目標80kgへの進捗">
+      <div class="micro" style="margin-bottom:4px">Goal Progress</div>
+      <div class="month-head"><span class="month-title">目標への進捗</span><span class="month-remain">あと <b class="num">10.2kg</b></span></div>
+      <div class="month-nums"><div><div class="micro">Current</div><div class="mn-value num">69.8<span class="unit">kg</span></div></div><span class="month-arrow">››</span><div style="text-align:right"><div class="micro">Target</div><div class="mn-value num" style="font-size:26px;color:#CBD5CE">80<span class="unit">kg</span></div></div></div>
+      <div class="big-track" role="img" aria-label="現在69.8kg、節目70kgまであと0.2kg、目標80kgまであと10.2kg"><div class="big-fill" data-w="87%"></div><div class="big-marker" style="left:87.5%"></div><div class="big-marker-label" style="left:87.5%">70kg<small>あと0.2kg</small></div></div>
+      <div class="big-scale num"><span>0kg</span><span>80kg</span></div>
+      <div class="mile-list">
+        <div class="mile-row"><span class="mile-dot num">70</span><span class="mile-text">次の節目：70kg<small>目の前です</small></span><span class="mile-remain num">あと0.2kg</span></div>
+        <div class="mile-row"><span class="mile-dot goal num">80</span><span class="mile-text">目標：80kg<small>増量のゴール</small></span><span class="mile-remain num">あと10.2kg</span></div>
+      </div>
+    </section>
+    <section class="big3-card card" aria-label="BIG3 推定1RM合計">
+      <div class="micro g">BIG3 // Estimated 1RM Total</div>
+      <div class="month-head" style="margin-top:4px"><span class="month-title">BIG3 推定1RM 合計</span></div>
+      <div class="big3-value num">203.3<span class="unit"> kg</span></div>
+      <svg class="big3-spark" viewBox="0 0 340 52" preserveAspectRatio="none" aria-hidden="true"><path d="M2,44 L62,36 L112,30 L168,12 L228,8 L338,8" fill="none" stroke="#5BE49B" stroke-width="1.6"/><circle cx="332" cy="8" r="3.2" fill="#5BE49B"/></svg>
+      <p class="big3-delta num">↑ +129.7 KG<small>始めた日より</small></p>
+    </section>
+    <p class="insight">節目70kgまで<b>あと0.2kg</b>。目標80kgへ、良い方向に進んでいます。</p>
+    <section class="week-table-card card" aria-label="今月の課題">
+      <div class="week-table-head"><span class="micro g">Monthly Task</span><span class="micro">This Month</span></div>
+      <div class="stat-table" role="table" aria-label="今月の課題">
+        <div class="s-row"><div class="s-label"><span class="en">Monthly Task</span><span class="ja">今月の課題</span></div><div class="s-val jp">70KGの節目に到達</div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Remaining</span><span class="ja">残り</span></div><div class="s-val">あと 0.2 <small>KG</small></div></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="next" aria-label="明日の一歩">
+    <div class="micro g">Next Step // For 2026.11.13</div>
+    <button type="button" class="next-row" id="nextStep" role="checkbox" aria-checked="false">
+      <span class="check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12.5 L9.5 18 L20 6.5" stroke="#06130C" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span><span class="next-text">朝ごはんに、たんぱく質のおかずを1品足す</span><span class="next-sub">できたらタップしてチェック</span></span>
+    </button>
+    <p class="streak" id="streakNote">STREAK +1 — いい流れです</p>
+  </section>
+
+  <div id="panel-today-extra" data-panel="today" class="stack">
+    <div class="chips">
+      <div class="chip card"><span class="chip-name">安静時心拍</span><span class="chip-value num">51<small>bpm</small></span></div>
+      <div class="chip card"><span class="chip-name">体脂肪率</span><span class="chip-value num">21.2<small>%</small></span></div>
+    </div>
+    <details class="details card" open>
+      <summary><span><span class="micro g" style="margin-right:8px">Details</span>くわしく — ステータス</span><span class="chev">▾</span></summary>
+      <div class="stat-table" role="table" aria-label="詳細ステータス">
+        <div class="s-row"><div class="s-label"><span class="en">Weight</span><span class="ja">体重</span></div><div class="s-val">69.8 <small>KG</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Body Fat</span><span class="ja">体脂肪率</span></div><div class="s-val">21.2 <small>%</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Week Avg</span><span class="ja">週間平均</span></div><div class="s-val">69.4 <small>KG</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Vs Yesterday</span><span class="ja">前日比</span></div><div class="s-val"><span class="up">+0.4</span> <small>KG</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Calories</span><span class="ja">カロリー</span></div><div class="s-val">2,396 <span class="dim">/ 2,290</span> <small>KCAL</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Protein</span><span class="ja">たんぱく質</span></div><div class="s-val">122 <span class="dim">/ 140</span> <small>G</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Sleep</span><span class="ja">睡眠</span></div><div class="s-val">6:27 <span class="dim">/ 7:00</span></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">In Bed</span><span class="ja">就寝–起床</span></div><div class="s-val">23:34–06:09</div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Resting HR</span><span class="ja">安静時心拍</span></div><div class="s-val">51 <small>BPM</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Steps</span><span class="ja">歩数（朝時点）</span></div><div class="s-val">830</div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Trend 28D</span><span class="ja">28日トレンド</span></div><div class="s-val"><span class="down">−0.35</span> <small>KG / 週</small></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Meal (11:00)</span><span class="ja">同期時点の食事</span></div><div class="s-val long">309 <small>KCAL</small> <span class="dim">· P31.2 / F1.7 / C44.0 G</span></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Rest-Day Target</span><span class="ja">休みの日の目標</span></div><div class="s-val long">2,290 <small>KCAL</small> <span class="dim">· P139.6 G</span></div></div>
+        <div class="s-row"><div class="s-label"><span class="en">Sleep Duration</span><span class="ja">睡眠時間</span></div><div class="s-val">387 <small>MIN</small></div></div>
+      </div>
+      <div class="field-list" aria-label="分野ごとの解釈">
+        <div class="field-head"><span class="micro g">By Field // 解釈</span><span class="micro">11.12</span></div>
+        <div class="f-row"><div class="f-main"><div class="f-top"><span class="f-name"><span class="en">Body</span>からだ</span><span class="f-badge good">↗ 良い</span></div><p class="f-text">体重<b class="num">69.8kg</b>は、今週の平均<b class="num">69.4kg</b>より上。目標80kgに向けて良い方向です</p></div></div>
+        <div class="f-row"><div class="f-main"><div class="f-top"><span class="f-name"><span class="en">Meals</span>食事</span><span class="f-badge flat">→ 変わらない</span></div><p class="f-text">11時の同期時点で<b class="num">309kcal</b>・たんぱく質<b class="num">31.2g</b>。休みの日の目標<b class="num">2290kcal・139.6g</b>に向けて、まだこれからです</p></div></div>
+        <div class="f-row"><div class="f-main"><div class="f-top"><span class="f-name"><span class="en">Sleep / HR</span>睡眠・心拍</span></div><p class="f-text"><b class="num">23:34</b>に寝て<b class="num">6:09</b>に起床、<b class="num">387分</b>。安静時心拍<b class="num">51</b></p></div></div>
+        <div class="f-row"><div class="f-main"><div class="f-top"><span class="f-name"><span class="en">Training</span>筋トレ</span></div><p class="f-text">3日続けて筋トレしたあとの休みの日。体を回復させる日です（今週は月〜水の3日で筋トレ済み）</p></div></div>
+      </div>
+    </details>
+  </div>
+
+  <footer>Data from your records — End of Report</footer>
+</main>
+<script>
+(function(){
+  var C=238, CH=364;
+  function paintBars(){document.querySelectorAll('.goal-fill,.big-fill').forEach(function(el){if(el.offsetParent!==null) el.style.width=el.getAttribute('data-w')||'0%';});}
+  function paint(){document.querySelectorAll('.ring-fg').forEach(function(el){var p=parseFloat(el.getAttribute('data-pct'))||0;el.style.strokeDashoffset=String(C*(1-Math.min(p,100)/100));});document.querySelectorAll('.hero-ring-fg').forEach(function(el){var p=parseFloat(el.getAttribute('data-pct'))||0;el.style.strokeDashoffset=String(CH*(1-Math.min(p,100)/100));});paintBars();}
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(paint);});}else{requestAnimationFrame(paint);}
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  function select(name){tabs.forEach(function(t){t.setAttribute('aria-selected',String(t.getAttribute('data-tab')===name));});document.querySelectorAll('[data-panel]').forEach(function(p){p.hidden=p.getAttribute('data-panel')!==name;});document.querySelectorAll('[data-hero]').forEach(function(h){h.hidden=h.getAttribute('data-hero')!==name;});requestAnimationFrame(paintBars);}
+  tabs.forEach(function(t){t.addEventListener('click',function(){select(t.getAttribute('data-tab'));});});
+  var btn=document.getElementById('nextStep'),note=document.getElementById('streakNote');
+  btn.addEventListener('click',function(){var on=btn.getAttribute('aria-checked')==='true';btn.setAttribute('aria-checked',String(!on));note.classList.toggle('show',!on);});
+})();
+</script>
+</body>
+</html>
