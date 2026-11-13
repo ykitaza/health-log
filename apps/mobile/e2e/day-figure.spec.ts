@@ -1,7 +1,7 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 import { addEntry, button, goTab, moveToDate, openApp, recordOn, see, TODAY } from './helpers';
 
-// 記録の画面の体の図：種目ごとの札（EX-01・種目・いちばん重いセット）と引き出し線、記録のない日の前回の図、図の部位から記録。
+// 記録の画面の体の図：種目ごとの札（EX-01・種目・いちばん重いセット）と引き出し線、記録のない日の回復マップ、図の部位から記録。
 // 札の並べ方（左右・ずらし・「+N」）と、筋肉 → 部位の逆引きは jest（lib/__tests__/dayCallouts.test.ts）。
 // ここは画面に出ること、360 と 412 の幅で札が図とカードに重ならないこと、押して種目の選択に進むこと
 const SHOTS = process.env.FIGURE_SHOTS;
@@ -10,10 +10,10 @@ const box = async (l: Locator) => (await l.boundingBox())!;
 const visible = (l: Locator) => l.filter({ visible: true });
 
 /** 札がカードの中に収まり、前と後ろの図の上に重ならない（線は図の上へ伸びる） */
-async function expectCalloutsFit(page: Page, figure: Locator) {
+async function expectCalloutsFit(page: Page, figure: Locator, testId = /^day-callout/) {
   const card = await box(figure);
   const figs = await Promise.all(['front', 'back'].map(async (v) => box(figure.getByTestId(new RegExp(`-press-${v}$`)))));
-  const callouts = await figure.getByTestId(/^day-callout/).all();
+  const callouts = await figure.getByTestId(testId).all();
   expect(callouts.length).toBeGreaterThan(0);
   const rects = await Promise.all(callouts.map(box));
   for (const r of rects) {
@@ -35,7 +35,7 @@ for (const width of [360, 412]) {
   test.describe(`${width} の幅`, () => {
     test.use({ viewport: { width, height: 915 } });
 
-    test('種目が 2 つの日と 6 つの日：札と番号、多い日は「+N」。読み上げは番号・種目・部位', async ({ page }) => {
+    test('種目が 2 つの日と 6 つの日（三頭筋を含む）：札と番号。三頭筋は後ろの図。読み上げは番号・種目・部位', async ({ page }) => {
       await openApp(page);
       await goTab(page, '筋トレ');
       await addEntry(page, 'ベンチプレス', [{ weight: '70', reps: '10' }, { weight: '80', reps: '8' }]);
@@ -56,15 +56,16 @@ for (const width of [360, 412]) {
         await page.screenshot({ path: `${SHOTS}/record-2-${width}-page.png` });
       }
 
-      // 6 種目（前の図に 5、後ろに 1）：左は 3 つと「+2」
+      // 6 種目（前の図に 4、後ろに 2。上腕三頭筋は後ろの図の三頭筋）：札は 6 つ
       await addEntry(page, 'インクラインダンベルプレス', [{ weight: '26', reps: '10' }]);
       await addEntry(page, 'ダンベルフライ', [{ weight: '14', reps: '12' }]);
       await addEntry(page, 'ショルダープレス', [{ weight: '40', reps: '10' }]);
       await addEntry(page, 'ライイングトライセプスエクステンション', [{ weight: '30', reps: '12' }]);
-      await expect(figure.getByTestId('day-callout')).toHaveCount(4);
-      const more = figure.getByTestId('day-callout-more');
-      await expect(more).toContainText('+2');
-      await expect(more).toContainText('EX-03 EX-04');
+      await expect(figure.getByTestId('day-callout')).toHaveCount(6);
+      await expect(figure.getByTestId('day-callout-more')).toHaveCount(0);
+      // 三頭筋の札は後ろの図の側（右）。線の先は後ろの図の三頭筋
+      const tri = figure.getByTestId('day-callout').filter({ hasText: 'EX-06' });
+      expect((await box(tri)).x).toBeGreaterThan((await box(bench)).x);
       await expectCalloutsFit(page, figure);
       if (SHOTS) {
         await figure.locator('..').scrollIntoViewIfNeeded();
@@ -73,39 +74,79 @@ for (const width of [360, 412]) {
       }
     });
 
-    test('記録のない日は前回の図（控えめな緑・札・同じメニューで始める）。一度も記録がない日は空の体', async ({ page }) => {
+    test('上腕三頭筋だけの日：後ろの図の三頭筋を塗り、札もそこを指す（右）', async ({ page }) => {
       await openApp(page);
       await goTab(page, '筋トレ');
-      const empty = visible(page.getByTestId('empty-figure'));
-      await expect(empty).toHaveAttribute('aria-label', '体の図');
-      await expect(empty.getByTestId(/^day-callout/)).toHaveCount(0);
+      await addEntry(page, 'ライイングトライセプスエクステンション', [{ weight: '30', reps: '12' }]);
+      const figure = visible(page.getByTestId('day-parts-figure'));
+      await expect(figure).toHaveAttribute('aria-label', '鍛えた部位の図。1 ライイングトライセプスエクステンション 上腕三頭筋');
+      const tri = figure.getByTestId('day-callout');
+      await expect(tri).toHaveCount(1);
+      const back = await box(figure.getByTestId('day-parts-figure-press-back'));
+      expect((await box(tri)).x).toBeGreaterThanOrEqual(back.x + back.width - 0.5);
+      await expectCalloutsFit(page, figure);
       if (SHOTS) {
-        await empty.locator('..').scrollIntoViewIfNeeded();
-        await empty.locator('..').screenshot({ path: `${SHOTS}/never-${width}.png` });
-        await page.screenshot({ path: `${SHOTS}/never-${width}-page.png` });
+        await figure.locator('..').scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${SHOTS}/triceps-${width}.png` });
       }
+    });
 
-      await recordOn(page, '2026-11-06', [
+    test('記録のない日は回復マップ（今日・過去の日・一度も記録がない日）。回復中に札、回復済みの部位をすすめる、前回の1行', async ({ page }) => {
+      test.setTimeout(90_000);
+      await openApp(page);
+      await goTab(page, '筋トレ');
+      // 一度も記録がない：色を付けない体の図と、部位から記録
+      await expect(see(page, 'まだ記録がありません')).toBeVisible();
+      await expect(see(page, '部位を選んで、最初の記録をつけましょう')).toBeVisible();
+      const never = visible(page.getByTestId('recovery-hero'));
+      await expect(never).toHaveAttribute('aria-label', '体の図');
+      await expect(never.getByTestId(/^recovery-callout/)).toHaveCount(0);
+      await expect(page.getByTestId('recovery-hero-suggest')).toHaveCount(0);
+      await expect(page.getByTestId('previous-line')).toHaveCount(0);
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/never-${width}.png` });
+
+      await recordOn(page, '2026-11-03', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
+      await recordOn(page, '2026-11-06', [{ exercise: 'ラットプルダウン', sets: [{ weight: '50', reps: '10' }] }]);
+      await recordOn(page, '2026-11-07', [
         { exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] },
-        { exercise: 'ラットプルダウン', sets: [{ weight: '50', reps: '10' }] },
+        { exercise: 'ライイングトライセプスエクステンション', sets: [{ weight: '30', reps: '12' }] },
       ]);
       await moveToDate(page, TODAY);
       await goTab(page, '筋トレ');
-      const menu = visible(page.getByTestId('previous-menu'));
-      await expect(menu).toContainText('前回のメニュー');
-      await expect(menu).toContainText('LAST SESSION');
-      await expect(menu).toContainText('11月6日（金） ・ 胸・背中');
-      const figure = visible(page.getByTestId('previous-figure'));
-      await expect(figure).toHaveAttribute('aria-label', '前回 11月6日（金）。1 ベンチプレス 胸、2 ラットプルダウン 背中');
-      await expect(figure.getByTestId('day-callout')).toHaveCount(2);
-      await expectCalloutsFit(page, figure);
-      await expect(button(menu, '11月6日（金）と同じメニューで始める')).toBeVisible();
-      await expect(visible(page.getByTestId('empty-figure'))).toHaveCount(0);
-      if (SHOTS) {
-        await menu.scrollIntoViewIfNeeded();
-        await menu.screenshot({ path: `${SHOTS}/empty-day-${width}.png` });
-        await page.screenshot({ path: `${SHOTS}/empty-day-${width}-page.png` });
-      }
+      // 今日：まだ記録がない → 回復マップ。胸・三頭（昨日）と背中（2日前）は回復中、脚（5日前）は回復済み
+      await expect(see(page, 'まだ記録がありません')).toBeVisible();
+      await expect(see(page, '回復済みの部位から選べます')).toBeVisible();
+      const hero = visible(page.getByTestId('recovery-hero'));
+      await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、胸 あと2日、背中 あと2日、上腕三頭筋 あと2日');
+      await expect(visible(page.getByTestId('recovery-hero-legend'))).toHaveText('回復済み回復中ケガ');
+      await expect(hero.getByTestId('recovery-callout')).toHaveCount(3);
+      const chest = hero.getByTestId('recovery-callout').filter({ hasText: '胸' });
+      await expect(chest).toContainText('あと2日');
+      // 胸の札は前の図の左、背中・三頭の札は後ろの図の右
+      expect((await box(chest)).x).toBeLessThan((await box(hero.getByTestId('recovery-callout').filter({ hasText: '上腕三頭筋' }))).x);
+      await expectCalloutsFit(page, hero, /^recovery-callout/);
+      const suggest = visible(page.getByTestId('recovery-hero-suggest'));
+      await expect(suggest).toContainText('今日は脚はどう？5日前・回復済み');
+      await expect(button(suggest, '脚の種目を選ぶ')).toBeVisible();
+      const prev = visible(page.getByTestId('previous-line'));
+      await expect(prev).toContainText('前回 11月7日（土） 胸・上腕三頭筋');
+      await expect(button(prev, '11月7日（土）と同じメニューで始める')).toBeVisible();
+      // 並び：メッセージ → 回復マップ → すすめ → 前回 → 部位から記録
+      const msg = await box(visible(page.getByTestId('no-workout')));
+      const ys = await Promise.all([hero, suggest, prev, visible(page.getByTestId('recovery-hero-parts'))].map(async (l) => (await box(l)).y));
+      expect([msg.y, ...ys]).toEqual([msg.y, ...ys].sort((a, b) => a - b));
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/empty-today-${width}.png` });
+
+      // 過去の日（11-05）：この日の記録はない。その日の時点（脚は 2日前で回復中）。写すボタンは出さない
+      await button(page, '前の日').click();
+      await button(page, '前の日').click();
+      await button(page, '前の日').click();
+      await expect(see(page, 'この日の記録はありません')).toBeVisible();
+      await expect(see(page, 'この日の時点の回復です')).toBeVisible();
+      await expect(visible(page.getByTestId('recovery-hero'))).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、脚 あと2日');
+      await expect(page.getByTestId('recovery-hero-suggest')).toHaveCount(0);
+      await expect(visible(page.getByTestId('previous-line'))).toHaveText('前回 11月3日（火） 脚');
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/empty-past-${width}.png` });
     });
   });
 }
@@ -113,10 +154,12 @@ for (const width of [360, 412]) {
 test('図の筋肉を押すと近い部位のチップが先頭に。チップで、その部位で絞った種目の選択へ（記録のある日も同じ）', async ({ page }) => {
   await openApp(page);
   await goTab(page, '筋トレ');
-  const parts = visible(page.getByTestId('empty-figure-parts'));
+  const parts = visible(page.getByTestId('recovery-hero-parts'));
   await expect(parts).toContainText('部位から記録');
-  // 後ろの図のもも裏を押す（図の座標 42, 130 → 66×132 の図で 27.7, 85.8）
-  await visible(page.getByTestId('empty-figure-press-back')).click({ position: { x: 27.7, y: 85.8 } });
+  // 後ろの図のもも裏を押す（図の座標 42, 130。図の大きさは幅で変わるので、押す所の大きさから求める）
+  const back = visible(page.getByTestId('recovery-hero-press-back'));
+  const bb = await box(back);
+  await back.click({ position: { x: bb.width * 0.42, y: bb.height * 0.65 } });
   await expect(parts).toContainText('押した所の部位から記録');
   const first = parts.getByRole('button').first();
   await expect(first).toHaveAccessibleName('脚の種目を選ぶ');

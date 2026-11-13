@@ -13,7 +13,7 @@ test('5つのタブ、歯車から設定へ行って戻る、設定と RM計算�
   await expect(see(page, '朝食はまだ記録していません')).toBeVisible();
 
   await goTab(page, '筋トレ');
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
   await goPane(page, '推移');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
 

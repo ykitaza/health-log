@@ -1,15 +1,15 @@
 import { expect, Locator, test } from '@playwright/test';
 import { addEntry, button, goTab, homeCard, moveToDate, openApp, recordOn, see, TODAY } from './helpers';
 
-// その日の部位：記録のまとめの「部位」、今日が空のときの「部位ごとの前回」とおすすめ、ホームの今日のトレーニングと「最近の流れ」。
-// その日の部位の決め方（総負荷量・7割）・前回とおすすめの選び方は jest（lib/__tests__/training.test.ts）。
+// その日の部位：記録のまとめの「部位」、今日が空のときの回復マップのすすめ、ホームの今日のトレーニングと「最近の流れ」。
+// その日の部位の決め方（総負荷量・7割）・ホームのおすすめの選び方は jest（lib/__tests__/training.test.ts）、回復マップのすすめは lib/__tests__/recoveryMap.test.ts。
 // ここは画面に出ることと、412 より狭い 360 の幅で崩れないこと
 test.use({ viewport: { width: 360, height: 800 } });
 
 const box = async (l: Locator) => (await l.boundingBox())!;
 const visible = (l: Locator) => l.filter({ visible: true });
 
-test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回とおすすめ。ホームの最近の流れ。今日の種目を足すとまとめの部位は「胸」', async ({ page }) => {
+test('360 の幅：背中・脚・胸の日のあと、今日が空なら回復マップのすすめと前回。ホームの最近の流れ。今日の種目を足すとまとめの部位は「胸」', async ({ page }) => {
   test.setTimeout(90_000);
   await openApp(page, '2026-11-02');
   await recordOn(page, '2026-11-02', [{ exercise: 'デッドリフト', sets: [{ weight: '100', reps: '5' }] }]);
@@ -56,36 +56,29 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   const balance = await box(visible(page.getByTestId('home-part-balance')));
   expect(Math.abs(archive.y + archive.height - (balance.y + balance.height))).toBeLessThan(1);
 
-  // 押すと筋トレの記録のタブ：今日は空なので「部位ごとの前回」と、その下に前回のメニュー
+  // 押すと筋トレの記録のタブ：今日は空なので、まだ記録がないことと、回復マップのすすめ（回復済みでいちばん前の部位）、その下に前回の1行
   await card.click();
-  const last = visible(page.getByTestId('part-last'));
-  await expect(last).toBeVisible();
-  await expect(see(page, 'まだ種目がありません')).toHaveCount(0);
-  await expect(last.getByTestId('part-last-胸')).toHaveAttribute('aria-label', '胸、2日前、11月6日（金）');
-  await expect(last.getByTestId('part-last-脚')).toHaveAttribute('aria-label', '脚、4日前、11月4日（水）');
-  await expect(last.getByTestId('part-last-背中')).toHaveAttribute('aria-label', '背中、6日前、11月2日（月）、いちばん空いている');
-  // 前回の新しい順。いちばん空いている行に緑の文字
-  const order = await Promise.all(['胸', '脚', '背中'].map(async (n) => (await box(last.getByTestId(`part-last-${n}`))).y));
-  expect(order).toEqual([...order].sort((a, b) => a - b));
-  await expect(last.getByTestId('part-last-背中')).toContainText('いちばん空いている');
-  // 日数・日付・「いちばん空いている」はそれぞれ1行（折り返すなら「いちばん空いている」ごと次の行）
-  for (const t of ['6日前', '11月2日（月）', 'いちばん空いている']) {
-    expect((await box(last.getByTestId('part-last-背中').getByText(t, { exact: true }))).height).toBeLessThan(26);
-  }
-  // 文は1行に収め、カードからはみ出さない
-  const lastBox = await box(last);
-  const text = last.getByTestId('part-suggest-text');
-  await expect(text).toHaveText('今日は背中はどう？');
-  await expect(text).toHaveAttribute('aria-label', '今日は 背中 はどう？');
+  await expect(visible(page.getByTestId('no-workout'))).toContainText('まだ記録がありません');
+  const hero = visible(page.getByTestId('recovery-hero'));
+  // 胸・肩（11-06、回復 2日）は回復中、脚（11-04、3日）と背中（11-02）は回復済み → いちばん前の背中
+  await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、胸 あと1日、肩 あと1日');
+  const suggest = visible(page.getByTestId('recovery-hero-suggest'));
+  const text = suggest.getByLabel('今日は 背中 はどう？ 6日前、回復済み', { exact: true });
+  await expect(text).toHaveText('今日は背中はどう？6日前・回復済み');
+  // 文は1行に収め、カードからはみ出さない（360 の幅ではボタンが次の行へ回ってよい）
+  const heroCard = await box(hero.locator('..'));
   const textBox = await box(text);
   expect(textBox.height).toBeLessThan(30); // 1行（札の高さ 24）
-  expect(textBox.x + textBox.width).toBeLessThanOrEqual(lastBox.x + lastBox.width);
-  const choose = button(last, '背中の種目を選ぶ');
+  expect(textBox.x + textBox.width).toBeLessThanOrEqual(heroCard.x + heroCard.width);
+  const choose = button(suggest, '背中の種目を選ぶ');
   const chooseBox = await box(choose);
   expect(chooseBox.height).toBeGreaterThanOrEqual(48);
-  expect(chooseBox.x + chooseBox.width).toBeLessThanOrEqual(lastBox.x + lastBox.width);
-  const menu = visible(page.getByTestId('previous-menu'));
-  expect((await box(menu)).y).toBeGreaterThan(lastBox.y + lastBox.height);
+  expect(chooseBox.x + chooseBox.width).toBeLessThanOrEqual(heroCard.x + heroCard.width);
+  const prev = visible(page.getByTestId('previous-line'));
+  await expect(prev).toContainText('前回 11月6日（金） 胸・肩');
+  expect((await box(prev)).y).toBeGreaterThan(textBox.y + textBox.height);
+  // 部位から記録のチップに回復の状態（色の点と「あと1日」）
+  await expect(button(hero.locator('..'), '胸の種目を選ぶ、回復中 あと1日')).toContainText('あと1日');
 
   // 「背中の種目を選ぶ」：種目を選ぶ画面を背中のチップで開く
   await choose.click();
@@ -98,8 +91,8 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   await page.getByRole('button', { name: '今日のトレーニングに追加', exact: true }).click();
   await expect(page.getByRole('button', { name: /^懸垂を直す/ })).toBeVisible();
 
-  // 今日の種目を足したら「部位ごとの前回」は出さない。まとめの部位は「背中」（体重の記録がないので、セットの数で）
-  await expect(page.getByTestId('part-last')).toHaveCount(0);
+  // 今日の種目を足したら回復マップは出さない。まとめの部位は「背中」（体重の記録がないので、セットの数で）
+  await expect(page.getByTestId('recovery-hero')).toHaveCount(0);
   const parts = visible(page.getByTestId('day-parts'));
   await expect(parts).toHaveText('部位背中');
   // 胸 80×8×2 = 1280 で背中（負荷量 0）より多い → 胸
@@ -126,7 +119,7 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら前回�
   await expect(flow.getByTestId('recent-flow-planned')).toHaveCount(0);
 });
 
-test('背中・脚・胸以外の日（肩）：おすすめは出さない。過去の日のまとめも総負荷量の部位', async ({ page }) => {
+test('背中・脚・胸以外の日（肩）：ホームのおすすめは出さない。記録の画面も回復中の肩はすすめない。過去の日のまとめも総負荷量の部位', async ({ page }) => {
   await openApp(page, '2026-11-06');
   await recordOn(page, '2026-11-06', [{ exercise: 'ショルダープレス', sets: [{ weight: '40', reps: '10' }] }]);
   await moveToDate(page, TODAY);
@@ -135,9 +128,11 @@ test('背中・脚・胸以外の日（肩）：おすすめは出さない。�
   await expect(flow).toHaveAttribute('aria-label', '最近の部位の流れ。11月6日 肩');
   await expect(homeCard(page, 'training').getByTestId('home-training-prev')).toHaveText('まだ記録なし ・前回肩2日前');
   await expect(homeCard(page, 'training').getByTestId('home-training-suggest')).toHaveCount(0);
+  // 筋トレの記録のタブ：肩は回復中（2日前、あと1日）で、ほかは一度もないので、すすめは出さない
   await goTab(page, '筋トレ');
-  await expect(page.getByTestId('part-last')).toHaveCount(0);
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'まだ記録がありません')).toBeVisible();
+  await expect(visible(page.getByTestId('recovery-hero'))).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、肩 あと1日');
+  await expect(page.getByTestId('recovery-hero-suggest')).toHaveCount(0);
   await button(page, '前の日').click();
   await button(page, '前の日').click();
   await expect(visible(page.getByTestId('day-parts'))).toHaveText('部位肩');

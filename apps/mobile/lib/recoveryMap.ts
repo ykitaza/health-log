@@ -4,7 +4,8 @@ import type { Injury } from '@/db/repositories/injuries';
 import { colors } from '@/theme';
 import { addDays, DateKey, daysBetween } from './date';
 import { boxOf, partsFor, Vec3 } from './bodyModel';
-import { Muscle, muscleFigureFor } from './muscleFigure';
+import { isSiteCode, SiteCode } from './injuries';
+import type { Muscle } from './muscleFigure';
 import { BALANCE_DAYS } from './partBalance';
 import type { TrainingSetRow } from './training';
 
@@ -189,13 +190,25 @@ export function recoveryLevels(list: PartRecovery[]): Record<string, number> {
   return out;
 }
 
+/** GLB の部品の名前の頭 → 2D の図の筋肉（三角筋の前・中・後ろは、図では1つの三角筋） */
+const MESH_MUSCLE: Record<string, Muscle> = {
+  pec: 'pecs', trap: 'trapezius', lat: 'lats', erector_up: 'erectorsUpper', erector_low: 'erectorsLower',
+  delt_front: 'deltoid', delt_mid: 'deltoid', delt_rear: 'deltoid', quad: 'quads', ham: 'hamstrings', glute: 'glutes', calf: 'calves', shin: 'shins',
+  biceps: 'biceps', triceps: 'triceps', forearm: 'forearm', abs: 'abs', oblique: 'obliques',
+};
+
+/** 部位の 2D の図の筋肉（3D の部品と同じ範囲。脚はもも裏・お尻・ふくらはぎ、上腕三頭筋は後ろの三頭筋も） */
+export function recoveryMusclesFor(part: string): Muscle[] {
+  return [...new Set((PART_MESHES[part.trim()] ?? []).map((h) => MESH_MUSCLE[h]))];
+}
+
 /**
- * 2D の図の筋肉ごとの塗り（web と、3D を描けないとき）。部位の筋肉は lib/muscleFigure.ts の muscleFigureFor（2D の図の対応）。
+ * 2D の図の筋肉ごとの塗り（記録の画面のヒーロー、からだのタブの web と 3D を描けないとき）。部位の筋肉は 3D の部品と同じ範囲（recoveryMusclesFor）。
  * 回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（いくつかの部位にある筋肉は明るいほう）
  */
 export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
   const level: Partial<Record<Muscle, number>> = {};
-  for (const p of list) for (const m of muscleFigureFor(p.name).muscles) level[m] = Math.max(level[m] ?? 0, p.level);
+  for (const p of list) for (const m of recoveryMusclesFor(p.name)) level[m] = Math.max(level[m] ?? 0, p.level);
   return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, (level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : REST_FILL])) as Record<Muscle, string>;
 }
 
@@ -216,13 +229,43 @@ export function fixingOn(injuries: Injury[], date: DateKey): Injury[] {
 }
 
 /**
- * 部位にかかわるケガ：ケガの部位の部品が部位の部品と重なるもの（左右は問わない）か、痛めた種目がその部位の種目のもの
- * （ひざ・ひじなどの関節は部品がないので、種目で結ぶ）。partOfExercise は種目の ID → 部位の名前
+ * 関節（3D の部品がない）→ 近い筋肉の部品の頭。肩の関節は三角筋（肩）、ひざ・股関節・足首は脚、腰（関節）は腰の起立筋（背中）、
+ * 首は僧帽筋（背中）、ひじ・手首は前腕（上腕二頭筋・上腕三頭筋）
  */
-export function injuriesForPart(p: PartRecovery, injuries: Injury[], partOfExercise: (exerciseId: string) => string | null): Injury[] {
-  const own = new Set(p.meshes);
-  return injuries.filter((i) => partsFor(i.site, null).some((m) => own.has(m))
-    || (i.exerciseId != null && partOfExercise(i.exerciseId)?.trim() === p.name));
+const JOINT_MESHES: Partial<Record<SiteCode, string[]>> = {
+  shoulder_joint: ['delt_front', 'delt_mid', 'delt_rear'],
+  knee: ['quad', 'ham'],
+  hip: ['glute'],
+  ankle: ['shin', 'calf'],
+  waist: ['erector_low'],
+  neck: ['trap'],
+  elbow: ['forearm'],
+  wrist: ['forearm'],
+};
+
+/** ケガの部位の部品の頭（左右は問わない）。筋肉は部品、関節は近い筋肉の部品 */
+function injuryHeads(site: string): string[] {
+  if (!isSiteCode(site)) return [];
+  return JOINT_MESHES[site] ?? partsFor(site, null).map((m) => m.replace(/_[rl]$/, ''));
+}
+
+/**
+ * 部位にかかわるケガ：ケガの部位の部品（関節は近い筋肉の部品）が、部位の部品と重なるもの（左右は問わない）。
+ * 痛めた種目では結ばない（ベンチプレスで痛めた肩の関節は胸でなく肩、スクワットで痛めた腰は脚でなく背中）
+ */
+export function injuriesForPart(p: PartRecovery, injuries: Injury[]): Injury[] {
+  const own = new Set(p.meshes.map((m) => m.replace(/_[rl]$/, '')));
+  return injuries.filter((i) => injuryHeads(i.site).some((h) => own.has(h)));
+}
+
+/**
+ * 今日すすめる部位：回復済み（回復の日数を過ぎた）で、最後に鍛えた日がいちばん古い部位。同じなら並びの先。
+ * 一度も鍛えていない部位と、直している途中のケガがある部位はすすめない。なければ null
+ */
+export function suggestRecovered(list: PartRecovery[], hurt: (p: PartRecovery) => boolean): PartRecovery | null {
+  return list
+    .filter((p) => p.last != null && p.remaining == null && !hurt(p))
+    .reduce<PartRecovery | null>((a, b) => (a == null || b.last! < a.last! ? b : a), null);
 }
 
 // ---- 注釈（3D の図の引き出し線つきの札）の付け根 ----

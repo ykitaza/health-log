@@ -65,7 +65,7 @@ test('直している途中のケガ：一覧にケガのある部位を出し�
   test.setTimeout(90_000);
   await recordOn(page, '2026-11-07', [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
   await moveToDate(page, TODAY);
-  // 右肩を、ベンチプレスで痛めた（肩の部品と、胸の種目の両方にかかわる）
+  // 右肩を、ベンチプレスで痛めた（肩の部品にかかわる。痛めた種目の部位の胸には結ばない）
   await goTab(page, '筋トレ');
   await goPane(page, 'ケガ');
   await page.getByTestId('injury-new').click();
@@ -82,8 +82,18 @@ test('直している途中のケガ：一覧にケガのある部位を出し�
   await openBody(page);
   const card = page.getByTestId('recovery-map').filter({ visible: true });
   await expect(see(card, '▲ 1 ALERT')).toBeVisible();
-  await expect(button(card, '胸、昨日、回復中 あと2日、2週間で 1セット、直している途中のケガ 1件')).toBeVisible();
+  await expect(button(card, '胸、昨日、回復中 あと2日、2週間で 1セット')).toBeVisible();
   await expect(button(card, '肩、まだ鍛えていない、2週間で 0セット、直している途中のケガ 1件')).toBeVisible();
   await button(card, '肩、まだ鍛えていない、2週間で 0セット、直している途中のケガ 1件').click();
   await expect(card.getByTestId('recovery-select')).toContainText('▲ 右肩のケガを直している途中');
+
+  // 筋トレの記録のタブ（今日は空）の回復マップも同じ：胸は回復中の札、肩にケガの札
+  await goTab(page, '筋トレ');
+  await goPane(page, '記録');
+  const hero = page.getByTestId('recovery-hero').filter({ visible: true });
+  await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、胸 あと2日。直している途中のケガ、右肩');
+  await expect(hero.getByTestId('recovery-callout').filter({ hasText: '胸' })).toContainText('あと2日');
+  await expect(hero.getByTestId('recovery-callout').filter({ hasText: '肩' })).toContainText('▲ 右肩');
+  await expect(hero.getByTestId('recovery-callout').filter({ hasText: '胸' })).not.toContainText('▲');
+  if (process.env.FIGURE_SHOTS) await hero.locator('..').screenshot({ path: `${process.env.FIGURE_SHOTS}/injury-412.png` });
 });

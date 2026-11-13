@@ -6,8 +6,9 @@ import { ALL_PARTS, layoutCallouts, projectFront } from '@/lib/bodyModel';
 import { muscleFigureFor } from '@/lib/muscleFigure';
 import { contrastRatio } from '@/lib/contrast';
 import {
-  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, partRecoveries, recoveryAnchor,
-  recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryStatusText, remainingDays, REST_FILL, REST_GREEN,
+  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
+  recoveryAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryStatusText,
+  remainingDays, REST_FILL, REST_GREEN, suggestRecovered,
 } from '@/lib/recoveryMap';
 import { colors, toneColors } from '@/theme';
 import type { TrainingSetRow } from '@/lib/training';
@@ -155,16 +156,59 @@ describe('回復マップのケガ', () => {
     expect(fixingOn(list, '2026-11-21').map((i) => i.id)).toEqual(['a', 'd']);
   });
 
-  test('部位にかかわるケガ：部品が重なるもの（左右は問わない）か、痛めた種目がその部位のもの', () => {
-    const [chest, legs] = partRecoveries([], name, ['胸', '脚'], '2026-11-13');
+  test('部位にかかわるケガ：部品が重なるもの（左右は問わない）だけ。関節は近い筋肉の部位', () => {
+    const [chest, legs, shoulder, back, tri] = partRecoveries([], name, ['胸', '脚', '肩', '背中', '上腕三頭筋'], '2026-11-13');
     const list = [
       injury({ id: 'pec', site: 'chest', side: 'left' }),
-      injury({ id: 'knee', site: 'knee', side: 'right', exerciseId: 'squat' }),
+      injury({ id: 'knee', site: 'knee', side: 'right' }),
       injury({ id: 'neck', site: 'neck', side: null }),
+      injury({ id: 'sj', site: 'shoulder_joint', side: 'right' }),
+      injury({ id: 'waist', site: 'waist', side: null }),
+      injury({ id: 'elbow', site: 'elbow', side: 'left' }),
     ];
-    const partOf = (id: string) => (id === 'squat' ? '脚' : null);
-    expect(injuriesForPart(chest, list, partOf).map((i) => i.id)).toEqual(['pec']);
-    expect(injuriesForPart(legs, list, partOf).map((i) => i.id)).toEqual(['knee']);
+    expect(injuriesForPart(chest, list).map((i) => i.id)).toEqual(['pec']);
+    expect(injuriesForPart(legs, list).map((i) => i.id)).toEqual(['knee']);
+    expect(injuriesForPart(shoulder, list).map((i) => i.id)).toEqual(['sj']);
+    expect(injuriesForPart(back, list).map((i) => i.id)).toEqual(['neck', 'waist']);
+    expect(injuriesForPart(tri, list).map((i) => i.id)).toEqual(['elbow']);
+  });
+
+  test('痛めた種目では結ばない：ベンチプレスで痛めた右肩の関節は肩（胸でない）、スクワットで痛めた腰の筋肉は背中（脚でない）', () => {
+    const [chest, legs, shoulder, back] = partRecoveries([], name, ['胸', '脚', '肩', '背中'], '2026-11-13');
+    const list = [
+      injury({ id: 'bench', site: 'shoulder_joint', side: 'right', exerciseId: 'bench', exerciseName: 'ベンチプレス' }),
+      injury({ id: 'squat', site: 'lower_back', side: 'left', exerciseId: 'squat', exerciseName: 'スクワット' }),
+    ];
+    expect(injuriesForPart(chest, list)).toEqual([]);
+    expect(injuriesForPart(legs, list)).toEqual([]);
+    expect(injuriesForPart(shoulder, list).map((i) => i.id)).toEqual(['bench']);
+    expect(injuriesForPart(back, list).map((i) => i.id)).toEqual(['squat']);
+  });
+});
+
+describe('すすめる部位（suggestRecovered）', () => {
+  const none = () => false;
+  test('回復済みのうち、最後に鍛えた日がいちばん古い部位。回復中・一度もない部位はすすめない', () => {
+    // 11-13 の時点：胸は 11-12（回復中）、背中は 11-08（5日前・回復済み）、脚は 11-09（回復済み）、肩は一度もない
+    const list = partRecoveries([row('2026-11-12', 'c'), row('2026-11-08', 'b'), row('2026-11-09', 'l')], name, ['胸', '背中', '脚', '肩'], '2026-11-13');
+    expect(suggestRecovered(list, none)?.name).toBe('背中');
+  });
+
+  test('回復の日数で数える：背中（3日）は鍛えた日から 3日目まで回復中なので、すすめない。腹筋（1日）は 2日目から', () => {
+    const list = partRecoveries([row('2026-11-10', 'b'), row('2026-11-11', 'ab')], name, ['背中', '腹筋'], '2026-11-13');
+    expect(list.map((p) => p.remaining)).toEqual([1, null]);
+    expect(suggestRecovered(list, none)?.name).toBe('腹筋');
+  });
+
+  test('背中・脚・胸だけでなく、全部の部位から選ぶ。同じ日なら並びの先', () => {
+    const list = partRecoveries([row('2026-11-01', 'bi'), row('2026-11-01', 'tri'), row('2026-11-05', 'b')], name, ['背中', '上腕三頭筋', '上腕二頭筋'], '2026-11-13');
+    expect(suggestRecovered(list, none)?.name).toBe('上腕三頭筋');
+  });
+
+  test('直している途中のケガがある部位はすすめない。どれも回復中か一度もなければ null', () => {
+    const list = partRecoveries([row('2026-11-01', 'b'), row('2026-11-05', 'l')], name, ['背中', '脚'], '2026-11-13');
+    expect(suggestRecovered(list, (p: PartRecovery) => p.name === '背中')?.name).toBe('脚');
+    expect(suggestRecovered(partRecoveries([row('2026-11-13', 'c')], name, ['胸', '肩'], '2026-11-13'), none)).toBeNull();
   });
 });
 
@@ -205,6 +249,15 @@ describe('回復マップの色（3つ：緑・暖色・赤）', () => {
       expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(c, colors.bg)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  test('2D の図の筋肉は 3D の部品と同じ範囲：脚はもも裏・お尻・ふくらはぎも、上腕三頭筋は後ろの三頭筋', () => {
+    expect(recoveryMusclesFor('脚')).toEqual(['quads', 'hamstrings', 'glutes', 'calves', 'shins']);
+    expect(recoveryMusclesFor('上腕三頭筋')).toEqual(['triceps', 'forearm']);
+    expect(recoveryMusclesFor('肩')).toEqual(['deltoid']);
+    const fills = muscleFills(partRecoveries([row('2026-11-13', 'tri'), row('2026-11-13', 'l')], name, ['上腕三頭筋', '上腕二頭筋', '脚'], '2026-11-13'));
+    expect([fills.triceps, fills.hamstrings, fills.calves]).toEqual([LOAD_ORANGE, LOAD_ORANGE, LOAD_ORANGE]);
+    expect(fills.biceps).toBe(REST_FILL);
   });
 
   test('2D の図：回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（2D の図の対応で）', () => {

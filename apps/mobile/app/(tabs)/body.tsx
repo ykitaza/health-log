@@ -53,18 +53,16 @@ export default function BodyScreen() {
     const from = addDays(today, -6);
     // その日の記録がない行に出す、その日までの7日の平均の材料（推移のタブの7日は今日まで）
     const dayFrom = addDays(date, -6);
-    const [daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, sleepUpTo, heartUpTo, stepUpTo, rows, parts, exercises, injuries] = await Promise.all([
+    const [daily, settings, sleep, heart, steps, imported, sleepWeek, heartWeek, stepWeek, sleepUpTo, heartUpTo, stepUpTo, rows, parts, injuries] = await Promise.all([
       r.body.listDaily(), r.settings.get(), r.health.sleepDay(date), r.health.heartRateDay(date), r.health.stepDay(date), r.body.getImportedDay(date),
       r.health.sleepDays(from, today), r.health.heartRateDays(from, today), r.health.stepDays(from, today),
       r.health.sleepDays(dayFrom, date), r.health.heartRateDays(dayFrom, date), r.health.stepDays(dayFrom, date),
-      // 回復マップ：筋トレのセット・部位・種目・ケガ
-      r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true }), r.injuries.list(),
+      // 回復マップ：筋トレのセット・部位・ケガ
+      r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true }), r.injuries.list(),
     ]);
     const nameById = new Map(parts.map((p) => [p.id, p.name]));
-    const exPart = new Map(exercises.map((e) => [e.id, nameById.get(e.bodyPartId) ?? null]));
     const recovery: RecoveryInput = {
-      rows, partName: (id) => nameById.get(id) ?? '', names: parts.filter((p) => !p.hidden).map((p) => p.name),
-      partOfExercise: (id) => exPart.get(id) ?? null, injuries,
+      rows, partName: (id) => nameById.get(id) ?? '', names: parts.filter((p) => !p.hidden).map((p) => p.name), injuries,
     };
     const avg = {
       sleep: sevenDayAverage(sleepUpTo.map((d) => ({ date: d.date, value: d.asleepMin })), date),

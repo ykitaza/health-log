@@ -1,25 +1,25 @@
 // 記録の画面の、鍛えた部位の図に付ける札（種目ごとの注釈）。種目 → 部位 → 図の向きと点、札の並べ方
 import { formatSetShort } from './format';
-import { FIGURE_PIECES, Muscle, muscleFigureFor, MuscleView, Point } from './muscleFigure';
+import { FIGURE_PIECES, Muscle, MuscleView, pairFigureFor, Point } from './muscleFigure';
 import { SetValues, topSet } from './training';
 import type { WeightUnit } from './units';
 
 /** 種目の番号（種目のカードの左の番号と同じ。英字の小さな見出しの決まりで「EX-01」） */
 export const exerciseNumber = (n: number) => `EX-${String(n).padStart(2, '0')}`;
 
-/** 点を置く筋肉を、muscleFigureFor の最初の筋肉から変える部位（背中は僧帽筋より広背筋がまん中） */
+/** 点を置く筋肉を、pairFigureFor の最初の筋肉から変える部位（背中は僧帽筋より広背筋がまん中） */
 const ANCHOR_MUSCLE: Record<string, Muscle> = { 背中: 'lats' };
 
 /** 部位の点：図の向き、筋肉、点（100×200 の図の座標） */
 export type Anchor = { view: MuscleView; muscle: Muscle; point: Point };
 
 /**
- * 部位の点。部位の向きと筋肉は muscleFigureFor（塗る図と同じ。上腕三頭筋も前の図の腕）。
+ * 部位の点。部位の向きと筋肉は pairFigureFor（塗る図と同じ。上腕三頭筋は後ろの図の三頭筋）。
  * 左右のある筋肉は札の側の片に置く（前の図は札が左なので画面の左、後ろの図は画面の右）。線が体を横切らない。
  * 知らない部位・空の部位は null
  */
 export function partAnchor(part: string): Anchor | null {
-  const spec = muscleFigureFor(part);
+  const spec = pairFigureFor(part);
   const muscle = ANCHOR_MUSCLE[part.trim()] ?? spec.muscles[0];
   if (!muscle) return null;
   const centers = FIGURE_PIECES[spec.view]
