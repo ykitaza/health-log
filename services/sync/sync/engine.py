@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Callable
 
 from sync.model import APP_ORIGINS, Change, Doc, LogEntry, stamped, utc_now
+from sync.read_cache import cached
 from sync.registry import Registry
 from sync.store import Conflict, SyncStore
 
@@ -90,7 +91,10 @@ class SyncEngine:
         return self.store.get_docs(user, {(entity_type, entity_id)}).get((entity_type, entity_id))
 
     def docs_of_type(self, user: str, entity_type: str) -> list[Doc]:
-        return self.store.docs_of_type(user, entity_type)
+        # 読み取りの範囲（sync.read_cache）が開いている間は、同じ種類の全件読みを使い回す。
+        # 返す一覧はコピー（使い回した中身を呼ぶ側が書き換えないように）
+        return list(cached(("docs_of_type", user, entity_type),
+                           lambda: self.store.docs_of_type(user, entity_type)))
 
     def docs_by_index(self, user: str, entity_type: str, start: str, end: str) -> list[Doc]:
         return self.store.docs_by_index(user, entity_type, start, end)

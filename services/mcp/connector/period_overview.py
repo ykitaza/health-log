@@ -19,6 +19,7 @@ from meals.application.summaries import SummaryService
 from meals.domain.ports import GoalSettings
 from meals.domain.values import EaterId
 from meals.presentation import views as meal_views
+from sync.read_cache import read_cache_scope
 from training.application.queries import TrainingQueries
 from training.presentation import mcp_tools as training_tools
 from training.presentation import views as training_views
@@ -91,33 +92,37 @@ def register_overview_tools(
             raise ToolError(f"期間は{MAX_DAYS}日までにしてください")
         s, e = start.isoformat(), end.isoformat()
 
-        catalog = await training.catalog(sub)
-        meals = meal_views.weekly(await summaries.period(sub, start, end))
-        nutrition_goal = meals.pop("goal")
-        for key in ("from", "to"):
-            meals.pop(key)
-        injuries = training_views.period_injuries(
-            await training.injuries(sub), catalog, s, e, MAX_INJURIES, MAX_INJURY_REVIEWS)
-        eater = EaterId(sub)
-        goal_weight = (await settings.goal_settings(eater)).goal_weight_kg
-        return {
-            "from": s,
-            "to": e,
-            "days": (end - start).days + 1,
-            "training": training_views.period_training(await training.period_training(sub, s, e), catalog, MAX_EXERCISES),
-            "meals": meals,
-            "body": training_views.period_body(await training.body_progress(sub, s, e)),
-            "sleep": training_views.period_sleep(await training.sleep_summary(sub, s, e)),
-            "heart_rate": training_views.period_heart_rate(await training.heart_rate_summary(sub, s, e)),
-            "steps": training_views.period_steps(await training.step_summary(sub, s, e)),
-            "goals": {
-                "meals": nutrition_goal,
-                # アプリの設定の目標体重。なければ食事の目標の目標体重（suggest_goals と同じ順）
-                "goal_weight_kg": goal_weight if goal_weight is not None
-                else (nutrition_goal or {}).get("target_weight_kg"),
-                "weekly": await settings.weekly_goals(eater),
-            },
-            "injuries": injuries,
-            "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
-            "last_app_sync_at": await sync_status.last_app_sync_at(sub),
-        }
+        # 材料の読み取りは、同じ種類の全件読み（全セット・全体組成・設定など）が何度も重なる
+        # （食事のまとめ経由の筋トレ日と period_training で全セットを2回、体組成を3回など）。
+        # このツールの1回の実行の間だけ使い回す（戻り値の中身は変えない。読み取り専用なので安全）
+        with read_cache_scope():
+            catalog = await training.catalog(sub)
+            meals = meal_views.weekly(await summaries.period(sub, start, end))
+            nutrition_goal = meals.pop("goal")
+            for key in ("from", "to"):
+                meals.pop(key)
+            injuries = training_views.period_injuries(
+                await training.injuries(sub), catalog, s, e, MAX_INJURIES, MAX_INJURY_REVIEWS)
+            eater = EaterId(sub)
+            goal_weight = (await settings.goal_settings(eater)).goal_weight_kg
+            return {
+                "from": s,
+                "to": e,
+                "days": (end - start).days + 1,
+                "training": training_views.period_training(await training.period_training(sub, s, e), catalog, MAX_EXERCISES),
+                "meals": meals,
+                "body": training_views.period_body(await training.body_progress(sub, s, e)),
+                "sleep": training_views.period_sleep(await training.sleep_summary(sub, s, e)),
+                "heart_rate": training_views.period_heart_rate(await training.heart_rate_summary(sub, s, e)),
+                "steps": training_views.period_steps(await training.step_summary(sub, s, e)),
+                "goals": {
+                    "meals": nutrition_goal,
+                    # アプリの設定の目標体重。なければ食事の目標の目標体重（suggest_goals と同じ順）
+                    "goal_weight_kg": goal_weight if goal_weight is not None
+                    else (nutrition_goal or {}).get("target_weight_kg"),
+                    "weekly": await settings.weekly_goals(eater),
+                },
+                "injuries": injuries,
+                "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
+                "last_app_sync_at": await sync_status.last_app_sync_at(sub),
+            }
