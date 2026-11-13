@@ -1,11 +1,9 @@
-import { router } from 'expo-router';
 import { View } from 'react-native';
 import { PartBadge } from './ExerciseFields';
 import { MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
-import { Button, Card } from './ui';
 import type { Repositories } from '@/db';
-import { DateKey, daysBetween, formatJpDate, formatMonthDay } from '@/lib/date';
+import { DateKey, daysBetween, formatMonthDay } from '@/lib/date';
 import { focusByDate, PartLast, partSuggestion } from '@/lib/training';
 import { colors, radius, space } from '@/theme';
 
@@ -21,67 +19,9 @@ export async function loadPartDays(r: Repositories, rows?: Awaited<ReturnType<Re
     /** 部位の ID → 名前（非表示の部位も） */
     nameById,
     names: parts.filter((p) => !p.hidden).map((p) => p.name),
-    idByName: new Map(parts.filter((p) => !p.hidden).map((p) => [p.name.trim(), p.id])),
   };
 }
 export type PartDays = Awaited<ReturnType<typeof loadPartDays>>;
-
-/** 「6日前」。一度もなければ「まだ」 */
-const agoText = (p: PartLast) => (p.days == null ? 'まだ' : `${p.days}日前`);
-
-/**
- * 筋トレの記録のタブ：今日がまだ空のときの「部位ごとの前回」。背中・脚・胸の前回（新しい順）と、
- * いちばん日があいている部位に「いちばん空いている」、下に「今日は [背中] はどう？」と、その部位で種目を選ぶ画面を開くボタン。
- * どれも一度もやっていなければ出さない
- */
-export function PartLastCard({ data, date, today }: { data: PartDays; date: DateKey; today: DateKey }) {
-  const { rows, suggest } = partSuggestion(data.days, data.names, today);
-  if (!suggest) return null;
-  const partId = data.idByName.get(suggest.name);
-  return (
-    <View testID="part-last">
-      <Card style={{ gap: space.s }}>
-        <T variant="labelM" color={colors.sub} accessibilityRole="header">部位ごとの前回</T>
-        {rows.map((p) => {
-          const most = p.name === suggest.name;
-          return (
-            <View
-              key={p.name} testID={`part-last-${p.name}`} accessible
-              accessibilityLabel={[p.name, p.last ? `${agoText(p)}、${formatJpDate(p.last)}` : 'まだやっていない', most ? 'いちばん空いている' : ''].filter(Boolean).join('、')}
-              style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: space.s, minHeight: 32 }}
-            >
-              {/* 幅が足りなければ「いちばん空いている」を次の行の右へ回す（日数と日付は折り返さない） */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
-                <View style={{ minWidth: 44, alignItems: 'flex-start' }}><PartBadge name={p.name} /></View>
-                <T variant="titleM" numberOfLines={1}>{agoText(p)}</T>
-                {p.last && <T variant="bodyS" color={colors.sub} numberOfLines={1}>{formatJpDate(p.last)}</T>}
-              </View>
-              {most && <T variant="labelM" color={colors.accent} numberOfLines={1} style={{ marginLeft: 'auto' }}>いちばん空いている</T>}
-            </View>
-          );
-        })}
-        {/* 文は1行に。幅が足りなければボタンが下の行へ回る */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: space.s }}>
-          <View
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }} testID="part-suggest-text"
-            accessible accessibilityLabel={`今日は ${suggest.name} はどう？`}
-          >
-            <T variant="titleS">今日は</T>
-            <PartBadge name={suggest.name} />
-            <T variant="titleS">はどう？</T>
-          </View>
-          {partId && (
-            <Button
-              label={`${suggest.name}の種目を選ぶ`} variant="text" small
-              onPress={() => router.push({ pathname: '/workout/select', params: { date, part: partId } })}
-              style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }}
-            />
-          )}
-        </View>
-      </Card>
-    </View>
-  );
-}
 
 /** ホームの「今日のトレーニング」のカードの前回（今日より前の最後の筋トレの日の部位と何日前か）と、今日のおすすめ */
 export function todaySuggestion(data: PartDays, today: DateKey) {

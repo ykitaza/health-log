@@ -110,7 +110,7 @@ test('休憩のタイマー：セットを完了にすると数え、+30秒・�
   await expect(page.getByTestId('rest-timer')).toHaveCount(0);
 });
 
-test('今日が空なら前回のメニュー。「同じメニューで始める」で、重さと回数を未完了のセットとして写す', async ({ page }) => {
+test('今日が空なら前回の1行。「同じメニューで始める」で、重さと回数を未完了のセットとして写す', async ({ page }) => {
   await recordOn(page, '2026-11-04', [{ exercise: 'デッドリフト', sets: [{ weight: '120', reps: '5' }] }]);
   await recordOn(page, '2026-11-06', [
     { exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8', memo: '補助あり', done: true }, { weight: '75', reps: '10' }] },
@@ -118,11 +118,9 @@ test('今日が空なら前回のメニュー。「同じメニューで始め�
   ]);
   await moveToDate(page, TODAY);
   await goTab(page, '筋トレ');
-  const menu = page.getByTestId('previous-menu').filter({ visible: true });
-  await expect(menu).toContainText('前回のメニュー');
-  await expect(menu).toContainText('11月6日（金） ・ 胸');
-  // 種目は体の図の札（EX-01 …）で
-  await expect(menu.getByTestId('previous-figure')).toHaveAttribute('aria-label', '前回 11月6日（金）。1 ベンチプレス 胸、2 インクラインダンベルプレス 胸');
+  // 回復マップの下に前回の1行（日付と部位）と「同じメニューで始める」
+  const menu = page.getByTestId('previous-line').filter({ visible: true });
+  await expect(menu).toContainText('前回 11月6日（金） 胸');
   await button(page, '11月6日（金）と同じメニューで始める').click();
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
   await expect(menu).toHaveCount(0);

@@ -39,7 +39,7 @@ test('筋トレの記録：日を選ぶシート（筋トレの日に点、未�
   // 左へスワイプで次の日、右へスワイプで前の日。縦の動きでは変わらない
   await swipe(trainingArea(page), 'next');
   await expectTrainingDay(page, '11月6日（金）');
-  await expect(see(page, 'まだ種目がありません')).toBeVisible();
+  await expect(see(page, 'この日の記録はありません')).toBeVisible();
   await swipe(trainingArea(page), 'prev');
   await expectTrainingDay(page, '11月5日（木）');
   await swipe(trainingArea(page), 'prev', 200);

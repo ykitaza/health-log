@@ -34,11 +34,24 @@ export function muscleFigureFor(part: string): MuscleFigureSpec {
 }
 
 /**
+ * 前と後ろの2つの図を並べる所（記録の画面）で、muscleFigureFor から変える部位。
+ * 上腕三頭筋は後ろの図の三頭筋（と前腕）を塗り、種目の札もそこを指す（ホームの「最近」の小さな図は1つなので、前の図のまま）
+ */
+const PAIR_FIGURE: Record<string, MuscleFigureSpec> = {
+  上腕三頭筋: { view: 'back', muscles: ['triceps', 'forearm'] },
+};
+
+/** 前と後ろの図を並べる所の、部位の向きと筋肉 */
+export function pairFigureFor(part: string): MuscleFigureSpec {
+  return PAIR_FIGURE[part.trim()] ?? muscleFigureFor(part);
+}
+
+/**
  * その日に鍛えた部位の筋肉（記録の画面の、前と後ろの図で塗る）。部位ごとの筋肉を合わせ、重ねない。
  * 図の向きは決めず、前の図・後ろの図のそれぞれで、その図にある筋肉を塗る（三角筋・前腕は両方に出る）
  */
 export function musclesForParts(parts: string[]): Muscle[] {
-  return [...new Set(parts.flatMap((p) => muscleFigureFor(p).muscles))];
+  return [...new Set(parts.flatMap((p) => pairFigureFor(p).muscles))];
 }
 
 // ---- ケガの部位を図で選ぶ・印を付ける（lib/injuries.ts の部位のコード） ----

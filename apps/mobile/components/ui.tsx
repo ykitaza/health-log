@@ -176,8 +176,9 @@ export const CHIP_HEIGHT = 32;
 
 /** M3 の filter chip。選んだものはチェックの印も出す（色だけにしない） */
 /** accessibilityLabel：読み上げの名前（省くと label。同じ label のチップが画面に並ぶときに、何の選択肢かを足す） */
-export function Chip({ label, active, onPress, disabled, accessibilityLabel }: {
-  label: string; active?: boolean; onPress: () => void; disabled?: boolean; accessibilityLabel?: string;
+/** note は名前の右の小さな補足（記録の画面の部位のチップの「あと1日」）。dot はその前の色の点（色だけにしないよう note と使う） */
+export function Chip({ label, active, onPress, disabled, accessibilityLabel, note, dot }: {
+  label: string; active?: boolean; onPress: () => void; disabled?: boolean; accessibilityLabel?: string; note?: string; dot?: string;
 }) {
   return (
     <PressableScale
@@ -197,6 +198,8 @@ export function Chip({ label, active, onPress, disabled, accessibilityLabel }: {
       >
         {active && <Icon name="check" size={18} color={colors.onAccentDark} />}
         <T variant="labelL" bold={!!active} color={active ? colors.onAccentDark : colors.sub}>{label}</T>
+        {dot && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />}
+        {note && <T variant="bodyS" color={active ? colors.onAccentDark : colors.sub} style={{ marginLeft: dot ? -4 : 0 }}>{note}</T>}
       </View>
     </PressableScale>
   );
@@ -288,7 +291,23 @@ export function useLayouts(): [Record<string, ItemLayout | undefined>, (key: str
 }
 
 /** M3 の空の状態：アイコン（88 の丸）、題 22、説明 14、操作は 1 つまで */
-export function EmptyState({ icon = 'dumbbell', title, body, action }: { icon?: IconName; title: string; body?: string; action?: ReactNode }) {
+/** compact は1行の見出しと1行の補足を、小さなアイコンの横に並べる（下にヒーローの図を続ける所。記録の画面の記録のない日） */
+export function EmptyState({ icon = 'dumbbell', title, body, action, compact, testID }: {
+  icon?: IconName; title: string; body?: string; action?: ReactNode; compact?: boolean; testID?: string;
+}) {
+  if (compact) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m, paddingVertical: space.s }} testID={testID}>
+        <View style={[s.emptyIcon, { width: 48, height: 48, borderRadius: 24 }]}>
+          <Icon name={icon} color={colors.sub} size={24} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <T variant="titleM" accessibilityRole="header">{title}</T>
+          {body && <T variant="bodyM" color={colors.sub}>{body}</T>}
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={{ alignItems: 'center', paddingVertical: space.xxl, paddingHorizontal: space.l, gap: space.s }}>
       <View style={s.emptyIcon}>
