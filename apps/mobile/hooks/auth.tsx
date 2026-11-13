@@ -2,8 +2,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { createApiClient } from '@/lib/api';
-import { apiBaseUrl, authConfig } from '@/lib/auth/config';
-import { AuthError, createAuthClient, logoutUrl, NATIVE_LOGOUT_URI } from '@/lib/auth/session';
+import { apiBaseUrl, authConfig, NATIVE_LOGOUT_URI } from '@/lib/auth/config';
+import { AuthError, createAuthClient, logoutUrl } from '@/lib/auth/session';
 import { createSecureTokenStore } from '@/lib/auth/tokenStore';
 
 /**
@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthValue | null>(null);
  */
 async function clearBrowserSession() {
   if (Platform.OS === 'web') return;
-  await WebBrowser.openAuthSessionAsync(logoutUrl(authConfig), NATIVE_LOGOUT_URI);
+  await WebBrowser.openAuthSessionAsync(logoutUrl(authConfig, NATIVE_LOGOUT_URI), NATIVE_LOGOUT_URI);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

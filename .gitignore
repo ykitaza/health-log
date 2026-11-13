@@ -2,6 +2,8 @@
 __pycache__/
 *.py[oc]
 build/
+# EAS のカスタムビルドの設定（apps/mobile/eas.json の config）は置く場所が決まっているので、追跡する
+!apps/mobile/.eas/build/
 dist/
 wheels/
 *.egg-info

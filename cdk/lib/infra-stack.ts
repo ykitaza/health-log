@@ -381,8 +381,9 @@ export class InfraStack extends cdk.Stack {
           cognito.OAuthScope.OPENID,
           ...[mealsRead, mealsWrite, trainingRead, trainingWrite].map((s) => cognito.OAuthScope.resourceServer(appApi, s)),
         ],
-        callbackUrls: ['torelog://callback'],
-        logoutUrls: ['torelog://signout'],
+        // torelog-dev は開発用のアプリ hlog (dev)（apps/mobile/app.config.ts。PC の Metro につなぐ開発ビルド）
+        callbackUrls: ['torelog://callback', 'torelog-dev://callback'],
+        logoutUrls: ['torelog://signout', 'torelog-dev://signout'],
       },
       // 盗まれたときの被害を小さくするため、アクセストークンと ID トークンは短くする
       accessTokenValidity: cdk.Duration.minutes(15),

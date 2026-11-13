@@ -116,9 +116,9 @@ describe('スマホアプリ用のクライアント', () => {
     expect(app().ExplicitAuthFlows).toEqual(['ALLOW_USER_AUTH']);
   });
 
-  test('戻り先はアプリのカスタムスキームだけ', () => {
-    expect(app().CallbackURLs).toEqual(['torelog://callback']);
-    expect(app().LogoutURLs).toEqual(['torelog://signout']);
+  test('戻り先はアプリのカスタムスキームだけ（torelog-dev は開発用の hlog (dev)）', () => {
+    expect(app().CallbackURLs).toEqual(['torelog://callback', 'torelog-dev://callback']);
+    expect(app().LogoutURLs).toEqual(['torelog://signout', 'torelog-dev://signout']);
   });
 
   test('トークンの期限、ローテーション、失効、ユーザーの有無を隠す', () => {

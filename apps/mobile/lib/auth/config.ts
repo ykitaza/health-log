@@ -21,4 +21,11 @@ export const mcpServerUrl = extra.mcpUrl ?? '';
  */
 export const authzUrl = 'https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com';
 
-export const NATIVE_REDIRECT_URI = 'torelog://callback';
+/**
+ * アプリの scheme（app.json の torelog。開発用の hlog (dev) は torelog-dev。app.config.ts）。
+ * ログインの戻り先は scheme ごとに Cognito の torelog-app に登録してある（cdk/lib/infra-stack.ts）
+ */
+const scheme = typeof Constants.expoConfig?.scheme === 'string' ? Constants.expoConfig.scheme : 'torelog';
+export const NATIVE_REDIRECT_URI = `${scheme}://callback`;
+/** Cookie を消したあとの戻り先（lib/auth/session.ts の logoutUrl に渡す） */
+export const NATIVE_LOGOUT_URI = `${scheme}://signout`;
