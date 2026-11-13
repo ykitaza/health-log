@@ -61,23 +61,6 @@
       "expected": null
     }
   ],
-  "muscle_mass": [
-    {
-      "weight_kg": 70,
-      "pct": 40.2,
-      "expected": 28.14
-    },
-    {
-      "weight_kg": null,
-      "pct": 40,
-      "expected": null
-    },
-    {
-      "weight_kg": 70,
-      "pct": null,
-      "expected": null
-    }
-  ],
   "weekly_pace": [
     {
       "points": [
@@ -241,8 +224,6 @@
         "updated_at": "2026-11-01T07:00:00.000Z",
         "weight_kg": 70.0,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "",
         "source": "manual"
       },
@@ -252,8 +233,6 @@
         "updated_at": "2026-11-01T21:00:00.000Z",
         "weight_kg": null,
         "body_fat_pct": 18.5,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "夜",
         "source": "manual"
       },
@@ -263,8 +242,6 @@
         "updated_at": "2026-11-02T07:00:00.000Z",
         "weight_kg": 69.6,
         "body_fat_pct": 18.0,
-        "muscle_pct": 40.1,
-        "waist_cm": 80.0,
         "memo": "",
         "source": "manual"
       },
@@ -274,8 +251,6 @@
         "updated_at": "2026-11-02T08:00:00.000Z",
         "weight_kg": 69.4,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "同じ時刻",
         "source": "manual"
       },
@@ -285,8 +260,6 @@
         "updated_at": "2026-11-03T07:00:00.000Z",
         "weight_kg": 69.0,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "手で直した",
         "source": "manual"
       },
@@ -296,8 +269,6 @@
         "updated_at": "2026-11-03T21:00:00.000Z",
         "weight_kg": 68.5,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "",
         "source": "health_connect"
       },
@@ -307,8 +278,6 @@
         "updated_at": "2026-11-03T21:00:00.000Z",
         "weight_kg": null,
         "body_fat_pct": 17.0,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "",
         "source": "health_connect"
       },
@@ -318,8 +287,6 @@
         "updated_at": "2026-11-04T06:00:00.000Z",
         "weight_kg": 68.8,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "",
         "source": "health_connect"
       },
@@ -329,8 +296,6 @@
         "updated_at": "2026-11-04T22:00:00.000Z",
         "weight_kg": 68.2,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "",
         "source": "health_connect"
       }
@@ -340,32 +305,24 @@
         "date": "2026-11-01",
         "weight_kg": 70.0,
         "body_fat_pct": 18.5,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "夜"
       },
       {
         "date": "2026-11-02",
         "weight_kg": 69.4,
         "body_fat_pct": 18.0,
-        "muscle_pct": 40.1,
-        "waist_cm": 80.0,
         "memo": "同じ時刻"
       },
       {
         "date": "2026-11-03",
         "weight_kg": 69.0,
         "body_fat_pct": 17.0,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": "手で直した"
       },
       {
         "date": "2026-11-04",
         "weight_kg": 68.2,
         "body_fat_pct": null,
-        "muscle_pct": null,
-        "waist_cm": null,
         "memo": ""
       }
     ],

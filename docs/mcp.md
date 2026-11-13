@@ -128,7 +128,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 筋トレ | `list_exercises` | 部位と種目の一覧（アプリと同じもの）。BIG3 の役（`big3`：`bench`・`squat`・`deadlift`。割り当てがなければ名前で決めたもの）とフォームの動画のリンク（`form_video_url`）は、ある種目だけに付く（どちらもアプリで決める） |
 | 筋トレ | `add_exercise` | 種目を足す（アプリにも出る）。回数だけの種目は体重に対する割合（`bodyweight_ratio`、省くと名前から決める） |
 | 筋トレ | `update_exercise` | 種目の名前・部位・体重に対する割合を変える、隠す・表示に戻す（消すツールはなく、消す代わりに隠す） |
-| 筋トレ | `record_body` | 体組成（体重・体脂肪率・筋肉率・ウエスト）を記録する |
+| 筋トレ | `record_body` | 体組成（体重・体脂肪率）を記録する |
 | 筋トレ | `body_progress` | 体組成の推移と、体脂肪量・除脂肪量、体重の週あたりの変化（期間は `days` か `start`・`end`） |
 | 筋トレ | `sleep_summary` | 睡眠のまとめ（起きた日ごとの眠っていた時間・寝た時刻と起きた時刻、期間の平均）。Health Connect の取り込み。期間は `days` か `start`・`end` |
 | 筋トレ | `heart_rate_summary` | 心拍の1日のまとめ（安静時・平均・最低・最高）と、安静時心拍の平均。Health Connect の取り込み。期間は `days` か `start`・`end` |
@@ -157,7 +157,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | `from`・`to`・`days` | 期間と日数 |
 | `training` | `sessions`（筋トレをした日数）、`total_volume`、`days`（筋トレをした日ごとの `date`・`volume`・`sets`）、`exercises`（種目ごとの期間の最高の推定1RM：`exercise`・`body_part`・`max_estimated_1rm`・`weight_kg`・`reps`・`date`。大きい順に20件まで。自重の種目は出ない）、`exercises_omitted`（20件を超えた数）、体重がなくて総負荷量に入らなかった自重のセットがあれば `note` |
 | `meals` | `weekly_review` と同じ形から `from`・`to`・`goal` を除いたもの：`recorded_days`・`total_days`・`average_of_recorded_days`・`average_target`・`gap`・`days`（日ごとの `date`・`day_type`・`recorded`・`kcal`・`protein_g`・`fat_g`・`carbs_g`・`target_kcal`） |
-| `body` | `days_recorded`、`average_weight_kg`、`average_body_fat_pct`、`weekly_weight_change_kg`（`end` までの28日）、`days`（体重か体脂肪率がある日の `date`・`weight_kg`・`body_fat_pct`）。ウエストと筋肉率は入れない |
+| `body` | `days_recorded`、`average_weight_kg`、`average_body_fat_pct`、`weekly_weight_change_kg`（`end` までの28日）、`days`（体重か体脂肪率がある日の `date`・`weight_kg`・`body_fat_pct`） |
 | `sleep` | `nights_recorded`、`average_asleep_min`、`nights`（起きた日ごとの `date`・`asleep_min`・`bedtime`・`wake_time`。日本時間） |
 | `heart_rate` | `days_recorded`、`average_resting_bpm`、`days`（安静時心拍がある日の `date`・`resting_bpm`） |
 | `steps` | `days_recorded`、`average_steps`（記録がある日の平均。整数）、`days`（記録がある日の `date`・`steps`。1日の合計） |

@@ -28,12 +28,6 @@ def lean_mass(weight_kg: float | None, body_fat_pct: float | None) -> float | No
     return None if f is None or weight_kg is None else weight_kg - f
 
 
-def muscle_mass(weight_kg: float | None, muscle_pct: float | None) -> float | None:
-    if weight_kg is None or muscle_pct is None:
-        return None
-    return weight_kg * muscle_pct / 100
-
-
 def weekly_pace(points: list[tuple[str, float]], today: str, days: int = 28) -> float | None:
     """直近 days 日の体重のペース（kg／週）。最初と最後の記録から出す。2つ未満か同じ日だけなら None。"""
     start = add_days(today, -(days - 1))
@@ -68,12 +62,10 @@ class DailyBody:
     date: str
     weight_kg: float | None
     body_fat_pct: float | None
-    muscle_pct: float | None
-    waist_cm: float | None
     memo: str
 
 
-FIELDS = ("weight_kg", "body_fat_pct", "muscle_pct", "waist_cm")
+FIELDS = ("weight_kg", "body_fat_pct")
 
 
 def daily_body_values(records: list[BodyRecord]) -> list[DailyBody]:

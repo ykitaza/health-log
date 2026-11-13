@@ -203,8 +203,6 @@
             "measured_at": "2026-11-07T03:00:00.000Z",
             "weight_kg": 71.3,
             "body_fat_pct": 17.5,
-            "muscle_pct": null,
-            "waist_cm": null,
             "memo": "",
             "source": "manual"
           },
@@ -222,8 +220,6 @@
             "measured_at": "2026-11-07T03:00:00.000Z",
             "weight_kg": 71.3,
             "body_fat_pct": 17.5,
-            "muscle_pct": null,
-            "waist_cm": null,
             "memo": "",
             "source": "manual"
           },

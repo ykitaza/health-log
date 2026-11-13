@@ -1,20 +1,19 @@
 import {
-  averageBetween, bmi, fatMass, goalProgress, leanMass, metricValue, mondayOf, movingAverage, muscleMass, previousWeight, weekAverage, weeklyPace,
+  averageBetween, bmi, fatMass, goalProgress, leanMass, metricValue, mondayOf, movingAverage, previousWeight, weekAverage, weeklyPace,
 } from '../body';
 
-test('体組成の計算（68.4kg・16.2%・筋肉率33.5%・身長170cm）', () => {
+test('体組成の計算（68.4kg・16.2%・身長170cm）', () => {
   expect(bmi(68.4, 170)).toBeCloseTo(23.67, 2);
   expect(fatMass(68.4, 16.2)).toBeCloseTo(11.08, 2);
   expect(leanMass(68.4, 16.2)).toBeCloseTo(57.32, 2);
-  expect(muscleMass(68.4, 33.5)).toBeCloseTo(22.91, 2);
 });
 
 test('値が足りなければ null', () => {
   expect(bmi(68, null)).toBeNull();
   expect(bmi(68, 0)).toBeNull();
   expect(leanMass(null, 16)).toBeNull();
-  expect(metricValue({ weightKg: 70, bodyFatPct: 20, musclePct: null, waistCm: 80 }, 'leanMass', null)).toBe(56);
-  expect(metricValue({ weightKg: 70, bodyFatPct: null, musclePct: null, waistCm: null }, 'bmi', null)).toBeNull();
+  expect(metricValue({ weightKg: 70, bodyFatPct: 20 }, 'leanMass', null)).toBe(56);
+  expect(metricValue({ weightKg: 70, bodyFatPct: null }, 'bmi', null)).toBeNull();
 });
 
 test('体重のペース（kg／週）', () => {

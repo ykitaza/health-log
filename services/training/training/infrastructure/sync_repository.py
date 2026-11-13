@@ -157,7 +157,7 @@ class SyncTrainingRepository:
     async def body_records(self, trainee: TraineeId) -> list[BodyRecord]:
         states = await self._run(self._alive, trainee.value, "body_record")
         return [BodyRecord(s.entity_id, s.values["date"], s.values["measured_at"], s.values.get("weight_kg"),
-                           s.values.get("body_fat_pct"), s.values.get("muscle_pct"), s.values.get("waist_cm"),
+                           s.values.get("body_fat_pct"),
                            s.values.get("memo", ""), s.values["source"], s.updated_at) for s in states]
 
     async def sleep_sessions(self, trainee: TraineeId) -> list[SleepSession]:
@@ -273,8 +273,7 @@ class SyncTrainingRepository:
         state = self._states(user, {("body_record", record.id)}).get(("body_record", record.id))
         self._write(user, self._upsert("body_record", record.id, state, {
             "date": record.date, "measured_at": record.measured_at, "weight_kg": record.weight_kg,
-            "body_fat_pct": record.body_fat_pct, "muscle_pct": record.muscle_pct, "waist_cm": record.waist_cm,
-            "memo": record.memo, "source": record.source}))
+            "body_fat_pct": record.body_fat_pct, "memo": record.memo, "source": record.source}))
 
     async def save_body_record(self, trainee: TraineeId, record: BodyRecord) -> None:
         await self._run(self._save_body_record, trainee.value, record)

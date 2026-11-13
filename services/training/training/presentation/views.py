@@ -175,11 +175,9 @@ def weekly(review: WeeklyTrainingReview, catalog: Catalog) -> dict:
 
 def daily_body(d: body.DailyBody) -> dict:
     return {
-        "date": d.date, "weight_kg": d.weight_kg, "body_fat_pct": d.body_fat_pct, "muscle_pct": d.muscle_pct,
-        "waist_cm": d.waist_cm, "memo": d.memo,
+        "date": d.date, "weight_kg": d.weight_kg, "body_fat_pct": d.body_fat_pct, "memo": d.memo,
         "fat_mass_kg": r1(body.fat_mass(d.weight_kg, d.body_fat_pct)),
         "lean_mass_kg": r1(body.lean_mass(d.weight_kg, d.body_fat_pct)),
-        "muscle_mass_kg": r1(body.muscle_mass(d.weight_kg, d.muscle_pct)),
     }
 
 

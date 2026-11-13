@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from sync.fields import Day, FieldsModel, Memo, Moment, Ref, SortOrder
 from sync.registry import EntitySpec, Registry, Rejection
@@ -76,13 +76,19 @@ class BodyRecordFields(FieldsModel):
     measured_at: Moment = None
     weight_kg: Annotated[float, Field(ge=30, le=300)] | None = None
     body_fat_pct: Annotated[float, Field(ge=0, le=100)] | None = None
-    muscle_pct: Annotated[float, Field(ge=0, le=100)] | None = None
     lean_mass_kg: Annotated[float, Field(ge=0, le=300)] | None = None
-    waist_cm: Annotated[float, Field(ge=30, le=200)] | None = None
     memo: Memo = None
     source: Literal["manual", "health_connect"] = None
     external_id: Annotated[str, Field(max_length=200)] | None = None
     origin_package: Annotated[str, Field(max_length=200)] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_removed(cls, data: object) -> object:
+        """筋肉率（muscle_pct）とウエスト（waist_cm）は外した。前の版のアプリが送ってきても、断らずに捨てる。"""
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if k not in ("muscle_pct", "waist_cm")}
+        return data
 
 
 Minutes = Annotated[int, Field(ge=0, le=1440)]  # 1件の睡眠は24時間まで（アプリの SLEEP_MAX_MIN）

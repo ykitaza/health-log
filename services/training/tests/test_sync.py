@@ -83,7 +83,7 @@ def test_体組成は手入力が取り込みに勝つ(engine):
     ("workout_set", {"entry_id": "e1", "set_index": 0, "weight_kg": 500.5, "reps": 1}),  # 重量は500kgまで（アプリと同じ）
     ("workout_set", {"entry_id": "e1", "set_index": 0, "weight_kg": 0, "reps": 1}),  # 0より大きい
     ("workout_set", {"entry_id": "e1", "set_index": 0, "reps": 1.5}),  # 回数は整数
-    ("body_record", {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual", "waist_cm": 20}),
+    ("body_record", {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual", "body_fat_pct": 101}),
     ("exercise", {"body_part_id": "chest", "name": "", "record_type": "weight_reps", "sort_order": 0, "hidden": False}),
     ("exercise", {"body_part_id": "chest", "name": "x", "record_type": "time", "sort_order": 0, "hidden": False}),
     ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0, "hidden": False,
@@ -108,7 +108,7 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
     raws = [
         ("workout_set", {"entry_id": "e1", "set_index": 0, "weight_kg": 500, "reps": 1}),
         ("body_record", {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual",
-                         "weight_kg": 30, "waist_cm": 200}),
+                         "weight_kg": 30, "body_fat_pct": 100}),
         ("body_part", {"name": "胸" * 40, "sort_order": 0, "hidden": False}),
         ("exercise", {"body_part_id": "chest", "name": "懸垂", "record_type": "reps_only", "sort_order": 0,
                       "hidden": False, "bodyweight_ratio": 1}),
@@ -122,6 +122,20 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
                "fields": fields, "changed_at": "2026-11-08T09:00:00Z"}
         assert isinstance(REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel"), Change), entity_type
     assert len(name) == 280
+
+
+def test_体組成の筋肉率とウエストは_前の版のアプリが送っても断らずに捨てる():
+    raw = {"change_id": str(uuid.uuid4()), "entity_type": "body_record", "entity_id": "x", "op": "create",
+           "fields": {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual", "weight_kg": 70,
+                      "muscle_pct": 40.1, "waist_cm": 80, "memo": ""},
+           "changed_at": "2026-11-08T09:00:00Z"}
+    parsed = REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel")
+    assert isinstance(parsed, Change)
+    assert parsed.fields == {"date": "2026-11-08", "measured_at": "2026-11-08T07:00:00Z", "source": "manual",
+                             "weight_kg": 70, "memo": ""}
+    # 範囲の外の値でも断らない（もう確かめない）
+    raw = {**raw, "change_id": str(uuid.uuid4()), "op": "update", "fields": {"weight_kg": 71, "waist_cm": 1000}}
+    assert REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel").fields == {"weight_kg": 71}
 
 
 def test_筋トレの種類は_training_の_scope():

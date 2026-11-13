@@ -514,6 +514,55 @@ describe('並び順が同じとき（同期でほかの端末の記録が入っ�
   });
 });
 
+describe('版14のマイグレーション（体組成の筋肉率・ウエストを消す）', () => {
+  test('列と値を消す。その2つしかない手入力の行は消して delete を送る。まだ送っていない変更と、待っている状態からも取り除く', async () => {
+    const db = memoryDb();
+    const deps = testDeps();
+    const v14 = MIGRATIONS.splice(13);
+    try {
+      await migrate(db, deps.now);
+    } finally {
+      MIGRATIONS.push(...v14);
+    }
+    const insert = db.raw.prepare(`INSERT INTO body_records (id, date, measured_at, weight_kg, body_fat_pct, muscle_pct, waist_cm, memo, source, created_at, updated_at)
+      VALUES (?, '2026-11-01', '2026-11-01T07:00:00.000Z', ?, NULL, ?, ?, ?, ?, 'x', 'x')`);
+    insert.run('waist-only', null, null, 80, '', 'manual');
+    insert.run('muscle-only', null, 40, null, '', 'manual');
+    insert.run('with-weight', 70, 40, 80, '', 'manual');
+    insert.run('with-memo', null, null, 80, '朝', 'manual');
+    insert.run('imported', null, 40, null, '', 'health_connect');
+    db.raw.prepare(`UPDATE body_records SET waist_cm = 81, updated_at = 'y' WHERE id = 'with-weight'`).run();
+    db.raw.prepare(`INSERT INTO sync_held (entity_type, entity_id, seq, state) VALUES ('body_record', 'held', 3, ?)`)
+      .run(JSON.stringify({ entity_type: 'body_record', entity_id: 'held', fields: { weight_kg: 70, waist_cm: 80, muscle_pct: 40 }, seq: 3 }));
+
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    const columns = (db.raw.prepare('PRAGMA table_info(body_records)').all() as { name: string }[]).map((c) => c.name);
+    expect(columns).not.toContain('muscle_pct');
+    expect(columns).not.toContain('waist_cm');
+    const alive = db.raw.prepare('SELECT id FROM body_records WHERE deleted_at IS NULL ORDER BY id').all();
+    expect(alive).toEqual([{ id: 'imported' }, { id: 'with-memo' }, { id: 'with-weight' }]);
+    const outbox = db.raw.prepare('SELECT entity_id, op, fields, changed_at FROM sync_outbox ORDER BY seq').all() as
+      { entity_id: string; op: string; fields: string | null; changed_at: string }[];
+    expect(outbox.map((c) => [c.entity_id, c.op])).toEqual([
+      ['waist-only', 'create'], ['muscle-only', 'create'], ['with-weight', 'create'], ['with-memo', 'create'], ['imported', 'create'],
+      ['waist-only', 'delete'], ['muscle-only', 'delete'],
+    ]);
+    expect(outbox.filter((c) => c.op === 'delete').map((c) => c.changed_at)).toEqual(['2026-11-08T00:00:00.000Z', '2026-11-08T00:00:00.000Z']);
+    for (const c of outbox) expect(c.fields ?? '').not.toMatch(/muscle_pct|waist_cm/);
+    expect(JSON.parse(outbox[2].fields!)).toMatchObject({ weight_kg: 70, memo: '' });
+    const held = db.raw.prepare(`SELECT state FROM sync_held WHERE entity_id = 'held'`).get() as { state: string };
+    expect(JSON.parse(held.state).fields).toEqual({ weight_kg: 70 });
+
+    // 作り直したトリガーは、残った項目だけを積む
+    db.raw.prepare(`UPDATE body_records SET weight_kg = 69.5, updated_at = 'z' WHERE id = 'with-weight'`).run();
+    const last = db.raw.prepare('SELECT op, fields FROM sync_outbox ORDER BY seq DESC LIMIT 1').get() as { op: string; fields: string };
+    expect([last.op, JSON.parse(last.fields)]).toEqual(['update', { weight_kg: 69.5 }]);
+    // 画面のリポジトリも読める
+    const r = repos(db, deps);
+    expect(await r.body.getDay('2026-11-01')).toEqual({ date: '2026-11-01', weightKg: 69.5, bodyFatPct: null, memo: '朝' });
+  });
+});
+
 describe('体組成', () => {
   test('手入力は1日1件を書き換え、null で項目を消せる', async () => {
     const { r, db, deps } = await setup();
@@ -523,7 +572,7 @@ describe('体組成', () => {
     await r.body.saveManual('2026-11-08', { weightKg: null });
     expect(db.raw.prepare('SELECT COUNT(*) AS n FROM body_records').get()).toEqual({ n: 1 });
     expect(await r.body.getDay('2026-11-08')).toEqual({
-      date: '2026-11-08', weightKg: null, bodyFatPct: 16.2, musclePct: null, waistCm: null, memo: '朝',
+      date: '2026-11-08', weightKg: null, bodyFatPct: 16.2, memo: '朝',
     });
     const row = db.raw.prepare('SELECT source, external_id, origin_package FROM body_records').get();
     expect(row).toEqual({ source: 'manual', external_id: null, origin_package: null });
@@ -540,7 +589,7 @@ describe('体組成', () => {
     const rows = () => db.raw.prepare('SELECT date, weight_kg, memo, updated_at FROM body_records').all();
     await r.body.saveManual('2026-11-08', { weightKg: null });
     await r.body.saveManual('2026-11-08', { memo: '' });
-    await r.body.saveManual('2026-11-08', { bodyFatPct: null, musclePct: null, waistCm: null, memo: '' });
+    await r.body.saveManual('2026-11-08', { bodyFatPct: null, memo: '' });
     expect(rows()).toEqual([]);
     await r.body.saveManual('2026-11-08', { weightKg: 68.4, memo: '朝' });
     const saved = rows();
@@ -548,7 +597,7 @@ describe('体組成', () => {
     await r.body.saveManual('2026-11-08', { weightKg: 68.4 });
     await r.body.saveManual('2026-11-08', { memo: '朝', bodyFatPct: null });
     expect(rows()).toEqual(saved);
-    await r.body.saveManual('2026-11-08', { weightKg: 68.4, waistCm: 80 });
+    await r.body.saveManual('2026-11-08', { weightKg: 68.4, bodyFatPct: 16.2 });
     expect(rows()).toEqual([{ date: '2026-11-08', weight_kg: 68.4, memo: '朝', updated_at: '2026-11-08T00:00:01.000Z' }]);
   });
 

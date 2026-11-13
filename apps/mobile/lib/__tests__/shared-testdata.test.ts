@@ -2,7 +2,7 @@
 // 両方で同じ結果になることを、小数の誤差まで（toEqual で）確かめる。
 import * as fs from 'fs';
 import * as path from 'path';
-import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, muscleMass, weeklyPace } from '../body';
+import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, weeklyPace } from '../body';
 import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bodyweight';
 import { big3Assignments, Big3Role } from '../exercises';
 import type { RecordType } from '../sets';
@@ -113,11 +113,10 @@ describe('bodyweight.json：自重の種目の負荷量（体重 × 割合 × �
 describe('body.json', () => {
   const data = load('body.json');
 
-  test('BMI・体脂肪量・除脂肪体重・筋肉量', () => {
+  test('BMI・体脂肪量・除脂肪体重', () => {
     for (const c of data.bmi) expect(bmi(c.weight_kg, c.height_cm)).toEqual(c.expected);
     for (const c of data.fat_mass) expect(fatMass(c.weight_kg, c.pct)).toEqual(c.expected);
     for (const c of data.lean_mass) expect(leanMass(c.weight_kg, c.pct)).toEqual(c.expected);
-    for (const c of data.muscle_mass) expect(muscleMass(c.weight_kg, c.pct)).toEqual(c.expected);
   });
 
   test('体重のペース', () => {
@@ -136,15 +135,15 @@ describe('body.json', () => {
   test('1日に1つの値（手入力が先、取り込みは手入力の値がない項目だけ）', () => {
     const records = data.daily_body_values.records.map((r: any) => ({
       date: r.date, measuredAt: r.measured_at, updatedAt: r.updated_at, weightKg: r.weight_kg,
-      bodyFatPct: r.body_fat_pct, musclePct: r.muscle_pct, waistCm: r.waist_cm, memo: r.memo, source: r.source,
+      bodyFatPct: r.body_fat_pct, memo: r.memo, source: r.source,
     }));
     const expected = data.daily_body_values.expected.map((d: any) => ({
-      date: d.date, weightKg: d.weight_kg, bodyFatPct: d.body_fat_pct, musclePct: d.muscle_pct, waistCm: d.waist_cm, memo: d.memo,
+      date: d.date, weightKg: d.weight_kg, bodyFatPct: d.body_fat_pct, memo: d.memo,
     }));
     const daily = dailyBodyValues(records);
     expect(daily.map(({ imported: _, ...v }) => v)).toEqual(expected);
     // 取り込みの値を出している項目（体組成の画面の印）
-    const names: Record<string, string> = { weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct', musclePct: 'muscle_pct', waistCm: 'waist_cm' };
+    const names: Record<string, string> = { weightKg: 'weight_kg', bodyFatPct: 'body_fat_pct' };
     expect(Object.fromEntries(daily.filter((d) => d.imported).map((d) => [d.date, d.imported!.map((f) => names[f])])))
       .toEqual(data.daily_body_values.expected_imported);
   });
