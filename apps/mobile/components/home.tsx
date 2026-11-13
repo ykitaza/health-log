@@ -1,6 +1,6 @@
 // ホームの部品：見出しの行、ヒーローの GROWTH のページ、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View, ViewInstance } from 'react-native';
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -69,11 +69,11 @@ export function HomeHeader({ year, month }: { year: number; month: number }) {
 }
 
 /**
- * ヒーローの GROWTH のページ：記録で育つ形（押すと成長を見る画面）、右上に「成長を見る」、右下に成長スコア（押すと内訳のシート）。
+ * ヒーローの GROWTH のページ：記録で育つ形（押すと成長を見る画面）、右下に成長スコア（押すと内訳のシート）。ほかの四隅（PHASE・PACE・WEIGHT）は children。
  * width・height はヒーローの大きさ。形の箱は輪の内側。形は、ほかのタブにいるときと、スクロールして見えないときは止める。
  * 見えているページだけを描く（LATEST のときは、このページごと外す）
  */
-export function GrowthPage({ today, width, height, box }: { today: DateKey; width: number; height: number; box: number }) {
+export function GrowthPage({ today, width, height, box, children }: { today: DateKey; width: number; height: number; box: number; children?: ReactNode }) {
   const focused = useIsFocused();
   const stageRef = useRef<ViewInstance>(null);
   const stage = useOnScreen(stageRef);
@@ -94,9 +94,8 @@ export function GrowthPage({ today, width, height, box }: { today: DateKey; widt
           <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={box} height={box} paused={!focused || !stage.onScreen} />
         )}
       </PressableScale>
-      <PressableScale accessibilityRole="button" accessibilityLabel="成長を見る" scaleTo={0.96} onPress={openGrowth} style={[s.corner, { right: 0, top: 0, alignItems: 'flex-end' }]} testID="growth-link">
-        <T variant="labelM" color={colors.accent}>成長を見る ›</T>
-      </PressableScale>
+      {/* 四隅の PHASE・PACE・WEIGHT（ヒーローが渡す）。成長を見る画面へは形を押して開く */}
+      {children}
       <PressableScale
         accessibilityRole="button" accessibilityLabel={scoreA11yLabel(score)} scaleTo={0.96} onPress={() => setOpen(true)}
         style={[s.corner, { right: 0, bottom: 0, alignItems: 'flex-end' }]} testID="growth-score"

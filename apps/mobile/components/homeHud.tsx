@@ -10,7 +10,7 @@ import { BIG3_LABELS } from '@/lib/exercises';
 import { tonnes, formatSigned } from '@/lib/format';
 import { formatHM } from '@/lib/health';
 import {
-  Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, PartState, PartsRadar, SleepGauge,
+  Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, logWeekRange, PartState, PartsRadar, SleepGauge,
 } from '@/lib/homeHud';
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { BALANCE_PARTS } from '@/lib/partBalance';
@@ -79,12 +79,12 @@ function Big({ value, format, unit, testID }: { value: number | null; format: (v
 const trendColor = (n: number) => (n > 0 ? colors.accent : n < 0 ? colors.danger : colors.sub);
 const big3Short = { bench: 'B', squat: 'S', deadlift: 'D' } as const;
 
-/** BIG3：今の合計（推定1RM）、28 日前からの差、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移 */
+/** BIG3：今の合計（推定1RM）、差（フェーズ実施中は開始から Δ PHASE、ほかは 28 日前から）、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移 */
 export function Big3Panel({ gauge, unit, ready }: { gauge: Big3Gauge | null; unit: WeightUnit; ready: boolean }) {
   const [w, setW] = useState(0);
   const u = (kg: number) => kgToUnit(kg, unit);
   const max = gauge ? Math.max(...gauge.lifts.map((l) => l.kg ?? 0)) : 0;
-  const deltaWord = gauge?.deltaBase === '28D' ? '28日前より' : '始めた日より';
+  const deltaWord = gauge?.deltaBase === 'PHASE' ? 'フェーズの開始より' : gauge?.deltaBase === '28D' ? '28日前より' : '始めた日より';
   const label = !ready ? 'BIG3 推定1RM 合計'
     : !gauge ? 'BIG3 推定1RM 合計。BIG3 の記録がまだありません'
     : [
@@ -215,18 +215,16 @@ const onCell = (level: number) => (level >= 2 ? colors.onAccent : colors.text);
 export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
   weeks: LogWeek[]; month: { month: string; days: number; volumeKg: number } | null; selected: DateKey; unit: WeightUnit; onPressDay: (d: DateKey) => void;
 }) {
-  const first = weeks[0]?.label ?? '';
-  const last = weeks[weeks.length - 1]?.label ?? '';
   return (
     <Panel testID="home-log" style={{ paddingHorizontal: space.m }}>
-      <Head left={`LOG // ${first}-${last}`} right={month ? `${month.month}  ${month.days}D · ${tonnes(month.volumeKg, unit)}${unit === 'kg' ? 'T' : 'K LB'}` : null} />
+      <Head left={`LOG // ${logWeekRange(weeks.map((w) => w.label))}`} right={month ? `${month.month}  ${month.days}D · ${tonnes(month.volumeKg, unit)}${unit === 'kg' ? 'T' : 'K LB'}` : null} />
       <View style={[s.logRow, { marginTop: space.xs }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={s.weekLabel} />
         {(weeks[0]?.cells ?? []).map((c) => <View key={c.date} style={s.logHead}><Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono></View>)}
       </View>
       <View style={{ gap: 4 }}>
         {weeks.map((w) => (
-          <View key={w.label} style={[s.logRow, w.current && s.currentRow]} testID={w.current ? 'log-current-week' : undefined}>
+          <View key={w.cells[0].date} style={[s.logRow, w.current && s.currentRow]} testID={w.current ? 'log-current-week' : undefined}>
             {w.current && <Brackets color={colors.accent} size={8} />}
             <View style={s.weekLabel}><Mono size={11} color={w.current ? colors.accent : colors.sub}>{w.label}</Mono></View>
             {w.cells.map((c) => <LogDay key={c.date} c={c} selected={c.date === selected} unit={unit} onPress={() => onPressDay(c.date)} />)}

@@ -282,7 +282,7 @@ test('形を選ぶ：シートに3つ並び、木を選ぶと形が変わって�
   await openApp(page);
   // 形はホームのヒーローの GROWTH のページにある
   await growthPage(page).click();
-  await button(page, '成長を見る').click();
+  await button(page, '成長の形（点の軌跡）。押すと成長を見る画面を開く').click();
   await expect(shapeImage(page, '点の軌跡')).toBeVisible();
 
   // 記録がまだない日にもボタンは出る。押すとシートに3つ並び、最初は点の軌跡を選んでいる
