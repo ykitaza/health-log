@@ -38,4 +38,15 @@ describe('latest と latestOfKind（other は出さない）', () => {
     expect(await d.r.reports.latestOfKind('weekly')).toBeNull();
     expect(await d.r.reports.latestOfKind('monthly')).toBeNull();
   });
+
+  test('unread は other を出さない（ホームの「新しいレポート」の帯にも出ない）', async () => {
+    const d = await device();
+    saveReport(d, DAY, '2026-11-09T01:00:00.000Z', { title: '11月8日のまとめ', kind: 'daily', period_start: '2026-11-08', period_end: '2026-11-08' });
+    await d.engine.run();
+    await d.r.reports.seenIds(); // 初期化：今あるものは見たことにする
+    saveReport(d, OTHER, '2026-11-10T01:00:00.000Z', { title: 'ベンチプレスの分析', kind: 'other' });
+    saveReport(d, DAY2, '2026-11-11T01:00:00.000Z', { title: '11月10日のまとめ', kind: 'daily', period_start: '2026-11-10', period_end: '2026-11-10' });
+    await d.engine.run();
+    expect((await d.r.reports.unread()).map((r) => r.id)).toEqual([DAY2]);
+  });
 });

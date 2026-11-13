@@ -154,22 +154,23 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await expect(todo.getByRole('button', { name: '今週やることを全部できた。1つのうち1つ済み' })).toBeVisible();
   await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
 
-  // レポートのタブに戻ると、最新のレポートの入口が出る。押すと詳細
-  await tab(page, 'レポート').click();
-  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
-  await page.getByTestId(`report-${REPORT}`).filter({ visible: true }).click();
+  // ホームの最新のレポートのカードから、詳細を開き直す
+  await page.getByTestId('latest-report').filter({ visible: true })
+    .getByRole('button', { name: /^気をつけたい、今週のまとめ、/ }).click();
   await expect(see(band(page), '11月2日（月）〜11月8日（日）')).toBeVisible();
 
-  // 消す：確認のダイアログ → レポートのタブの空の状態。サーバーにも delete が届く
+  // 消す：確認のダイアログ → サーバーにも delete が届く。レポートのタブは空の状態になる
   await button(page, 'このレポートを消す').click();
   await expect(see(page, 'レポートを消しますか？')).toBeVisible();
   await button(page, 'やめる').click();
   await expect(see(page, 'レポートを消しますか？')).toHaveCount(0);
   await button(page, 'このレポートを消す').click();
   await button(page, '消す').click();
-  await expect(see(page, 'レポートはまだありません')).toBeVisible();
-  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect.poll(() => server.state('report', REPORT)?.deleted, { timeout: 15_000 }).toBe(true);
+  await expect(homeIcon(page)).toBeVisible();
+  await tab(page, 'レポート').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, 'レポートはまだありません')).toBeVisible();
 });
 
 test('週のまとめの「先週やることの振り返り」：前の週の次の一歩と済んだ数を、詳細に見るだけで出す', async ({ page, context }) => {

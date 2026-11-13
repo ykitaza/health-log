@@ -65,10 +65,13 @@ export function reportRepository(db: Db, deps: Deps) {
     /** 見たレポートの ID（初めて呼んだときは、今あるものを全部見たことにする） */
     seenIds,
 
-    /** まだ開いていないレポート（作った時刻の新しい順） */
+    /**
+     * まだ開いていないレポート（作った時刻の新しい順）。
+     * kind が 'other'（分析レポート）は出さない（latest と同じく、アプリのどこにも表示しない決まり。お知らせの帯にも出ない）
+     */
     async unread(): Promise<Report[]> {
       const seen = await seenIds();
-      return (await list()).filter((r) => !seen.has(r.id));
+      return (await list()).filter((r) => r.kind !== 'other' && !seen.has(r.id));
     },
 
     /**
