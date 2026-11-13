@@ -254,7 +254,7 @@ function Corners({ children }: { children: [ReactNode, ReactNode, ReactNode, Rea
 }
 
 /**
- * 体の列の外に重ねる面（LATEST）。その日の体（DayBody）の 3D はヒーロー全面でなぞる操作を受けるので、列の外に指が届かないように
+ * 体の列の外に重ねる面（LATEST・RECOVERY）。その日の体（DayBody）の 3D はヒーロー全面でなぞる操作を受けるので、列の外に指が届かないように
  * 何もしない面を重ね、そこからの横スワイプをページの切り替えに回す（DayBody の部品は変えない）
  */
 function SwipeShield({ width, rotate }: { width: number; rotate: { left: number; width: number } }) {
@@ -327,6 +327,7 @@ function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <HeroBody kind="recovery" width={width} height={height} band={band} list={data.recovery.list} levels={data.recovery.levels}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} />
+      <SwipeShield width={width} rotate={rotate} />
       <PressableScale accessibilityRole="button" accessibilityLabel={`${spoken}。回復マップを開く`} scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]}
         testID="hero-recovery" onPress={() => router.navigate('/body')}>
         <Corner align="left" label="READY //" value={String(c.ready)} sub={`/ ${c.total} PARTS`} />
