@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { View } from 'react-native';
+import { ReactNode, useRef, useState } from 'react';
+import { Pressable, View, ViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
+import Svg, { Circle, Line } from 'react-native-svg';
 import { AiRecordButton } from './ChatSheet';
 import { Big3Badge, PartBadge } from './ExerciseFields';
 import { Icon } from './Icon';
@@ -12,7 +13,7 @@ import { loadPartDays, PartLastCard } from './partDay';
 import { DailyHighlights } from './reports';
 import { RestTimerBar } from './RestTimer';
 import { T } from './Text';
-import { Button, Card, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
+import { Button, Card, Chip, ChipRow, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
@@ -21,10 +22,11 @@ import { big3RoleById } from '@/lib/exercises';
 import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
-import { musclesForParts } from '@/lib/muscleFigure';
-import { bestSet, dayFocus, entryCardLabel, partSuggestion, totalVolume } from '@/lib/training';
-import { fmt1, kgToUnit } from '@/lib/units';
-import { colors, space } from '@/theme';
+import { calloutSet, dayFigureLabel, exerciseNumber, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCallouts';
+import { MuscleView, musclesForParts, partsAt } from '@/lib/muscleFigure';
+import { bestSet, dayFocus, entryCardLabel, partSuggestion, SetValues, totalVolume } from '@/lib/training';
+import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
+import { colors, fonts, space } from '@/theme';
 
 /** 「種目を追加」のボタン（画面の下に固定する）。未来の日は押せない */
 export function AddExerciseButton({ date }: { date: string }) {
@@ -55,15 +57,17 @@ export function WorkoutFooter({ date }: { date: string }) {
 export function WorkoutDayContent({ date }: { date: string }) {
   const today = todayKey();
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [entries, settings, exercises] = await Promise.all([
-      r.workouts.getDay(date), r.settings.get(), r.catalog.listExercises({ includeHidden: true }),
+    const [entries, settings, exercises, bodyParts] = await Promise.all([
+      r.workouts.getDay(date), r.settings.get(), r.catalog.listExercises({ includeHidden: true }), r.catalog.listBodyParts(),
     ]);
-    // 今日が空なら「前回のメニュー」（直近のトレーニングの日）を出す
-    const empty = entries.length === 0 && date === todayKey();
+    // 空の日（今日と過去の日）は、その日より前の直近のトレーニングの日（前回）を、体の図で出す
+    const empty = entries.length === 0 && date <= todayKey();
     const previous = empty ? await r.workouts.previousDay(date) : null;
     // 今日が空なら「部位ごとの前回」（背中・脚・胸の前回と今日のおすすめ）も出す
-    const partDays = empty ? await loadPartDays(r) : null;
-    return { entries, settings, big3: big3RoleById(exercises), previous, partDays };
+    const partDays = empty && date === todayKey() ? await loadPartDays(r) : null;
+    // 図から選べる部位（非表示でないもの。種目の選択の部位のチップと同じ ID）
+    const pickParts = bodyParts.map((b) => ({ id: b.id, name: b.name }));
+    return { entries, settings, big3: big3RoleById(exercises), previous, partDays, pickParts };
   }, date);
   const [removing, setRemoving] = useState<Entry | null>(null);
   const list = useListMotion(data != null);
@@ -95,6 +99,8 @@ export function WorkoutDayContent({ date }: { date: string }) {
     await reload();
   });
   const previous = data?.previous;
+  // 前回のメニューを写せるのは今日だけ（過去の空の日は、前回を図で見せるだけ）
+  const canCopy = date === today;
   const partDays = data?.partDays;
   const partCard = partDays && partSuggestion(partDays.days, partDays.names, today).suggest
     ? <PartLastCard data={partDays} date={date} today={today} /> : null;
@@ -105,22 +111,44 @@ export function WorkoutDayContent({ date }: { date: string }) {
     <>
       {data && entries.length === 0 && partCard && <View style={{ marginTop: space.s }}>{partCard}</View>}
       {data && entries.length === 0 && date <= today && !partCard && (
-        <View style={{ marginTop: previous ? space.xxl : space.xxl * 2 }}>
-          <EmptyState title="まだ種目がありません" body={previous ? '下の「種目を追加」か、前回のメニューから始めましょう' : '下の「種目を追加」から始めましょう'} />
+        <View style={{ marginTop: space.xxl }}>
+          <EmptyState title="まだ種目がありません" body={previous && canCopy ? '下の「種目を追加」か、前回のメニューから始めましょう' : '下の「種目を追加」か、体の図の部位から始めましょう'} />
         </View>
       )}
+      {/* 前回のメニュー：前回の日の部位と種目を体の図で（今日の記録より控えめな緑）。今日なら「同じメニューで始める」 */}
       {data && entries.length === 0 && previous && (
-        <View testID="previous-menu" style={partCard ? { marginTop: space.m } : undefined}><Card style={{ gap: space.xs }}>
-          <T variant="labelM" color={colors.sub}>前回のメニュー</T>
-          <T variant="titleM">{formatJpDate(previous.date)} ・ {[...new Set(previous.entries.map((e) => e.bodyPartName))].join('・')}</T>
-          <T variant="bodyM" color={colors.sub}>{previous.entries.map((e) => e.exerciseName).join(' ・ ')}</T>
-          <Button
-            label={busy ? '写しています…' : '同じメニューで始める'} variant="text" small busy={busy} onPress={copyPrevious}
-            accessibilityLabel={`${formatJpDate(previous.date)}と同じメニューで始める`}
-            style={{ alignSelf: 'flex-start', paddingLeft: 12, paddingRight: 12, marginLeft: -12, marginTop: space.xs }}
+        <View testID="previous-menu" style={{ marginTop: space.m }}>
+          <DayPartsFigure
+            key={date} testID="previous-figure" muted date={date} pickParts={data.pickParts} unit={unit}
+            entries={previous.entries} parts={dayFocus(previous.entries).names}
+            title={`前回 ${formatJpDate(previous.date)}`}
+            head={(
+              <View style={{ gap: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <T variant="labelM" color={colors.sub} accessibilityRole="header">前回のメニュー</T>
+                  <T style={[monoStyle, { color: colors.sub }]}>LAST SESSION</T>
+                </View>
+                <T variant="titleM">{formatJpDate(previous.date)} ・ {[...new Set(previous.entries.map((e) => e.bodyPartName))].join('・')}</T>
+              </View>
+            )}
+            foot={canCopy ? (
+              <>
+                <Button
+                  label={busy ? '写しています…' : '同じメニューで始める'} variant="text" small busy={busy} onPress={copyPrevious}
+                  accessibilityLabel={`${formatJpDate(previous.date)}と同じメニューで始める`}
+                  style={{ alignSelf: 'flex-start', paddingLeft: 12, paddingRight: 12, marginLeft: -12 }}
+                />
+                {copyError && <T variant="bodyS" color={colors.danger}>{copyError}</T>}
+              </>
+            ) : null}
           />
-          {copyError && <T variant="bodyS" color={colors.danger}>{copyError}</T>}
-        </Card></View>
+        </View>
+      )}
+      {/* 一度も記録がない：空の体（押して部位から記録できる） */}
+      {data && entries.length === 0 && !previous && date <= today && (
+        <View style={{ marginTop: space.m }}>
+          <DayPartsFigure key={date} testID="empty-figure" date={date} pickParts={data.pickParts} unit={unit} entries={[]} parts={[]} title="体の図" />
+        </View>
       )}
       {data && entries.length === 0 && <DailyHighlights date={date} areas={TAB_AREAS.training} />}
       {entries.length > 0 && (
@@ -131,7 +159,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
             <Stat label="セット" value={String(setCount)} center />
             <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
           </Card>
-          {parts.names.length > 0 && <DayPartsFigure parts={parts.names} spoken={parts.spoken} />}
+          <DayPartsFigure key={date} testID="day-parts-figure" title="鍛えた部位の図" parts={parts.names} entries={entries} unit={unit} date={date} pickParts={data?.pickParts ?? []} />
           {entriesMissingBodyweight(entries) && (
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xs }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
           )}
@@ -210,25 +238,170 @@ export function WorkoutDayContent({ date }: { date: string }) {
 
 /** 部位の図の高さ（前と後ろ。幅は高さの半分） */
 const PART_FIG_H = 132;
+/** 前と後ろの図のあいだ（札の場所を空けるため狭く） */
+const PART_FIG_GAP = space.s;
+/** 図の下の「前・後ろ」の行 */
+const PART_LABEL_H = 20;
+/** 札の高さ（番号・種目・セットの 3 行）と、札のあいだ */
+const CALLOUT_H = 48;
+const CALLOUT_GAP = space.xs;
+/**
+ * 片側に出す札の数（「+N」も 1 つ）。図の段（152）に 3 つ入り、4 つで段が 52 伸びる。
+ * 胸の日のように片側に寄る日（前の図に 4 種目）でも、5 種目まではすべてに札が付く
+ */
+const CALLOUTS_PER_SIDE = 4;
+/** 札と図のあいだ */
+const CALLOUT_INSET = space.xs;
+
+/** 札にする種目 */
+type FigureEntry = { id: string; exerciseName: string; bodyPartName: string; sets: SetValues[] };
+
+/** 図で押した所：向き・図の座標の点・まわりの部位（近い順。ユーザーの部位にあるものだけ） */
+type Picked = { view: MuscleView; point: { x: number; y: number }; parts: { id: string; name: string }[] };
 
 /**
- * その日に鍛えた部位の図（前と後ろ。鍛えた筋肉を緑で塗る。ケガの画面にあった 2D の図を、記録の画面に持ってきたもの）。
- * 部位はまとめの「部位」と同じ（その日の主な部位）。読み上げでは部位の名前を読む
+ * 体の図（前と後ろ。ケガの画面にあった 2D の図を、記録の画面に持ってきたもの）。
+ * - 鍛えた部位の筋肉を緑で塗る（parts。まとめの「部位」と同じ主な部位）。muted は前回の図で、控えめな緑
+ * - 種目ごとに札（EX-01 の番号・種目・いちばん重いセット）を付け、その種目の部位の点へ引き出し線でつなぐ。
+ *   前の図の点の札は左、後ろの図の点の札は右（並べ方は lib/dayCallouts.ts の layoutCallouts）
+ * - 図の筋肉を押すと、押した所のまわりの部位を下のチップの先頭に出す（図が小さく、指 1 本で複数の筋肉にかかるので、48dp のチップで選ぶ）。
+ *   チップを押すと、その部位で絞った種目の選択（「部位ごとの前回」の「背中の種目を選ぶ」と同じ道）。
+ *   読み上げでは図を押せないので、チップの並び（部位から記録）が同じ入口。未来の日は出さない
+ * 読み上げは title と番号・種目・部位
  */
-function DayPartsFigure({ parts, spoken }: { parts: string[]; spoken: string }) {
+// key に日付を渡す（日を変えたら、押した所を消す）
+function DayPartsFigure({ title, parts, entries, unit, date, pickParts, muted, head, foot, testID }: {
+  title: string; parts: string[]; entries: FigureEntry[]; unit: WeightUnit; date: string; pickParts: { id: string; name: string }[];
+  muted?: boolean; head?: ReactNode; foot?: ReactNode; testID: string;
+}) {
+  const [width, setWidth] = useState(0);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const canPick = date <= todayKey() && pickParts.length > 0;
+  const tone = muted ? colors.accentMuted : colors.accent;
   const paint = musclesForParts(parts);
+  const layout = layoutCallouts(entries.map((e, i) => ({ key: e.id, no: i + 1, part: e.bodyPartName })), {
+    figureHeight: PART_FIG_H, minHeight: PART_FIG_H + PART_LABEL_H, slot: CALLOUT_H, gap: CALLOUT_GAP, perSide: CALLOUTS_PER_SIDE,
+  });
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const figW = PART_FIG_H / 2;
+  const frontX = Math.max(0, (width - (figW * 2 + PART_FIG_GAP)) / 2);
+  const backX = frontX + figW + PART_FIG_GAP;
+  const calloutW = Math.max(0, frontX - CALLOUT_INSET);
+  const scale = PART_FIG_H / 200;
+  const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: p.y * scale });
+  const at = (c: PlacedCallout) => (c.kind === 'entry' && c.anchor ? toScreen(c.anchor.view, c.anchor.point) : null);
+  // 点は札を出せなかった種目の部位にも置く（鍛えた場所）。同じ点は 1 つ
+  const dots = [...new Map(entries.flatMap((e) => {
+    const a = partAnchor(e.bodyPartName);
+    return a ? [[`${a.view}-${a.muscle}`, toScreen(a.view, a.point)] as const] : [];
+  })).entries()];
+  const lines = [
+    ...layout.left.map((c) => ({ c, x: calloutW })),
+    ...layout.right.map((c) => ({ c, x: width - calloutW })),
+  ].flatMap(({ c, x }) => { const to = at(c); return to ? [{ key: `${c.kind === 'entry' ? c.key : 'more'}`, x1: x, y1: c.top + CALLOUT_H / 2, ...to }] : []; });
+  const pick = (view: MuscleView, point: { x: number; y: number }) => {
+    const byName = new Map(pickParts.map((b) => [b.name.trim(), b]));
+    const near = partsAt(view, point).flatMap((n) => byName.get(n) ?? []);
+    setPicked(near.length > 0 ? { view, point, parts: near } : null);
+  };
+  const nearIds = new Set(picked?.parts.map((b) => b.id) ?? []);
+  const chips = picked ? [...picked.parts, ...pickParts.filter((b) => !nearIds.has(b.id))] : pickParts;
+  const mark = picked ? toScreen(picked.view, picked.point) : null;
+
   return (
-    <Card style={{ marginTop: space.s, paddingVertical: space.m }}>
-      <View accessible accessibilityLabel={`鍛えた部位の図 ${spoken}`} testID="day-parts-figure"
-        style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: space.xl }}>
-        {(['front', 'back'] as const).map((view) => (
-          <View key={view} style={{ alignItems: 'center', gap: space.xs }}>
-            <MuscleFigure view={view} paint={paint} width={PART_FIG_H / 2} height={PART_FIG_H} />
-            <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
-          </View>
-        ))}
+    <Card style={{ marginTop: space.s, paddingVertical: space.m, gap: space.s }}>
+      {head}
+      <View accessible accessibilityLabel={dayFigureLabel(title, entries.map((e) => ({ name: e.exerciseName, part: e.bodyPartName })))} testID={testID}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: layout.height }}>
+        {width > 0 && (
+          <>
+            {(['front', 'back'] as const).map((view) => (
+              <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, alignItems: 'center' }}>
+                <MuscleFigure view={view} paint={paint} paintColor={tone} width={figW} height={PART_FIG_H} />
+                <View style={{ height: PART_LABEL_H, justifyContent: 'flex-end' }}>
+                  <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
+                </View>
+              </View>
+            ))}
+            {/* 引き出し線と、その種目の部位の点。押した所は輪 */}
+            <Svg width={width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
+              {lines.map((l) => <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.sub} strokeWidth={1} strokeOpacity={0.7} />)}
+              {dots.map(([k, p]) => <Circle key={k} cx={p.x} cy={p.y} r={3} fill={tone} stroke={colors.card} strokeWidth={1.5} />)}
+              {mark && <Circle cx={mark.x} cy={mark.y} r={8} fill="none" stroke={colors.text} strokeWidth={1.5} />}
+            </Svg>
+            {/* 図を押す所（読み上げでは下のチップを使う）。押した点は、図の左上からの位置を図の座標に直す */}
+            {canPick && (['front', 'back'] as const).map((view) => (
+              <FigurePress key={view} testID={`${testID}-press-${view}`} scale={scale} onPick={(p) => pick(view, p)}
+                style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, height: PART_FIG_H }} />
+            ))}
+            {(['left', 'right'] as const).flatMap((side) => layout[side].map((c) => (
+              <DayCallout key={c.kind === 'entry' ? c.key : `more-${side}`} callout={c} entry={c.kind === 'entry' ? byId.get(c.key) : undefined} unit={unit}
+                align={side === 'left' ? 'right' : 'left'} muted={muted} style={{ [side]: 0, top: c.top, width: calloutW }} />
+            )))}
+          </>
+        )}
       </View>
+      {canPick && (
+        <View testID={`${testID}-parts`} style={{ gap: 2 }}>
+          <T variant="labelM" color={colors.sub}>{picked ? '押した所の部位から記録' : '部位から記録'}</T>
+          <ChipRow>
+            {chips.map((b) => (
+              <Chip key={b.id} label={b.name} active={nearIds.has(b.id)} accessibilityLabel={`${b.name}の種目を選ぶ`}
+                onPress={() => router.push({ pathname: '/workout/select', params: { date, part: b.id } })} />
+            ))}
+          </ChipRow>
+        </View>
+      )}
+      {foot}
     </Card>
+  );
+}
+
+/**
+ * 図を押す所（読み上げでは隠す。下のチップが同じ入口）。押した位置は画面の座標から左上を引いて図の座標に直す
+ * （MuscleFigure と同じ。web の locationX は押した中の要素からの位置になるため）
+ */
+function FigurePress({ scale, onPick, style, testID }: { scale: number; onPick: (p: { x: number; y: number }) => void; style: object; testID: string }) {
+  const ref = useRef<ViewInstance>(null);
+  return (
+    <Pressable
+      ref={ref} testID={testID} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={style}
+      onPress={(e) => {
+        const { pageX, pageY } = e.nativeEvent;
+        ref.current?.measure((_x, _y, _w, _h, left, top) => onPick({ x: (pageX - left) / scale, y: (pageY - top) / scale }));
+      }}
+    />
+  );
+}
+
+/** 英字の小さな見出しの字体（数字の字体で字間を空ける。ケガの画面の INJ-01 と同じ） */
+const monoStyle = { fontFamily: fonts.num, fontSize: 11, lineHeight: 14, letterSpacing: 1.5 } as const;
+
+/**
+ * 図の横の札：EX-01（種目のカードの番号の緑）・種目・いちばん重いセット。「+N」は出せなかった種目の番号。
+ * align は文字を寄せる側（図の左の札は図の側の右に寄せる）。名前は 1 行で、長ければ省く（下のカードと読み上げは全部）
+ */
+function DayCallout({ callout, entry, unit, align, muted, style }: {
+  callout: PlacedCallout; entry?: FigureEntry; unit: WeightUnit; align: 'left' | 'right'; muted?: boolean; style: object;
+}) {
+  const numColor = muted ? colors.sub : colors.accent;
+  // 札の文字は図の読み上げ（番号・種目・部位）で読むので、札そのものは読み上げから隠す（二重に読まない）
+  const hide = { 'aria-hidden': true, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
+  const box = [{ position: 'absolute', height: CALLOUT_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' } as const, style];
+  if (callout.kind === 'more') {
+    return (
+      <View style={box} testID="day-callout-more" {...hide}>
+        <T style={[monoStyle, { color: numColor }]}>{`+${callout.nos.length}`}</T>
+        <T style={[monoStyle, { color: colors.sub }]} numberOfLines={2} align={align}>{callout.nos.map((n) => exerciseNumber(n)).join(' ')}</T>
+      </View>
+    );
+  }
+  return (
+    <View style={box} testID="day-callout" {...hide}>
+      <T style={[monoStyle, { color: numColor }]}>{exerciseNumber(callout.no)}</T>
+      <T variant="labelM" numberOfLines={1} align={align}>{entry?.exerciseName ?? ''}</T>
+      <T size={11} style={{ lineHeight: 16 }} color={colors.sub} numberOfLines={1} align={align}>{entry ? calloutSet(entry.sets, unit) : ''}</T>
+    </View>
   );
 }
 

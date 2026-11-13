@@ -202,3 +202,49 @@ export function piecesFor(view: MuscleView, site: string, side: Side | null): Fi
 
 /** 関節の点（図に描く）。押せる点を見せる */
 export const jointPoints = (view: MuscleView) => FIGURE_TARGETS[view].filter((t) => t.box == null);
+
+// ---- 記録の画面：図の筋肉を押して、その部位の種目を選ぶ（筋肉 → 部位の逆引き） ----
+
+/**
+ * 筋肉 → 部位の名前（主な部位が先。「腕」「腹」は名前を付け替えたとき用）。
+ * muscleFigureFor の逆で、塗る筋肉のない部位の筋肉（後ろの三頭筋・お尻・もも裏・ふくらはぎ）も、近い部位に寄せる。
+ * 前腕は二頭のカールでも三頭でも使うので両方を候補にし、チップで選んでもらう。僧帽筋は背中の種目（シュラッグ・ロウ）で鍛えることが多いので背中、次に肩
+ */
+export const MUSCLE_PARTS: Record<Muscle, string[]> = {
+  pecs: ['胸'],
+  deltoid: ['肩'],
+  trapezius: ['背中', '肩'],
+  lats: ['背中'],
+  erectorsUpper: ['背中'],
+  erectorsLower: ['背中'],
+  biceps: ['上腕二頭筋', '腕'],
+  triceps: ['上腕三頭筋', '腕'],
+  forearm: ['上腕二頭筋', '上腕三頭筋', '腕'],
+  abs: ['腹筋', '腹'],
+  obliques: ['腹筋', '腹'],
+  quads: ['脚'],
+  shins: ['脚'],
+  glutes: ['脚'],
+  hamstrings: ['脚'],
+  calves: ['脚'],
+};
+
+/** 押した点から、候補にする筋肉までの遠さの上限（図の座標）。図が小さい（幅 66）ので、指の幅のずれを拾う */
+const PART_PICK_RANGE = 6;
+
+/**
+ * 押した点のまわりの部位の名前（近い順、重ねない）。筋肉の片の囲みまでの遠さで選ぶ（targetsNear と同じ測り方。関節は見ない）。
+ * 体の外なら空
+ */
+export function partsAt(view: MuscleView, p: Point): string[] {
+  const near = FIGURE_PIECES[view]
+    .map((pc) => {
+      const dx = Math.max(pc.box.x0 - p.x, 0, p.x - pc.box.x1);
+      const dy = Math.max(pc.box.y0 - p.y, 0, p.y - pc.box.y1);
+      const cx = (pc.box.x0 + pc.box.x1) / 2, cy = (pc.box.y0 + pc.box.y1) / 2;
+      return { muscle: pc.muscle, dist: Math.hypot(dx, dy) + Math.hypot(p.x - cx, p.y - cy) * 0.01 };
+    })
+    .filter(({ dist }) => dist <= PART_PICK_RANGE)
+    .sort((a, b) => a.dist - b.dist);
+  return [...new Set(near.flatMap(({ muscle }) => MUSCLE_PARTS[muscle]))];
+}

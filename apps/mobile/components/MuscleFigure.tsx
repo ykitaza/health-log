@@ -26,6 +26,8 @@ type Props = {
   view?: MuscleView;
   /** 塗る筋肉（記録の画面：その日に鍛えた部位の筋肉を緑で塗る。この図にない筋肉は塗らない） */
   paint?: Muscle[];
+  /** paint の筋肉の色（記録の画面の前回は控えめな緑）。渡さなければアクセントの緑 */
+  paintColor?: string;
   /** 筋肉ごとの塗りの色（回復マップ：温存は青、最近の負荷は暖色）。渡した筋肉は paint より先 */
   fills?: Partial<Record<Muscle, string>>;
   /** ケガの印の色（回復マップは赤）。渡さなければ琥珀色 */
@@ -49,7 +51,7 @@ type Props = {
  *   onPick を渡すと、図を押して部位を選べる（関節の点も出す）。図の上の部位は小さいので、画面には近くの部位のチップを添える（48dp）
  * 前の図は画面の左が本人の右、後ろの図は画面の左が本人の左
  */
-export function MuscleFigure({ name, view: injuryView, paint, fills, markColor = INJURY_AMBER, width, height, marks = [], selected, onPick, testID }: Props) {
+export function MuscleFigure({ name, view: injuryView, paint, paintColor = colors.accent, fills, markColor = INJURY_AMBER, width, height, marks = [], selected, onPick, testID }: Props) {
   const box = useRef<ViewInstance>(null);
   const spec = name != null && injuryView == null ? muscleFigureFor(name) : null;
   const view = injuryView ?? spec?.view ?? 'front';
@@ -57,7 +59,7 @@ export function MuscleFigure({ name, view: injuryView, paint, fills, markColor =
   const chosen = new Set(selected ? piecesFor(view, selected.site, selected.side) : []);
   const placed = marks.map((m) => ({ m, at: markPoint(m.site, m.side) })).filter(({ at }) => at?.view === view);
   const scale = width / 100;
-  const pieceFill = (p: FigurePiece) => (chosen.has(p) ? INJURY_AMBER : fills?.[p.muscle] ?? (painted.has(p.muscle) ? colors.accent : figureColors.muscle));
+  const pieceFill = (p: FigurePiece) => (chosen.has(p) ? INJURY_AMBER : fills?.[p.muscle] ?? (painted.has(p.muscle) ? paintColor : figureColors.muscle));
   // 直している途中のケガの筋肉は琥珀色で塗る（関節は点で示す）
   const hurt = new Set(placed.filter(({ m }) => m.status === 'fixing').flatMap(({ m }) => piecesFor(view, m.site, m.side)));
 

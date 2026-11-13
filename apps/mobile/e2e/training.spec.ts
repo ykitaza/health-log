@@ -121,7 +121,8 @@ test('今日が空なら前回のメニュー。「同じメニューで始め�
   const menu = page.getByTestId('previous-menu').filter({ visible: true });
   await expect(menu).toContainText('前回のメニュー');
   await expect(menu).toContainText('11月6日（金） ・ 胸');
-  await expect(menu).toContainText('ベンチプレス ・ インクラインダンベルプレス');
+  // 種目は体の図の札（EX-01 …）で
+  await expect(menu.getByTestId('previous-figure')).toHaveAttribute('aria-label', '前回 11月6日（金）。1 ベンチプレス 胸、2 インクラインダンベルプレス 胸');
   await button(page, '11月6日（金）と同じメニューで始める').click();
   await expect(page.getByRole('button', { name: 'ベンチプレスを直す' })).toBeVisible();
   await expect(menu).toHaveCount(0);
