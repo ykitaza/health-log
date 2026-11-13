@@ -192,7 +192,7 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
 
 // 形は web では描かない（components/growth/GrowthShape.web.tsx）。スコアの計算と文言は jest（lib/__tests__/growth.test.ts・home.test.ts）。
 // ここはヒーローの GROWTH のページの文字と押せるものが出ること
-test('ヒーローの GROWTH のページ：育つ形・「成長を見る」・成長スコア。スコアを押すと内訳のシート。開き直すと LATEST から', async ({ page }) => {
+test('ヒーローの GROWTH のページ：育つ形・PHASE・PACE・WEIGHT・成長スコア。スコアを押すと内訳のシート。開き直すと LATEST から', async ({ page }) => {
   await openApp(page);
   // はじめは LATEST。GROWTH は切り替えるまで描かない
   await expect(page.getByTestId('growth-stage')).toHaveCount(0);
@@ -201,7 +201,10 @@ test('ヒーローの GROWTH のページ：育つ形・「成長を見る」・
   await expect(page.getByTestId('home-latest')).toHaveCount(0);
   const stage = visible(page, 'growth-stage');
   await expect(button(stage, '成長の形（点の軌跡）。押すと成長を見る画面を開く')).toBeVisible();
-  await expect(button(stage, '成長を見る')).toHaveText('成長を見る ›');
+  // 右上はフェーズのペース（「成長を見る」は形を押して開く）。フェーズがなければ PHASE・PACE は「—」、WEIGHT は体重がまだない
+  await expect(button(stage, '成長を見る')).toHaveCount(0);
+  await expect(visible(page, 'hero-growth')).toHaveAccessibleName('フェーズは未設定。体重 週平均 まだ。フェーズを始める');
+  await expect(visible(page, 'hero-swipe')).toContainText('PACE //—NO DATA');
 
   // 記録がまだないときは「—」。内訳もどの柱も「—」で、先週との差は出さない
   const noScore = button(stage, '成長スコア まだ記録がありません。押すと内訳');

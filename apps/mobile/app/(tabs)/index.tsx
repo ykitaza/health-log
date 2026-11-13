@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { HomeHeader, ReceivedNotice, RecordSheet } from '@/components/home';
-import { HomeHero, HeroLatest } from '@/components/HomeHero';
+import { HeroData, HomeHero, HeroLatest } from '@/components/HomeHero';
 import { Big3Panel, FuelPanel, LoadPanel, LogPanel, PartsPanel, SleepPanel } from '@/components/homeHud';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon } from '@/components/Icon';
@@ -23,18 +23,24 @@ import { addDays, DateKey, formatJpDate, formatMonthDay, pickedDayOrToday, weekS
 import { dayBodyEntries } from '@/lib/dayBody';
 import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
+import {
+  growthCorners, heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing, recoveryCorners, weekAverageKg,
+} from '@/lib/homeHero';
 import { goalLine } from '@/lib/home';
 import {
   big3Gauge, fuelGauge, latestSession, loadGauge, logFrom, logGrid, monthSummary, partsRadar, partStates, sleepGauge,
 } from '@/lib/homeHud';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
-import { fixingOn, injuriesForPart, partRecoveries } from '@/lib/recoveryMap';
+import { injuryNumbers } from '@/lib/injuries';
+import { effectiveGoalWeight } from '@/lib/phases';
+import { fixingOn, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
 
 /**
- * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（LATEST・GROWTH）、計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、
- * PARTS と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。集計は lib/homeHud.ts
+ * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・RECOVERY・INJURY・GROWTH の横スライド）、
+ * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、PARTS と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
+ * 集計は lib/homeHud.ts と lib/homeHero.ts
  */
 export default function HomeScreen() {
   // 開いたまま日をまたいでも、前の日を「今日」として出さない（前の日に記録を足してしまうため）
@@ -50,12 +56,13 @@ export default function HomeScreen() {
   const { year, month } = yearMonth(today);
   const { data, error, reload } = useFocusData(async (r) => {
     const from = logFrom(today);
-    const [rows, settings, meals, daily, sleep, sleepSel, heart, exercises, injuries] = await Promise.all([
+    const [rows, settings, meals, daily, sleep, sleepSel, heart, exercises, injuries, phases] = await Promise.all([
       r.workouts.allSetRows(), r.settings.get(), r.meals.summaries(from, today), r.body.listDaily(),
       r.health.sleepDays(addDays(today, -6), today), r.health.sleepDay(selected), r.health.heartRateDay(selected),
       // BIG3 の割り当て（筋トレの推移のグラフと同じく、非表示の種目も）
       r.catalog.listExercises({ includeHidden: true }),
       r.injuries.list(),
+      r.phases.list(),
     ]);
     const partDays = await loadPartDays(r, rows);
     // 直近のトレーニングの日の種目（ヒーローの札）
@@ -63,7 +70,7 @@ export default function HomeScreen() {
     const entries = latest ? await r.workouts.getDays([latest.date]) : [];
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     return {
-      rows, settings, meals: meals.days, daily, sleep, partDays, latest, entries, injuries, big3: big3Assignments(exercises),
+      rows, settings, meals: meals.days, daily, sleep, partDays, latest, entries, injuries, phases, big3: big3Assignments(exercises),
       day: selected, weightKg, sleepSel, heart,
     };
   }, `${selected}|${today}`);
@@ -85,7 +92,11 @@ export default function HomeScreen() {
       prNames: data.latest.prs.map((p) => names.get(p.exerciseId) ?? ''),
     };
   }, [data, unit]);
-  const big3 = useMemo(() => (data ? big3Gauge(rows, data.big3, today) : null), [data, rows, today]);
+  // フェーズ（今のフェーズ・療養・止めたフェーズ）。体重は日ごとの値
+  const weights = useMemo(() => (data?.daily ?? []).flatMap((d) => (d.weightKg != null ? [{ date: d.date, kg: d.weightKg }] : [])), [data]);
+  const phase = useMemo(() => (data ? heroPhase(data.phases, weights, today) : null), [data, weights, today]);
+  const normal = phase ? normalPhaseOf(phase) : null;
+  const big3 = useMemo(() => (data ? big3Gauge(rows, data.big3, today, normal?.phase.snapshot?.big3 ?? null) : null), [data, rows, today, normal]);
   const load = useMemo(() => loadGauge(rows, today), [rows, today]);
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart(today), i)), [today]);
   const sleep = useMemo(() => sleepGauge(data?.sleep ?? [], today), [data, today]);
@@ -96,16 +107,30 @@ export default function HomeScreen() {
       rows, partName, meals: data.meals, suggest,
       weighed: new Set(data.daily.filter((d) => d.weightKg != null).map((d) => d.date)),
       injured: new Set(data.injuries.map((i) => i.occurredOn)),
+      phaseWeek: normal?.progress.week ?? null,
     }, today);
-  }, [data, rows, partName, today]);
+  }, [data, rows, partName, today, normal]);
   const monthSum = useMemo(() => (data ? monthSummary(rows, today) : null), [data, rows, today]);
   const radar = useMemo(() => (data ? partsRadar(rows, partName, today) : null), [data, rows, partName, today]);
-  const states = useMemo(() => {
-    if (!data) return [];
+  const recovery = useMemo(() => {
+    if (!data) return null;
     const list = partRecoveries(rows, partName, data.partDays.names, today);
-    const fixing = fixingOn(data.injuries, today);
-    return partStates(list, (p) => injuriesForPart(p, fixing).length > 0);
+    return { list, fixing: fixingOn(data.injuries, today) };
   }, [data, rows, partName, today]);
+  const states = useMemo(() => (recovery ? partStates(recovery.list, (p) => injuriesForPart(p, recovery.fixing).length > 0) : []), [recovery]);
+  const heroData = useMemo<HeroData | null>(() => {
+    if (!data || !phase || !recovery) return null;
+    const { list, fixing } = recovery;
+    const rehab = phase.kind === 'rehab' ? phase.rehab : null;
+    return {
+      phase,
+      ring: phaseRing(phase, weights, today),
+      pages: heroPages(fixing.length > 0),
+      recovery: { list, levels: recoveryLevels(list), corners: recoveryCorners(list, todaySuggestion(data.partDays, today).suggest?.name ?? null, fixing.length) },
+      injury: { fixing, numbers: injuryNumbers(data.injuries), corners: injuryCorners(fixing, rehab, today) },
+      growth: growthCorners(phase, weekAverageKg(weights, today), effectiveGoalWeight(data.phases, data.settings.goalWeightKg ?? null, today).kg),
+    };
+  }, [data, phase, recovery, weights, today]);
   const todayMeal = data?.meals.find((d) => d.date === today) ?? null;
   const fuel = todayMeal ? fuelGauge(todayMeal) : null;
   const condition = data?.day === selected ? data : null;
@@ -118,7 +143,7 @@ export default function HomeScreen() {
       <HomeHeader year={year} month={month} />
       {/* 同期が続けて失敗しているときだけ、見出しの下に1行で知らせる（ふだんは出さない。時刻と未送信の件数はアカウントの画面） */}
       <SyncAlertLine />
-      <HomeHero today={today} unit={unit} latest={hero} ready={ready} />
+      <HomeHero today={today} unit={unit} latest={hero} ready={ready} data={heroData} />
 
       <View style={s.row}>
         <Big3Panel gauge={big3} unit={unit} ready={ready} />

@@ -1,5 +1,5 @@
 // ホームの「計器の盤」（刷新 A）の集計：LATEST（直近のトレーニング）・BIG3・LOAD・SLEEP・LOG（週ごとの方眼）・PARTS（部位のレーダー）・FUEL（今日の食事）。
-// 画面（components/homeHud.tsx）から切り離し、jest で確かめる。フェーズのデータはまだ使わない（Δ は 28 日前から、週の番号は直近 4 週の通し番号）
+// 画面（components/homeHud.tsx）から切り離し、jest で確かめる。フェーズ実施中は、BIG3 の Δ をフェーズの開始から、LOG の週の番号をフェーズの週にする
 import { addDays, DateKey, daysBetween, MONTH_NAMES_EN, weekStart, yearMonth } from './date';
 import type { Big3Role } from './exercises';
 import { mealGoalReached, personalBestEvents, PersonalBestEvent } from './growth';
@@ -7,6 +7,7 @@ import { average } from './health';
 import { thisWeekVolume } from './home';
 import { DaySummary, DayType, pfcRatio } from './meals';
 import { BALANCE_PARTS, BalancePart, balanceAxisOf, partBalanceBetween } from './partBalance';
+import { big3Totals, PhaseSnapshot } from './phases';
 import type { PartRecovery } from './recoveryMap';
 import { big3Trend, daysInMonth, focusByDate, setVolume, trainingDates, TrainingSetRow, volumeBetween } from './training';
 
@@ -57,9 +58,11 @@ export type Big3Gauge = {
   /** B・S・D の今の推定1RM（kg。記録がなければ null） */
   lifts: { role: Big3Role; kg: number | null }[];
   totalKg: number;
-  /** 差（kg）と、その基準：28D（28 日前）か START（記録が 28 日に満たないので、16 週の中の最初の点） */
+  /**
+   * 差（kg）と、その基準：PHASE（フェーズの開始時の記録から）、28D（28 日前）か START（記録が 28 日に満たないので、16 週の中の最初の点）
+   */
   deltaKg: number | null;
-  deltaBase: '28D' | 'START';
+  deltaBase: 'PHASE' | '28D' | 'START';
   /** 16 週の線の点（x は 0〜1。合計はその日までの最高の推定1RM の和なので、右へ下がらない） */
   points: { x: number; kg: number }[];
   /** 線の始まり・自己ベスト・今の点の番号（points の中）。自己ベストは今と同じ点になることが多い */
@@ -68,8 +71,14 @@ export type Big3Gauge = {
   now: number;
 };
 
-/** BIG3 の計器：今の合計と B・S・D、28 日前からの差、16 週の線。1 種目も記録がなければ null（筋トレの推移と同じ big3Trend） */
-export function big3Gauge(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey): Big3Gauge | null {
+/**
+ * BIG3 の計器：今の合計と B・S・D、差、16 週の線。1 種目も記録がなければ null（筋トレの推移と同じ big3Trend）。
+ * 差は、フェーズ実施中で開始時の BIG3 があれば開始時から（Δ PHASE。開始時と今の両方に値がある役だけを足す。lib/phases.ts の big3Totals）、
+ * なければ 28 日前から
+ */
+export function big3Gauge(
+  rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey, phaseStart: PhaseSnapshot['big3'] = null,
+): Big3Gauge | null {
   const from = addDays(today, -BIG3_WEEKS * 7);
   const trend = big3Trend(rows, assignments, today, from);
   if (trend.total == null || trend.points.length === 0) return null;
@@ -81,11 +90,14 @@ export function big3Gauge(rows: TrainingSetRow[], assignments: Partial<Record<Bi
   const ref = base ?? trend.points[0];
   let best = 0;
   points.forEach((p, i) => { if (p.kg >= points[best].kg) best = i; });
+  const lifts = trend.lifts.map((l) => ({ role: l.role, kg: l.current }));
+  const now = Object.fromEntries(lifts.map((l) => [l.role, l.kg])) as { bench: number | null; squat: number | null; deadlift: number | null };
+  const phase = big3Totals(phaseStart, now);
   return {
-    lifts: trend.lifts.map((l) => ({ role: l.role, kg: l.current })),
+    lifts,
     totalKg: trend.total,
-    deltaKg: trend.points.length > 1 || base ? trend.total - ref.total : null,
-    deltaBase,
+    deltaKg: phase ? phase[1] - phase[0] : trend.points.length > 1 || base ? trend.total - ref.total : null,
+    deltaBase: phase ? 'PHASE' : deltaBase,
     points,
     start: 0,
     best,
@@ -176,6 +188,25 @@ export type LogCell = {
 
 export type LogWeek = { label: string; current: boolean; cells: LogCell[] };
 
+/**
+ * LOG の週の名前。phaseWeek（今週のフェーズの週。フェーズがなければ null）があれば、今週の行をその週にし、上の行を 1 ずつ戻す
+ * （行は月曜始まりの暦の週で、フェーズの週は開始日の曜日から数えるため、今週の行に合わせる）。1 より前（フェーズの前）の行は「—」。
+ * フェーズがなければ W1〜W4（直近 4 週の通し番号）
+ */
+export function logWeekLabels(phaseWeek: number | null): string[] {
+  return Array.from({ length: LOG_WEEKS }, (_, w) => {
+    if (phaseWeek == null) return `W${w + 1}`;
+    const n = phaseWeek - (LOG_WEEKS - 1 - w);
+    return n >= 1 ? `W${n}` : '—';
+  });
+}
+
+/** LOG の見出しの週の範囲（「W3-W6」）。フェーズの前の行（「—」）は除く */
+export function logWeekRange(labels: string[]): string {
+  const ws = labels.filter((l) => l.startsWith('W'));
+  return ws.length === 0 ? '' : ws.length === 1 ? ws[0] : `${ws[0]}-${ws[ws.length - 1]}`;
+}
+
 export type LogInput = {
   rows: TrainingSetRow[];
   partName: (bodyPartId: string) => string;
@@ -187,6 +218,8 @@ export type LogInput = {
   injured: Set<DateKey>;
   /** 今日がまだのときのおすすめの部位 */
   suggest: string | null;
+  /** 今週のフェーズの週（フェーズ実施中だけ。週の名前に使う） */
+  phaseWeek?: number | null;
 };
 
 /** 方眼の最初の日（直近 4 週の月曜） */
@@ -199,7 +232,7 @@ export function volumeLevel(volumeKg: number, maxKg: number): 0 | 1 | 2 | 3 {
   return r <= 1 / 3 ? 1 : r <= 2 / 3 ? 2 : 3;
 }
 
-/** 週ごとの方眼（直近 4 週、月曜始まり、古い週が上）。週の名前は W1〜W4（直近の週の通し番号。フェーズが入ったらフェーズの週に変える） */
+/** 週ごとの方眼（直近 4 週、月曜始まり、古い週が上）。週の名前は logWeekLabels（フェーズ実施中はフェーズの週、なければ W1〜W4） */
 export function logGrid(input: LogInput, today: DateKey): LogWeek[] {
   const from = logFrom(today);
   const dates = Array.from({ length: LOG_WEEKS * 7 }, (_, i) => addDays(from, i));
@@ -227,8 +260,9 @@ export function logGrid(input: LogInput, today: DateKey): LogWeek[] {
       injury: !future && input.injured.has(date),
     };
   });
+  const labels = logWeekLabels(input.phaseWeek ?? null);
   return Array.from({ length: LOG_WEEKS }, (_, w) => ({
-    label: `W${w + 1}`, current: w === LOG_WEEKS - 1, cells: cells.slice(w * 7, w * 7 + 7),
+    label: labels[w], current: w === LOG_WEEKS - 1, cells: cells.slice(w * 7, w * 7 + 7),
   }));
 }
 
