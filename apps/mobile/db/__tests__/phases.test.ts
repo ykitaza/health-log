@@ -3,7 +3,7 @@
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { cleanSnapshot, PhaseError, PhaseInput } from '../repositories/phases';
 import { SPEC_BY_TYPE, SyncType, toApiFields } from '../syncSpec';
-import { PHASE_LIMITS } from '@/lib/phases';
+import { PHASE_LIMITS, planValue } from '@/lib/phases';
 import { createFakeSyncServer } from '@/test-utils/fakeSyncServer';
 import { memoryDb, testDeps } from '@/test-utils/nodeDb';
 import { device, Device } from '@/test-utils/syncHarness';
@@ -64,6 +64,16 @@ describe('フェーズ', () => {
       ] }],
     ]);
     expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+  });
+
+  test('開始日に延長・目標を変えても、最初の線の始まりは開始時の体重のまま（予定の線が消えない）', async () => {
+    const d = await device();
+    const id = await d.r.phases.start({ ...INPUT, startDate: '2026-11-08' });
+    await d.r.phases.extend(id, 4);
+    await d.r.phases.changeTarget(id, 79, null);
+    const p = (await d.r.phases.get(id))!;
+    expect(p.targetHistory).toEqual([{ date: '2026-11-08', target_weight_kg: 79, end_date: '2027-03-27', weight_kg: 72.4 }]);
+    expect(planValue(p, [], '2026-11-08')).toBe(72.4);
   });
 
   test('療養に入ると、実施中の通常のフェーズを止める（通常のフェーズの行は変えない）。戻ると続き、戻らなければ両方終える', async () => {

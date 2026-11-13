@@ -97,11 +97,19 @@ const best = (list: Phase[]) => list.reduce<Phase | null>((acc, p) => (acc == nu
 const complete = (p: Phase) => p.endDate != null && p.targetWeightKg != null && p.direction != null;
 
 /**
- * 今のフェーズと、療養で止まっている通常のフェーズ。asOf より後に始まるものは選ばない。
+ * asOf の日に続いていたか：始まっていて、実施中か、asOf より後に終えた（中断した）もの（サーバーの in_effect と同じ）。
+ * 過去の期間を見るとき、そのあとで終えたフェーズも、その日には実施中として扱う
+ */
+export function inEffect(p: Phase, asOf: DateKey): boolean {
+  return p.startDate <= asOf && (p.status === 'active' || (p.endedOn != null && p.endedOn > asOf));
+}
+
+/**
+ * asOf の時点のフェーズと、療養で止まっている通常のフェーズ。asOf より後に始まるもの・前に終えたものは選ばない。
  * 実施中が2つ以上（端末どうしの同期）なら、開始日の新しいもの、同じなら記録の新しいもの、ID の大きいもの
  */
 export function currentPhase(phases: Phase[], asOf: DateKey): { current: Phase | null; paused: Phase | null } {
-  const active = phases.filter((p) => p.status === 'active' && p.startDate <= asOf);
+  const active = phases.filter((p) => inEffect(p, asOf));
   const rehab = best(active.filter((p) => p.kind === 'rehab'));
   if (rehab) {
     return { current: rehab, paused: active.find((p) => p.kind === 'normal' && p.id === rehab.pausedPhaseId) ?? null };
@@ -109,12 +117,14 @@ export function currentPhase(phases: Phase[], asOf: DateKey): { current: Phase |
   return { current: best(active.filter((p) => p.kind === 'normal' && complete(p))), paused: null };
 }
 
-/** 通常のフェーズが療養で止まった日（古い順、重なりはまとめる） */
+/** 通常のフェーズが療養で止まった日（古い順、重なりはまとめる）。asOf より後の日は含めない */
 export function pauses(p: Phase, phases: Phase[], asOf: DateKey): Span[] {
   const spans: Span[] = [];
   for (const r of phases) {
     if (r.kind !== 'rehab' || r.pausedPhaseId !== p.id) continue;
-    const end = r.status === 'active' ? addDays(asOf, 1) : (r.endedOn ?? r.startDate);
+    const limit = addDays(asOf, 1);
+    const ended = r.endedOn ?? r.startDate;
+    const end = r.status === 'active' ? limit : (ended < limit ? ended : limit);
     const start = r.startDate > p.startDate ? r.startDate : p.startDate;
     if (end > start) spans.push([start, end]);
   }
@@ -174,6 +184,7 @@ export function planLines(p: Phase): TargetChange[] {
   if (p.endDate == null || p.targetWeightKg == null) return [];
   const startWeight = p.snapshot?.weight_kg ?? null;
   const found = p.targetHistory.filter((c) => c.date >= p.startDate).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (found.length > 0 && found[0].date === p.startDate && found[0].weight_kg == null) found[0] = { ...found[0], weight_kg: startWeight };
   if (found.length === 0 || found[0].date !== p.startDate) {
     const first = found[0];
     found.unshift({
@@ -273,7 +284,7 @@ export type Weight = { date: DateKey; kg: number };
 export function phasePace(p: Phase, phases: Phase[], weights: Weight[], asOf: DateKey): Pace {
   const spans = pauses(p, phases, asOf);
   const none = (reason: NoPaceReason, n = 0): Pace => ({ status: null, reason, weighIns: n, weekAvgKg: null, planKg: null, diffKg: null });
-  if (p.kind !== 'normal' || p.status !== 'active' || asOf < p.startDate) return none('not_active');
+  if (p.kind !== 'normal' || !inEffect(p, asOf)) return none('not_active');
   if (isPaused(spans, asOf)) return none('paused');
   if (spans.some(([, e]) => e <= asOf && daysBetween(e, asOf) < RECOVERY_DAYS)) return none('recovering');
   const windowStart = addDays(asOf, -(PACE_WINDOW_DAYS - 1));

@@ -320,6 +320,33 @@ def test_期間の材料に_フェーズの向き_何週目_目標_ペースが�
     assert listed["paused"]["target_history"][0]["weight_kg"] == 70.0 and listed["paused"]["snapshot"]["body_fat_pct"] == 20.0
 
 
+def test_期間の材料は_あとで終えたフェーズも_その期間には実施中として読む(server):
+    engine = server["engine"]
+    app_change(engine, "setting", "goal_weight_kg", {"value": "80"})
+    # 11/6 に終えた減量と、11/6 に終えた療養（どちらも 11/2〜11/5 の時点では続いていた）
+    app_change(engine, "phase", "p1", {**PHASE, "status": "ended", "ended_on": "2026-11-06"})
+    app_change(engine, "phase", "r1", {"kind": "rehab", "start_date": "2026-11-04", "status": "ended",
+                                       "ended_on": "2026-11-06", "paused_phase_id": "p1", "name": ""})
+
+    async def body(client):
+        early = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-03"}))
+        rehab = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-05"}))
+        after = data(await client.call_tool("period_overview", {"start": "2026-11-06", "end": "2026-11-08"}))
+        return early, rehab, after
+
+    early, rehab, after = run(server, ALL_SCOPES, body)
+    assert (early["phase"]["current"]["phase_id"], early["phase"]["current"]["direction"]) == ("p1", "cut")
+    assert early["phase"]["current"]["pace"]["not_judged_reason"] == "few_weigh_ins"  # 終えたからではない
+    assert (early["goals"]["goal_weight_kg"], early["goals"]["goal_weight_source"]) == (66.0, "phase")
+    # 11/5 の時点は療養中（11/4・11/5 の2日）。そのあとに療養を終えた日は数えない
+    assert (rehab["phase"]["current"]["kind"], rehab["phase"]["current"]["rehab_days"]) == ("rehab", 2)
+    assert rehab["phase"]["paused"]["effective_end_date"] == "2026-12-01" and rehab["phase"]["rehab_in_period"] is True
+    assert (rehab["goals"]["goal_weight_kg"], rehab["goals"]["goal_weight_source"]) == (66.0, "phase")
+    # 終えたあとの期間には出ず、目標体重は設定のもの
+    assert after["phase"]["current"] is None and after["phase"]["in_period"] == []
+    assert (after["goals"]["goal_weight_kg"], after["goals"]["goal_weight_source"]) == (80, "setting")
+
+
 def test_期間の材料に_ケガの記録が本人の言葉のまま入る_期間外は入らず_ケガがなければ空(server):
     def injury(client, **extra):
         return client.call_tool("record_injury", {"site": "shoulder_front", "side": "right", "exercise": "ベンチプレス",

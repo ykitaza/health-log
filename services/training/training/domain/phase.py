@@ -10,9 +10,11 @@
   2つの行にまたがる状態を両方に持つと食い違うため）。療養の [開始日, 終わった日) が、通常のフェーズの止まった日。
   実施中の療養は、今日まで（今日を含む）止まっているとする
 - 終了日（end_date）は止まった日を含まない予定の終わり。実際の終わり（effective_end）は、止まった日数だけ後ろにずれる
+- ある日に続いていたか（in_effect）は、始まっていて、実施中か、その日より後に終えたもの（過去の期間のレポートのため）
 - 同時に実施中（active）は1つ（療養が実施中なら、それが今のフェーズで、止めている通常のフェーズは「止まっている」）。
   端末どうしの同期で2つになったら、開始日の新しいもの、同じなら記録の新しいもの、ID の大きいものを選ぶ
-- 予定の線は直線。目標や終了日を変えたら、変えた日から引き直す（target_history の1件が1本の線。最初の1件は開始日）。
+- 予定の線は直線。目標や終了日を変えたら、変えた日から引き直す（target_history の1件が1本の線。最初の1件は開始日で、
+  体重がなければ開始時の記録の体重）。
   線の時刻は止まった日を除いた日数（フェーズの時計）で測る
 - ペースは、今日までの7日（フェーズの開始より前と止まった日を除く）の体重の平均を、同じ日の予定の値の平均と比べる。
   差が ±0.3kg 以内なら順調。測った日が1日以下なら判定しない。療養から戻って14日は判定しない
@@ -100,9 +102,15 @@ def _rank(p: Phase) -> tuple:
     return (p.start_date, p.created_at, p.id)
 
 
+def in_effect(p: Phase, as_of: str) -> bool:
+    """as_of の日に続いていたか：始まっていて、実施中か、as_of より後に終えた（中断した）もの。
+    過去の期間のレポートでは、そのあとで終えたフェーズも、その日には実施中として扱う。"""
+    return p.start_date <= as_of and (p.status == "active" or (p.ended_on is not None and p.ended_on > as_of))
+
+
 def current(phases: list[Phase], as_of: str) -> tuple[Phase | None, Phase | None]:
-    """(今のフェーズ, 療養で止まっている通常のフェーズ)。as_of より後に始まるものは選ばない。"""
-    active = [p for p in phases if p.status == "active" and p.start_date <= as_of]
+    """(as_of の時点のフェーズ, 療養で止まっている通常のフェーズ)。as_of より後に始まるもの・前に終えたものは選ばない。"""
+    active = [p for p in phases if in_effect(p, as_of)]
     rehab = max((p for p in active if p.kind == "rehab"), key=_rank, default=None)
     normal = max((p for p in active if p.kind == "normal" and p.end_date and p.target_weight_kg is not None
                   and p.direction), key=_rank, default=None)
@@ -114,12 +122,14 @@ def current(phases: list[Phase], as_of: str) -> tuple[Phase | None, Phase | None
 
 def pauses(p: Phase, phases: list[Phase], as_of: str) -> list[tuple[str, str]]:
     """通常のフェーズが療養で止まった日（[始め, 終わり) の組。古い順、重なりはまとめる）。
-    終わった療養は終わった日まで（終わった日がなければ止まっていない）、実施中の療養は as_of まで（as_of を含む）。"""
+    終わった療養は終わった日まで（終わった日がなければ止まっていない）、実施中の療養は as_of まで（as_of を含む）。
+    どちらも as_of より後の日は含めない。"""
     spans = []
     for r in phases:
         if r.kind != "rehab" or r.paused_phase_id != p.id:
             continue
-        end = _add(as_of, 1) if r.status == "active" else (r.ended_on or r.start_date)
+        # as_of より後のことは数えない（過去の期間を見るとき、そのあとの療養や、まだ続いていた療養の残りを入れない）
+        end = _add(as_of, 1) if r.status == "active" else min(r.ended_on or r.start_date, _add(as_of, 1))
         start = max(r.start_date, p.start_date)
         if end > start:
             spans.append((start, end))
@@ -181,6 +191,8 @@ def history(p: Phase) -> list[TargetChange]:
         return []
     start_weight = (p.snapshot or {}).get("weight_kg")
     found = sorted((c for c in p.target_history if c.date >= p.start_date), key=lambda c: c.date)
+    if found and found[0].date == p.start_date and found[0].weight_kg is None:
+        found[0] = TargetChange(p.start_date, found[0].target_weight_kg, found[0].end_date, start_weight)
     if not found or found[0].date != p.start_date:
         first = found[0] if found else None
         found.insert(0, TargetChange(p.start_date, first.target_weight_kg if first else p.target_weight_kg,
@@ -244,7 +256,7 @@ def pace(p: Phase, phases: list[Phase], weights: list[tuple[str, float]], as_of:
     """as_of までの7日の体重の平均と予定の比べ（weights は日ごとの体重）。"""
     spans = pauses(p, phases, as_of)
     none = lambda reason, n=0: Pace(None, reason, n, None, None, None)  # noqa: E731
-    if p.kind != "normal" or p.status != "active" or as_of < p.start_date:
+    if p.kind != "normal" or not in_effect(p, as_of):
         return none("not_active")
     if is_paused(spans, as_of):
         return none("paused")
@@ -264,10 +276,10 @@ def pace(p: Phase, phases: list[Phase], weights: list[tuple[str, float]], as_of:
 
 
 def end_of(p: Phase, phases: list[Phase], as_of: str) -> str:
-    """そのフェーズが続いた（続く）最後の日。終わったものは終わった日の前の日まで、実施中の通常は実際の終わり、
-    実施中の療養は as_of。"""
+    """そのフェーズが続いた（続く）最後の日。終わったものは終わった日の前の日まで、実施中の通常は実際の終わり
+    （それを過ぎても実施中なら as_of）、実施中の療養は as_of。"""
     if p.status != "active":
         return _add(p.ended_on, -1) if p.ended_on else p.start_date
     if p.kind == "rehab":
         return as_of
-    return effective_end(p, pauses(p, phases, as_of)) or as_of
+    return max(effective_end(p, pauses(p, phases, as_of)) or as_of, as_of)

@@ -151,7 +151,10 @@ export function phaseRepository(db: Db, deps: Deps) {
   async function replan(p: Phase, targetWeightKg: number, endDate: string, weightKg: number | null) {
     if (p.status !== 'active') throw new PhaseError('終えたフェーズは変えられません');
     const day = today() < p.startDate ? p.startDate : today();
+    const replaced = p.targetHistory.find((c) => c.date === day);
     const history = p.targetHistory.filter((c) => c.date !== day);
+    // 同じ日に2回変えたとき、線の始まりの体重を渡さなければ、置き換える1件の体重を残す（開始日なら開始時の体重）
+    if (weightKg == null) weightKg = replaced?.weight_kg ?? (day === p.startDate ? p.snapshot?.weight_kg ?? null : null);
     if (history.length === 0 && day !== p.startDate && p.endDate && p.targetWeightKg != null) {
       // 前の版の行などで履歴がないときは、最初の線を先に入れる（前の線を薄く残すため）
       history.push({ date: p.startDate, target_weight_kg: p.targetWeightKg, end_date: p.endDate, weight_kg: p.snapshot?.weight_kg ?? null });
