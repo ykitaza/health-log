@@ -47,6 +47,8 @@ async function signInAndSync(page: Page) {
 }
 
 const band = (page: Page) => page.getByTestId('report-band').filter({ visible: true });
+/** 詳細のいちばん下の「日のまとめ ・ 11月9日に作成」（種類と作った日） */
+const created = (page: Page) => page.getByTestId('report-created').filter({ visible: true });
 const periodTabs = (page: Page) => page.getByTestId('report-period-tabs').filter({ visible: true });
 const periodTab = (page: Page, label: '日' | '週' | '月') =>
   periodTabs(page).getByRole('button', { name: label, exact: true });
@@ -130,8 +132,8 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   const b = band(page);
   await expect(see(b, '気をつけたい', { exact: true })).toBeVisible();
   await expect(see(b, '11月2日（月）〜11月8日（日）')).toBeVisible();
-  // 今週の目標（アプリが記録から出す）
-  await expect(page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true })).toBeVisible();
+  // 今週の目標（アプリが記録から出す。WEEKLY STATUS の表）
+  await expect(page.getByTestId('report-achievement').filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel(/^睡眠、睡眠（平均） 5\.8 時間/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、良い。脚の日が2回に増えた').filter({ visible: true })).toBeVisible();
   // 部位バランスのレーダー（週ビュー）
@@ -211,7 +213,7 @@ test('週のまとめの「先週やることの振り返り」：前の週の�
   await expect(prev.getByLabel('水を1日2L飲む、まだ', { exact: true })).toBeVisible();
   await expect(prev.getByRole('checkbox')).toHaveCount(0);
   // 今週の目標の下
-  const goals = await page.getByRole('heading', { name: '今週の目標', exact: true }).filter({ visible: true }).boundingBox();
+  const goals = await page.getByTestId('report-achievement').filter({ visible: true }).boundingBox();
   expect(goals!.y).toBeLessThan((await prev.boundingBox())!.y);
 });
 
@@ -266,12 +268,11 @@ test('週のまとめの目標のカード：すべて達成で「✓ 達成」�
 
   await openReportsTab(page);
   const goals = page.getByTestId('report-achievement').filter({ visible: true });
-  await expect(goals.getByRole('heading', { name: '今週の目標', exact: true })).toBeVisible();
   await expect(goals.getByLabel('筋トレ、2 回、目標 2 回、達成', { exact: true })).toBeVisible();
   await expect(goals.getByLabel('食事を記録した日、3 日、目標 3 日、達成', { exact: true })).toBeVisible();
   // 睡眠は切なので出さない
   await expect(see(goals, '7時間以上寝た日')).toHaveCount(0);
-  await expect(goals.getByTestId('report-goals-achieved')).toHaveText('達成');
+  await expect(goals.getByTestId('report-goals-achieved')).toHaveText('✓ 達成');
   await expect(goals.getByTestId('report-goal-streak')).toHaveText('1週連続で達成');
   await expect(goals.getByLabel('設定の目標をすべて達成。1週連続で達成', { exact: true })).toBeVisible();
   // 目標を変える：設定の今週の目標の欄までスクロールして開く。戻るとレポートへ
@@ -300,19 +301,18 @@ test('日のまとめ（daily）は、種類の名前・その日だけの期間
   await page.getByRole('button', { name: /^良い調子、今日のまとめ、/ }).filter({ visible: true }).click();
 
   const b = band(page);
-  await expect(see(b, '日のまとめ ・ 11月9日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('日のまとめ ・ 11月9日に作成');
   await expect(see(b, '11月9日（月）', { exact: true })).toBeVisible();
-  // この日の達成（ゴールリング＋行。アプリが記録から出す。記録がなければ「記録なし」）。指標のタイルは出さず、指標は分野のカードに小さく
+  // この日の達成（kcal・たんぱく質・睡眠のリング。アプリが記録から出す。記録がなければ「記録なし」。筋トレの行はステータス表に）。指標のタイルは出さず、指標は分野の行に小さく
   await expect(page.getByTestId('report-achievement').filter({ visible: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'この日の達成', exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、記録なし', { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByTestId('report-tiles')).toHaveCount(0);
   await expect(see(page, '前の日より', { exact: true })).toBeVisible();
   await expect(see(page, '明日の一歩', { exact: true })).toBeVisible();
-  // この日の数字（構造化ステータス表）
+  // くわしく — ステータス（構造化ステータス表）
   const stats = page.getByTestId('report-daily-stats').filter({ visible: true });
   await expect(stats).toBeVisible();
-  await expect(see(stats, 'この日の数字', { exact: true })).toBeVisible();
+  await expect(see(stats, 'くわしく — ステータス', { exact: true })).toBeVisible();
   await expect(see(stats, '体重', { exact: true })).toBeVisible();
   // 明日の一歩：詳細でチェックできる。チェックすると next_steps_done がサーバーに届き、連続（ストリーク）が出る
   const steps = page.getByTestId('report-daily-steps').filter({ visible: true });
@@ -365,7 +365,7 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   await expect(extract).toHaveCSS('border-top-style', 'dashed');
   await expect(extract).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await button(page, '筋トレ、良い。ベンチプレスを3セット。合計負荷量 2.33 t、前より 0.4 増えた、良い変化').click();
-  await expect(see(band(page), '日のまとめ ・ 11月8日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('日のまとめ ・ 11月8日に作成');
   await button(page, '戻る').click();
 
   // 食事：meals だけ。日のまとめのない前の日は、場所も取らない
@@ -387,12 +387,12 @@ test('その日の日のまとめは、筋トレ・食事・からだのタブ�
   // レポートのタブ：最新は日のまとめ（12:00 作成）なので、その詳細を直接開く。種類の絞り込みはない
   await openReportsTab(page);
   await expect(periodTab(page, '日')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(band(page), '日のまとめ ・ 11月8日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('日のまとめ ・ 11月8日に作成');
   await expect(see(band(page), '11月8日のまとめ', { exact: true })).toBeVisible();
   // 期間タブで週に切り替えると、週の最新の詳細になる
   await periodTab(page, '週').click();
   await expect(periodTab(page, '週')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(band(page), '週のまとめ ・ 11月8日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('週のまとめ ・ 11月8日に作成');
 });
 
 test('MCP で推定した食事は、詳しい画面に推定の根拠を出す', async ({ page, context }) => {
@@ -461,19 +461,19 @@ test('詳細の期間タブ（日・週・月）：種類ごとの最新のレ�
 
   // まずはいちばん新しい、日のまとめ
   await expect(periodTab(page, '日')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(band(page), '日のまとめ ・ 11月8日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('日のまとめ ・ 11月8日に作成');
   await expect(see(band(page), '今日のまとめ', { exact: true })).toBeVisible();
 
   // 週：週の最新の詳細（帯と締めの見出しが週のものになる）
   await periodTab(page, '週').click();
   await expect(periodTab(page, '週')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(band(page), '週のまとめ ・ 11月8日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('週のまとめ ・ 11月8日に作成');
   await expect(see(page, '来週の焦点', { exact: true })).toBeVisible();
 
   // 月：月の最新の詳細
   await periodTab(page, '月').click();
   await expect(periodTab(page, '月')).toHaveAttribute('aria-selected', 'true');
-  await expect(see(band(page), '月のまとめ ・ 10月31日に作成')).toBeVisible();
+  await expect(created(page)).toHaveText('月のまとめ ・ 10月31日に作成');
   await expect(see(band(page), '10月のまとめ', { exact: true })).toBeVisible();
   await expect(see(page, '今月の課題', { exact: true })).toBeVisible();
 
@@ -509,9 +509,11 @@ test('週のまとめ：部位バランスのレーダーと、期間にケガ�
 
   const injury = page.getByTestId('report-injury-review').filter({ visible: true });
   await expect(injury).toBeVisible();
-  await expect(see(injury, 'ケガの振り返り', { exact: true })).toBeVisible();
-  await expect(injury).toContainText('痛めた 1件');
-  await expect(see(injury, 'この期間に痛めた', { exact: true })).toBeVisible();
+  // 見出しはモックと同じ英字の「INJURY REVIEW」（読み上げはパネルの名前「ケガの振り返り」）
+  await expect(see(injury, 'INJURY REVIEW', { exact: true })).toBeVisible();
+  await expect(injury).toHaveAttribute('aria-label', 'ケガの振り返り');
+  await expect(injury.getByLabel('期間内に痛めた 1件', { exact: true })).toBeVisible();
+  await expect(see(injury, '肩の前に違和感', { exact: true })).toBeVisible();
 
   await expect(see(page, '来週の焦点', { exact: true })).toBeVisible();
 });
@@ -553,14 +555,13 @@ test('月のまとめ：成長スコア・目標バー（節目つき）・BIG3 
   await expect(goal).toBeVisible();
   await expect(page.getByTestId('report-goal-milestone').filter({ visible: true })).toBeVisible();
   await expect(goal).toContainText('69.8');
-  await expect(goal).toContainText('80.0');
-  await expect(goal).toContainText('節目 70.0 kg まで あと 0.2 kg');
+  await expect(goal).toContainText('目標：80kg');
+  await expect(goal).toContainText('次の節目：70kg');
+  await expect(goal).toContainText('あと0.2kg');
 
   const big3 = page.getByTestId('report-big3').filter({ visible: true });
   await expect(big3).toBeVisible();
-  await expect(see(big3, 'ベンチプレス', { exact: true })).toBeVisible();
-  await expect(see(big3, 'スクワット', { exact: true })).toBeVisible();
-  await expect(see(big3, 'デッドリフト', { exact: true })).toBeVisible();
+  await expect(see(big3, 'BIG3 推定1RM 合計', { exact: true })).toBeVisible();
 
   await expect(see(page, '今月の課題', { exact: true })).toBeVisible();
 });
