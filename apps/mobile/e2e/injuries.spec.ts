@@ -175,6 +175,38 @@ test.describe('動きを減らす設定がオフ', () => {
     await expect(see(page, '▲ 1 ALERT')).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('脈打つ印は、スクロールして見えないあいだは止まり、見えると動く', async ({ page }) => {
+    await openApp(page);
+    await openInjuries(page);
+    for (const site of ['ひざ', '肩']) {
+      await newInjury(page);
+      await button(page, '一覧から選ぶ').click();
+      await button(page, site).click();
+      await page.getByTestId('injury-save').filter({ visible: true }).click();
+      await expect(page.getByTestId('injury-map').filter({ visible: true })).toBeVisible();
+    }
+    const pulse = page.getByTestId('injury-pulse').filter({ visible: true }).first();
+    // 20 コマのあいだに輪の大きさか濃さが変わったか（決まった時間ではなく、描画のコマで待つ）
+    const moving = () => pulse.evaluate(async (el) => {
+      const look = () => { const st = getComputedStyle(el); return `${st.transform} ${st.opacity}`; };
+      const before = look();
+      for (let i = 0; i < 20; i++) await new Promise((r) => requestAnimationFrame(r));
+      return look() !== before;
+    });
+    await expect.poll(moving).toBe(true);
+    // 図が画面の外へ出るまでスクロールできるよう、画面を低くする
+    await page.setViewportSize({ width: 412, height: 360 });
+    // 下のタブの上ではなく、スクロールする中身の上で回す
+    await page.mouse.move(206, 150);
+    await page.mouse.wheel(0, 3000);
+    // 見えている範囲の上の外（止めずに描いておく余白 64 より外）まで出す
+    await expect.poll(async () => { const b = (await pulse.boundingBox())!; return b.y + b.height; }).toBeLessThan(-64);
+    await expect.poll(moving).toBe(false);
+    await page.mouse.wheel(0, -3000);
+    await pulse.scrollIntoViewIfNeeded();
+    await expect.poll(moving).toBe(true);
+  });
 });
 
 test.describe('狭い画面（360）', () => {

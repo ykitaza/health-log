@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Pressable, View, ViewInstance } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
+import { useOnScreen } from '@/hooks/useOnScreen';
 import type { InjuryStatus, Side } from '@/lib/injuries';
 import {
   FIGURE_PIECES, FigurePiece, FigureTarget, jointPoints, JOINT_RADIUS, markPoint, Muscle, muscleFigureFor, MuscleView, piecesFor, pickTarget,
@@ -132,20 +133,26 @@ export function MuscleFigure({ name, view: injuryView, paint, paintColor = color
   );
 }
 
-/** 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定なら出さない */
+/**
+ * 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定なら出さない。
+ * スクロールして見えないあいだは止め、見えたら輪の始めから動かす
+ */
 function Pulse({ x, y, size, color }: { x: number; y: number; size: number; color: string }) {
   const reduced = useReducedMotion();
+  const ring = useRef<ViewInstance>(null);
+  const view = useOnScreen(ring);
   const t = useSharedValue(0);
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || !view.onScreen) return;
+    t.set(0);
     t.set(withRepeat(withTiming(1, { duration: PULSE_MS, easing: Easing.out(Easing.quad) }), -1, false));
     return () => cancelAnimation(t);
-  }, [reduced, t]);
+  }, [reduced, view.onScreen, t]);
   const style = useAnimatedStyle(() => ({ opacity: 0.6 * (1 - t.get()), transform: [{ scale: 0.6 + t.get() * 0.9 }] }));
   if (reduced) return null;
   return (
     <Animated.View
-      pointerEvents="none"
+      ref={ring} onLayout={view.onLayout} collapsable={false} pointerEvents="none" testID="injury-pulse"
       style={[{ position: 'absolute', left: x - size / 2, top: y - size / 2, width: size, height: size, borderRadius: size / 2, borderWidth: 1.5, borderColor: color }, style]}
     />
   );

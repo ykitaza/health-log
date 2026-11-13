@@ -327,6 +327,14 @@ export class BodyScene {
   /** 押した（図の中の px）。次のコマで部品を選ぶ */
   tapAt(x: number, y: number) { this.tap = { x, y }; }
 
+  /**
+   * 描く回数を減らしてよいか（触っていない：なぞっていない・惰性で回っていない・押した所を選ぶ前でない、最初のコマを描いたあと）。
+   * そのあいだは自動の回転と走査の帯だけが動くので、30fps でも見た目はほとんど変わらない
+   */
+  idle() {
+    return this.drawn && !this.dragging && Math.abs(this.vYaw) <= 0.01 && !this.tap;
+  }
+
   /** 毎コマ */
   frame(camera: THREE.Camera, width: number, height: number, elapsed: number, delta: number) {
     const reduced = this.reduced;
