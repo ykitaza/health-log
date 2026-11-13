@@ -144,15 +144,20 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await periodTab(page, '週').click();
   await expect(see(band(page), '11月2日（月）〜11月8日（日）')).toBeVisible();
 
-  // 来週の焦点のチェックは、ホームの「今週やること」で（詳細の週ビューは見るだけ）。チェックするとサーバーに届く
+  // 来週の焦点は、詳細の週ビューでチェックできる（ホームの「今週やること」と同じ next_steps_done）。チェックするとサーバーに届く
+  const wsteps = page.getByTestId('report-weekly-steps').filter({ visible: true });
+  await expect(wsteps).toBeVisible();
+  const wstep = wsteps.getByRole('checkbox', { name: '平日は 23時半までに寝る' });
+  await expect(wstep).toHaveAttribute('aria-checked', 'false');
+  await wstep.click();
+  await expect(wstep).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
+
+  // ホームの「今週やること」にも、同じチェックが反映される（全部できて1行にたたまれる）
   await button(page, '戻る').click();
   await goTab(page, 'ホーム');
   const todo = page.getByTestId('weekly-todo').filter({ visible: true });
-  const step = todo.getByRole('checkbox', { name: '平日は 23時半までに寝る' });
-  await step.click();
-  // 1つだけなので、全部できて1行にたたむ
   await expect(todo.getByRole('button', { name: '今週やることを全部できた。1つのうち1つ済み' })).toBeVisible();
-  await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
 
   // ホームの最新のレポートのカードから、詳細を開き直す
   await page.getByTestId('latest-report').filter({ visible: true })

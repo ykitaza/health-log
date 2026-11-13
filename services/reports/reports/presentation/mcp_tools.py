@@ -49,7 +49,7 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ）を save_report で残すと、スマホのアプリ（hlog）のホームと一覧で読める。
+INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
