@@ -1,9 +1,10 @@
 import { useScrollToTop } from 'expo-router';
-import { ReactNode, Ref, useLayoutEffect, useRef } from 'react';
+import { ReactNode, Ref, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { RefreshControl, ScrollView, ScrollViewInstance, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePullToSync } from '@/hooks/sync';
+import { ScrollWatchProvider, useScrollWatch } from '@/hooks/useOnScreen';
 import { ScrollToTopTarget, scrollToTopTarget } from '@/lib/scrollToTop';
 import { colors, size, space } from '@/theme';
 import { PullMark, usePullMark } from './PullMark';
@@ -14,6 +15,7 @@ import { Snackbar } from './ui';
  * タブの画面（tab）は、下に引っぱると同期し、下のタブで今のタブをもう一度押すといちばん上へ戻る。fab は右下に FAB があるとき（知らせをその上に出す）。
  * scrollRef はタブでない画面のスクロール（設定で、開いたときに欄までスクロールするため）。
  * underStatusBar は、中身をステータスバーの下（画面のいちばん上）から描く（ホームの形の段。上の余白は中身の側で取る）
+ * スクロールする画面は、スクロールの位置を中身に配る（hooks/useOnScreen.ts。見えていない絵を止める）
  */
 export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24, fab, scrollRef, underStatusBar }: {
   children: ReactNode; footer?: ReactNode; scroll?: boolean; tab?: boolean; bottomSpace?: number; fab?: boolean; scrollRef?: Ref<ScrollViewInstance>;
@@ -28,14 +30,24 @@ export function Screen({ children, footer, scroll = true, tab, bottomSpace = 24,
         // 同期のマークは、ステータスバーに重ねず、その下に出す
         <PullToSyncScroll contentContainerStyle={contentContainerStyle} fab={fab} markTop={underStatusBar ? insets.top : 0}>{children}</PullToSyncScroll>
       ) : scroll ? (
-        <ScrollView ref={scrollRef} contentContainerStyle={contentContainerStyle} keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
+        <PlainScroll contentContainerStyle={contentContainerStyle} scrollRef={scrollRef}>{children}</PlainScroll>
       ) : (
         <View style={{ flex: 1, paddingHorizontal: space.screen }}>{children}</View>
       )}
       {footer && <View style={{ paddingHorizontal: space.screen, paddingTop: space.s, paddingBottom: space.l, gap: space.s }}>{footer}</View>}
     </SafeAreaView>
+  );
+}
+
+/** タブでない画面のスクロール。scrollRef は画面に渡す（設定で欄までスクロールする） */
+function PlainScroll({ children, contentContainerStyle, scrollRef }: { children: ReactNode; contentContainerStyle: object; scrollRef?: Ref<ScrollViewInstance> }) {
+  const scroll = useRef<ScrollViewInstance>(null);
+  useImperativeHandle(scrollRef, () => scroll.current!, []);
+  const { watch, props } = useScrollWatch(scroll);
+  return (
+    <ScrollView ref={scroll} contentContainerStyle={contentContainerStyle} keyboardShouldPersistTaps="handled" {...props}>
+      <ScrollWatchProvider value={watch}>{children}</ScrollWatchProvider>
+    </ScrollView>
   );
 }
 
@@ -58,12 +70,14 @@ function PullToSyncScroll({ children, contentContainerStyle, fab, markTop }: { c
   const toTop = useRef<ScrollToTopTarget>(null);
   useLayoutEffect(() => { toTop.current = scrollToTopTarget(() => scroll.current, reduced); });
   useScrollToTop(toTop);
+  const { watch, props } = useScrollWatch(scroll);
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
         ref={scroll}
         contentContainerStyle={contentContainerStyle}
         keyboardShouldPersistTaps="handled"
+        {...props}
         refreshControl={
           <RefreshControl
             refreshing={refreshing} onRefresh={onRefresh}
@@ -71,7 +85,7 @@ function PullToSyncScroll({ children, contentContainerStyle, fab, markTop }: { c
           />
         }
       >
-        <Animated.View style={mark.shift}>{children}</Animated.View>
+        <Animated.View style={mark.shift}><ScrollWatchProvider value={watch}>{children}</ScrollWatchProvider></Animated.View>
       </ScrollView>
       <View style={{ position: 'absolute', top: markTop, left: 0, right: 0 }} pointerEvents="none">
         <PullMark values={mark.values} />

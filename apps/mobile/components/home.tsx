@@ -1,11 +1,12 @@
 // ホームの部品：形の段、「記録する」のシート、取り込みの知らせ（今週やることは WeeklyTodo.tsx）
 import { router, useIsFocused } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, StyleSheet, View, ViewInstance } from 'react-native';
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGrowthData } from '@/hooks/data';
 import { useGrowthShape } from '@/hooks/growthShape';
+import { useOnScreen } from '@/hooks/useOnScreen';
 import { useProfile } from '@/hooks/profile';
 import { NOTICE_MS, useSync } from '@/hooks/sync';
 import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/date';
@@ -48,11 +49,14 @@ const diffColor = (dir: 'up' | 'down' | 'flat') => (dir === 'up' ? colors.accent
 /**
  * ホームのいちばん上の「記録で育つ形」の段（高さ 228。ステータスバーの下まで含め、中身と一緒にスクロールする）。
  * 上の行：アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）と、カレンダーの月の見出し、設定の歯車。まん中：形（押すと成長を見る画面）。
- * 下の行：成長スコア（押すと内訳のシート）と「成長を見る」。地は画面と同じ色なので、段の下の端はそのまま下の中身へつながる
+ * 下の行：成長スコア（押すと内訳のシート）と「成長を見る」。地は画面と同じ色なので、段の下の端はそのまま下の中身へつながる。
+ * 形は、ほかのタブにいるときと、下へスクロールして段が見えないときは止める
  */
 export function GrowthStage({ today, year, month }: { today: DateKey; year: number; month: number }) {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
+  const stageRef = useRef<ViewInstance>(null);
+  const stage = useOnScreen(stageRef);
   const { data } = useGrowthData(today);
   const { shape } = useGrowthShape();
   const profile = useProfile();
@@ -66,8 +70,8 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
   const shapeHeight = Math.max(0, STAGE_HEIGHT - shapeTop - SHAPE_BOTTOM_GAP);
   return (
     <View
-      style={[s.stage, { height: STAGE_HEIGHT }]} testID="growth-stage"
-      onLayout={(e) => setShapeWidth(Math.max(0, e.nativeEvent.layout.width - space.screen * 2))}
+      style={[s.stage, { height: STAGE_HEIGHT }]} testID="growth-stage" ref={stageRef} collapsable={false}
+      onLayout={(e) => { setShapeWidth(Math.max(0, e.nativeEvent.layout.width - space.screen * 2)); stage.onLayout(); }}
     >
       <PressableScale
         accessibilityRole="button" accessibilityLabel={growthStageLabel(shape ?? DEFAULT_SHAPE)} scaleTo={0.98} onPress={openGrowth} testID="growth-shape"
@@ -75,7 +79,7 @@ export function GrowthStage({ today, year, month }: { today: DateKey; year: numb
       >
         {shapeWidth > 0 && shapeHeight > 0 && shape != null && (
           // 形を変えたら作り直す（形ごとに点の数がちがう）
-          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused} />
+          <GrowthShape key={shape} shape={shape} params={growth.params} sats={growth.sats} width={shapeWidth} height={shapeHeight} paused={!focused || !stage.onScreen} />
         )}
       </PressableScale>
       <View style={[s.stageRow, { marginTop: insets.top }]} pointerEvents="box-none">

@@ -3,15 +3,17 @@
 /* eslint-disable react/no-unknown-property -- R3F の <primitive object> は three.js の物を渡す決まりの属性（DOM の属性ではない） */
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
 import { useFocusEffect } from 'expo-router';
-import { Component, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
-import { Linking, StyleSheet } from 'react-native';
+import { Component, ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, StyleSheet, View, ViewInstance } from 'react-native';
 import Animated, {
   cancelAnimation, Easing, FadeOut, SharedValue, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import { Circle, Line } from 'react-native-svg';
 import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import MODEL from '@/assets/models/body.glb';
+import { useOnScreen } from '@/hooks/useOnScreen';
 import { CAMERA } from '@/lib/bodyModel';
+import { bodyRunning } from '@/lib/onScreen';
 import { ensureTextDecoder } from '@/lib/utf8';
 import { colors, space } from '@/theme';
 import { BodyScene } from './bodyScene';
@@ -25,14 +27,29 @@ ensureTextDecoder();
 const LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/';
 const SOURCE_URL = 'https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html';
 
-/** Canvas の中：体を読み込み、毎コマ BodyScene を進める */
+/**
+ * Canvas の中：体を読み込み、毎コマ BodyScene を進めて描く。
+ * 触っていない（自動で回っている・止まっている）あいだは、1コマおきに描く（30fps。描く量を半分に）。
+ * 描かないコマは前のコマが残る。なぞっている・指を離して惰性で回っている・押した直後は毎コマ描く
+ */
 function Scene({ scene }: { scene: BodyScene }) {
   // MODEL は require の番号（R3F の native の読み込みが expo-asset で開く）。1つだけ読むので配列にはならない
   const gltf = useLoader(GLTFLoader, MODEL as unknown as string) as GLTF;
   const { camera, size } = useThree();
   scene.setModel(gltf.scene);
   useEffect(() => { camera.lookAt(...CAMERA.target); }, [camera]);
-  useFrame((state, delta) => scene.frame(camera, size.width, size.height, state.clock.elapsedTime, delta));
+  // 飛ばしたコマの時間をためて、次に描くコマで進める
+  const skip = useRef({ odd: false, delta: 0 });
+  // 優先度 1 の useFrame は、R3F の自動の描画を止める（描くのはここで呼ぶ gl.render だけ）
+  useFrame((state, delta) => {
+    const k = skip.current;
+    k.delta += delta;
+    k.odd = !k.odd;
+    if (scene.idle() && k.odd) return;
+    scene.frame(camera, size.width, size.height, state.clock.elapsedTime, k.delta);
+    k.delta = 0;
+    state.gl.render(state.scene, camera);
+  }, 1);
   return (
     <>
       <primitive object={scene.body} />
@@ -44,14 +61,17 @@ function Scene({ scene }: { scene: BodyScene }) {
 }
 
 /**
- * 3D の体を描く面（親の大きさいっぱい）。画面から離れたら描くのを止める（電池）。
+ * 3D の体を描く面（親の大きさいっぱい）。画面から離れたとき・スクロールして見えないときは描くのを止める（電池・軽さ）。
  * 体を読み込んで最初のコマを描くまでは、読み込み中の表示を重ねる（消すのは1回の state の変更だけ）
  */
 export function BodyCanvas({ scene }: { scene: BodyScene }) {
   const [focused, setFocused] = useState(true);
   const [ready, setReady] = useState(false);
+  const box = useRef<ViewInstance>(null);
+  const view = useOnScreen(box);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   useEffect(() => { scene.onFirstFrame(() => setReady(true)); }, [scene]);
+  const running = bodyRunning(focused, view.onScreen, ready);
   // GL が例外を出さずに描けないとき、読み込み中のまま残らないよう、しばらく描けなければ 2D の図へ戻す（外の Fallback が受ける）
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
@@ -61,10 +81,10 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
   }, [ready, focused]);
   if (timedOut && !ready) throw new Error('3D の体を描けませんでした（時間切れ）');
   return (
-    <>
+    <View ref={box} onLayout={view.onLayout} collapsable={false} style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Canvas
         style={StyleSheet.absoluteFill}
-        frameloop={focused ? 'always' : 'never'}
+        frameloop={running ? 'always' : 'never'}
         camera={{ fov: CAMERA.fov, position: CAMERA.position, near: CAMERA.near, far: CAMERA.far }}
         gl={{ antialias: true }}
       >
@@ -73,7 +93,7 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
         </Suspense>
       </Canvas>
       {!ready && <BodyLoading />}
-    </>
+    </View>
   );
 }
 
@@ -113,7 +133,8 @@ const SWEEP = 48;
 
 /**
  * 読み込み中の表示（LOADING // BODY MODEL）。図の高さのまん中で、緑の細い走査の線が上下に動く（1.2 秒で片道、ease-in-out）。
- * 動きを減らす設定では線を出さず、文だけ。消えるときは 150ms で薄く消える。読み上げでは読み込み中であることを読む
+ * 画面に出す文字は英字の1行だけ（日本語の行は出さない。読み上げでは日本語で、読み込み中であることを読む）。
+ * 動きを減らす設定では線を出さず、文だけ。消えるときは 150ms で薄く消える
  */
 function BodyLoading() {
   const reduced = useReducedMotion();
@@ -131,7 +152,6 @@ function BodyLoading() {
     >
       {!reduced && <Animated.View style={[s.sweep, line]} />}
       <Mono color={colors.accent}>LOADING // BODY MODEL</Mono>
-      <T variant="bodyM" color={colors.sub}>体の図を読み込んでいます</T>
     </Animated.View>
   );
 }
