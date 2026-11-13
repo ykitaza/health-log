@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, homeCard, openApp, openSettings, primaryTab, see, tab, TODAY } from './helpers';
+import { button, goTab, homeCard, openApp, openSettings, see, tab, TODAY } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームの、同期で受け取るものに関わる部品：今週やること（週のまとめの次の一歩）と、取り込みの知らせ。
@@ -97,14 +97,17 @@ test('今週やること：チェックすると取り消し線と件数。サ�
   await expect(card.getByRole('checkbox', { name: '平日は 23時半までに寝る' })).toHaveAttribute('aria-checked', 'false');
   await expect(see(card, '2／3', { exact: true })).toBeVisible();
 
-  // 「すべて」で、レポートのタブの「やること」を開く（同じチェック）
+  // 「すべて」で、レポートのタブを通って週のまとめの詳細（週ビュー）を開く。締めの「来週の焦点」に、同じ次の一歩が出る
   await button(card, 'やることをすべて見る').click();
   await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
-  await expect(primaryTab(page, 'やること')).toHaveAttribute('aria-selected', 'true');
-  const week = page.getByTestId('todo-week-2026-11-09').filter({ visible: true });
-  await expect(see(week, '2／3', { exact: true })).toBeVisible();
-  await expect(week.getByRole('checkbox', { name: 'たんぱく質を毎日 120g とる' })).toHaveAttribute('aria-checked', 'true');
-  // たたんだ行の右にも「すべて」
+  const periodTabs = page.getByTestId('report-period-tabs').filter({ visible: true });
+  await expect(periodTabs).toBeVisible();
+  await expect(periodTabs.getByRole('button', { name: '週', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, '来週の焦点', { exact: true })).toBeVisible();
+  await expect(see(page, 'たんぱく質を毎日 120g とる', { exact: true })).toBeVisible();
+  await expect(see(page, '平日は 23時半までに寝る', { exact: true })).toBeVisible();
+  // 詳細から戻り、ホームで残りをチェックする
+  await button(page, '戻る').click();
   await goTab(page, 'ホーム');
   await card.getByRole('checkbox', { name: '平日は 23時半までに寝る' }).click();
   await expect(card.getByRole('button', { name: '今週やることを全部できた。3つのうち3つ済み' })).toBeVisible();

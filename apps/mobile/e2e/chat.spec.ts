@@ -120,8 +120,9 @@ test('レポートの「チャットで作る」：期間を選んでから開�
   expect(q).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-08)で保存してください。');
 });
 
-// ホームとレポートのタブの帯は同じ部品（components/ReportSuggestion.tsx）。記録を画面で作るのに時間がかかるので、1回作って両方を確かめる
-test('まだ作っていないまとめのおすすめ：ホームとレポートのタブの帯、右下の「レポートを作る」。閉じるとどちらにも出ない', async ({ page }) => {
+// おすすめの帯（components/ReportSuggestion.tsx）はホームだけに出る（新IAのレポートのタブは詳細へ直行し、帯は置かない）。
+// 記録を画面で作るのに時間がかかるので、1回作ってホームの帯とレポートのタブの「レポートを作る」を確かめる
+test('まだ作っていないまとめのおすすめ：ホームの帯と、レポートのタブの右下の「レポートを作る」。閉じると出ない', async ({ page }) => {
   // 11月6日（金）・7日（土）に記録し、火曜の11月10日に開く：先週（11月2日〜8日）の週のまとめと、6日・7日の日のまとめがまだ
   await openApp(page, '2026-11-06');
   await recordOn(page, '2026-11-06', [{ exercise: 'ベンチプレス', sets: [{ weight: '60', reps: '10' }] }]);
@@ -149,12 +150,12 @@ test('まだ作っていないまとめのおすすめ：ホームとレポー�
       + `終わったら、${back('reports')}`);
   });
 
-  await test.step('レポートのタブ：おすすめの帯と右下の「レポートを作る」。閉じるとホームにも出ず、開き直しても出ない', async () => {
+  await test.step('レポートのタブ：おすすめの帯は出さない。右下の「レポートを作る」は、まだのまとめをまとめて頼む文で開く', async () => {
     await goTab(page, 'レポート');
+    // レポートはまだ1件もないので、タブは空の状態（直行する詳細がない）。帯はホームだけなので、ここには出ない
     // 後ろに重なったホームのタブ（aria-hidden）の帯は数えない
-    const banner = page.getByTestId('report-suggestion').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
-    await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
-    await expect(see(banner, '先週の分と、11月6日・7日の分', { exact: true })).toBeVisible();
+    await expect(see(page, 'レポートはまだありません')).toBeVisible();
+    await expect(page.getByTestId('report-suggestion').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
 
     // 右下の「レポートを作る」：まだのまとめがあれば、それをまとめて頼む文で開く
     await button(page, 'レポートを作る').click();
@@ -165,10 +166,16 @@ test('まだ作っていないまとめのおすすめ：ホームとレポー�
     const { app, q } = parse((await opened(page))[1]);
     expect(app).toBe(CHATGPT);
     expect(q).toContain('対象は3件：weekly(2026-11-02..2026-11-08), daily(2026-11-06), daily(2026-11-07)。');
+  });
 
-    // レポートのタブで閉じると、ホームにも出ない（閉じたことは同じ所に覚える）。閉じたあとの「レポートを作る」は期間を選ぶシート
+  await test.step('ホームでおすすめを閉じると、レポートのタブの「レポートを作る」も期間を選ぶシートになる。開き直しても出ない', async () => {
+    await goTab(page, 'ホーム');
+    const banner = page.getByTestId('report-suggestion').filter({ visible: true });
+    await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
     await button(banner, 'おすすめを閉じる。今出ている分は、もう出しません').click();
     await expect(banner).toHaveCount(0);
+    // 閉じたあとの「レポートを作る」は期間を選ぶシート（閉じたことは同じ所に覚える）
+    await goTab(page, 'レポート');
     await button(page, 'レポートを作る').click();
     await expect(see(sheet(page), '今日のまとめを作るための文を入れて開きます')).toBeVisible();
     await button(page, 'Claude で開く（外のアプリ）').click();

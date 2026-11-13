@@ -20,10 +20,11 @@ describe('まとめの文', () => {
   test('日：period_overview をその日で読み、達成はアプリが出すこと・体重は週の平均と比べること・明日の一歩・保存の引数を入れる', () => {
     expect(promptText({ kind: 'report', span: 'day', today: TODAY })).toBe(
       `${C}で今日（11月9日）のまとめを作ってください。`
-      + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使い推測で補わないでください。達成の数字はアプリが出します。'
+      + 'list_reports(kind=daily)に同じ期間があれば作らない。'
+      + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使ってください。達成の数字はアプリが出します。'
       + '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ、責めない言い方で書き、'
       + 'save_report(kind=daily, period_start=2026-11-09, period_end=2026-11-09)で保存してください。'
-      + '保存したら、' + back('reports', 'hlog で見る'));
+      + back('reports', 'hlog で見る'));
   });
 
   test('週：月曜から今日まで（アプリの「今週の目標」と同じ区切り）。つながり（links）と来週の一歩', () => {
