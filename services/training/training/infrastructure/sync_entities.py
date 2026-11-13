@@ -8,6 +8,8 @@ scope は torelog-api/training.read・training.write。
 ケガ（injury）とその振り返り（injury_review）は、MCP もアプリも書く。上限と部位のコードは training.domain.injury と同じ。
 項目ごとに後勝ちで当てはめるので、項目の組み合わせ（部位と左右、状態と直せた日）は、同じ変更に両方の項目があるときだけ確かめる
 （読む側は、食い違っていても読めるようにする。sync_repository.py）。
+フェーズ（phase）はアプリだけが書く（MCP は読むだけ）。上限と決まりは training.domain.phase と同じ。組み合わせの決まりは、
+ケガと同じく同じ変更に両方の項目があるときだけ確かめる。同時に実施中は1つ・止まっているかは、読む側が療養の行から決める。
 """
 
 from __future__ import annotations
@@ -30,6 +32,10 @@ from training.domain.injury import (
     SiteCode,
     Status,
 )
+from training.domain.phase import MAX_NAME as MAX_PHASE_NAME
+from training.domain.phase import MAX_TARGET_HISTORY, Direction
+from training.domain.phase import Kind as PhaseKind
+from training.domain.phase import Status as PhaseStatus
 
 AREA = "training"
 Name = Annotated[str, Field(min_length=1, max_length=200)]
@@ -150,6 +156,94 @@ class InjuryReviewFields(FieldsModel):
     exercise_id: Ref | None = None  # 試した種目（なければ null）
 
 
+Weight = Annotated[float, Field(ge=30, le=300)]  # 体重（体組成の weight_kg と同じ範囲）
+Kcal = Annotated[float, Field(ge=0, le=20000)]  # 食事の目標と同じ範囲（meals の KCAL_MAX・GRAMS_MAX）
+Grams = Annotated[float, Field(ge=0, le=5000)]
+OneRm = Annotated[float, Field(gt=0, le=1000)]
+
+
+class PhaseDayTarget(FieldsModel):
+    kcal: Kcal | None = None
+    protein_g: Grams | None = None
+
+
+class PhaseMealTargets(FieldsModel):
+    """フェーズの食事の目標。食事の目標（nutrition_goal の targets）と同じく、筋トレの日と休みの日を1つの項目にする。"""
+
+    training_day: PhaseDayTarget
+    rest_day: PhaseDayTarget
+
+
+class PhaseBig3(FieldsModel):
+    """BIG3 の推定1RM（kg。アプリが開始前の記録から出す）。記録がなければ null。"""
+
+    bench: OneRm | None = None
+    squat: OneRm | None = None
+    deadlift: OneRm | None = None
+
+
+class PhaseSnapshot(FieldsModel):
+    """開始時の記録（振り返りの before に使う）。ないものは null。"""
+
+    weight_kg: Weight | None = None
+    body_fat_pct: Annotated[float, Field(ge=0, le=100)] | None = None
+    big3: PhaseBig3 | None = None
+    growth_score: Annotated[int, Field(ge=0, le=100)] | None = None
+
+
+class PhaseTargetChange(FieldsModel):
+    date: Day  # 変えた日（最初の1件は開始日）
+    target_weight_kg: Weight
+    end_date: Day
+    weight_kg: Weight | None = None  # 線の始まりの体重（なければ前の線の値から引く）
+
+
+class PhaseFields(FieldsModel):
+    kind: PhaseKind = None  # normal（通常）・rehab（療養）
+    direction: Direction | None = None  # bulk・cut・maintain（通常だけ。療養は null）
+    name: Annotated[str, Field(max_length=MAX_PHASE_NAME)] = None  # 空なら「増量 16週」のように出す
+    start_date: Day = None
+    end_date: Day | None = None  # 予定の終わり（止まった日を含まない。療養は null）
+    target_weight_kg: Weight | None = None  # 通常だけ
+    meal_targets: PhaseMealTargets | None = None
+    snapshot: PhaseSnapshot | None = None
+    status: PhaseStatus = None  # active・ended・aborted
+    paused_phase_id: Ref | None = None  # 療養だけ：止めた通常のフェーズ
+    # 目標と終了日の変更の履歴（最初の1件は開始日）。予定の線を引き直すのに使う。一覧ごと置き換わる
+    target_history: Annotated[list[PhaseTargetChange], Field(max_length=MAX_TARGET_HISTORY)] = None
+    ended_on: Day | None = None  # 終えた・中断した日（この日はフェーズに含まない）
+
+
+def _reject(field: str, message: str, detail: str) -> Rejection:
+    return Rejection("invalid_fields", message, ({"field": f"fields.{field}", "message": detail},))
+
+
+def _check_phase(entity_id: str, fields: dict) -> Rejection | None:
+    """同じ変更に入っている項目どうしの決まり（入っていない項目とは比べない。項目ごとに後勝ちのため）。"""
+    kind = fields.get("kind")
+    if kind == "rehab":
+        for name in ("direction", "target_weight_kg", "end_date"):
+            if fields.get(name) is not None:
+                return _reject(name, f"療養（rehab）には {name} を入れません", "rehab は null")
+    if kind == "normal":
+        if fields.get("paused_phase_id") is not None:
+            return _reject("paused_phase_id", "止めたフェーズ（paused_phase_id）は療養だけが持ちます", "normal は null")
+        for name in ("direction", "target_weight_kg", "end_date"):
+            if name in fields and fields[name] is None:
+                return _reject(name, f"通常のフェーズには {name} が要ります", "normal は必須")
+    start, end, ended = fields.get("start_date"), fields.get("end_date"), fields.get("ended_on")
+    if start and end and end < start:
+        return _reject("end_date", "終了日は開始日と同じか後の日にしてください", "start_date と同じか後の日")
+    if start and ended and ended < start:
+        return _reject("ended_on", "終えた日は開始日と同じか後の日にしてください", "start_date と同じか後の日")
+    if "status" in fields and "ended_on" in fields and (fields["status"] == "active") != (fields["ended_on"] is None):
+        return _reject("ended_on", "終えた日（ended_on）は、状態が ended・aborted のときだけ入れてください",
+                       "active なら null、ended・aborted なら日付")
+    if fields.get("paused_phase_id") == entity_id:
+        return _reject("paused_phase_id", "自分を止めることはできません", "ほかのフェーズの ID")
+    return None
+
+
 def _check_injury(entity_id: str, fields: dict) -> Rejection | None:
     """同じ変更に入っている項目どうしの決まり（入っていない項目とは比べない。項目ごとに後勝ちのため）。"""
     site, side = fields.get("site"), fields.get("side")
@@ -183,3 +277,4 @@ def register(registry: Registry) -> None:
     # 振り返りはケガといっしょに消す（アプリも MCP も、ケガを消すときに振り返りも消す）。owner は大量の削除の数え方だけが使う
     registry.register("injury_review", EntitySpec(InjuryReviewFields, ("injury_id", "date", "result"), AREA,
                                                   owner=("injury", "injury_id")))
+    registry.register("phase", EntitySpec(PhaseFields, ("kind", "start_date", "status"), AREA, check=_check_phase))

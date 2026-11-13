@@ -34,6 +34,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `step_day` | 歩数の1日の合計（Health Connect の取り込みだけ。`date`・`steps`。1〜1,000,000） | 日付から決める（下の「Health Connect の取り込み」） | `training.*` |
 | `injury` | ケガの記録（痛めた日・部位のコード・左右・種目・場面・症状・原因・直し方・状態・直せた日。下の注） | UUID | `training.*` |
 | `injury_review` | ケガの振り返り（ケガ・試した日・結果・メモ・種目） | UUID | `training.*` |
+| `phase` | フェーズ（増量・減量・維持の通常のフェーズと療養。種別・向き・名前・開始日・終了日・目標体重・食事の目標・開始時の記録・状態・止めた通常のフェーズ・目標の変更の履歴・終えた日。下の注） | UUID | `training.*` |
 | `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩・つながり・目標の見直し） | UUID | `training.*` |
 
 - 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
@@ -50,6 +51,12 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
   - 項目ごとに後勝ちで当てはめるので、項目の組み合わせ（左右のない部位 `abs`・`neck`・`waist` の左右、状態と直せた日、直せた日が痛めた日より前）は、同じ変更に両方の項目があるときだけ断ります。読む側（`sync_repository.py`）は、食い違った状態でも読みます（左右のない部位の左右は捨て、直せた日は `fixed` のときだけ使う）
   - ケガを消すときは、振り返りも一緒に消します（MCP の `delete_injury` は、ケガ → 振り返りの順に変更を書く）。振り返りの削除が届く前でも、消えたケガの振り返りは読みません
   - 版12までのアプリは、知らない種類として飛ばし、受け取りの位置だけ進めます。アプリにケガを足した版13では、レポートの版7と同じく、受け取りの位置を消してスナップショットを取り直します（下の「アプリの同期」）
+- フェーズ（`phase`）は、アプリだけが書きます（MCP は `list_phases`・`period_overview` で読むだけ。本人が宣言するもので、自動では始めない）。筋トレの scope（`training.*`）で扱います（新しい scope・表・キーは作らない）。上限と計算の決まりは `services/training/training/domain/phase.py`（アプリは `apps/mobile/lib/phases.ts`。`testdata/training/phases.json` で同じ結果を確かめる）
+  - 項目：`kind`（`normal`・`rehab`）、`direction`（`bulk`・`cut`・`maintain`。通常だけ）、`name`（40字まで。空でもよい）、`start_date`、`end_date`（予定の終わり。開始日＋7×週数−1。療養で止まった日を含まない。療養は null）、`target_weight_kg`（通常だけ）、`meal_targets`（`training_day`・`rest_day` ごとの `kcal`・`protein_g`）、`snapshot`（開始時の `weight_kg`・`body_fat_pct`・`big3`〔`bench`・`squat`・`deadlift` の推定1RM〕・`growth_score`）、`status`（`active`・`ended`・`aborted`）、`paused_phase_id`（療養だけ：止めた通常のフェーズ）、`target_history`（目標と終了日の変更。最初の1件は開始日。`date`・`target_weight_kg`・`end_date`・`weight_kg`〔線の始まりの体重〕。100件まで、一覧ごと置き換わる）、`ended_on`（終えた・中断した日。この日は含まない）。create に要るのは `kind`・`start_date`・`status`
+  - 2つの行にまたがる状態は持ちません（項目ごと・行ごとに後勝ちで当てはめるので、両方に持つと食い違う）。療養で止まっているか・時計のずれ（実際の終わり）は、療養の行の `paused_phase_id` と [`start_date`, `ended_on`) から読む側が求めます。通常のフェーズの `status` は、療養のあいだも `active` のままです
+  - 同時に実施中は1つ、は書く側（アプリのリポジトリ）が確かめ、読む側は実施中が2つ以上あっても、開始日の新しいもの・記録の新しいもの・ID の大きいものを選びます（療養が実施中なら療養が今のフェーズ）
+  - 項目の組み合わせ（療養の向き・目標・終了日、通常の向き・目標・終了日の null、状態と終えた日、日付の前後）は、ケガと同じく同じ変更に両方があるときだけ断ります。読む側は、療養に残った向きなどを捨てて読みます。アプリは、状態と終えた日、目標と終了日と履歴を組（`EntitySpec.together`）で送ります
+  - 版14までのアプリは知らない種類として飛ばし、受け取りの位置だけ進めます。版15では、版13と同じく受け取りの位置を消してスナップショットを取り直します
 - 体重は、体組成（`body_record`）に一本化しています。MCP の `record_weight` も体組成の記録を書きます（[design.md](design.md#mcp-サーバーの組み立て)）
 
 ## 変更の記録
@@ -159,7 +166,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 
 ## アプリの同期（apps/mobile）
 
-アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）と歩数の1日の合計（`step_day`。版11）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版10で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。ケガ（`injury`）と振り返り（`injury_review`）は版13で足しました（表は `injuries`・`injury_reviews`。部位と左右、状態と直せた日は、片方だけ変えても組で update に入れる：`EntitySpec.together`。ケガを消すときは、同じトランザクションでケガ → 振り返りの順に消す。件数の上限はアプリも書くときに確かめる）。体組成の筋肉率（`muscle_pct`）とウエスト（`waist_cm`）は版14で外しました（列と値を消し、その2つしか値のない手入力の行は消して delete を送る。サーバーは前の版のアプリが送っても断らずに捨てる。サーバーの今の状態と変更の記録に残っている値は、一度だけ動かす `services/training/scripts/drop_waist_muscle.py` で消す）。
+アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）と歩数の1日の合計（`step_day`。版11）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版10で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。ケガ（`injury`）と振り返り（`injury_review`）は版13で足しました（表は `injuries`・`injury_reviews`。部位と左右、状態と直せた日は、片方だけ変えても組で update に入れる：`EntitySpec.together`。ケガを消すときは、同じトランザクションでケガ → 振り返りの順に消す。件数の上限はアプリも書くときに確かめる）。フェーズ（`phase`）は版15で足しました（表は `phases`。止めた通常のフェーズ `paused_phase_id` は同じ表を指すので、外部キーにも `refs` にもしない。履歴の列は NULL にしない）。体組成の筋肉率（`muscle_pct`）とウエスト（`waist_cm`）は版14で外しました（列と値を消し、その2つしか値のない手入力の行は消して delete を送る。サーバーは前の版のアプリが送っても断らずに捨てる。サーバーの今の状態と変更の記録に残っている値は、一度だけ動かす `services/training/scripts/drop_waist_muscle.py` で消す）。
 種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）

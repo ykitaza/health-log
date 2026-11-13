@@ -76,6 +76,22 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 - 1人200件まで、振り返りはケガ1件に100件まで。`list_injuries` は一度に50件まで、振り返りはケガ1件に新しい20件まで（全部の数は `review_count`）
 - 記録したら、次にその種目を記録するときにアプリに直すことが出る、と AI が伝えます（アプリの画面は別の PR）
 
+## フェーズ
+
+フェーズは、増量（`bulk`）・減量（`cut`）・維持（`maintain`。リコンプ）の通常のフェーズと、療養（`rehab`）の期間です。本人がアプリで宣言します（自動では始まらない）。MCP は読むだけで、始める・変えるツールはありません（頼まれたら、アプリで宣言するよう AI が伝える）。
+
+| 頼み方 | 起きること（ツール） |
+|---|---|
+| 「今のフェーズは？」「減量は順調？」 | 今のフェーズと一覧（`list_phases`）。何週目・残り・目標体重・予定の体重・ペース |
+| 「今週のまとめを作って」 | 期間の材料（`period_overview`）の `phase` を見て、レポートの調子をフェーズの向きで決める |
+
+- 何週目・実際の終わり・ペースはサーバーが計算します（アプリの `lib/phases.ts` と同じ決まり。`testdata/training/phases.json` で両方を確かめる）
+  - 療養に入ると、止めた通常のフェーズの時計が止まり、療養の日数だけ終わりが後ろにずれます（`effective_end_date`）
+  - ペースは、直近7日の体重の平均と、同じ日の予定（開始時の体重から目標体重への直線。目標を変えたら変えた日から引き直す）の平均の差です。±0.3kg 以内なら `on_track`、外れたら増量・減量は `fast`・`slow`、維持は `over`・`under`
+  - 7日に測った日が1日以下、療養中、療養から戻って14日は判定しません（`status` は null、理由は `not_judged_reason`）
+- 目標体重は、フェーズ実施中（療養で止まっているときも）はフェーズの目標体重を使います（`period_overview` の `goals.goal_weight_kg`、どこからかは `goal_weight_source`）。フェーズがなければ今までどおり、アプリの設定の目標体重、なければ食事の目標の目標体重です。`suggest_goals`（食事の目標の自動計算）は、アプリの自動計算と同じ結果にするため、今のところ設定の目標体重のままです
+- レポートの調子（`overall_tone`・`highlights` の `tone`・`delta_good`）は、フェーズの向きで決めるよう、ツールの説明で AI に頼んでいます（減量期なら体重が減ったのが良い）。療養中は体の目標で判定せず、筋トレができていないことを「気をつけたい」にしません。見るのは睡眠・たんぱく質・ケガの振り返りで、診断や治療の助言はしません
+
 ## レポートの頼み方
 
 | 頼み方 | 起きること（ツール） |
@@ -87,6 +103,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 - 種類（`kind`）は、日のまとめ（`daily`）・週のまとめ（`weekly`）・月のまとめ（`monthly`）の3つで、`save_report` では必須です。その他（`other`）はもう保存できません（前に保存した `other` のレポートは消さず、一覧・取得ではそのまま読めます）。日のまとめは期間の初日と最後の日（`period_start`・`period_end`）が同じ日でないと断ります。種類を知らない前の版のアプリは、その他として見せます
 - レポートは、全体の調子（`overall_tone`：良い調子・いつもどおり・気をつけたい）、ひと言の要約（`headline`）、分野ごとの要点と数字（`highlights`。6件まで）、次の一歩（`next_steps`。3件まで）、つながり（`links`。分野をまたぐ気づき。3件まで）、目標の見直し（`review`）、くわしい本文（`body`。Markdown、20,000字まで）を持ちます。アプリは調子を色・アイコン・ラベルで、数字を前の期間からの変化と一緒に見せます
+- 調子（`overall_tone`・`tone`・`delta_good`）は、`period_overview` の `phase` の向きで決めます（減量期なら体重が減ったのが良い）。療養中は体の目標で判定せず、筋トレができていないことを「気をつけたい」にしません（上の「フェーズ」）
 - 種類ごとに書くこと（`save_report` の説明で AI に頼む）：日＝その日の目標に対する一言と、明日の一歩を1つ。週＝今週の目標の達成、つながり、来週の焦点に相当する一歩を3つまで（先に、前の週のまとめの次の一歩の結果 `previous_next_steps` を振り返ってから書く）。ケガは `period_overview` の `injuries`（`reviewed`・`fixing`）を見て、直し方を守れたかを振り返りに書く（`highlights` の分野には入れない）。月＝体の変化（体重の推移と目標までのペース）、BIG3、つながり、目標の見直しの提案、今月の課題に相当する一歩を3つまで。達成の数字そのもの（今日の達成、今週の目標、体の変化のグラフ）はアプリが記録から計算して見せるので、レポートには持たせません
 - つながり（`links`）の1件は `from_area`・`to_area`（`training`・`meals`・`body`・`sleep`。違う分野）と `text`（120字まで）、任意で `basis`（「2日」「3週」のような根拠の短い言葉。20字まで）。目標の見直し（`review`）は `text`（200字まで）と、任意で `target`（いまは `meals_goal` だけ。アプリが食事の目標を開くボタンを出す）。どちらも省けて、ない前の形のレポートも読めます
 - 数字は記録のツールが返した値だけを使うよう、ツールの説明で AI に頼んでいます。サーバーは値の種類・件数・長さを確かめ、1人200件までにしています。同じ種類・期間のレポートがすでにあるときは、新しい方で置き換えます（重複はできません。週・月のまとめは、期間の初日（`period_start`）が同じなら最後の日が違っても同じ期間とみなします。アプリの頼み方は最後の日を「今日」にするため。次の一歩のチェックは、文面が同じ一歩にだけ引き継ぎます）。期間のないレポートは置き換えの対象にしません
@@ -97,7 +114,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 ## ツールの一覧
 
-1つのコネクタに、次の44個が並びます。
+1つのコネクタに、次の45個が並びます。
 
 | 分類 | ツール | 説明 |
 |---|---|---|
@@ -139,6 +156,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | ケガ | `mark_injury_fixed` | 直せたにする（直せた日を入れる） |
 | ケガ | `update_injury` | 書き直す（原因・直し方など）、直している途中に戻す |
 | ケガ | `delete_injury` | ケガの記録を消す（振り返りも一緒に消え、アプリからも消える） |
+| フェーズ | `list_phases` | フェーズの一覧と今のフェーズ（療養中なら療養と、止めている通常のフェーズ）。何週目・実際の終わり・目標体重・予定の体重・ペース・食事の目標・開始時の記録・目標の変更の履歴。読むだけ |
 | レポート | `period_overview` | 期間（31日まで）の材料を1回で読む：筋トレ・食事・体組成（体重・体脂肪率）・睡眠・心拍・歩数と目標（下の「期間の材料」） |
 | レポート | `save_report` | まとめを保存し、アプリで読めるようにする（「今週のまとめを作って」）。つながり（`links`）と目標の見直し（`review`）も持てる |
 | レポート | `list_reports` | 保存したレポートの一覧（新しい順。本文は含まない） |
@@ -146,7 +164,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | レポート | `delete_report` | レポートを消す（アプリからも消える） |
 | その他 | `logout` | ログアウトする（別のアカウントで入り直すとき、連携をやめるとき） |
 
-食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレとケガのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py`、`period_overview` は `services/mcp/connector/period_overview.py`（筋トレ・食事・設定をまたぐので、組み立ての場所）にあります。
+食事のツールは `services/meals/meals/presentation/mcp_server.py`、筋トレとケガとフェーズのツールは `services/training/training/presentation/mcp_tools.py`、レポートのツールは `services/reports/reports/presentation/mcp_tools.py`、`logout` は `services/mcp/connector/tools.py`、`period_overview` は `services/mcp/connector/period_overview.py`（筋トレ・食事・設定をまたぐので、組み立ての場所）にあります。
 
 ### 期間の材料（`period_overview`）
 
@@ -161,8 +179,9 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | `sleep` | `nights_recorded`、`average_asleep_min`、`nights`（起きた日ごとの `date`・`asleep_min`・`bedtime`・`wake_time`。日本時間） |
 | `heart_rate` | `days_recorded`、`average_resting_bpm`、`days`（安静時心拍がある日の `date`・`resting_bpm`） |
 | `steps` | `days_recorded`、`average_steps`（記録がある日の平均。整数）、`days`（記録がある日の `date`・`steps`。1日の合計） |
-| `goals` | `meals`（食事の目標。`today_status` の `goal` と同じ形。なければ null）、`goal_weight_kg`（アプリの設定の目標体重。なければ食事の目標の目標体重）、`weekly`（今週の目標：`training_days`・`meal_days`・`sleep_days`。週の日数で 0〜7、0 は「切」、未設定は null） |
+| `goals` | `meals`（食事の目標。`today_status` の `goal` と同じ形。なければ null）、`goal_weight_kg`（フェーズ実施中はフェーズの目標体重。なければアプリの設定の目標体重、それもなければ食事の目標の目標体重）、`goal_weight_source`（`phase`・`setting`・`meals_goal`・null）、`weekly`（今週の目標：`training_days`・`meal_days`・`sleep_days`。週の日数で 0〜7、0 は「切」、未設定は null） |
 | `injuries` | ケガの記録（本人の言葉のまま。原因は推測しない）：`occurred`（期間に痛めたもの）、`reviewed`（期間に振り返りを書いたもの。`reviews` はその期間の振り返りだけで、`date`・`result`・`note`・`exercise`、新しい順に5件まで。`review_count` は期間の振り返りの数）、`fixing`（`to` の時点で直している途中のもの。`to` より後に直せたにしたものも含む）。各ケガは `injury_id`・`occurred_on`・`site_name`（左右つき）・`exercise`・`phase`・`symptom`・`cause`・`fix`・`status`・`fixed_on`。それぞれ新しい順に10件まで、全部の数は `occurred_total`・`reviewed_total`・`fixing_total`。ケガの読み出しは `list_injuries` と同じ `TrainingQueries.injuries`。レポートの `highlights` の分野には入れない |
+| `phase` | フェーズ。`as_of`（`to` と今日の早いほう）の時点の `current`（今のフェーズ。療養中なら療養）、`paused`（療養で止まっている通常のフェーズ）、`in_period`（期間に重なるもの。中断したものも含む。新しい順に5件まで）、`rehab_in_period`（期間に療養が重なるか）。通常のフェーズは `phase_id`・`kind`・`label`（名前。なければ「増量 16週」）・`status`・`direction`・`start_date`・`end_date`・`effective_end_date`・`ended_on`・`week`・`weeks_total`・`remaining_days`・`paused_by_rehab`・`rehab_days`・`start_weight_kg`・`target_weight_kg`・`plan_weight_kg`・`pace`（`status`・`not_judged_reason`・`weigh_ins`・`week_avg_kg`・`plan_kg`・`diff_kg`）。療養は `rehab_days`・`paused_phase_id` |
 | `previous_next_steps` | 前の週のまとめ（`start` の7日前〜前の日に終わる `weekly`。いくつかあればいちばん新しいもの）の次の一歩：`report_id`・`title`・`period_start`・`period_end`・`steps`（`text`・`done`。`done` は利用者がアプリでチェックしたか）・`done_count`・`note`。次の一歩のあるまとめがなければ null。食事の `weekly_review` も同じものを返す |
 | `last_app_sync_at` | ほかのツールと同じ |
 

@@ -58,7 +58,8 @@ INSTRUCTIONS = """筋トレ（hlog）：種目・セットごとの重量と回�
 睡眠・心拍・歩数は、アプリが Health Connect（ウォッチなど）から取り込んだもの（sleep_summary、heart_rate_summary、step_summary。読むだけ）。病気の診断はしない。
 ケガの記録：筋トレで痛めたと言われたら record_injury で、日付・部位・左右・種目・場面・症状と、利用者が言った原因と直し方をそのまま記録する。
 言っていない原因や直し方を推測で埋めない（空のまま記録し、あとで update_injury で足せる）。痛みの強さや体調は聞かない。診断や治療の助言はしない。
-記録したら「次にその種目を記録するとき、アプリに直すことが出る」と伝える。その後の様子は add_injury_review、直せたら mark_injury_fixed。"""
+記録したら「次にその種目を記録するとき、アプリに直すことが出る」と伝える。その後の様子は add_injury_review、直せたら mark_injury_fixed。
+フェーズ（増量・減量・維持と療養の期間）は、本人がアプリで始める・変える（自動では始まらない）。ここでは list_phases で読むだけで、作る・変えるツールはない。始めたい・変えたいと言われたら、アプリのフェーズの画面で宣言するよう伝える。"""
 
 RATIO_DESCRIPTION = ("回数だけ（reps_only）の種目の、体重に対する割合（0〜1）。自重の負荷量 ＝ 体重×割合×回数。"
                      "目安：懸垂・チンニング 1、ディップス 0.95、自重スクワット 0.7、腕立て伏せ 0.65、膝つき腕立て 0.5、"
@@ -465,6 +466,29 @@ def register_training_tools(
         sub = subject(READ_SCOPE)
         records = await queries.injuries(sub, status)
         return await synced(sub, views.injury_list(records, await queries.catalog(sub), limit))
+
+    @mcp.tool(annotations=READ)
+    async def list_phases(
+        limit: Annotated[int, Field(ge=1, le=50, description="返す数（開始日の新しい順）")] = 10,
+    ) -> dict:
+        """フェーズ（増量 bulk・減量 cut・維持 maintain の通常のフェーズと、療養 rehab）の一覧と、今のフェーズ。読むだけ。
+
+        current は今のフェーズ（療養中なら療養）、paused は療養で止まっている通常のフェーズ（なければ null）。
+        各フェーズに、今日の時点の何週目（week。止まった日は数えない）・全体の週数・実際の終わり（effective_end_date。
+        療養の日数だけ後ろにずれる）・残りの日数・目標体重・予定の体重（plan_weight_kg）・ペース（pace）を付ける。
+        pace.status は on_track（順調。直近7日の体重の平均と予定の差が ±0.3kg 以内）・fast（早い）・slow（遅い）、
+        維持は over・under。判定しないときは status が null で、not_judged_reason（not_active・paused 療養中・
+        recovering 療養から戻って14日・few_weigh_ins 7日に測った日が1日以下・no_plan）。
+        フェーズを始める・変えるのは本人がアプリでする（このサーバーには書くツールがない）。
+        """
+        sub = subject(READ_SCOPE)
+        listed, current, paused = await queries.phase_progresses(sub, day_of(None), limit=limit)
+        return await synced(sub, {
+            "current": views.phase_detail(current) if current else None,
+            "paused": views.phase_detail(paused) if paused else None,
+            "phases": [views.phase_detail(pp) for pp in listed],
+            "total": len(await queries.phases(sub)),
+        })
 
     @mcp.tool(annotations=WRITE)
     async def add_injury_review(

@@ -10,12 +10,14 @@ from training.application.queries import (
     HeartRateSummary,
     InjuryRecord,
     PeriodTraining,
+    PhaseProgress,
     SleepSummary,
     StepSummary,
     WeeklyTrainingReview,
 )
 from training.domain import big3, body, bodyweight, calculations, health
 from training.domain.catalog import Catalog
+from training.domain import phase as phase_rules
 from training.domain.injury import MAX_LIST_REVIEWS, SITES, Injury, InjuryReview, site_label
 from training.domain.model import Exercise, SetRow, Workout
 
@@ -351,3 +353,42 @@ def period_injuries(records: list[InjuryRecord], catalog: Catalog, start: str, e
         "reviewed_total": len(reviewed),
         "fixing": [fields(r.injury) for r in fixing[:max_injuries]], "fixing_total": len(fixing),
     }
+
+
+# --- フェーズ（アプリで宣言したもの。MCP は読むだけ） ---
+
+
+def _pace(pp: PhaseProgress) -> dict | None:
+    if pp.pace is None:
+        return None
+    p = pp.pace
+    return {"status": p.status, "not_judged_reason": p.reason, "weigh_ins": p.weigh_ins, "week_avg_kg": p.week_avg_kg,
+            "plan_kg": p.plan_kg, "diff_kg": p.diff_kg}
+
+
+def phase_brief(pp: PhaseProgress) -> dict:
+    """期間の材料（period_overview）に入れるフェーズ。as_of の時点の向き・何週目・目標・ペース・療養か。"""
+    p = pp.phase
+    snapshot = p.snapshot or {}
+    out = {
+        "phase_id": p.id, "kind": p.kind, "label": phase_rules.label(p), "status": p.status,
+        "start_date": p.start_date, "ended_on": p.ended_on, "as_of": pp.as_of, "week": pp.week,
+    }
+    if p.kind == "rehab":
+        return {**out, "rehab_days": pp.rehab_days, "paused_phase_id": p.paused_phase_id}
+    return {
+        **out, "direction": p.direction, "weeks_total": pp.weeks_total, "end_date": p.end_date,
+        "effective_end_date": pp.effective_end, "remaining_days": pp.remaining_days,
+        "paused_by_rehab": pp.paused, "rehab_days": pp.rehab_days,
+        "start_weight_kg": snapshot.get("weight_kg"), "target_weight_kg": p.target_weight_kg,
+        "plan_weight_kg": pp.plan_kg, "pace": _pace(pp),
+    }
+
+
+def phase_detail(pp: PhaseProgress) -> dict:
+    """list_phases の1件：期間の材料の形に、食事の目標・開始時の記録・目標の変更の履歴を足したもの。"""
+    p = pp.phase
+    return {**phase_brief(pp), "name": p.name, "meal_targets": p.meal_targets, "snapshot": p.snapshot,
+            **({} if p.kind == "rehab" else {"target_history": [
+                {"date": c.date, "target_weight_kg": c.target_weight_kg, "end_date": c.end_date, "weight_kg": c.weight_kg}
+                for c in phase_rules.history(p)]})}

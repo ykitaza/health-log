@@ -90,10 +90,10 @@ def test_食事と筋トレとレポートとログアウトのツールが1つ�
     assert {"record_workout", "get_workout", "exercise_history", "weekly_training_review", "record_body",
             "sleep_summary", "heart_rate_summary", "step_summary"} <= names
     assert {"record_injury", "list_injuries", "add_injury_review", "mark_injury_fixed", "update_injury",
-            "delete_injury"} <= names
+            "delete_injury", "list_phases"} <= names
     assert {"save_report", "list_reports", "get_report", "delete_report"} <= names
     assert {"logout", "period_overview", "meal_summary"} <= names
-    assert len(names) == 17 + 21 + 4 + 1 + 1
+    assert len(names) == 17 + 22 + 4 + 1 + 1
 
 
 def test_筋トレを記録すると_その日の食事の目標が筋トレの日になる_本人が決めた日はそちらを優先(server):
@@ -265,9 +265,59 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
         {"date": "2026-11-03", "steps": 8240}, {"date": "2026-11-05", "steps": 5001}]}
     assert today["steps"] == {"days_recorded": 0, "average_steps": None, "days": []}
     goals = week["goals"]
-    assert goals["meals"]["policy"] == "bulk" and goals["goal_weight_kg"] == 65
+    assert goals["meals"]["policy"] == "bulk" and goals["goal_weight_kg"] == 65 and goals["goal_weight_source"] == "setting"
+    assert week["phase"] == {"as_of": "2026-11-08", "current": None, "paused": None, "in_period": [],
+                             "rehab_in_period": False}
     assert goals["weekly"] == {"training_days": 3, "meal_days": 5, "sleep_days": 0}
     assert week["last_app_sync_at"] is not None  # アプリから同期した記録がある
+
+
+PHASE = {"kind": "normal", "direction": "cut", "name": "", "start_date": "2026-10-05", "end_date": "2026-11-29",
+         "target_weight_kg": 66.0, "status": "active", "paused_phase_id": None, "ended_on": None, "meal_targets": None,
+         "snapshot": {"weight_kg": 70.0, "body_fat_pct": 20.0, "big3": None, "growth_score": None},
+         "target_history": [{"date": "2026-10-05", "target_weight_kg": 66.0, "end_date": "2026-11-29", "weight_kg": 70.0}]}
+
+
+def test_期間の材料に_フェーズの向き_何週目_目標_ペースが入り_目標体重はフェーズが先(server):
+    engine = server["engine"]
+    app_change(engine, "setting", "goal_weight_kg", {"value": "80"})
+    app_change(engine, "phase", "p1", PHASE)
+    # 10/5〜11/29 の8週で 70→66kg。11/2〜11/8 の予定は 68.0〜67.5kg ほど
+    for day, kg in [("2026-11-03", 68.1), ("2026-11-05", 67.9), ("2026-11-07", 67.8)]:
+        app_change(engine, "body_record", f"b{day}", {"date": day, "measured_at": f"{day}T07:00:00+09:00",
+                                                      "weight_kg": kg, "source": "manual"})
+
+    async def body(client):
+        week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        before = data(await client.call_tool("period_overview", {"start": "2026-09-01", "end": "2026-09-30"}))
+        # 療養を始めると、療養が今のフェーズで、通常のフェーズは止まる
+        app_change(engine, "phase", "r1", {"kind": "rehab", "start_date": "2026-11-06", "status": "active",
+                                           "paused_phase_id": "p1", "name": ""})
+        rehab = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        listed = data(await client.call_tool("list_phases", {}))
+        return week, before, rehab, listed
+
+    week, before, rehab, listed = run(server, ALL_SCOPES, body)
+    phase = week["phase"]
+    current = phase["current"]
+    assert (current["kind"], current["direction"], current["label"], current["week"], current["weeks_total"]) == (
+        "normal", "cut", "減量 8週", 5, 8)
+    assert (current["target_weight_kg"], current["start_weight_kg"], current["remaining_days"]) == (66.0, 70.0, 21)
+    assert current["pace"]["status"] == "on_track" and current["pace"]["weigh_ins"] == 3
+    assert phase["in_period"] == [current] and phase["paused"] is None and phase["rehab_in_period"] is False
+    assert (week["goals"]["goal_weight_kg"], week["goals"]["goal_weight_source"]) == (66.0, "phase")
+    # フェーズより前の期間は、フェーズも目標もフェーズのものを使わない
+    assert before["phase"]["current"] is None and before["phase"]["in_period"] == []
+    assert (before["goals"]["goal_weight_kg"], before["goals"]["goal_weight_source"]) == (80, "setting")
+    # 療養中：ペースは判定しない。終わりは療養の日数（11/6〜11/8 の3日）だけ後ろへ
+    phase = rehab["phase"]
+    assert (phase["current"]["kind"], phase["current"]["label"], phase["current"]["rehab_days"]) == ("rehab", "療養", 3)
+    assert phase["paused"]["paused_by_rehab"] is True and phase["paused"]["pace"]["not_judged_reason"] == "paused"
+    assert phase["paused"]["effective_end_date"] == "2026-12-02" and phase["rehab_in_period"] is True
+    assert (rehab["goals"]["goal_weight_kg"], rehab["goals"]["goal_weight_source"]) == (66.0, "phase")
+    assert listed["current"]["phase_id"] == "r1" and listed["paused"]["phase_id"] == "p1"
+    assert [p["phase_id"] for p in listed["phases"]] == ["r1", "p1"] and listed["total"] == 2
+    assert listed["paused"]["target_history"][0]["weight_kg"] == 70.0 and listed["paused"]["snapshot"]["body_fat_pct"] == 20.0
 
 
 def test_期間の材料に_ケガの記録が本人の言葉のまま入る_期間外は入らず_ケガがなければ空(server):
