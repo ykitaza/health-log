@@ -37,12 +37,12 @@ describe('まとめの文', () => {
     expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('period_overview(start=2025-12-29, end=2026-01-02)');
   });
 
-  test('月：その月の1日から今日まで。体重のペース、links、review（食事の目標なら meals_goal）、来月の一歩', () => {
+  test('月：その月の1日から今日まで。体重のペース、links、review（食事なら meals_goal）、来月の一歩', () => {
     const text = promptText({ kind: 'report', span: 'month', today: TODAY });
     expect(text).toContain(`${C}で今月（11月1日〜今日（11月9日））のまとめ`);
     expect(text).toContain('period_overview(start=2026-11-01, end=2026-11-09)');
-    expect(text).toContain('体重の推移と目標までのペース');
-    expect(text).toContain('目標の見直しを review に（食事の目標なら target=meals_goal）');
+    expect(text).toContain('体重の推移とペース');
+    expect(text).toContain('目標の見直しを review に（食事なら target=meals_goal）');
     expect(text).toContain('来月の一歩を3つまで');
     expect(text).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-09)');
   });

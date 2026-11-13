@@ -116,7 +116,7 @@ test('レポートの「チャットで作る」：期間を選んでから開�
   expect(app).toBe(CLAUDE);
   expect(q).toContain(`${C}で今月（11月1日〜今日（11月8日））のまとめを作ってください。`);
   expect(q).toContain('period_overview(start=2026-11-01, end=2026-11-08)を読み');
-  expect(q).toContain('目標の見直しを review に（食事の目標なら target=meals_goal）');
+  expect(q).toContain('目標の見直しを review に（食事なら target=meals_goal）');
   expect(q).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-08)で保存してください。');
 });
 

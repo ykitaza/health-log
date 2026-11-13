@@ -97,7 +97,7 @@ function call(name: string, pairs: [string, string | null][]): string {
 const WRITE: Record<ReportKind, string> = {
   daily: '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ',
   weekly: '分野ごとに一言、分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで',
-  monthly: '体重の推移と目標までのペース、分野ごとに一言、links、目標の見直しを review に（食事の目標なら target=meals_goal）、来月の一歩を3つまで',
+  monthly: '体重の推移とペース、分野ごとに一言、links、目標の見直しを review に（食事なら target=meals_goal）、来月の一歩を3つまで',
 };
 const ACHIEVED_BY_APP = '達成の数字はアプリが出します。';
 const KIND_OF_SPAN: Record<ReportSpan, ReportKind> = { day: 'daily', week: 'weekly', month: 'monthly' };
