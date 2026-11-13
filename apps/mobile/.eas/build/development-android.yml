@@ -1,5 +1,5 @@
 # 開発用のアプリ hlog (dev)（eas.json の development）の Android のビルド。
-# 標準のビルド（eas/build を展開した手順）に、expo-dev-client を入れる手順を1つ足しただけ。
+# 標準のビルド（eas/build を展開した手順）に、expo-dev-client を入れる手順と、Gradle のメモリを抑える手順を足しただけ。
 #
 # expo-dev-client を package.json に入れない理由：入れると自動リンクのネイティブの依存が増え、
 # fingerprint の runtimeVersion が変わって、入っている preview の APK に配信が届かなくなる。
@@ -21,5 +21,14 @@ build:
     - eas/configure_eas_update
     - eas/inject_android_credentials
     - eas/configure_android_version
+    - run:
+        # debug のビルドは、C++（CMake）の部品を何個も同時に作り、Kotlin の daemon も別に動くので、
+        # 4 vCPU・16GB のビルダーでメモリが足りず、Gradle が落ちた（ビルド 25cfbed1、2026-11-13）。
+        # 同時に動かす作業を2つにし、Kotlin は Gradle の中で動かす（android/ は prebuild が作るので、ここで足す）
+        name: Gradle のメモリを抑える（このビルドの中だけ）
+        command: |
+          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/mobile
+          printf '\norg.gradle.workers.max=2\nkotlin.compiler.execution.strategy=in-process\n' >> android/gradle.properties
+          tail -n 3 android/gradle.properties
     - eas/run_gradle
     - eas/find_and_upload_build_artifacts
