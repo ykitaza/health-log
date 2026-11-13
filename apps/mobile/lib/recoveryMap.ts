@@ -1,43 +1,88 @@
-// からだのタブの「回復マップ」：筋トレの部位ごとの最後に鍛えた日と2週間のセット数から、3D の体（assets/models/body.glb）の
-// 部品の光の強さを決める。three.js は読まない（テストで確かめられるように）
+// からだのタブの「回復マップ」：筋トレの部位ごとの最後に鍛えた日と、部位ごとの回復の日数から、3D の体（assets/models/body.glb）の
+// 部品の光の強さと色を決める。three.js は読まない（テストで確かめられるように）
 import type { Injury } from '@/db/repositories/injuries';
+import { colors } from '@/theme';
 import { addDays, DateKey, daysBetween } from './date';
-import { partsFor } from './bodyModel';
+import { boxOf, partsFor, Vec3 } from './bodyModel';
 import { Muscle, muscleFigureFor } from './muscleFigure';
 import { BALANCE_DAYS } from './partBalance';
 import type { TrainingSetRow } from './training';
 
-/** 光が消えるまでの日数の目安。鍛えた日・次の日がいちばん強く、8日目にはふだんの光 */
-export const RECOVERY_DAYS = 7;
+/**
+ * 部位ごとの回復の日数 R（鍛えた日を 0 日目として、R 日目までが回復中、R+1 日目から回復済み）。
+ * 筋トレでよく言われる目安（小さな筋肉・腹筋は短く、背中・脚の大きな筋肉は長い）で、医学の助言ではない（2026-11-13 ユーザーの要望）。
+ * 知らない部位は 2日
+ */
+const RECOVERY_DAYS_BY_PART: Record<string, number> = {
+  腹筋: 1, 腹: 1,
+  上腕二頭筋: 2, 上腕三頭筋: 2, 腕: 2,
+  肩: 2, 胸: 2,
+  背中: 3, 脚: 3,
+};
+export const DEFAULT_RECOVERY_DAYS = 2;
+
+export function recoveryDaysFor(part: string): number {
+  return RECOVERY_DAYS_BY_PART[part.trim()] ?? DEFAULT_RECOVERY_DAYS;
+}
+
+/** 部位の英字の名前（一覧と注釈の札。計器の読み出しのように Mono で出す） */
+const PART_EN: Record<string, string> = {
+  胸: 'CHEST', 背中: 'BACK', 肩: 'SHOULDERS', 脚: 'LEGS', 上腕二頭筋: 'BICEPS', 上腕三頭筋: 'TRICEPS', 腕: 'ARMS', 腹筋: 'ABS', 腹: 'ABS',
+};
+export const partEnglish = (part: string) => PART_EN[part.trim()] ?? 'PART';
 
 // ---- 回復マップの色（ケガの画面の BODY MAP は変えない）----
-// 温存（明るさ 0）は落ち着いた青、最近の負荷は明るさが高いほど暖色（青 → 薄い色 → 黄 → 橙）。
-// 青と黄をまっすぐ混ぜると間が濁った灰色になるので、間に薄い色をはさむ。ケガ（直している途中）は負荷の橙と見分けられる赤
+// 3色だけにする（2026-11-13 ユーザーの要望：緑・青・橙・赤の4色はちらついて見える）。
+// 回復済み・まだ（明るさ 0）はアプリのアクセントの緑（ケガの画面のふだんと同じ）、回復中は明るさが高いほど暖色（黄 → 橙）、ケガは赤。
+// 色は HSL の色相を回して混ぜる（RGB でまっすぐ混ぜると、緑と黄・黄と橙の間がくすむ）。回復中の明るさは最小でも 0.25（背中の最後の日）
+// なので、0.25 を黄、0.75 からを橙にし、鍛えた日と次の日が橙、最後の日が黄に寄るようにする
 
-/** 温存（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色に寄せる） */
-export const REST_BLUE = '#5B8DEF';
-/** 温存（2D の図の塗り。平らに塗るので 3D より暗い青） */
-export const REST_BLUE_FILL = '#36507E';
-/** 最近の負荷（今日・昨日） */
+/** 回復済み・まだ（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
+export const REST_GREEN = colors.accent;
+/**
+ * 回復済み・まだ（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
+ * （3D の緑は弱い縁の光なので、見た目の強さがそろう）
+ */
+export const REST_FILL = colors.accentMuted;
+/** 回復中（鍛えた日・次の日） */
 export const LOAD_ORANGE = '#FF8A3D';
+/** 回復中（最後の日のあたり） */
+export const LOAD_YELLOW = '#F5C94A';
 /** ケガ（直している途中）。ケガの画面の琥珀色（INJURY_AMBER）とは別 */
 export const INJURY_RED = '#FF5A4F';
-/** 明るさ k（0〜1）と色の点。間はまっすぐ混ぜる */
-const STOPS: [number, string][] = [[0, REST_BLUE], [0.3, '#DCE3EE'], [0.6, '#F5C94A'], [1, LOAD_ORANGE]];
+/** 明るさ k（0〜1）と色の点。間は HSL で混ぜる */
+const STOPS: [number, string][] = [[0, REST_GREEN], [0.25, LOAD_YELLOW], [0.75, LOAD_ORANGE], [1, LOAD_ORANGE]];
 
-const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-const toHex = (v: number[]) => `#${v.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+const toHex = (v: number[]) => `#${v.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 
-/** 明るさ k（0〜1）の色。0 は温存の青、1 は負荷の橙 */
+function toHsl(c: string): [number, number, number] {
+  const [r, g, b] = hex(c);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return toHex([r + m, g + m, b + m]);
+}
+
+/** 明るさ k（0〜1）の色。0 は回復済みの緑、0.25 は黄、0.75 からは橙。色相は近いほうへ回す */
 export function recoveryColor(k: number): string {
   const t = Math.min(1, Math.max(0, k));
   const i = STOPS.findIndex(([at]) => at >= t);
   if (i <= 0) return STOPS[0][1];
   const [a, ca] = STOPS[i - 1];
   const [b, cb] = STOPS[i];
+  if (ca === cb || t === b) return cb;
   const f = (t - a) / (b - a);
-  const x = hex(ca), y = hex(cb);
-  return toHex(x.map((v, j) => v + (y[j] - v) * f));
+  const x = toHsl(ca), y = toHsl(cb);
+  const dh = ((y[0] - x[0] + 540) % 360) - 180;
+  return fromHsl((x[0] + dh * f + 360) % 360, x[1] + (y[1] - x[1]) * f, x[2] + (y[2] - x[2]) * f);
 }
 
 /**
@@ -67,12 +112,29 @@ export function recoveryMeshesFor(part: string): string[] {
 }
 
 /**
- * 光の明るさ（0〜1）。鍛えた日からの日数 d で、d が 0（今日）・1（昨日）は 1、そこから1日ごとに 1/7 ずつ下げ、8日目で 0。
- * 一度も鍛えていなければ 0（ふだんの光）
+ * 光の明るさ（0〜1）。鍛えた日からの日数 d と回復の日数 R で、k = 1 − d ÷ (R+1)。R 日目を過ぎたら 0（回復済み、緑）。
+ * 回復中の (R+1) 日を等しく刻むので、どの部位も鍛えた日がいちばん強く、最後の日でも 0 にならない（緑に戻るのは回復済みになった日だけ）。
+ * 例：胸（R=2）は 1 → 0.67 → 0.33 → 0、腹筋（R=1）は 1 → 0.5 → 0、背中（R=3）は 1 → 0.75 → 0.5 → 0.25 → 0。
+ * 一度も鍛えていなければ 0。未来の日（d < 0）は鍛えた日とみなす
  */
-export function recoveryLevel(days: number | null): number {
+export function recoveryLevel(days: number | null, recoveryDays: number): number {
   if (days == null) return 0;
-  return Math.min(1, Math.max(0, (RECOVERY_DAYS + 1 - Math.max(days, 1)) / RECOVERY_DAYS));
+  const d = Math.max(days, 0);
+  if (d > recoveryDays) return 0;
+  return 1 - d / (recoveryDays + 1);
+}
+
+/** 回復済みになるまでの日数（回復中なら 1 以上。回復済み・一度もないなら null） */
+export function remainingDays(days: number | null, recoveryDays: number): number | null {
+  if (days == null) return null;
+  const left = recoveryDays + 1 - Math.max(days, 0);
+  return left > 0 ? left : null;
+}
+
+/** 状態の文字：「回復中 あと1日」「回復済み」「まだ」（一度も鍛えていない） */
+export function recoveryStatusText(p: Pick<PartRecovery, 'last' | 'remaining'>): string {
+  if (p.last == null) return 'まだ';
+  return p.remaining != null ? `回復中 あと${p.remaining}日` : '回復済み';
 }
 
 export type PartRecovery = {
@@ -84,7 +146,11 @@ export type PartRecovery = {
   days: number | null;
   /** その日までの2週間（その日を含む14日）のセット数 */
   sets: number;
-  /** 光の明るさ（0〜1） */
+  /** 回復の日数の目安 */
+  recoveryDays: number;
+  /** 回復済みになるまでの日数（回復中だけ） */
+  remaining: number | null;
+  /** 光の明るさ（0〜1。回復中だけ 0 より大きい） */
   level: number;
   /** 光らせる部品 */
   meshes: string[];
@@ -111,7 +177,8 @@ export function partRecoveries(rows: TrainingSetRow[], partName: (bodyPartId: st
     if (meshes.length === 0) return [];
     const l = last.get(name) ?? null;
     const days = l == null ? null : daysBetween(l, date);
-    return [{ name, last: l, days, sets: sets.get(name) ?? 0, level: recoveryLevel(days), meshes }];
+    const r = recoveryDaysFor(name);
+    return [{ name, last: l, days, sets: sets.get(name) ?? 0, recoveryDays: r, remaining: remainingDays(days, r), level: recoveryLevel(days, r), meshes }];
   });
 }
 
@@ -124,12 +191,12 @@ export function recoveryLevels(list: PartRecovery[]): Record<string, number> {
 
 /**
  * 2D の図の筋肉ごとの塗り（web と、3D を描けないとき）。部位の筋肉は lib/muscleFigure.ts の muscleFigureFor（2D の図の対応）。
- * 鍛えていない筋肉は温存の青、最近鍛えた筋肉は明るさの色（いくつかの部位にある筋肉は明るいほう）
+ * 回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（いくつかの部位にある筋肉は明るいほう）
  */
 export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
   const level: Partial<Record<Muscle, number>> = {};
   for (const p of list) for (const m of muscleFigureFor(p.name).muscles) level[m] = Math.max(level[m] ?? 0, p.level);
-  return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, (level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : REST_BLUE_FILL])) as Record<Muscle, string>;
+  return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, (level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : REST_FILL])) as Record<Muscle, string>;
 }
 
 const MUSCLE_NAMES: Muscle[] = [
@@ -156,4 +223,33 @@ export function injuriesForPart(p: PartRecovery, injuries: Injury[], partOfExerc
   const own = new Set(p.meshes);
   return injuries.filter((i) => partsFor(i.site, null).some((m) => own.has(m))
     || (i.exerciseId != null && partOfExercise(i.exerciseId)?.trim() === p.name));
+}
+
+// ---- 注釈（3D の図の引き出し線つきの札）の付け根 ----
+
+/**
+ * 部位の札を引く側（本人の右 r・左 l）と、体の前と後ろのどちらか。左右対称の部位が図のまん中に集まらないよう、
+ * 部位ごとに片側の部品に付け根を置き、画面の左右に分ける（前の部位は本人の右が画面の左。腹筋は左右なし）
+ */
+const ANCHOR_SIDE: Record<string, { side: 'r' | 'l' | null; facing: 'front' | 'back' }> = {
+  胸: { side: 'r', facing: 'front' }, 上腕二頭筋: { side: 'r', facing: 'front' }, 腕: { side: 'r', facing: 'front' }, 腹筋: { side: null, facing: 'front' },
+  腹: { side: null, facing: 'front' }, 肩: { side: 'l', facing: 'front' }, 上腕三頭筋: { side: 'l', facing: 'back' }, 背中: { side: 'l', facing: 'back' },
+  脚: { side: 'l', facing: 'front' },
+};
+
+/**
+ * 部位の注釈の付け根（体の座標）と向き。部位の片側の部品の囲みを合わせたまん中の、前の部位なら前の面、後ろの部位なら後ろの面
+ * （lib/bodyModel.ts の anchorFor と同じ考え方）。囲みのない部品（三角筋の中部）は使わない。知らない部位は null
+ */
+export function recoveryAnchor(part: string): { anchor: Vec3; facing: 'front' | 'back' } | null {
+  const a = ANCHOR_SIDE[part.trim()];
+  if (!a) return null;
+  const suffix = a.side ? `_${a.side}` : null;
+  const boxes = recoveryMeshesFor(part)
+    .filter((m) => (suffix ? m.endsWith(suffix) : !/_[rl]$/.test(m)))
+    .map(boxOf).filter((b): b is [Vec3, Vec3] => b != null);
+  if (boxes.length === 0) return null;
+  const lo = [0, 1, 2].map((i) => Math.min(...boxes.map((b) => b[0][i])));
+  const hi = [0, 1, 2].map((i) => Math.max(...boxes.map((b) => b[1][i])));
+  return { anchor: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, a.facing === 'front' ? hi[2] : lo[2]], facing: a.facing };
 }

@@ -18,8 +18,13 @@ const START_YAW = 0.35;
 const RECOVERY_IDLE = { base: 0.13, rim: 1.2 };
 const RECOVERY_FULL = { base: 0.55, rim: 2.4 };
 /** 回復マップのケガの印：部品をケガの色で塗って脈打たせ（脈の深さ）、にじみはケガの画面の 0.8 倍 */
-const QUIET_MARK = { base: 0.45, rim: 1.9, pulse: 0.7 };
+const QUIET_MARK = { base: 0.45, rim: 1.9, pulse: 0.5 };
 const QUIET_GLOW = 0.8;
+/**
+ * 回復マップの走査の帯と輪の強さ（ケガの画面を 1 として）。加算合成なので、暖色の部位の上を帯が通ると白く飛んで
+ * ちらついて見える。回復マップは色で状態を伝えるので、帯は控えめにする
+ */
+const QUIET_SCAN = 0.35;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -37,7 +42,7 @@ const HOLO_VERT = `
   }`;
 const HOLO_FRAG = `
   uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uSel;
+  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel;
   varying vec3 vN; varying vec3 vV; varying float vY;
   void main() {
     float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
@@ -46,7 +51,7 @@ const HOLO_FRAG = `
     float d = vY - uScanY;
     float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
     float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 + uSel * (0.4 + 0.9 * f);
+    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
     gl_FragColor = vec4(uColor, clamp(a, 0.0, 1.0));
   }`;
 /** 琥珀色の光のにじみ（ポストエフェクトの代わり。中心から外へ薄くなる板） */
@@ -58,13 +63,13 @@ const DISC_FRAG = `
   uniform vec3 uColor; varying vec2 vU;
   void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }`;
 
-type Shared = { uTime: { value: number }; uScanY: { value: number } };
+type Shared = { uTime: { value: number }; uScanY: { value: number }; uScanAmp: { value: number } };
 function holoMat(shared: Shared, color: THREE.Color, base: number, rim: number, pulse = 0) {
   return new THREE.ShaderMaterial({
     vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG,
     uniforms: {
       uColor: { value: color.clone() }, uBase: { value: base }, uRim: { value: rim }, uPulse: { value: pulse },
-      uSel: { value: 0 }, uTime: shared.uTime, uScanY: shared.uScanY,
+      uSel: { value: 0 }, uTime: shared.uTime, uScanY: shared.uScanY, uScanAmp: shared.uScanAmp,
     },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
@@ -107,7 +112,7 @@ function makeDeck() {
  * three.js の物は毎コマ書き換えるので、React の state にせず、このクラスの中だけで持つ
  */
 export class BodyScene {
-  readonly shared: Shared = { uTime: { value: 1 }, uScanY: { value: -1 } };
+  readonly shared: Shared = { uTime: { value: 1 }, uScanY: { value: -1 }, uScanAmp: { value: 1 } };
   readonly body = new THREE.Group();
   readonly deck: THREE.Group;
   private readonly ticks: THREE.Group;
@@ -229,6 +234,7 @@ export class BodyScene {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
     this.quiet = o.quietMarks ?? false;
+    this.shared.uScanAmp.value = this.quiet ? QUIET_SCAN : 1;
     this.base.set(o.baseColor ?? GREEN);
     this.levelColor = o.levelColor ?? null;
     this.injury.set(o.injuryColor ?? AMBER);
@@ -332,7 +338,7 @@ export class BodyScene {
     const sy = !reduced && cyc <= 1 ? cyc * 1.85 : -1;
     this.shared.uScanY.value = sy;
     this.scanRing.position.y = sy;
-    (this.scanRing.material as THREE.LineBasicMaterial).opacity = sy >= 0 ? 0.55 * Math.sin(cyc * Math.PI) : 0;
+    (this.scanRing.material as THREE.LineBasicMaterial).opacity = sy >= 0 ? 0.55 * Math.sin(cyc * Math.PI) * this.shared.uScanAmp.value : 0;
     const rs = 0.36 - 0.12 * Math.max(0, (sy - 1.45) / 0.4);
     this.scanRing.scale.set(rs / 0.36, 1, (rs / 0.36) * 0.7);
 

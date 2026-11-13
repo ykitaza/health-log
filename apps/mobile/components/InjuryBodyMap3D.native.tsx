@@ -4,13 +4,13 @@
 // web（e2e）では読まない（InjuryBodyMap3D.tsx が null を出し、2D の図を使う）
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SharedValue, useAnimatedProps, useReducedMotion, useSharedValue } from 'react-native-reanimated';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Animated, { FadeIn, FadeOut, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, CALLOUT_H, facingOf, layoutCallouts, partsFor, siteOfPart } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
 import { colors, space } from '@/theme';
-import { BodyAttribution, BodyCanvas, Fallback } from './bodyCanvas.native';
+import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
 import { BodyScene, Mark } from './bodyScene';
@@ -20,34 +20,6 @@ import { T } from './Text';
 const STAGE_H = 380;
 /** 吹き出しの幅（px） */
 const CALLOUT_W = 96;
-
-/** 引き出し線の先（画面の px）と、表を向いているか。吹き出しごとに x, y, facing（1 / 0）の3つずつ */
-type Tips = SharedValue<number[]>;
-
-const ALine = Animated.createAnimatedComponent(Line);
-const ACircle = Animated.createAnimatedComponent(Circle);
-
-/** 吹き出しの横から、印へのびる引き出し線（先だけが毎コマ動く。React の描き直しはしない） */
-function Leader({ tips, index, from, toRight, color }: { tips: Tips; index: number; from: { x: number; y: number }; toRight: boolean; color: string }) {
-  const kx = from.x + (toRight ? 14 : -14);
-  const line = useAnimatedProps(() => {
-    const v = tips.value;
-    const f = v[index * 3 + 2] ?? 0;
-    return { x2: v[index * 3] ?? from.x, y2: v[index * 3 + 1] ?? from.y, strokeOpacity: f ? 0.85 : 0.35 };
-  });
-  const dot = useAnimatedProps(() => {
-    const v = tips.value;
-    const f = v[index * 3 + 2] ?? 0;
-    return { cx: v[index * 3] ?? from.x, cy: v[index * 3 + 1] ?? from.y, r: f ? 3 : 2, fillOpacity: f ? 1 : 0 };
-  });
-  return (
-    <>
-      <Line x1={from.x} y1={from.y} x2={kx} y2={from.y} stroke={color} strokeWidth={1} strokeOpacity={0.85} />
-      <ALine animatedProps={line} x1={kx} y1={from.y} stroke={color} strokeWidth={1} />
-      <ACircle animatedProps={dot} fill={color} stroke={color} strokeWidth={1} />
-    </>
-  );
-}
 
 /**
  * 一覧の上の体の図（BODY MAP // SCAN、3D）。左右になぞると回り、押すと部位の名前が出る。

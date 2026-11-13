@@ -92,6 +92,7 @@ describe('3D の体の場面', () => {
     expect(pick('quad_r')).toEqual([0.13, 1.2, 0]);
     expect(pick('biceps_l')).toEqual([0.32, 1.8, 0]);
     expect(pick('pec_r')).toEqual([0.7, 2.2, 1]);
+    expect(scene.shared.uScanAmp.value).toBe(1);
     // 色：ふだんと台・皮膚は緑、直している途中とにじみは琥珀色
     const green = new THREE.Color(colors.accent).getHexString();
     const amber = new THREE.Color(toneColors.caution.accent).getHexString();
@@ -108,7 +109,7 @@ describe('3D の体の場面', () => {
     expect(((glow.material as THREE.ShaderMaterial).uniforms.uColor.value as THREE.Color).getHexString()).toBe(amber);
   });
 
-  test('回復マップ：土台は青、明るさの表で暖色に光り、ケガは赤で脈打つ。台と皮膚も青に寄せる。画面から部品を選べる', async () => {
+  test('回復マップ：土台の色・明るさの表の色と強さ・ケガの色を渡せる。台と皮膚も土台の色。走査の帯は控えめ。画面から部品を選べる', async () => {
     const scene = new BodyScene();
     let picked: string | null | undefined;
     const marks = [mark('a', 'chest', 'right', true)];
@@ -123,16 +124,18 @@ describe('3D の体の場面', () => {
     const all = meshesIn(scene.body);
     const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
     const hexOf = (name: string) => (u(name).uColor.value as THREE.Color).getHexString();
-    // 温存は青（縁の光はケガの画面のふだんと同じ強さ）、負荷は明るさの色と強さ
+    // 土台の色（縁の光はケガの画面のふだんと同じ強さ）、回復中は明るさの色と強さ
     expect([hexOf('quad_r'), u('quad_r').uBase.value, u('quad_r').uRim.value]).toEqual(['0000ff', 0.13, 1.2]);
     expect([hexOf('pec_l'), u('pec_l').uBase.value, u('pec_l').uRim.value]).toEqual(['ff8000', 0.55, 2.4]);
     expect(hexOf('quad_l')).toBe('ffff00');
     expect(u('quad_l').uBase.value).toBeCloseTo(0.34);
     expect(u('quad_l').uRim.value).toBeCloseTo(1.8);
     // 直している途中の右胸はケガの赤で脈打つ。直せたケガ（左の二頭筋）は印を付けない
-    expect([hexOf('pec_r'), u('pec_r').uBase.value, u('pec_r').uRim.value, u('pec_r').uPulse.value]).toEqual(['ff0000', 0.45, 1.9, 0.7]);
+    expect([hexOf('pec_r'), u('pec_r').uBase.value, u('pec_r').uRim.value, u('pec_r').uPulse.value]).toEqual(['ff0000', 0.45, 1.9, 0.5]);
+    // 走査の帯は控えめ（ケガの画面は 1）
+    expect(scene.shared.uScanAmp.value).toBe(0.35);
     expect([hexOf('biceps_l'), u('biceps_l').uBase.value]).toEqual(['0000ff', 0.13]);
-    // 皮膚と台も青
+    // 皮膚と台も土台の色
     expect(hexOf('skin')).toBe('0000ff');
     const deckLine = scene.deck.children.find((c) => c instanceof THREE.LineLoop) as THREE.LineLoop;
     expect((deckLine.material as THREE.LineBasicMaterial).color.getHexString()).toBe('0000ff');

@@ -6,8 +6,9 @@ import { useFocusEffect } from 'expo-router';
 import { Component, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import { Linking, StyleSheet } from 'react-native';
 import Animated, {
-  cancelAnimation, Easing, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
+  cancelAnimation, Easing, FadeOut, SharedValue, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
+import { Circle, Line } from 'react-native-svg';
 import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import MODEL from '@/assets/models/body.glb';
 import { CAMERA } from '@/lib/bodyModel';
@@ -78,6 +79,34 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
 
 /** 体を描けるまで待つ時間（ms）。過ぎたら 2D の図へ戻す */
 const LOAD_TIMEOUT_MS = 15000;
+
+/** 引き出し線の先（画面の px）と、表を向いているか。吹き出しごとに x, y, facing（1 / 0）の3つずつ */
+export type Tips = SharedValue<number[]>;
+
+const ALine = Animated.createAnimatedComponent(Line);
+const ACircle = Animated.createAnimatedComponent(Circle);
+
+/** 吹き出しの横から、印へのびる引き出し線（先だけが毎コマ動く。React の描き直しはしない）。ケガの画面と回復マップで使う */
+export function Leader({ tips, index, from, toRight, color }: { tips: Tips; index: number; from: { x: number; y: number }; toRight: boolean; color: string }) {
+  const kx = from.x + (toRight ? 14 : -14);
+  const line = useAnimatedProps(() => {
+    const v = tips.value;
+    const f = v[index * 3 + 2] ?? 0;
+    return { x2: v[index * 3] ?? from.x, y2: v[index * 3 + 1] ?? from.y, strokeOpacity: f ? 0.85 : 0.35 };
+  });
+  const dot = useAnimatedProps(() => {
+    const v = tips.value;
+    const f = v[index * 3 + 2] ?? 0;
+    return { cx: v[index * 3] ?? from.x, cy: v[index * 3 + 1] ?? from.y, r: f ? 3 : 2, fillOpacity: f ? 1 : 0 };
+  });
+  return (
+    <>
+      <Line x1={from.x} y1={from.y} x2={kx} y2={from.y} stroke={color} strokeWidth={1} strokeOpacity={0.85} />
+      <ALine animatedProps={line} x1={kx} y1={from.y} stroke={color} strokeWidth={1} />
+      <ACircle animatedProps={dot} fill={color} stroke={color} strokeWidth={1} />
+    </>
+  );
+}
 
 /** 走査の線が上下に動く幅（px。図の高さのまん中から上下へ） */
 const SWEEP = 48;

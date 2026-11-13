@@ -1,46 +1,89 @@
-import { expect, test } from '@playwright/test';
-import { button, moveToDate, openApp, openBody, recordOn, see, TODAY } from './helpers';
+import { expect, Locator, test } from '@playwright/test';
+import { button, goPane, goTab, moveToDate, openApp, openBody, recordOn, see, TODAY } from './helpers';
 
-// からだのタブの回復マップ。web では 3D を出さず、2D の図（前と後ろ）で 7日以内に鍛えた部位を塗る（Android は 3D。実機で見る）。
-// 光の強さ・部位と部品の対応・日数とセット数の数え方は jest（lib/__tests__/recoveryMap.test.ts、bodyScene.test.ts）。
-// ここは、記録がなければ出さないことと、部位のボタンを押すと最後の日・2週間のセット数が出ること
+// からだのタブの回復マップ。web では 3D を出さず、2D の図（前と後ろ）で塗る（Android は 3D と引き出し線の札。実機で見る）。
+// 回復の日数と明るさ・色・部位と部品の対応・札の置き場所は jest（lib/__tests__/recoveryMap.test.ts、bodyScene.test.ts）。
+// ここは、記録がなければ出さないこと、日の切り替えのすぐ下に出ること、一覧（はじめは回復中だけ・すべての部位）と SELECT //
 
-test('筋トレの記録がなければ回復マップは出さない。記録したら 2D の図と部位のボタン。押すと最後に鍛えた日と2週間のセット数', async ({ page }) => {
+const box = async (l: Locator) => (await l.boundingBox())!;
+
+test('記録がなければ出さない。記録したら日の切り替えのすぐ下に 2D の図と一覧。行を押すと SELECT //。前の日はその日までで数える', async ({ page }) => {
   test.setTimeout(90_000);
   await openApp(page);
   await openBody(page);
-  await expect(button(page, '前の日')).toBeVisible();
   await expect(page.getByTestId('recovery-map')).toHaveCount(0);
 
   await recordOn(page, '2026-10-20', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
-  await recordOn(page, '2026-11-05', [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }, { weight: '80', reps: '8' }] }]);
+  await recordOn(page, '2026-11-07', [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }, { weight: '80', reps: '8' }] }]);
   await moveToDate(page, TODAY);
   await openBody(page);
 
   const card = page.getByTestId('recovery-map').filter({ visible: true });
   await expect(card).toBeVisible();
-  await expect(see(card, 'RECOVERY MAP // 7D')).toBeVisible();
+  await expect(see(card, 'RECOVERY MAP // LIVE')).toBeVisible();
+  await expect(card.getByTestId('recovery-legend')).toHaveText('回復済み回復中ケガ');
   await expect(card.getByTestId('recovery-2d')).toBeVisible();
-  await expect(card.getByTestId('recovery-legend')).toHaveText('温存最近の負荷ケガ');
-  await expect(card.getByLabel(/^回復マップ。青は温存、橙は最近の負荷、赤はケガ。7日以内に鍛えた部位、胸 3日前$/)).toHaveCount(1);
-  // 2週間より前の脚は、ボタンには出るが 7日以内には入らない
-  await expect(button(card, '脚、19日前、2週間で 0セット')).toBeVisible();
-  await expect(button(card, '背中、まだ鍛えていない、2週間で 0セット')).toBeVisible();
-  // ボタンは 48dp 以上
-  expect((await button(card, '胸、3日前、2週間で 2セット').boundingBox())!.height).toBeGreaterThanOrEqual(48);
+  await expect(card.getByLabel('回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、胸 あと2日', { exact: true })).toHaveCount(1);
+  // 日の切り替えのすぐ下、体重のカードより上
+  const switcher = await box(button(page, '前の日'));
+  const cardBox = await box(card);
+  expect(cardBox.y).toBeGreaterThan(switcher.y);
+  expect(cardBox.y).toBeLessThan((await box(page.getByTestId('body-add').filter({ visible: true }))).y);
 
-  await button(card, '胸、3日前、2週間で 2セット').click();
+  // 一覧ははじめ回復中の部位だけ（胸は昨日、回復の目安 2日 → あと2日）。行は 48dp 以上
+  const chest = button(card, '胸、昨日、回復中 あと2日、2週間で 2セット');
+  await expect(chest).toBeVisible();
+  expect((await box(chest)).height).toBeGreaterThanOrEqual(48);
+  await expect(card.getByTestId('recovery-part-脚')).toHaveCount(0);
+  // すべての部位で広げる（回復済みの脚・まだの背中も）
+  await button(card, 'すべての部位（7）').click();
+  await expect(button(card, '脚、19日前、回復済み、2週間で 0セット')).toBeVisible();
+  await expect(button(card, '背中、まだ鍛えていない、2週間で 0セット')).toBeVisible();
+  await button(card, '回復中だけにする').click();
+  await expect(card.getByTestId('recovery-part-脚')).toHaveCount(0);
+
+  await chest.click();
   const sel = card.getByTestId('recovery-select');
   await expect(sel).toContainText('SELECT //');
-  await expect(sel).toContainText('最後に鍛えた日 3日前（11月5日）');
+  await expect(sel).toContainText('最後に鍛えた日 昨日（11月7日）');
+  await expect(sel).toContainText('回復中 あと2日（回復の目安 2日）');
   await expect(sel).toContainText('2週間のセット数 2セット');
   // もう一度押すと閉じる
-  await button(card, '胸、3日前、2週間で 2セット').click();
+  await chest.click();
   await expect(sel).toHaveCount(0);
 
-  // 前の日に移ると、その日までの記録で数える（11月4日には胸はまだ）
+  // 前の日に移ると、その日までの記録で数える（11月4日には胸はまだ、回復中の部位はない）
   for (let i = 0; i < 4; i++) await button(page, '前の日').click();
   await expect(see(page, '11月4日（水）', { exact: true })).toBeVisible();
+  await expect(see(card, 'いま回復中の部位はありません')).toBeVisible();
+  await button(card, 'すべての部位（7）').click();
   await expect(button(card, '胸、まだ鍛えていない、2週間で 0セット')).toBeVisible();
-  await expect(button(card, '脚、15日前、2週間で 0セット')).toBeVisible();
+  await expect(button(card, '脚、15日前、回復済み、2週間で 0セット')).toBeVisible();
+});
+
+test('直している途中のケガ：一覧にケガのある部位を出し（回復していなくても）、▲ ALERT。SELECT にケガの件', async ({ page }) => {
+  test.setTimeout(90_000);
+  await recordOn(page, '2026-11-07', [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
+  await moveToDate(page, TODAY);
+  // 右肩を、ベンチプレスで痛めた（肩の部品と、胸の種目の両方にかかわる）
+  await goTab(page, '筋トレ');
+  await goPane(page, 'ケガ');
+  await page.getByTestId('injury-new').click();
+  await page.getByTestId('injury-new-manual').filter({ visible: true }).click();
+  const front = page.getByTestId('injury-figure-front').filter({ visible: true });
+  const fb = await box(front);
+  await front.click({ position: { x: fb.width * 0.27, y: fb.height * 0.22 } });
+  await expect(page.getByTestId('injury-selected').filter({ visible: true })).toHaveText('右肩');
+  await page.getByTestId('injury-exercise').filter({ visible: true }).click();
+  await button(page, 'ベンチプレス 胸').click();
+  await page.getByTestId('injury-save').filter({ visible: true }).click();
+  await expect(page.getByTestId('injury-map').filter({ visible: true })).toBeVisible();
+
+  await openBody(page);
+  const card = page.getByTestId('recovery-map').filter({ visible: true });
+  await expect(see(card, '▲ 1 ALERT')).toBeVisible();
+  await expect(button(card, '胸、昨日、回復中 あと2日、2週間で 1セット、直している途中のケガ 1件')).toBeVisible();
+  await expect(button(card, '肩、まだ鍛えていない、2週間で 0セット、直している途中のケガ 1件')).toBeVisible();
+  await button(card, '肩、まだ鍛えていない、2週間で 0セット、直している途中のケガ 1件').click();
+  await expect(card.getByTestId('recovery-select')).toContainText('▲ 右肩のケガを直している途中');
 });

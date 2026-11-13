@@ -114,6 +114,10 @@ export default function BodyScreen() {
           <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && setDate(addDays(date, 1))} />
         </Card>
 
+        {/* 回復マップ（ヒーロービュー）：開いてすぐ見えるよう、日の切り替えのすぐ下。その日までの記録で数える。
+            日を変えても読み終わるまで前の日のまま出し、カードを作り直さない（3D の体を読み込み直さない） */}
+        {data && <RecoveryMapCard input={data.recovery} date={data.date} />}
+
         {data && (
           <WeightCard
             date={date} day={day} daily={data.daily} unit={unit}
@@ -171,9 +175,6 @@ export default function BodyScreen() {
           />
         </Card>
 
-        {/* 回復マップ：その日までの記録で、部位ごとに最後に鍛えた日からの日数で光らせる。日を変えても読み終わるまで前の日のまま出し、
-            カードを作り直さない（3D の体を読み込み直さない）。その日の計測（体重・睡眠・心拍・歩数）をひと目で見られるよう、背の高い図はその下に置く */}
-        {data && <RecoveryMapCard input={data.recovery} date={data.date} />}
         <DailyHighlights date={date} areas={TAB_AREAS.body} />
       </>)}
 

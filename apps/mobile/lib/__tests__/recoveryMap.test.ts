@@ -2,12 +2,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { Injury } from '@/db/repositories/injuries';
 import { SEED_BODY_PARTS } from '@/db/seed';
-import { ALL_PARTS } from '@/lib/bodyModel';
+import { ALL_PARTS, layoutCallouts, projectFront } from '@/lib/bodyModel';
 import { muscleFigureFor } from '@/lib/muscleFigure';
 import { contrastRatio } from '@/lib/contrast';
 import {
-  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, partOfMesh, partRecoveries, recoveryColor, recoveryLevel, recoveryLevels,
-  recoveryMeshesFor, REST_BLUE, REST_BLUE_FILL,
+  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, partRecoveries, recoveryAnchor,
+  recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryStatusText, remainingDays, REST_FILL, REST_GREEN,
 } from '@/lib/recoveryMap';
 import { colors, toneColors } from '@/theme';
 import type { TrainingSetRow } from '@/lib/training';
@@ -55,43 +55,91 @@ describe('回復マップの部位と部品', () => {
   });
 });
 
-describe('回復の光の明るさ', () => {
-  test('今日・昨日が 1、1日ごとに 1/7 ずつ下がり、8日目で 0。一度もなければ 0', () => {
-    expect(recoveryLevel(0)).toBe(1);
-    expect(recoveryLevel(1)).toBe(1);
-    expect(recoveryLevel(2)).toBeCloseTo(6 / 7);
-    expect(recoveryLevel(4)).toBeCloseTo(4 / 7);
-    expect(recoveryLevel(7)).toBeCloseTo(1 / 7);
-    expect(recoveryLevel(8)).toBe(0);
-    expect(recoveryLevel(30)).toBe(0);
-    expect(recoveryLevel(null)).toBe(0);
+describe('部位ごとの回復の日数と明るさ', () => {
+  test('回復の日数：腹筋 1日、腕・肩・胸 2日、背中・脚 3日、知らない部位 2日', () => {
+    expect(['腹筋', '腹', '上腕二頭筋', '上腕三頭筋', '腕', '肩', '胸', '背中', '脚', '握力', ' 胸 '].map(recoveryDaysFor))
+      .toEqual([1, 1, 2, 2, 2, 2, 2, 3, 3, DEFAULT_RECOVERY_DAYS, 2]);
   });
 
-  test('部位ごとの最後の日・日数・2週間のセット数。その日より後は見ない。主な部位でなくても1セットで数える', () => {
+  test('明るさ k = 1 − d ÷ (R+1)。R 日目を過ぎたら 0（回復済み）。一度もなければ 0', () => {
+    // 胸（R=2）：鍛えた日 1、翌日 2/3、2日目 1/3、3日目 0
+    [1, 2 / 3, 1 / 3, 0, 0].forEach((k, i) => expect(recoveryLevel([0, 1, 2, 3, 10][i], 2)).toBeCloseTo(k));
+    // 腹筋（R=1）：1、1/2、0
+    expect([0, 1, 2].map((d) => recoveryLevel(d, 1))).toEqual([1, 0.5, 0]);
+    // 背中（R=3）：1、3/4、1/2、1/4、0
+    expect([0, 1, 2, 3, 4].map((d) => recoveryLevel(d, 3))).toEqual([1, 0.75, 0.5, 0.25, 0]);
+    expect(recoveryLevel(null, 2)).toBe(0);
+    expect(recoveryLevel(-1, 2)).toBe(1);
+  });
+
+  test('回復の残りと状態の文字：回復中は「回復中 あと N日」、R+1 日目から「回復済み」、一度もなければ「まだ」', () => {
+    expect([0, 1, 2, 3].map((d) => remainingDays(d, 2))).toEqual([3, 2, 1, null]);
+    expect(remainingDays(null, 2)).toBeNull();
+    expect(recoveryStatusText({ last: '2026-11-12', remaining: 1 })).toBe('回復中 あと1日');
+    expect(recoveryStatusText({ last: '2026-11-01', remaining: null })).toBe('回復済み');
+    expect(recoveryStatusText({ last: null, remaining: null })).toBe('まだ');
+  });
+
+  test('部位ごとの最後の日・日数・回復・2週間のセット数。その日より後は見ない。主な部位でなくても1セットで数える', () => {
     const rows = [
       row('2026-10-20', 'c'), // 2週間より前
       row('2026-11-01', 'c'), row('2026-11-10', 'c'), row('2026-11-10', 'c'),
       row('2026-11-12', 'tri'),
+      row('2026-11-12', 'b'),
       row('2026-11-14', 'b'), // その日より後
       row('2026-11-05', 'x'),
     ];
     const list = partRecoveries(rows, name, ['胸', '背中', '肩', '上腕三頭筋', '握力'], '2026-11-13');
     expect(list.map((p) => p.name)).toEqual(['胸', '背中', '肩', '上腕三頭筋']);
-    const chest = list[0];
-    expect(chest).toMatchObject({ last: '2026-11-10', days: 3, sets: 3 });
-    expect(chest.level).toBeCloseTo(5 / 7);
-    expect(list[1]).toMatchObject({ last: null, days: null, sets: 0, level: 0 });
-    expect(list[3]).toMatchObject({ last: '2026-11-12', days: 1, sets: 1, level: 1 });
+    // 胸は 3日前（R=2）：回復済み
+    expect(list[0]).toMatchObject({ last: '2026-11-10', days: 3, sets: 3, recoveryDays: 2, remaining: null, level: 0 });
+    // 背中は昨日（R=3）：あと3日
+    expect(list[1]).toMatchObject({ last: '2026-11-12', days: 1, recoveryDays: 3, remaining: 3, level: 0.75 });
+    expect(list[2]).toMatchObject({ last: null, days: null, sets: 0, remaining: null, level: 0 });
+    expect(list[3]).toMatchObject({ last: '2026-11-12', days: 1, sets: 1, remaining: 2 });
+    expect(list[3].level).toBeCloseTo(2 / 3);
 
     // 前腕は二頭筋・三頭筋の両方にある：明るいほう。押したら最後の日の新しい部位
-    const levels = recoveryLevels(list);
+    const withBi = partRecoveries([...rows, row('2026-11-13', 'bi')], name, ['上腕二頭筋', '上腕三頭筋'], '2026-11-13');
+    const levels = recoveryLevels(withBi);
     expect(levels.forearm_l).toBe(1);
-    expect(levels.pec_r).toBeCloseTo(5 / 7);
-    expect(levels.trap_r).toBe(0);
-    const withBi = partRecoveries([...rows, row('2026-11-08', 'bi')], name, ['上腕二頭筋', '上腕三頭筋'], '2026-11-13');
-    expect(partOfMesh('forearm_r', withBi)?.name).toBe('上腕三頭筋');
-    expect(partOfMesh('biceps_r', withBi)?.name).toBe('上腕二頭筋');
+    expect(levels.triceps_r).toBeCloseTo(2 / 3);
+    expect(partOfMesh('forearm_r', withBi)?.name).toBe('上腕二頭筋');
+    expect(partOfMesh('triceps_r', withBi)?.name).toBe('上腕三頭筋');
     expect(partOfMesh('pec_r', withBi)).toBeNull();
+    expect(recoveryLevels(list).pec_r).toBe(0);
+  });
+});
+
+describe('注釈の付け根', () => {
+  test('初期の部位はどれも付け根がある。体の中（高さ 0〜1.8m、幅 ±0.35m）。前の部位は前の面、後ろの部位は後ろの面', () => {
+    for (const p of SEED_BODY_PARTS) {
+      const at = recoveryAnchor(p.name)!;
+      expect(at).not.toBeNull();
+      expect(at.anchor[1]).toBeGreaterThan(0); expect(at.anchor[1]).toBeLessThan(1.8);
+      expect(Math.abs(at.anchor[0])).toBeLessThan(0.35);
+    }
+    expect(recoveryAnchor('胸')!.facing).toBe('front');
+    expect(recoveryAnchor('胸')!.anchor[2]).toBeGreaterThan(0.1);
+    expect(recoveryAnchor('背中')!.facing).toBe('back');
+    expect(recoveryAnchor('背中')!.anchor[2]).toBeLessThan(-0.1);
+    expect(recoveryAnchor('握力')).toBeNull();
+  });
+
+  test('札が左右に分かれる：胸・二頭筋・腹筋は画面の左、肩・三頭筋・背中・脚は画面の右（正面から見て）', () => {
+    const w = 360, h = 340;
+    const side = (p: string) => (projectFront(recoveryAnchor(p)!.anchor, w, h).x < w / 2 ? 'left' : 'right');
+    expect(['胸', '上腕二頭筋'].map(side)).toEqual(['left', 'left']);
+    expect(['肩', '上腕三頭筋', '背中', '脚'].map(side)).toEqual(['right', 'right', 'right', 'right']);
+    // 腹筋はまん中：前の部位なので左（layoutCallouts の決まり）
+    const abs = layoutCallouts([{ id: 'abs', ...recoveryAnchor('腹筋')!, fixing: false, occurredOn: '' }], w, h, { perSide: 3, height: 52 });
+    expect(abs[0].side).toBe('left');
+  });
+
+  test('左右それぞれ3つまで。ケガのある部位を先に、最後に鍛えた日の新しい順', () => {
+    const items = ['胸', '上腕二頭筋', '腹筋', '腕'].map((p, i) => ({ id: p, ...recoveryAnchor(p)!, fixing: p === '腕', occurredOn: `2026-11-1${i}` }));
+    const places = layoutCallouts(items, 360, 340, { perSide: 3, height: 52 });
+    expect(places.map((p) => p.id).sort()).toEqual(['上腕二頭筋', '腕', '腹筋'].sort());
   });
 });
 
@@ -120,45 +168,51 @@ describe('回復マップのケガ', () => {
   });
 });
 
-describe('回復マップの色', () => {
+describe('回復マップの色（3つ：緑・暖色・赤）', () => {
   const hsl = (c: string) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    return { s: max === min ? 0 : (max - min) / (1 - Math.abs(max + min - 1)), l: (max + min) / 2 };
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    const h = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: h * 60, s: d === 0 ? 0 : d / (1 - Math.abs(max + min - 1)), l: (max + min) / 2 };
   };
 
-  test('明るさ 0 は温存の青、1 は負荷の橙。間は薄い色と黄を通る（青と黄の間で濁らない）', () => {
-    expect(recoveryColor(0)).toBe(REST_BLUE);
-    expect(recoveryColor(-1)).toBe(REST_BLUE);
+  test('明るさ 0 は回復済みの緑（アプリのアクセント）、0.25 は黄、0.75 からは橙', () => {
+    expect(recoveryColor(0)).toBe(REST_GREEN);
+    expect(REST_GREEN).toBe(colors.accent);
+    expect(recoveryColor(-1)).toBe(REST_GREEN);
+    expect(recoveryColor(0.25)).toBe(LOAD_YELLOW);
+    expect(recoveryColor(0.75)).toBe(LOAD_ORANGE);
     expect(recoveryColor(1)).toBe(LOAD_ORANGE);
-    expect(recoveryColor(2)).toBe(LOAD_ORANGE);
-    expect(recoveryColor(0.6)).toBe('#F5C94A');
-    // 鍛えた日からの日数ごとの色（今日・昨日の橙から、8日目で青）は、どれも暗く濁らない（明るさ 50% 以上か、鮮やかさ 60% 以上）
-    for (let d = 0; d <= 8; d++) {
-      const c = hsl(recoveryColor(recoveryLevel(d)));
-      expect(c.l >= 0.5 || c.s >= 0.6).toBe(true);
-    }
-    // 2日目は橙寄り（赤 > 青）、6日目は青寄り
-    const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-    expect(rgb(recoveryColor(recoveryLevel(2)))[0]).toBeGreaterThan(rgb(recoveryColor(recoveryLevel(2)))[2]);
-    expect(rgb(recoveryColor(recoveryLevel(7)))[2]).toBeGreaterThan(rgb(recoveryColor(recoveryLevel(7)))[0]);
   });
 
-  test('ケガの赤は負荷の橙・ケガの画面の琥珀色と別の色。文字に使うケガの赤はカードと画面の背景に 4.5:1 以上', () => {
+  test('回復中の色は、鍛えた日ほど橙（色相が小さい）、回復が近いほど黄。間は濁らない（鮮やかさ 70% 以上）', () => {
+    for (const R of [1, 2, 3]) {
+      const hues = Array.from({ length: R + 1 }, (_, d) => hsl(recoveryColor(recoveryLevel(d, R))));
+      for (const c of hues) { expect(c.s).toBeGreaterThan(0.7); expect(c.h).toBeLessThanOrEqual(50); }
+      for (let i = 1; i < hues.length; i++) expect(hues[i].h).toBeGreaterThanOrEqual(hues[i - 1].h);
+    }
+    // 胸（R=2）：鍛えた日と翌日は橙寄り（色相 35 未満）、2日目は黄寄り
+    expect(hsl(recoveryColor(recoveryLevel(1, 2))).h).toBeLessThan(35);
+    expect(hsl(recoveryColor(recoveryLevel(2, 2))).h).toBeGreaterThan(38);
+    // 緑と黄の間（理屈の上だけの明るさ）も、色相を回すので濁らない
+    expect(hsl(recoveryColor(0.12)).s).toBeGreaterThan(0.6);
+  });
+
+  test('ケガの赤は橙・ケガの画面の琥珀色と別の色。文字に使う色はカードと画面の背景に 4.5:1 以上', () => {
     expect(INJURY_RED).not.toBe(LOAD_ORANGE);
     expect(INJURY_RED).not.toBe(toneColors.caution.accent);
-    expect(contrastRatio(INJURY_RED, colors.card)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(INJURY_RED, colors.bg)).toBeGreaterThanOrEqual(4.5);
-    // 凡例の四角・ボタンの点（文字でないもの）は 3:1 以上
-    for (const c of [REST_BLUE, LOAD_ORANGE, INJURY_RED]) expect(contrastRatio(c, colors.input)).toBeGreaterThanOrEqual(3);
+    for (const c of [INJURY_RED, LOAD_ORANGE, LOAD_YELLOW, REST_GREEN]) {
+      expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(c, colors.bg)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
-  test('2D の図：鍛えていない筋肉は温存の青、最近鍛えた筋肉は明るさの色（2D の図の対応で）', () => {
-    const list = partRecoveries([row('2026-11-12', 'c'), row('2026-10-01', 'l')], name, ['胸', '脚', '背中'], '2026-11-13');
+  test('2D の図：回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（2D の図の対応で）', () => {
+    const list = partRecoveries([row('2026-11-13', 'c'), row('2026-10-01', 'l')], name, ['胸', '脚', '背中'], '2026-11-13');
     const fills = muscleFills(list);
     expect(fills.pecs).toBe(LOAD_ORANGE);
-    expect(fills.quads).toBe(REST_BLUE_FILL);
-    expect(fills.lats).toBe(REST_BLUE_FILL);
-    expect(fills.glutes).toBe(REST_BLUE_FILL);
+    expect(fills.quads).toBe(REST_FILL);
+    expect(fills.lats).toBe(REST_FILL);
+    expect(REST_FILL).toBe(colors.accentMuted);
   });
 });
