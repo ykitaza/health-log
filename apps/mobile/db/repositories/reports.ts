@@ -1,5 +1,5 @@
 import { DateKey } from '@/lib/date';
-import { isReportOrder, parseReport, parseSteps, parseStepsDone, Report, ReportKind, ReportOrder, ReportRow } from '@/lib/reports';
+import { parseReport, parseSteps, parseStepsDone, Report, ReportKind, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
@@ -13,8 +13,6 @@ const DISMISSED_PENDING = 'reports.dismissed_pending';
 const DISMISSED_MAX = 50;
 /** 開いた（見た）レポートの ID。新しいレポートのお知らせと、一覧の「新着」の印に使う。端末だけに覚える（同期しない） */
 const SEEN = 'reports.seen';
-/** 一覧の並び順（lib/reports.ts の ReportOrder）。端末だけ */
-const LIST_ORDER = 'reports.list_order';
 /** 「自動で作る」で、ChatGPT にスケジュールを頼んだ日（'YYYY-MM-DD'）。端末だけ */
 const SCHEDULE_REQUESTED = 'reports.schedule_requested_on';
 
@@ -58,6 +56,20 @@ export function reportRepository(db: Db, deps: Deps) {
       `SELECT ${LIGHT_COLUMNS} FROM reports WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [],
     );
     return rows.map((row) => parseReport({ ...row, body: '' }));
+  }
+
+  async function latest(): Promise<Report | null> {
+    const row = await db.getFirstAsync<ReportRow>(
+      `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind != 'other' ORDER BY created_at DESC, id DESC LIMIT 1`, [],
+    );
+    return row && parseReport(row);
+  }
+
+  async function latestOfKind(kind: Exclude<ReportKind, 'other'>): Promise<Report | null> {
+    const row = await db.getFirstAsync<ReportRow>(
+      `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? ORDER BY created_at DESC, id DESC LIMIT 1`, [kind],
+    );
+    return row && parseReport(row);
   }
 
   /**
@@ -104,16 +116,6 @@ export function reportRepository(db: Db, deps: Deps) {
       await setMeta(SEEN, JSON.stringify([...seen].filter((id) => live.has(id))));
     },
 
-    /** 一覧の並び順。覚えていなければ新しい順 */
-    async listOrder(): Promise<ReportOrder> {
-      const v = await meta(LIST_ORDER);
-      return isReportOrder(v) ? v : 'newest';
-    },
-
-    async setListOrder(order: ReportOrder): Promise<void> {
-      await setMeta(LIST_ORDER, order);
-    },
-
     /** 「自動で作る」でスケジュールを頼んだ日。まだなら null */
     async scheduleRequestedOn(): Promise<DateKey | null> {
       const v = await meta(SCHEDULE_REQUESTED);
@@ -128,22 +130,25 @@ export function reportRepository(db: Db, deps: Deps) {
      * 最新のレポート。kind が 'other'（分析レポート）は出さない（アプリのどこにも表示しない決まり。データは消さず、ここで隠すだけ）。
      * ホームの「最新のレポート」と、レポートのタブの入口が使う
      */
-    async latest(): Promise<Report | null> {
-      const row = await db.getFirstAsync<ReportRow>(
-        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind != 'other' ORDER BY created_at DESC, id DESC LIMIT 1`, [],
-      );
-      return row && parseReport(row);
-    },
+    latest,
 
     /**
      * その種類（日・週・月）の最新のレポート。詳細画面の期間タブが、種類ごとにいちばん新しい1件へ切り替えるのに使う。なければ null。
      * kind は日・週・月だけを受けるので、'other' はここでも出ない
      */
-    async latestOfKind(kind: Exclude<ReportKind, 'other'>): Promise<Report | null> {
-      const row = await db.getFirstAsync<ReportRow>(
-        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? ORDER BY created_at DESC, id DESC LIMIT 1`, [kind],
+    latestOfKind,
+
+    /**
+     * チャットの「hlog で見る」のリンク（reports?date=…&kind=…）で開くレポート。期間に date を含むその種類（日・週・月）のレポート
+     * （いくつかあれば、いちばん新しく作ったもの）、なければその種類の最新、それもなければ最新（latest）。1件もなければ null。
+     * date がなければ、その種類の最新から
+     */
+    async forLink(kind: Exclude<ReportKind, 'other'>, date: string | null): Promise<Report | null> {
+      const row = date == null ? null : await db.getFirstAsync<ReportRow>(
+        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? AND period_start <= ? AND ? <= period_end
+         ORDER BY created_at DESC, id DESC LIMIT 1`, [kind, date, date],
       );
-      return row && parseReport(row);
+      return (row && parseReport(row)) ?? (await latestOfKind(kind)) ?? latest();
     },
 
     /** その日の日のまとめ（期間がその日だけの daily）。いくつかあれば、いちばん新しいもの */

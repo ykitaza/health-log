@@ -1,5 +1,5 @@
 // ホームの「部位のバランス」：直近2週の、部位ごとのセット数（六角形のレーダー）
-// レポートの週次でも使う（期間にアンカーした partBalanceForPeriod / partBalanceAnchored。ホームの既定の動きは変えない）
+// レポートの週次でも使う（期間にアンカーした partBalanceAnchored。ホームの既定の動きは変えない）
 import { addDays, addMonths, DateKey, formatMonthDay } from './date';
 import type { TrainingSetRow } from './training';
 
@@ -56,16 +56,6 @@ export function partBalanceBetween(
   }
   const max = Math.max(...sets);
   return { sets, ratios: sets.map((n) => (max > 0 ? Math.sqrt(n) / Math.sqrt(max) : 0)), total: sets.reduce((a, n) => a + n, 0) };
-}
-
-/**
- * 期間（start〜end、両端を含む）の、軸ごとのセット数。レポートの週次・月次が、その期間のレーダーを出すときに使う。
- * 数え方は partBalance と同じ（1行が1セット、頂点の長さは平方根で最大の軸を 1 にそろえる）。partBalanceBetween の期間を名前で渡す版
- */
-export function partBalanceForPeriod(
-  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, start: DateKey, end: DateKey,
-): PartBalance {
-  return partBalanceBetween(rows, partName, start, end);
 }
 
 /**

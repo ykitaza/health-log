@@ -89,3 +89,35 @@ def test_種類が違えば_同じ期間でも置き換えない():
     asyncio.run(svc.save(OWNER, report(kind=Kind.WEEKLY)))
     asyncio.run(svc.save(OWNER, report(kind=Kind.MONTHLY, title="今月のまとめ")))
     assert len(asyncio.run(repo.list(OWNER))) == 2
+
+
+def test_週と月は_初日が同じなら_最後の日が違っても置き換える():
+    # アプリの頼み方は period_end を「今日」にするので、週の途中で別の日に作り直すと最後の日だけが変わる
+    repo = MemoryReports()
+    svc = service(repo)
+    asyncio.run(svc.save(OWNER, report(period=(date(2026, 11, 2), date(2026, 11, 4)), title="水曜のまとめ")))
+    saved = asyncio.run(svc.save(OWNER, report(period=(date(2026, 11, 2), date(2026, 11, 6)), title="金曜のまとめ")))
+    asyncio.run(svc.save(OWNER, report(kind=Kind.MONTHLY, period=(date(2026, 11, 1), date(2026, 11, 9)), title="9日の月のまとめ")))
+    month = asyncio.run(svc.save(OWNER, report(kind=Kind.MONTHLY, period=(date(2026, 11, 1), date(2026, 11, 20)), title="20日の月のまとめ")))
+    found = sorted(asyncio.run(repo.list(OWNER)), key=lambda r: r.id)
+    assert [r.id for r in found] == sorted([saved.id, month.id])
+    assert {r.title for r in found} == {"金曜のまとめ", "20日の月のまとめ"}
+
+
+def test_週は_初日が違えば置き換えない():
+    repo = MemoryReports()
+    svc = service(repo)
+    asyncio.run(svc.save(OWNER, report(period=(date(2026, 10, 26), date(2026, 11, 1)), title="先週")))
+    asyncio.run(svc.save(OWNER, report(period=(date(2026, 11, 2), date(2026, 11, 8)), title="今週")))
+    assert len(asyncio.run(repo.list(OWNER))) == 2
+
+
+def test_日は今までどおり_同じ日だけ置き換える():
+    repo = MemoryReports()
+    svc = service(repo)
+    day = (date(2026, 11, 9), date(2026, 11, 9))
+    asyncio.run(svc.save(OWNER, report(kind=Kind.DAILY, period=day, title="1回目")))
+    asyncio.run(svc.save(OWNER, report(kind=Kind.DAILY, period=day, title="2回目")))
+    assert [r.title for r in asyncio.run(repo.list(OWNER))] == ["2回目"]
+    asyncio.run(svc.save(OWNER, report(kind=Kind.DAILY, period=(date(2026, 11, 10), date(2026, 11, 10)), title="次の日")))
+    assert sorted(r.title for r in asyncio.run(repo.list(OWNER))) == ["2回目", "次の日"]

@@ -40,8 +40,11 @@ class ReportService:
     async def save(self, owner: str, report: Report) -> Report:
         """レポートとして保存する（report の id は使わず、ここで決める）。上限の数に達していたら断る。
 
-        同じ種類・期間（kind と period_start〜period_end）のレポートがすでにあれば、新しい方で置き換える（重複を作らない。
+        同じ種類・期間のレポートがすでにあれば、新しい方で置き換える（重複を作らない。
         期間のないレポートは「同じ期間」と言えないので、置き換えの対象にしない）。
+        同じ期間とみなすのは、日のまとめ（daily）は period_start と period_end が同じとき、
+        週・月のまとめ（weekly・monthly）は period_start が同じとき（アプリの頼み方は period_end を「今日」にするので、
+        週や月の途中で別の日に作り直すと終わりの日が変わるため。週は月曜から、月は1日からで始まりが決まる）。
         置き換えは、レポートの決まり（保存したら変えない。書き換えは消して作り直す）どおり、古い方を消して新しい ID で作る。
         同期は項目ごとの後勝ちで項目を消す仕組みがないため、同じ ID の update では、前のレポートにだけあった
         highlights・links などが残ってしまう。先に新しい方を保存してから古い方を消す（保存に失敗したら古い方が残る）。
@@ -55,7 +58,8 @@ class ReportService:
             raise ReportError("レポートの種類（kind）は daily（日のまとめ）・weekly（週のまとめ）・monthly（月のまとめ）のどれかにしてください。other は保存できません")
         existing = await self.reports.list(owner)
         same = [r for r in existing if report.period_start is not None
-                and r.kind == report.kind and r.period_start == report.period_start and r.period_end == report.period_end]
+                and r.kind == report.kind and r.period_start == report.period_start
+                and (report.kind != Kind.DAILY or r.period_end == report.period_end)]
         if len(existing) - len(same) >= MAX_REPORTS:
             raise ReportError(f"レポートは{MAX_REPORTS}件までです。古いものを delete_report で消してから保存してください")
         saved = await self.reports.add(owner, replace(

@@ -25,11 +25,11 @@ type LinkRequest = { date: string | null; kind: PeriodKind };
  * レポートのタブ（下のタブの5つ目）。一覧（カードの並び）と「やること」のペインは廃止し、開いたらレポートの詳細
  * （/reports/[id]）へ直行する入口だけの画面（app/workout/index.tsx の移行画面と同じ形）。行き先は：
  * - 通常は、最新の生成済みレポート（kind が 'other' のものは除く。db/repositories/reports.ts の latest）
- * - チャットの返事の「hlog で見る」リンク（torelog://reports?date=…。app/+native-intent.tsx が /reports?date=… に変える）から
- *   開いたときは、その日付の期間のレポート：date だけなら日のまとめ（その日の daily。なければその種類の最新）、
- *   kind（weekly・monthly）が付いていれば、その期間に date を含むその種類のレポート（なければその種類の最新）。
- *   どれもなければ、最新の生成済みレポートに落ちる
- * - 新しいレポートのお知らせ（components/ReportSuggestion、お知らせの /reports?order=newest）も、ここを通って詳細へ着く
+ * - チャットの返事の「hlog で見る」リンク（torelog://reports?date=…&kind=…。app/+native-intent.tsx が /reports?date=…&kind=… に変える）から
+ *   開いたときは、その期間に date を含む、その種類（kind。なければ日）のレポート。なければその種類の最新、
+ *   それもなければ最新の生成済みレポートに落ちる（db/repositories/reports.ts の forLink）
+ * - ホームの「すべて」・新しいレポートのお知らせ・今週やることの「すべて」は、ここを通らず詳細（/reports/[id]）を直接開く
+ *   （この画面はタブとして裏に残り、下の「1回だけ」の印も残るため、ここを通すと2回目以降は詳細に着かない）
  * 通常の入口は、読み込めた時点で1回だけ詳細へ移る（戻るで戻ってきたときは移り直さず、下の入口を出す。
  * 移り直すと、戻る操作が詳細との往復になってしまうため）。リンクからの指定は、その都度移る。
  * まだ1件もなければ、チャットで作る方法と頼み方の例を出す。
@@ -50,17 +50,7 @@ export default function ReportsScreen() {
 
   // 読み込み中（data が null）と、レポートがまだない（latest が null）を分けるため、latest を包んで返す
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    if (request) {
-      const { date, kind } = request;
-      let target = date && kind === 'daily' ? await r.reports.dailyFor(date) : null;
-      if (!target && date) {
-        const list = await r.reports.list();
-        target = list.find((x) => x.kind === kind && x.periodStart != null && x.periodEnd != null && x.periodStart <= date && date <= x.periodEnd) ?? null;
-      }
-      target ??= await r.reports.latestOfKind(kind);
-      target ??= await r.reports.latest();
-      return { latest: target, forRequest: true };
-    }
+    if (request) return { latest: await r.reports.forLink(request.kind, request.date), forRequest: true };
     return { latest: await r.reports.latest(), forRequest: false };
   }, request ? `link:${request.kind}:${request.date ?? ''}` : 'latest');
   const chat = useChatChooser();

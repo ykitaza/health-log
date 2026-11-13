@@ -1,10 +1,9 @@
 import {
-  dailyHighlightLabel, dailySectionTitle, deltaLook, emptyFilterText, filterReports, formatDelta, groupByMonth, highlightsFor, KIND_LABELS, KIND_SHORT, NEXT_TITLES,
-  formatMetricValue, formatPeriod, formatReportDate, Metric, metricLabel, newReportsSummary, orderToggleLabel, parseInline, parseMarkdown, parseReport, pendingReports,
-  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, settingGoalRows, sortReports, suggestionItems, TAB_AREAS, weeklyGoalCardLabel,
+  dailyHighlightLabel, dailySectionTitle, deltaLook, formatDelta, highlightsFor, KIND_LABELS, KIND_SHORT, NEXT_TITLES,
+  formatMetricValue, formatPeriod, formatReportDate, Metric, metricLabel, newReportsSummary, parseInline, parseMarkdown, parseReport, pendingReports,
+  primaryMetrics, ReportRow, reportCardLabel, reportDate, reportShortName, sortReports, suggestionItems, TAB_AREAS,
   weekStreakText,
 } from '../reports';
-import type { WeeklyAchievement } from '../goals';
 
 const row = (over: Partial<ReportRow> = {}): ReportRow => ({
   id: 'r1', title: '今週のまとめ', body: '', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08',
@@ -83,8 +82,8 @@ describe('見せ方', () => {
   });
 });
 
-// TODO(#192): 旧IAの一覧前提のテスト群。新IAに一覧画面はないため、一覧専用関数の扱い（削除/存続）を統合時に決めて書き換える
-describe('一覧の絞り込み・並び・月の見出し', () => {
+// 一覧の画面はなくなった（#192）。並び（sortReports）はホームのお知らせの補足（newReportsSummary）が使う
+describe('並べる日付と並び', () => {
   // 作った時刻は、どの時間帯でも同じ日になる時刻（UTC の 3時）
   const at = (d: string) => `${d}T03:00:00.000Z`;
   const rep = (id: string, kind: string, start: string | null, end: string | null, created: string) =>
@@ -97,13 +96,6 @@ describe('一覧の絞り込み・並び・月の見出し', () => {
     rep('m', 'monthly', '2025-12-01', '2025-12-31', '2026-01-01'),
   ];
   const ids = (l: { id: string }[]) => l.map((r) => r.id);
-
-  test('種類で絞る。「すべて」はその他も出す。並びは変えない', () => {
-    expect(ids(filterReports(list, 'all'))).toEqual(['w', 'd2', 'o', 'd1', 'm']);
-    expect(ids(filterReports(list, 'daily'))).toEqual(['d2', 'd1']);
-    expect(ids(filterReports(list, 'weekly'))).toEqual(['w']);
-    expect(filterReports(list.slice(0, 4), 'monthly')).toEqual([]);
-  });
 
   test('並べる日付は期間の最後の日、なければ初日、それもなければ作った日。カードにも同じ日付', () => {
     expect(reportDate(list[0])).toBe('2026-11-08');
@@ -134,23 +126,7 @@ describe('一覧の絞り込み・並び・月の見出し', () => {
     expect(ids(sortReports(same, 'oldest'))).toEqual(['m', 'w', 'w1', 'd-new', 'd']);
   });
 
-  test('並べる日付の月ごとに区切る。今年は「11月」、年が違えば「2025年12月」', () => {
-    expect(groupByMonth(sortReports(list), '2026-11-09').map((g) => [g.title, ids(g.reports)])).toEqual([
-      ['11月', ['w', 'd2', 'o']], ['10月', ['d1']], ['2025年12月', ['m']],
-    ]);
-    expect(groupByMonth(sortReports(list, 'oldest'), '2026-11-09').map((g) => g.title)).toEqual(['2025年12月', '10月', '11月']);
-    expect(groupByMonth(filterReports(list, 'daily'), '2026-11-09').map((g) => g.title)).toEqual(['11月', '10月']);
-    expect(groupByMonth([], '2026-11-09')).toEqual([]);
-  });
-
-  test('並べ替えの読み上げに今の順と、押したらどうなるか', () => {
-    expect(orderToggleLabel('newest')).toBe('並び順、新しい順。押すと古い順にします');
-    expect(orderToggleLabel('oldest')).toBe('並び順、古い順。押すと新しい順にします');
-  });
-
-  test('絞り込んで0件のときの題と頼み方。種類のラベル', () => {
-    expect(emptyFilterText('daily')).toEqual({ title: '日のまとめはまだありません', body: 'チャット（Claude・ChatGPT）で「今日のまとめを作って」と頼むと、ここに出ます。' });
-    expect(emptyFilterText('monthly').title).toBe('月のまとめはまだありません');
+  test('種類のラベル', () => {
     expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' });
   });
 
@@ -289,33 +265,20 @@ describe('まだ作っていないまとめ', () => {
   });
 });
 
-// TODO(#192): 旧IA: レポートのタブ前提のおすすめ帯。新IA（タブ→最新詳細）での帯の扱いを統合時に決める
-describe('お知らせの帯のおすすめ（ホームとレポートのタブ）', () => {
+// 帯はホームだけ（レポートのタブは詳細へ直行し、帯は置かない）
+describe('お知らせの帯のおすすめ（ホーム）', () => {
   const pending = ['daily:2026-11-06', 'weekly:2026-11-02'];
-  test('新しいレポートを読み終わるまでは、どちらも出さない', () => {
-    expect(suggestionItems(null, pending, false)).toEqual([]);
-    expect(suggestionItems(null, pending, true)).toEqual([]);
+  test('新しいレポートを読み終わるまでは出さない', () => {
+    expect(suggestionItems(null, pending)).toEqual([]);
   });
-  test('ホームは帯を1つだけ：新しいレポートがあればおすすめは出さない', () => {
-    expect(suggestionItems([{}], pending, false)).toEqual([]);
-    expect(suggestionItems([], pending, false)).toEqual(pending);
-  });
-  test('レポートのタブは2つとも出す（新着があってもおすすめを出す）', () => {
-    expect(suggestionItems([{}], pending, true)).toEqual(pending);
-    expect(suggestionItems([], null, true)).toEqual([]);
+  test('帯は1つだけ：新しいレポートがあればおすすめは出さない', () => {
+    expect(suggestionItems([{}], pending)).toEqual([]);
+    expect(suggestionItems([], pending)).toEqual(pending);
+    expect(suggestionItems([], null)).toEqual([]);
   });
 });
 
-describe('今週の目標のカード（週のまとめ・レポートのタブ）', () => {
-  const week = (over: Partial<WeeklyAchievement> = {}): WeeklyAchievement => ({
-    start: '2026-11-02', end: '2026-11-08', days: [],
-    training: { days: 2, goal: 2, reached: true },
-    meals: { days: 2, goal: 3, reached: false },
-    protein: { days: 1, goal: 3, reached: false },
-    sleep: { days: 0, goal: null, reached: false },
-    ...over,
-  });
-
+describe('今週の目標の連続（週のまとめ）', () => {
   test('連続：その週も達成していれば「N週連続で達成」。0 なら出さない', () => {
     expect(weekStreakText({ weeks: 3, thisWeek: true }, false)).toBe('3週連続で達成');
     expect(weekStreakText({ weeks: 0, thisWeek: false }, true)).toBeNull();
@@ -323,14 +286,5 @@ describe('今週の目標のカード（週のまとめ・レポートのタブ�
   test('連続：今週がまだなら先週までの連続。過ぎた週で届かなかったなら、その時点の連続は 0 なので出さない', () => {
     expect(weekStreakText({ weeks: 2, thisWeek: false }, true)).toBe('先週まで 2週連続で達成');
     expect(weekStreakText({ weeks: 2, thisWeek: false }, false)).toBeNull();
-  });
-  test('レポートのタブの行は設定の目標だけ（たんぱく質は入れない。睡眠は切なら出さない）', () => {
-    expect(settingGoalRows(week()).map((r) => r.key)).toEqual(['training', 'meals']);
-    expect(settingGoalRows(week({ sleep: { days: 4, goal: 4, reached: true } })).map((r) => r.key)).toEqual(['training', 'meals', 'sleep']);
-  });
-  test('読み上げは数字と達成を含め、押すと設定で変えられると伝える', () => {
-    const rows = settingGoalRows(week());
-    expect(weeklyGoalCardLabel(false, rows, null)).toBe('今週の目標。筋トレ、2 回、目標 2 回、達成。食事を記録した日、2 日、目標 3 日、まだ届いていない。押すと設定で目標を変えられます');
-    expect(weeklyGoalCardLabel(true, rows, '1週連続で達成')).toMatch(/^今週の目標をすべて達成。.*。1週連続で達成。押すと設定で目標を変えられます$/);
   });
 });

@@ -73,3 +73,39 @@ describe('listWithoutBody（本文を読まない一覧）', () => {
     expect((await d.r.reports.list()).find((r) => r.id === DAY)?.body).toBe('くわしい本文');
   });
 });
+
+describe('forLink（チャットの「hlog で見る」：reports?date=…&kind=… で開くレポート）', () => {
+  const MONTH = 'bbbbbbbb-0000-4000-8000-000000000005';
+  const WEEK2 = 'bbbbbbbb-0000-4000-8000-000000000006';
+
+  test('その日を含む期間のその種類のレポート。なければその種類の最新、それもなければ最新', async () => {
+    const d = await device();
+    saveReport(d, WEEK, '2026-11-05T01:00:00.000Z', { title: '先週のまとめ', kind: 'weekly', period_start: '2026-10-26', period_end: '2026-11-01' });
+    saveReport(d, WEEK2, '2026-11-09T01:00:00.000Z', { title: '今週のまとめ', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08' });
+    saveReport(d, DAY, '2026-11-10T01:00:00.000Z', { title: '11月8日のまとめ', kind: 'daily', period_start: '2026-11-08', period_end: '2026-11-08' });
+    saveReport(d, DAY2, '2026-11-11T01:00:00.000Z', { title: '11月9日のまとめ', kind: 'daily', period_start: '2026-11-09', period_end: '2026-11-09' });
+    await d.engine.run();
+    // その日を含む期間（週は途中の日でも、作った順が新しくなくても）
+    expect((await d.r.reports.forLink('weekly', '2026-10-28'))?.id).toBe(WEEK);
+    expect((await d.r.reports.forLink('weekly', '2026-11-08'))?.id).toBe(WEEK2);
+    expect((await d.r.reports.forLink('daily', '2026-11-08'))?.id).toBe(DAY);
+    // その日を含む期間がなければ、その種類の最新（日付がないときも）
+    expect((await d.r.reports.forLink('weekly', '2026-11-12'))?.id).toBe(WEEK2);
+    expect((await d.r.reports.forLink('daily', '2026-11-12'))?.id).toBe(DAY2);
+    expect((await d.r.reports.forLink('daily', null))?.id).toBe(DAY2);
+    // その種類が1件もなければ、最新（いちばん新しく作った、other でないもの）
+    expect((await d.r.reports.forLink('monthly', '2026-11-09'))?.id).toBe(DAY2);
+    saveReport(d, MONTH, '2026-11-01T01:00:00.000Z', { title: '10月のまとめ', kind: 'monthly', period_start: '2026-10-01', period_end: '2026-10-31' });
+    await d.engine.run();
+    expect((await d.r.reports.forLink('monthly', '2026-11-09'))?.id).toBe(MONTH);
+    expect((await d.r.reports.forLink('monthly', '2026-10-15'))?.id).toBe(MONTH);
+  });
+
+  test('other は、日付が合っても選ばない。何もなければ null', async () => {
+    const d = await device();
+    expect(await d.r.reports.forLink('daily', '2026-11-09')).toBeNull();
+    saveReport(d, OTHER, '2026-11-11T01:00:00.000Z', { title: '分析', kind: 'other', period_start: '2026-11-09', period_end: '2026-11-09' });
+    await d.engine.run();
+    expect(await d.r.reports.forLink('daily', '2026-11-09')).toBeNull();
+  });
+});

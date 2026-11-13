@@ -12,10 +12,9 @@ import { ConfirmDialog, EmptyState, Header, IconButton, Segmented } from '@/comp
 import { PreviousTodoCard, TodoList, useTodoChecks } from '@/components/WeeklyTodo';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
-import { useToday } from '@/hooks/today';
 import { previousTodo } from '@/lib/home';
 import {
-  achievementScope, formatCreated, formatPeriod, Highlight, KIND_LABELS, Metric, NEXT_TITLES, Report, reportDate, ReportKind,
+  achievementScope, formatCreated, formatPeriod, Highlight, KIND_LABELS, Metric, NEXT_TITLES, Report, ReportKind,
 } from '@/lib/reports';
 import { dailyReportStreak, dailyStreakText } from '@/lib/reportStreak';
 import { colors, radius } from '@/theme';
@@ -31,8 +30,8 @@ const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
  * レポートの中身。上の期間タブ（日／週／月）で、その種類の最新のレポートに切り替える（開いた1件に固定しない）。
  * タブを押していないときは、開いたレポート（id）そのものを出す。ただし kind が 'other'（分析レポート）のものは
  * アプリのどこにも出さないので、開かれても最新の（other でない）レポートに替えて出す（データ自体は消さない）。
- * いちばん上に「最新の生成済み」の状態行：出すレポートの期間と、今日のレポートでないときは最新の生成済みレポートを
- * 出していることを書く（新しいものが作られるまで、前のものが残るため）。
+ * いちばん上に「最新の生成済み」の状態行：出すレポートの期間と、それがその種類の最新のときは最新の生成済みレポートを
+ * 出していることを書く（新しいものが作られるまで、前のものが残るため。古いレポートを開いたときは書かない）。
  * 種類ごとの並び（Figma の report-daily・report-weekly・report-monthly）：
  * - 日：調子の帯 → 今日の達成（ゴールリング＋行） → 分野ごと → この日の数字（ステータス表） → 明日の一歩（チェックできる。
  *   連続達成は lib/reportStreak.ts） → つながり → 目標の見直し → くわしく
@@ -45,7 +44,6 @@ const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
  */
 export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const today = useToday();
   // 期間タブで選んだ種類（null なら、開いたレポートの種類）
   const [pickedKind, setPickedKind] = useState<PeriodKind | null>(null);
   useEffect(() => { setPickedKind(null); }, [id]);
@@ -117,7 +115,8 @@ export default function ReportScreen() {
   let n = 1;
   const next = () => n++;
   const period = formatPeriod(report);
-  const isToday = reportDate(report) === today;
+  // 出しているのがその種類の最新のときだけ「最新の生成済み」と書く（古いレポートを開いたときは書かない）
+  const isLatest = report.kind !== 'other' && report.id === data.latestByKind[report.kind]?.id;
 
   return (
     <Screen>
@@ -130,7 +129,7 @@ export default function ReportScreen() {
         {periodTabs}
         <T size={12} color={colors.sub} testID="report-latest-line">
           {period ? `${period}のレポート` : `${formatCreated(report.createdAt)}に作成したレポート`}
-          {!isToday && ' ・ 最新の生成済みレポートを表示しています'}
+          {isLatest && ' ・ 最新の生成済みレポートを表示しています'}
         </T>
         <ToneBand report={report} />
         {scope?.type === 'day' && <DailyAchievementBlock date={scope.date} index={next()} />}

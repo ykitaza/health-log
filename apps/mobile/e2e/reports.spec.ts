@@ -96,7 +96,7 @@ function serverWithReport() {
 test('レポートがないときは、ホームのカードにチャットで頼む方法を出す', async ({ page }) => {
   await openApp(page);
   await expect(see(page.getByTestId('latest-report'), 'まだありません。チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。')).toBeVisible();
-  await expect(button(page, 'すべてのレポート')).toHaveCount(0);
+  await expect(button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます')).toHaveCount(0);
 });
 
 test('レポートのタブは最新のレポートの詳細へ直行する。中身が出て、消すとサーバーに届く', async ({ page, context }) => {
@@ -109,11 +109,19 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   const card = page.getByRole('button', { name: /^気をつけたい、今週のまとめ、睡眠が短い日が多かった、/ }).filter({ visible: true });
   await expect(card).toBeVisible();
   await expect(card).toHaveAccessibleName(/睡眠（平均） 5\.8 時間、前より 0\.6 減った、気をつけたい変化/);
-  // 「すべて」でレポートのタブへ。タブは一覧ではなく、最新の詳細を直接開く
-  await button(page, 'すべてのレポート').click();
-  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  // 「すべて」は一覧ではなく、最新の詳細を直接開く（日・週・月は詳細の期間タブで切り替える）
+  await button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます').click();
   await expect(periodTabs(page)).toBeVisible();
-  await expect(page.getByTestId('report-latest-line').filter({ visible: true })).toContainText('11月2日（月）〜11月8日（日）のレポート');
+  const latestLine = page.getByTestId('report-latest-line').filter({ visible: true });
+  await expect(latestLine).toContainText('11月2日（月）〜11月8日（日）のレポート');
+  // その種類の最新なので「最新の生成済み」と書く
+  await expect(latestLine).toContainText('最新の生成済みレポートを表示しています');
+  // 2回目も詳細に着く（レポートのタブを通さないので、タブが裏に残っていても止まらない）
+  await button(page, '戻る').click();
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
+  await button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます').click();
+  await expect(periodTabs(page)).toBeVisible();
+  await expect(latestLine).toContainText('11月2日（月）〜11月8日（日）のレポート');
   // 一覧のUIはない：説明文・「やること」ペイン（primary-tabs）・戻るのない一覧画面、ではない
   await expect(see(page, 'チャット（Claude・ChatGPT）で作ったまとめです。期間の日付の新しい順に、月ごとに並びます。')).toHaveCount(0);
   await expect(page.getByTestId('primary-tabs').filter({ visible: true })).toHaveCount(0);
@@ -633,8 +641,8 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 2 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ・10月31日のまとめ', { exact: true })).toBeVisible();
-  // 2件のときの「見る」も、レポートのタブを通って最新の詳細へ（一覧はない）
-  await button(banner, '新しいレポートを一覧で見る').click();
+  // 2件のときの「見る」は、いちばん新しいレポートの詳細を直接開く（一覧はない）
+  await button(banner, 'いちばん新しいレポートを見る').click();
   await expect(periodTabs(page)).toBeVisible();
   await expect(periodTab(page, '日')).toHaveAttribute('aria-selected', 'true');
   await expect(see(band(page), '10月31日（土）', { exact: true })).toBeVisible();

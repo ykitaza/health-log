@@ -97,9 +97,8 @@ test('今週やること：チェックすると取り消し線と件数。サ�
   await expect(card.getByRole('checkbox', { name: '平日は 23時半までに寝る' })).toHaveAttribute('aria-checked', 'false');
   await expect(see(card, '2／3', { exact: true })).toBeVisible();
 
-  // 「すべて」で、レポートのタブを通って週のまとめの詳細（週ビュー）を開く。締めの「来週の焦点」に、同じ次の一歩が出る
-  await button(card, 'やることをすべて見る').click();
-  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
+  // 「すべて」で、その一歩を書いた週のまとめの詳細（週ビュー）を直接開く。締めの「来週の焦点」に、同じ次の一歩が出る
+  await button(card, '週のまとめで、来週の焦点を見る').click();
   const periodTabs = page.getByTestId('report-period-tabs').filter({ visible: true });
   await expect(periodTabs).toBeVisible();
   await expect(periodTabs.getByRole('button', { name: '週', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -111,7 +110,10 @@ test('今週やること：チェックすると取り消し線と件数。サ�
   await goTab(page, 'ホーム');
   await card.getByRole('checkbox', { name: '平日は 23時半までに寝る' }).click();
   await expect(card.getByRole('button', { name: '今週やることを全部できた。3つのうち3つ済み' })).toBeVisible();
-  await expect(button(card, 'やることをすべて見る')).toBeVisible();
+  // 2回目も詳細に着く（レポートのタブを通さない）
+  await button(card, '週のまとめで、来週の焦点を見る').click();
+  await expect(periodTabs.getByRole('button', { name: '週', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(see(page, '来週の焦点', { exact: true })).toBeVisible();
 });
 
 test('取り込みの知らせ：MCP で記録して戻ると「食事を2件、筋トレを1件取り込みました」。見るでその日の食事', async ({ page, context }) => {

@@ -24,7 +24,7 @@ describe('まとめの文', () => {
       + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使ってください。達成の数字はアプリが出します。'
       + '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ、責めない言い方で書き、'
       + 'save_report(kind=daily, period_start=2026-11-09, period_end=2026-11-09)で保存してください。'
-      + back('reports', 'hlog で見る'));
+      + back('reports?date=2026-11-09&kind=daily', 'hlog で見る'));
   });
 
   test('週：月曜から今日まで（アプリの「今週の目標」と同じ区切り）。つながり（links）と来週の一歩', () => {
@@ -34,16 +34,19 @@ describe('まとめの文', () => {
     expect(text).toContain('period_overview(start=2026-11-09, end=2026-11-12)');
     expect(text).toContain('分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで');
     expect(text).toContain('save_report(kind=weekly, period_start=2026-11-09, period_end=2026-11-12)');
+    // 「hlog で見る」は今日の日付と種類で、アプリのその日を含む週のタブを開く
+    expect(text).toContain(back('reports?date=2026-11-12&kind=weekly', 'hlog で見る'));
     expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('period_overview(start=2025-12-29, end=2026-01-02)');
   });
 
-  test('月：その月の1日から今日まで。体重のペース、links、review（食事の目標なら meals_goal）、来月の一歩', () => {
+  test('月：その月の1日から今日まで。体重のペース、links、review、今月の課題（サーバーの説明・アプリの見出しと同じ言葉）', () => {
     const text = promptText({ kind: 'report', span: 'month', today: TODAY });
     expect(text).toContain(`${C}で今月（11月1日〜今日（11月9日））のまとめ`);
     expect(text).toContain('period_overview(start=2026-11-01, end=2026-11-09)');
     expect(text).toContain('体重の推移と目標までのペース');
-    expect(text).toContain('目標の見直しを review に（食事の目標なら target=meals_goal）');
-    expect(text).toContain('来月の一歩を3つまで');
+    expect(text).toContain('分野ごとに一言、links、目標の見直しを review に、今月の課題を3つまで');
+    expect(text).not.toContain('来月');
+    expect(text).toContain(back('reports?date=2026-11-09&kind=monthly', 'hlog で見る'));
     expect(text).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-09)');
   });
 
@@ -52,6 +55,7 @@ describe('まとめの文', () => {
     expect(text).toContain(`${C}で今週のまとめ`);
     expect(text).toContain('period_overviewを読み');
     expect(text).toContain('save_report(kind=weekly)で保存');
+    expect(text).toContain(back('reports?kind=weekly', 'hlog で見る')); // 日付なしでも種類のタブは開ける
     expect(text).not.toMatch(/x&q|\d{4}-/);
   });
 });
@@ -81,7 +85,7 @@ describe('まだのまとめを、まとめて作る文', () => {
     expect(included.length).toBeGreaterThan(1);
     expect(included.length).toBeLessThan(all.length);
     expect(included[0].kind).toBe('monthly'); // 古い順
-    expect(text).toContain('月は links・review と来月の一歩を3つまで');
+    expect(text).toContain('月は links・review と今月の課題を3つまで');
     expect(text).toContain(`対象は${included.length}件：`);
     expect(text).toContain(`残りの${all.length - included.length}件は次に頼みます。`);
     for (const app of ['claude', 'chatgpt'] as const) expect(chatUrl(app, { kind: 'pending', items: all }).length).toBeLessThanOrEqual(2000);
@@ -107,7 +111,7 @@ describe('自動で作る（ChatGPT のスケジュール）の文', () => {
       + '各回：list_reports(kind)に同じ期間があれば作らない。'
       + 'なければ period_overview(start, end)を読み、記録の値だけで書いて save_report(kind, period_start, period_end)で保存。'
       + '記録がなければ作らない。'
-      + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで、月は links・review と来月の一歩を3つまで。'
+      + '日は明日の一歩を1つ（体重は週の平均と比べる）、週は links と来週の一歩を3つまで、月は links・review と今月の課題を3つまで。'
       + 'ほかは save_report の説明どおり。');
   });
 
@@ -237,7 +241,8 @@ describe('どの文も', () => {
       // 日付を除くと、残る数字は決まった件数（1つ・3つまで）だけ。記録の数字（重さ・kcal など）は入らない
       const rest = text.replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/\d{1,2}月\d{1,2}日/g, '');
       expect(rest).not.toMatch(/\d{3,}/);
-      expect(text).not.toMatch(/[\n<>&@]/);
+      // & は、まとめの「hlog で見る」のリンクの、日付と種類のあいだにだけ入る
+      expect(text.replace(/\/open\/reports\?date=\d{4}-\d{2}-\d{2}&kind=(daily|weekly|monthly)\)/, '')).not.toMatch(/[\n<>&@]/);
     }
   });
 

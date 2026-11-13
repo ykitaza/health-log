@@ -26,7 +26,8 @@ export function nextMilestoneKg(currentKg: number, goalKg: number, stepKg: numbe
 }
 
 export type GoalProgress = {
-  /** 進み具合 0〜1。startKg があれば（現在−初め）／（目標−初め）、なければ現在／目標（増量の素の割合）。どちらも 0〜1 に丸める */
+  /** 進み具合 0〜1。startKg があれば（現在−初め）／（目標−初め）、なければ現在／目標（増量の素の割合）。どちらも 0〜1 に丸める。
+   * startKg が目標とほぼ同じなら、届いていれば 1、届いていなければ 0 */
   ratio: number;
   /** 目標までの残り（kg、0以上。小数1桁）。届いていれば 0 */
   remainingKg: number;
@@ -42,7 +43,8 @@ export type GoalProgress = {
 
 /**
  * 目標バーの値。currentKg は bodyChange の last.value（7日移動平均）、startKg は同 first.value を渡す想定。
- * startKg が目標と同値など割合が出せないときは ratio は現在／目標側に倒す
+ * startKg が目標とほぼ同じ（差 0.05kg 未満）で割合が出せないときは、届いていれば 1、届いていなければ 0。
+ * startKg がなければ現在／目標（増量の素の割合）
  */
 export function goalProgress(input: { currentKg: number; goalKg: number; startKg?: number | null; stepKg?: number }): GoalProgress {
   const { currentKg, goalKg } = input;
@@ -57,6 +59,11 @@ export function goalProgress(input: { currentKg: number; goalKg: number; startKg
   if (startKg != null && Math.abs(goalKg - startKg) >= 0.05) {
     ratio = clamp01((currentKg - startKg) / (goalKg - startKg));
     milestoneRatio = clamp01((milestoneKg - startKg) / (goalKg - startKg));
+  } else if (startKg != null) {
+    // 期間の初めがほぼ目標（初め→目標の幅がない）：割合は出せないので、届いていれば 1（下で決める）、届いていなければ 0。
+    // 現在÷目標にすると、減量中で目標を上回っていても満杯近くになるため。節目は、今（バーの左端）から目標までの位置
+    ratio = 0;
+    milestoneRatio = clamp01((milestoneKg - currentKg) / (goalKg - currentKg));
   } else {
     ratio = goalKg !== 0 ? clamp01(currentKg / goalKg) : 0;
     milestoneRatio = goalKg !== 0 ? clamp01(milestoneKg / goalKg) : 0;

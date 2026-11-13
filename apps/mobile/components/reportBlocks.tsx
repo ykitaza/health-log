@@ -8,22 +8,22 @@ import Animated from 'react-native-reanimated';
 import { useDailyAchievement, useFocusData, useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
 import { weekAverage, weeklyPace } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { addDays, DateKey, formatMonthDay, todayKey } from '@/lib/date';
+import { addDays, formatMonthDay, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { allGoalsReached, weekOf } from '@/lib/goals';
 import { formatClock, formatMinutes, formatSteps } from '@/lib/health';
 import { WEEKLY_GOALS_SECTION } from '@/lib/home';
 import { DAY_TYPE_LABELS, SLOT_LABELS, targetFor } from '@/lib/meals';
 import {
-  AchievementRow, achievementRowLabel, AREA_LABELS, Big3Lifts, big3Total, bodyChange, dailyAchievementRows, Highlight, linkCaption, MARK_LABELS, Metric,
-  ReportLink, ReportReview, settingGoalRows, weeklyAchievementRows, weeklyGoalCardLabel, weekStreakText,
+  AchievementRow, achievementRowLabel, AREA_LABELS, bodyChange, dailyAchievementRows, linkCaption, MARK_LABELS, Metric,
+  ReportLink, ReportReview, weeklyAchievementRows, weekStreakText,
 } from '@/lib/reports';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { colors, radius, space } from '@/theme';
+import { colors, radius } from '@/theme';
 import { GoalRings, LineChart } from './charts';
 import { Icon } from './Icon';
-import { GrowBar, PressableScale } from './motion';
-import { AREA_ICON, Delta, MetricTile, useEntering } from './reports';
+import { GrowBar } from './motion';
+import { AREA_ICON, Delta, useEntering } from './reports';
 import { T } from './Text';
 import { Button } from './ui';
 
@@ -197,50 +197,6 @@ export function WeeklyGoalsBlock({ date, index }: { date: string; index: number 
   );
 }
 
-/**
- * レポートのタブの「やること」のいちばん上の「今週の目標」（今週の途中経過）。設定で決める目標（筋トレ・食事の記録・睡眠（切でなければ））だけを、
- * 数字と細い棒で（届いた行はチェックの印も）。すべて届いたら題の右に「✓ 達成」、下に連続。カード全体を押すと設定の今週の目標の欄へ
- */
-export function WeeklyGoalsNowCard({ today }: { today: DateKey }) {
-  const { data: w } = useWeeklyAchievement(today);
-  const { data: streak } = useGoalStreak(today);
-  if (!w) return null;
-  const rows = settingGoalRows(w);
-  const achieved = allGoalsReached(w);
-  const streakText = streak ? weekStreakText(streak, true) : null;
-  return (
-    <PressableScale
-      scaleTo={0.98} accessibilityRole="button" accessibilityLabel={weeklyGoalCardLabel(achieved, rows, streakText)} onPress={openGoalSettings}
-      style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 10, marginTop: space.l }} testID="tab-weekly-goals"
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <T bold size={15} style={{ flex: 1 }}>今週の目標</T>
-        {achieved && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }} testID="tab-goals-achieved">
-            <Icon name="check" size={16} color={colors.accent} />
-            <T bold size={13} color={colors.accent}>達成</T>
-          </View>
-        )}
-        <Icon name="chevron" size={18} color={colors.sub} />
-      </View>
-      {rows.map((r) => (
-        <View key={r.key} style={{ gap: 6 }} testID={`tab-goal-${r.key}`}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-            <View style={{ width: 16, alignSelf: 'center' }}>{r.mark === 'reached' && <Icon name="check" size={16} color={colors.text} />}</View>
-            <T size={13} style={{ flex: 1 }} numberOfLines={1}>{r.label}</T>
-            <T num bold size={16}>{r.value}</T>
-            <T size={12} color={colors.sub}>／{r.goal} {r.unit}</T>
-          </View>
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.input, overflow: 'hidden' }}>
-            <GrowBar ratio={r.ratio ?? 0} style={{ height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
-          </View>
-        </View>
-      ))}
-      {streakText && <T size={12} color={colors.sub} testID="tab-goal-streak">{streakText}</T>}
-    </PressableScale>
-  );
-}
-
 /** 月のまとめの「体の変化」：体重の7日の平均の推移と目標の破線、初めと終わりの値、目標までの残りとペース。体重の記録が足りなければ出さない */
 export function BodyChangeBlock({ start, end, index }: { start: string; end: string; index: number }) {
   const enter = useEntering();
@@ -289,24 +245,6 @@ export function BodyChangeBlock({ start, end, index }: { start: string; end: str
       </View>
     </Animated.View>
   );
-}
-
-/**
- * 月のまとめの BIG3（合計）のタイル。lifts は BIG3 に割り当てた種目（割り当てがなければ null で、タイルを出さない）。
- * 値は期間の推定1RMのいちばん高い値の合計、変化は前の同じ長さの期間から
- */
-export function Big3Tile({ lifts, start, end, index, animKey }: { lifts: Big3Lifts | null; start: string; end: string; index: number; animKey: string }) {
-  const { data } = useFocusData(async (r) => (lifts ? { sets: await r.workouts.allSetRows(), unit: (await r.settings.get()).weightUnit } : null), `${start}:${end}`);
-  const total = data ? big3Total(data.sets, lifts, start, end) : null;
-  if (!data || !total) return null;
-  const highlight: Highlight & { metric: Metric } = {
-    area: 'training', tone: 'steady', text: '',
-    metric: {
-      label: 'BIG3（合計）', value: Math.round(kgToUnit(total.totalKg, data.unit)), unit: data.unit,
-      delta: total.deltaKg == null ? null : Math.round(kgToUnit(total.deltaKg, data.unit)), deltaGood: total.deltaKg == null ? null : total.deltaKg >= 0,
-    },
-  };
-  return <MetricTile highlight={highlight} index={index} vs="前の月より" animKey={animKey} />;
 }
 
 /** つながりのカード：from と to の分野のアイコンを矢印でつなぎ、文と「睡眠 → 筋トレ・2日」の補足 */

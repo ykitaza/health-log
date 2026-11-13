@@ -1,6 +1,6 @@
 import {
   axisAngle, BALANCE_PARTS, BALANCE_RANGES, balanceAxisOf, balanceRangeFrom, parseBalanceRange, partBalance, partBalanceAnchored,
-  partBalanceForPeriod, partBalanceForRange, partBalanceLabel, partBalancePeriodLabel, partBalanceRangeLabel,
+  partBalanceBetween, partBalanceForRange, partBalanceLabel, partBalancePeriodLabel, partBalanceRangeLabel,
 } from '../partBalance';
 import type { TrainingSetRow } from '../training';
 
@@ -146,8 +146,8 @@ describe('レポートの期間の部位のバランス（期間・アンカー�
     ...rows('2026-10-26', 'shoulder', 3), // アンカー（11/8）の直近14日の中、週の外
   ];
 
-  test('期間（start〜end、両端を含む）のセット数。数え方と割合は partBalance と同じ', () => {
-    const b = partBalanceForPeriod(data, nameOf, '2026-11-02', '2026-11-08');
+  test('期間（start〜end、両端を含む）のセット数。数え方と割合は partBalance と同じ（partBalanceBetween）', () => {
+    const b = partBalanceBetween(data, nameOf, '2026-11-02', '2026-11-08');
     expect(b.sets).toEqual([2, 0, 4, 0, 0, 0]);
     expect(b.total).toBe(6);
     expect(b.ratios[2]).toBe(1);
@@ -160,7 +160,7 @@ describe('レポートの期間の部位のバランス（期間・アンカー�
     expect(anchored.sets).toEqual([2, 3, 4, 0, 1, 0]);
     expect(partBalance(data, nameOf, '2026-11-08')).toEqual(anchored);
     // 今日にアンカーした既定の partBalance も、今日を終わりにした14日と一致する
-    expect(partBalanceAnchored(data, nameOf, '2026-11-12')).toEqual(partBalanceForPeriod(data, nameOf, '2026-10-30', '2026-11-12'));
+    expect(partBalanceAnchored(data, nameOf, '2026-11-12')).toEqual(partBalanceBetween(data, nameOf, '2026-10-30', '2026-11-12'));
   });
 
   test('アンカー：日数を変えられる（7日なら終わりの日を含む7日）', () => {
@@ -169,9 +169,9 @@ describe('レポートの期間の部位のバランス（期間・アンカー�
   });
 
   test('読み上げ（期間指定）：期間とセット数。記録がなければそのことを', () => {
-    const b = partBalanceForPeriod(data, nameOf, '2026-11-02', '2026-11-08');
+    const b = partBalanceBetween(data, nameOf, '2026-11-02', '2026-11-08');
     expect(partBalancePeriodLabel(b, '2026-11-02', '2026-11-08')).toBe('部位のバランス、11月2日から11月8日のセット数。胸 2、肩 0、背中 4、腕 0、脚 0、腹 0');
-    expect(partBalancePeriodLabel(partBalanceForPeriod([], nameOf, '2026-11-02', '2026-11-08'), '2026-11-02', '2026-11-08'))
+    expect(partBalancePeriodLabel(partBalanceBetween([], nameOf, '2026-11-02', '2026-11-08'), '2026-11-02', '2026-11-08'))
       .toBe('部位のバランス、11月2日から11月8日のセット数。まだ記録がありません');
     expect(partBalancePeriodLabel(null, '2026-11-02', '2026-11-08')).toBe('部位のバランス');
   });

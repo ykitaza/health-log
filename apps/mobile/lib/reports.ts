@@ -252,16 +252,8 @@ function periodDays(r: Pick<Report, 'periodStart' | 'periodEnd'>): number {
 /** 同じ日付のときの種類の順（期間の長いもの：月→週→日。その他は週と日のあいだ） */
 const KIND_RANK: Record<ReportKind, number> = { monthly: 0, weekly: 1, other: 2, daily: 3 };
 
-/** 一覧の並び順。端末だけに覚える（db/repositories/reports.ts） */
+/** 並びの向き（sortReports） */
 export type ReportOrder = 'newest' | 'oldest';
-export const REPORT_ORDER_LABELS: Record<ReportOrder, string> = { newest: '新しい順', oldest: '古い順' };
-export const isReportOrder = (v: unknown): v is ReportOrder => v === 'newest' || v === 'oldest';
-export const otherOrder = (o: ReportOrder): ReportOrder => (o === 'newest' ? 'oldest' : 'newest');
-
-/** 並べ替えの切り替えの読み上げ（「並び順、新しい順。押すと古い順にします」） */
-export function orderToggleLabel(o: ReportOrder): string {
-  return `並び順、${REPORT_ORDER_LABELS[o]}。押すと${REPORT_ORDER_LABELS[otherOrder(o)]}にします`;
-}
 
 /**
  * 一覧の並び。reportDate の新しい順（oldest なら古い順）。同じ日付なら、どちらの順でも、期間の長いもの（月→週→日）を先、
@@ -311,41 +303,6 @@ export function newReportsSummary(list: Report[], today: DateKey): string {
   const sorted = sortReports(list);
   const names = sorted.slice(0, 2).map((r) => reportShortName(r, today));
   return names.join('・') + (sorted.length > 2 ? ` ほか ${sorted.length - 2} 件` : '');
-}
-
-// --- 一覧の絞り込みと月の見出し ---
-
-/** 一覧の絞り込み（filter chip）。「その他」は「すべて」でだけ出す */
-export type ReportFilter = 'all' | 'daily' | 'weekly' | 'monthly';
-export const REPORT_FILTERS: { key: ReportFilter; label: string }[] = [
-  { key: 'all', label: 'すべて' }, { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
-];
-
-export function filterReports(list: Report[], filter: ReportFilter): Report[] {
-  return filter === 'all' ? list : list.filter((r) => r.kind === filter);
-}
-
-/**
- * 並べる日付（reportDate）の月ごとに分ける（並びはそのまま。sortReports で並べたものを渡す）。見出しは「11月」、今年でなければ「2025年12月」。
- * 日付の読めないものは、最後に見出しなしでまとめる
- */
-export function groupByMonth(list: Report[], today: DateKey): { key: string; title: string; reports: Report[] }[] {
-  const year = today.slice(0, 4);
-  const groups: { key: string; title: string; reports: Report[] }[] = [];
-  for (const r of list) {
-    const key = reportDate(r).slice(0, 7);
-    const title = key === '' ? '' : `${key.slice(0, 4) === year ? '' : `${key.slice(0, 4)}年`}${Number(key.slice(5, 7))}月`;
-    const last = groups[groups.length - 1];
-    if (last?.key === key) last.reports.push(r);
-    else groups.push({ key, title, reports: [r] });
-  }
-  return groups;
-}
-
-/** 絞り込んで0件のときの題と、チャットでの頼み方 */
-export function emptyFilterText(filter: Exclude<ReportFilter, 'all'>): { title: string; body: string } {
-  const ask = { daily: '今日のまとめを作って', weekly: '今週のまとめを作って', monthly: '今月のまとめを作って' }[filter];
-  return { title: `${KIND_LABELS[filter]}はまだありません`, body: `チャット（Claude・ChatGPT）で「${ask}」と頼むと、ここに出ます。` };
 }
 
 // --- 各タブに出す、その日の日のまとめ ---
@@ -425,11 +382,11 @@ export function pendingReports(input: {
 }
 
 /**
- * お知らせの帯に出すおすすめ（まだ作っていないまとめ）。新しいレポートを読み終わるまでは出さない（出てから入れ替わらないように）。
- * ホーム（both=false）は帯を1つだけにするので、新しいレポートがあればおすすめは出さない。レポートのタブ（both=true）は2つとも出す
+ * ホームのお知らせの帯に出すおすすめ（まだ作っていないまとめ）。新しいレポートを読み終わるまでは出さない（出てから入れ替わらないように）。
+ * 帯は1つだけにするので、新しいレポートがあればおすすめは出さない
  */
-export function suggestionItems<T>(fresh: readonly unknown[] | null, pending: readonly T[] | null, both: boolean): T[] {
-  if (fresh == null || (fresh.length > 0 && !both)) return [];
+export function suggestionItems<T>(fresh: readonly unknown[] | null, pending: readonly T[] | null): T[] {
+  if (fresh == null || fresh.length > 0) return [];
   return [...(pending ?? [])];
 }
 
@@ -530,11 +487,6 @@ export function weeklyAchievementRows(w: WeeklyAchievement): { rows: Achievement
   return { rows, summary: `${rows.length}つのうち ${rows.filter((r) => r.mark === 'reached').length}つ達成` };
 }
 
-/** 設定で決める目標（筋トレ・食事を記録した日・睡眠（切でなければ））の行だけ。たんぱく質は食事の目標から出すので入れない（レポートのタブの今週の目標） */
-export function settingGoalRows(w: WeeklyAchievement): AchievementRow[] {
-  return weeklyAchievementRows(w).rows.filter((r) => r.key !== 'protein');
-}
-
 /**
  * 週の目標のカードの連続の一言（すべて達成した週の連続。goalStreak をその週の日で数えたもの）。連続が0なら null（出さない）。
  * current はその週が今週（途中）か。今週がまだなら先週までの連続を出す。過ぎた週で届かなかったなら、その時点の連続は 0 なので出さない
@@ -543,14 +495,6 @@ export function weekStreakText(s: GoalStreak, current: boolean): string | null {
   if (s.weeks <= 0) return null;
   if (s.thisWeek) return `${s.weeks}週連続で達成`;
   return current ? `先週まで ${s.weeks}週連続で達成` : null;
-}
-
-/**
- * レポートのタブの今週の目標のカード全体の読み上げ（押すと設定で目標を変えられる）。
- * 「今週の目標をすべて達成。筋トレ、2 回、目標 2 回、達成。…。1週連続で達成。押すと設定で目標を変えられます」
- */
-export function weeklyGoalCardLabel(achieved: boolean, rows: AchievementRow[], streak: string | null): string {
-  return [achieved ? '今週の目標をすべて達成' : '今週の目標', ...rows.map(achievementRowLabel), streak, '押すと設定で目標を変えられます'].filter(Boolean).join('。');
 }
 
 /** 達成の1行の読み上げ（「たんぱく質 98 g、目標 150 g、まだ届いていない」） */
