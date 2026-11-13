@@ -438,6 +438,67 @@ def test_週のまとめの材料に_前の週のまとめの次の一歩とア�
     assert earlier["previous_next_steps"] is None
 
 
+class CountingStore(InMemorySyncStore):
+    """種類ごとの全件読み（docs_of_type）の回数を数える。日付の範囲の読み（docs_by_index）の中で使う分は数えない。"""
+
+    def __init__(self, index_key):
+        super().__init__(index_key)
+        self.type_reads: list[tuple[str, str]] = []
+        self._in_index = False
+
+    def docs_of_type(self, user, entity_type):
+        if not self._in_index:
+            self.type_reads.append((user, entity_type))
+        return super().docs_of_type(user, entity_type)
+
+    def docs_by_index(self, user, entity_type, start, end):
+        self._in_index = True
+        try:
+            return super().docs_by_index(user, entity_type, start, end)
+        finally:
+            self._in_index = False
+
+
+def test_期間の材料は_1回の実行の中で同じ種類を1回だけ読み_中身は使い回さないときと同じ(server, monkeypatch):
+    import contextlib
+    from connector import period_overview
+
+    registry = main.create_registry()
+    store = CountingStore(registry.index_key)
+    engine = SyncEngine(store, registry)
+    mcp = main.create_server(engine, FakeVerifier(), ISSUER, RESOURCE, FakeSession(), today=lambda: date(2026, 11, 8))
+    counted = {**server, "mcp": mcp, "app": main.create_app(mcp, "127.0.0.1")}
+    app_change(engine, "setting", "goal_weight_kg", {"value": "80"})
+    app_change(engine, "phase", "p1", PHASE)
+    app_change(engine, "body_record", "b1", {"date": "2026-11-03", "measured_at": "2026-11-03T07:00:00+09:00",
+                                             "weight_kg": 68.1, "source": "manual"})
+
+    async def body(client):
+        data(await client.call_tool("record_workout", {"day": "2026-11-03", "exercises": [
+            {"exercise": "ベンチプレス", "sets": [{"weight_kg": 80, "reps": 8}]}]}))
+        data(await client.call_tool("record_meal", {"meal": {**LUNCH, "date": "2026-11-03"}}))
+        store.type_reads.clear()
+        week = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        reads = list(store.type_reads)
+        # 次の呼び出しでは読み直す（前の実行の中身は残らない）。書いた記録も見える
+        app_change(engine, "body_record", "b2", {"date": "2026-11-05", "measured_at": "2026-11-05T07:00:00+09:00",
+                                                 "weight_kg": 67.9, "source": "manual"})
+        again = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        # 使い回さないとき（範囲を開かない）と比べる
+        monkeypatch.setattr(period_overview, "read_cache_scope", contextlib.nullcontext)
+        store.type_reads.clear()
+        plain = data(await client.call_tool("period_overview", {"start": "2026-11-02", "end": "2026-11-08"}))
+        return week, reads, again, plain, list(store.type_reads)
+
+    week, reads, again, plain, plain_reads = run(counted, ALL_SCOPES, body)
+    # スレッドに渡した読み取り（anyio.to_thread）の間でも使い回せている
+    assert len(reads) == len(set(reads)) and {"phase", "body_record", "workout_set", "setting"} <= {t for _, t in reads}
+    assert all(user == "alice" for user, _ in reads)
+    assert week["phase"]["current"]["pace"]["weigh_ins"] == 1 and again["phase"]["current"]["pace"]["weigh_ins"] == 2
+    assert plain == again
+    assert len(plain_reads) > len(set(plain_reads))  # 範囲がなければ同じ種類を何度も読む
+
+
 def test_期間の材料は31日まで(server):
     async def body(client):
         return (await client.call_tool("period_overview", {"start": "2026-10-08", "end": "2026-11-08"}),

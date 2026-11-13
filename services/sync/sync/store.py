@@ -154,6 +154,18 @@ class InMemorySyncStore:
 
 
 class DynamoDBSyncStore:
+    """読み取りの整合性の切り分け：
+
+    - 結果整合：last_app_received_at だけ。MCP が「最後の同期」として見せる表示用の時刻で、少し古くても実害がない。
+    - ほかは強い整合性のまま：
+      - head・seen・get_docs（_batch_get）：commit の楽観的ロックと冪等の印（duplicate の応答）の材料。
+      - read_log（pull）：結果整合の Query が「途切れのない先頭から」を返すとは保証されない。
+        抜けた seq の先までカーソルが進むと、その変更は二度と届かない。
+      - scan_docs（snapshot）：http_api.snapshot は先に head を強く読んでカーソルにする。走査が古いと、
+        カーソル以前の変更が状態にも changes にも入らず、端末に届かない。
+      - docs_of_type・docs_by_index：MCP の書き込みのツールが、書いた直後に読み直して返す（record_meal の today、
+        筋トレの総負荷量・自己ベストなど）ほか、読んだ一覧から次の並び順・セットの番号や件数の上限を決めて書く。
+    """
     def __init__(self, table_name: str, index_key: IndexKey = lambda doc: None):
         import boto3  # Lambda の実行環境に入っている
 
@@ -221,7 +233,8 @@ class DynamoDBSyncStore:
             raise
 
     def last_app_received_at(self, user):
-        item = self.table.get_item(Key={"pk": pk(user), "sk": APP_SK}, ConsistentRead=True).get("Item")
+        # 表示（MCP が「最後の同期」として見せる時刻）だけに使うので、結果整合でよい
+        item = self.table.get_item(Key={"pk": pk(user), "sk": APP_SK}, ConsistentRead=False).get("Item")
         return item["received_at"] if item else None
 
     def read_log(self, user, after, limit):
