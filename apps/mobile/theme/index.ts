@@ -68,11 +68,11 @@ export const placeholderColor = colors.sub;
 
 /**
  * ホームの計器の盤（刷新 A）の色。ミント 1 色の濃淡（LOG の負荷量の 3 段・PFC のドーナツ）と、空のマス・輪の地。
- * mint1 の上の文字は colors.text、mint2・mint3 の上の文字は colors.onAccent（どちらも 4.5:1 以上）
+ * mint1 の上の文字は colors.text、mint2・mint3 の上の文字は colors.onAccent（どちらも 4.5:1 以上）。いちばん薄い mint1 も、空のマス・カードの上で 3:1 以上
  */
 export const hudColors = {
-  mint1: '#1F4D35',
-  mint2: colors.accentMuted,
+  mint1: '#327D55',
+  mint2: '#44A872',
   mint3: colors.accent,
   /** 空のマス・計器の棒の地 */
   empty: colors.input,

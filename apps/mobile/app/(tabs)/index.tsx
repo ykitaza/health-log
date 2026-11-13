@@ -20,7 +20,7 @@ import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, formatMonthDay, pickedDayOrToday, weekStart, yearMonth } from '@/lib/date';
-import { calloutSet } from '@/lib/dayCallouts';
+import { dayBodyEntries } from '@/lib/dayBody';
 import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
 import { goalLine } from '@/lib/home';
@@ -29,7 +29,6 @@ import {
 } from '@/lib/homeHud';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { fixingOn, injuriesForPart, partRecoveries } from '@/lib/recoveryMap';
-import { dayFocus } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
 
@@ -61,7 +60,7 @@ export default function HomeScreen() {
     const partDays = await loadPartDays(r, rows);
     // 直近のトレーニングの日の種目（ヒーローの札）
     const latest = latestSession(rows, today);
-    const entries = latest ? (await r.workouts.getDays([latest.date])).filter((e) => e.sets.length > 0) : [];
+    const entries = latest ? await r.workouts.getDays([latest.date]) : [];
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     return {
       rows, settings, meals: meals.days, daily, sleep, partDays, latest, entries, injuries, big3: big3Assignments(exercises),
@@ -82,8 +81,7 @@ export default function HomeScreen() {
     const names = new Map(data.entries.map((e) => [e.exerciseId, e.exerciseName]));
     return {
       session: data.latest,
-      entries: data.entries.map((e, i) => ({ key: e.id, no: i + 1, name: e.exerciseName, set: calloutSet(e.sets, unit), part: e.bodyPartName })),
-      parts: dayFocus(data.entries).names,
+      ...dayBodyEntries(data.entries, unit),
       prNames: data.latest.prs.map((p) => names.get(p.exerciseId) ?? ''),
     };
   }, [data, unit]);
@@ -132,6 +130,13 @@ export default function HomeScreen() {
           <LogPanel weeks={log} month={monthSum} selected={selected} unit={unit} onPressDay={(d) => setPicked(d === today ? null : d)} />
         </View>
       )}
+      {/* LOG で選んだ日（体調のカードと「記録する」がその日になる）。押した所の近くに出す */}
+      {!isToday && (
+        <View style={s.pickedRow}>
+          <T variant="bodyM" color={colors.sub}>{formatJpDate(selected)}を表示しています</T>
+          <Button label="今日に戻る" icon="calendar" variant="text" small onPress={() => setPicked(null)} style={{ paddingLeft: 12, paddingRight: 12 }} />
+        </View>
+      )}
       <View style={s.row}>
         <PartsPanel radar={radar} states={states} />
         <FuelPanel fuel={fuel} date={today} />
@@ -141,13 +146,7 @@ export default function HomeScreen() {
       {data != null && recentMissingBodyweight(rows, today) && (
         <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
       )}
-      {!isToday && (
-        <View style={s.pickedRow}>
-          <T variant="bodyM" color={colors.sub}>{formatJpDate(selected)}を表示しています</T>
-          <Button label="今日に戻る" icon="calendar" variant="text" small onPress={() => setPicked(null)} style={{ paddingLeft: 12, paddingRight: 12 }} />
-        </View>
-      )}
-      <View style={{ gap: space.l, marginTop: isToday ? space.l : space.s }}>
+      <View style={{ gap: space.l, marginTop: space.l }}>
         <ConditionCard
           title={`${dayLabel}の体調`}
           body={condition ? conditionLine(condition.weightKg, condition.sleepSel, condition.heart, unit) : ''}

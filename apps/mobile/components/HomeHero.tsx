@@ -2,28 +2,25 @@
 // ページは下の切り替えで選ぶ（横スライドと RECOVERY・INJURY のページ、外の 16 週の輪の中身とフェーズの 1 行は、フェーズのデータが入る次の PR で足す）。
 // 開くたびに LATEST から（前に見たページは覚えない）。見えているページだけを描く（3D の体と育つ形を同時に描かない）
 import { router } from 'expo-router';
-import { ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Line, Path } from 'react-native-svg';
 import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/lib/date';
-import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { tonnes } from '@/lib/format';
 import type { LatestSession } from '@/lib/homeHud';
-import { musclesForParts, MuscleView } from '@/lib/muscleFigure';
 import type { WeightUnit } from '@/lib/units';
 import { colors, hudColors, size, space } from '@/theme';
+import { DayBody } from './DayBody';
+import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { Brackets } from './homeHud';
 import { GrowthPage } from './home';
-import { HeroAttribution, HeroBody3D, HeroEntry } from './HeroBody3D';
-import { HeroTag, HERO_TAG_H, HERO_TAG_W, MoreTag } from './heroTag';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
-import { MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
 
 export type HeroLatest = {
   session: LatestSession;
-  entries: HeroEntry[];
+  entries: DayBodyEntry[];
   /** その日の部位（光らせる・塗る） */
   parts: string[];
   /** 自己ベストを更新した種目の名前 */
@@ -74,7 +71,7 @@ export function HomeHero({ today, unit, latest, ready }: { today: DateKey; unit:
           );
         })}
       </View>
-      {page === 'latest' && HeroAttribution && <HeroAttribution />}
+      {page === 'latest' && DayBodyAttribution && <DayBodyAttribution />}
     </View>
   );
 }
@@ -128,7 +125,6 @@ function LatestPage({ width, height, today, unit, latest, ready }: {
   const entries = latest?.entries ?? [];
   const parts = latest?.parts ?? [];
   const isToday = ss?.date === today;
-  const fallback = <Figure2D width={width} band={band} entries={entries} parts={parts} />;
   const spoken = !ready ? '直近のトレーニング'
     : !ss ? '直近のトレーニング。まだ記録がありません'
     : [
@@ -142,7 +138,7 @@ function LatestPage({ width, height, today, unit, latest, ready }: {
   const prSub = latest && latest.prNames.length > 0 ? PR_EN[latest.prNames[0]] ?? 'BEST' : undefined;
   return (
     <>
-      {HeroBody3D ? <HeroBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={fallback} /> : fallback}
+      <DayBody width={width} height={height} entries={entries} parts={parts} band={band} />
       <PressableScale accessibilityRole="button" accessibilityLabel={spoken} scaleTo={0.97} onPress={open} disabled={!ss} style={[s.corner, { left: 0, top: 0 }]} testID="home-latest">
         <Corner align="left" label="LATEST //" value={!ss ? '—' : isToday ? 'TODAY' : formatShortDate(ss.date)} sub={ss ? WEEKDAY_EN[weekday(ss.date)] : ready ? 'NO LOG' : undefined} />
       </PressableScale>
@@ -156,47 +152,6 @@ function LatestPage({ width, height, today, unit, latest, ready }: {
         <Corner align="right" label="PR //" value={ss ? String(ss.prs.length) : '—'} sub={prSub} />
       </View>
     </>
-  );
-}
-
-const FIG_GAP = space.s;
-
-/** 2D の図（前と後ろ）：その日の部位を緑で塗り、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts） */
-function Figure2D({ width, band, entries, parts }: { width: number; band: { top: number; bottom: number }; entries: HeroEntry[]; parts: string[] }) {
-  const figH = Math.min(200, band.bottom - band.top);
-  const figW = figH / 2;
-  const scale = figH / 200;
-  const frontX = (width - (figW * 2 + FIG_GAP)) / 2;
-  const backX = frontX + figW + FIG_GAP;
-  const tagW = Math.min(HERO_TAG_W, Math.max(0, frontX - 4));
-  const layout = layoutCallouts(entries.map((e) => ({ key: e.key, no: e.no, part: e.part })), {
-    figureHeight: figH, minHeight: figH, slot: HERO_TAG_H, gap: 4, perSide: 3,
-  });
-  const byKey = new Map(entries.map((e) => [e.key, e]));
-  const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: band.top + p.y * scale });
-  const lines = [...layout.left.map((c) => ({ c, x: tagW })), ...layout.right.map((c) => ({ c, x: width - tagW }))]
-    .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + HERO_TAG_H / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
-  const paint = musclesForParts(parts);
-  const tag = (c: PlacedCallout, side: 'left' | 'right'): ReactNode => {
-    const style = { position: 'absolute', [side]: 0, top: band.top + c.top, width: tagW } as const;
-    return c.kind === 'more'
-      ? <MoreTag key={`more-${side}`} nos={c.nos} style={style} />
-      : <HeroTag key={c.key} e={byKey.get(c.key)!} align={side === 'left' ? 'right' : 'left'} style={style} />;
-  };
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="hero-2d">
-      {(['front', 'back'] as const).map((view) => (
-        <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
-          <MuscleFigure view={view} paint={paint} paintColor={colors.accent} width={figW} height={figH} />
-        </View>
-      ))}
-      <Svg width={width} height={band.bottom + CORNER_H} style={StyleSheet.absoluteFill}>
-        {lines.map((l) => <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.accent} strokeOpacity={0.7} strokeWidth={1} />)}
-        {lines.map((l) => <Circle key={`d-${l.key}`} cx={l.x} cy={l.y} r={3} fill={colors.accent} stroke={colors.bg} strokeWidth={1} />)}
-      </Svg>
-      {layout.left.map((c) => tag(c, 'left'))}
-      {layout.right.map((c) => tag(c, 'right'))}
-    </View>
   );
 }
 

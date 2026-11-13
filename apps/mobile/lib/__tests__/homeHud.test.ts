@@ -1,6 +1,5 @@
-import { projectFront } from '../bodyModel';
 import {
-  big3Gauge, heroCallouts, fuelGauge, latestSession, loadGauge, logCellLabel, logFrom, logGrid, monthSummary, partInitial, partsRadar, partStates,
+  big3Gauge, fuelGauge, latestSession, loadGauge, logCellLabel, logFrom, logGrid, monthSummary, partInitial, partsRadar, partStates,
   sleepGauge, volumeLevel,
 } from '../homeHud';
 import type { PartRecovery } from '../recoveryMap';
@@ -214,35 +213,5 @@ describe('FUEL：今日の kcal と PFC', () => {
     expect(f.kcalTarget).toBeNull();
     expect(f.ratio).toBeNull();
     expect(f.grams[0].target).toBeNull();
-  });
-});
-
-describe('LATEST の 3D の札の置き場所', () => {
-  const W = 328, H = 328;
-  const opts = { perSide: 2, height: 44, gap: 4, top: 70, bottom: H - 70 };
-  test('胸の日でも、番号の順に左右へ分ける。付け根はその側の片', () => {
-    const { placed, more } = heroCallouts([
-      { key: 'a', no: 1, part: '胸' }, { key: 'b', no: 2, part: '胸' }, { key: 'c', no: 3, part: '上腕三頭筋' },
-    ], W, H, opts);
-    expect(more).toEqual([]);
-    const side = Object.fromEntries(placed.map((p) => [p.key, p.side]));
-    expect(new Set(Object.values(side)).size).toBe(2);
-    for (const p of placed) {
-      const x = projectFront(p.anchor, W, H).x;
-      expect(p.side === 'left' ? x <= W / 2 + 1 : x >= W / 2 - 1).toBe(true);
-      expect(p.top).toBeGreaterThanOrEqual(opts.top);
-      expect(p.top + opts.height).toBeLessThanOrEqual(opts.bottom);
-    }
-  });
-  test('片側 perSide を超えた分は +N。知らない部位も +N に入る', () => {
-    const items = Array.from({ length: 5 }, (_, i) => ({ key: `k${i}`, no: i + 1, part: '脚' }));
-    const { placed, more } = heroCallouts([...items, { key: 'x', no: 6, part: 'ふくらはぎ' }], W, H, opts);
-    expect(placed).toHaveLength(4);
-    expect(more).toEqual([5, 6]);
-    // 同じ側の札は重ならない
-    for (const side of ['left', 'right'] as const) {
-      const tops = placed.filter((p) => p.side === side).map((p) => p.top).sort((a, b) => a - b);
-      for (let i = 1; i < tops.length; i++) expect(tops[i] - tops[i - 1]).toBeGreaterThanOrEqual(opts.height + opts.gap);
-    }
   });
 });

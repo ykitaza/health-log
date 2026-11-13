@@ -21,7 +21,7 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
   await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング。まだ記録がありません');
   await expect(homeLatest(page)).toContainText('—');
-  await expect(visible(page, 'hero-tag')).toHaveCount(0);
+  await expect(visible(page, 'day-body-tag')).toHaveCount(0);
   // 計器の段
   await expect(visible(page, 'home-big3')).toHaveAttribute('aria-label', 'BIG3 推定1RM 合計。BIG3 の記録がまだありません。筋トレの推移を開く');
   await expect(visible(page, 'volume-week')).toContainText('LOAD0.00t');
@@ -74,8 +74,8 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   await expect(homeLatest(page)).toContainText('TODAY');
   await expect(visible(page, 'home-latest-ex')).toContainText('SETS 4');
   await expect(visible(page, 'home-latest-load')).toContainText('1.98t');
-  await expect(visible(page, 'hero-tag')).toHaveCount(2);
-  await expect(visible(page, 'hero-tag').first()).toContainText('EX-01');
+  await expect(visible(page, 'day-body-tag')).toHaveCount(2);
+  await expect(visible(page, 'day-body-tag').first()).toContainText('EX-01');
 
   // LOAD：今週（11/2〜11/8）は 1980 + 1500 = 3480kg → 3.48t。先週の記録はないので比は出さない
   await expect(visible(page, 'volume-week')).toContainText('3.48t');

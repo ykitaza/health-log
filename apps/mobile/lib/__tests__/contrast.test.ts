@@ -67,4 +67,7 @@ describe('ホームの計器の盤の色', () => {
     expect(contrastRatio(colors.onAccent, hudColors.mint2)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.onAccent, hudColors.mint3)).toBeGreaterThanOrEqual(4.5);
   });
+  test('いちばん薄い塗り（LOG の 1 段目・PFC の C）も、空のマスとカードの上で 3:1 以上（休みの日と見分ける）', () => {
+    for (const bg of [hudColors.empty, colors.card]) expect(contrastRatio(hudColors.mint1, bg)).toBeGreaterThanOrEqual(3);
+  });
 });

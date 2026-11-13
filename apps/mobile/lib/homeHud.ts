@@ -1,6 +1,5 @@
 // ホームの「計器の盤」（刷新 A）の集計：LATEST（直近のトレーニング）・BIG3・LOAD・SLEEP・LOG（週ごとの方眼）・PARTS（部位のレーダー）・FUEL（今日の食事）。
 // 画面（components/homeHud.tsx）から切り離し、jest で確かめる。フェーズのデータはまだ使わない（Δ は 28 日前から、週の番号は直近 4 週の通し番号）
-import { boxOf, projectFront, Vec3 } from './bodyModel';
 import { addDays, DateKey, daysBetween, MONTH_NAMES_EN, weekStart, yearMonth } from './date';
 import type { Big3Role } from './exercises';
 import { mealGoalReached, personalBestEvents, PersonalBestEvent } from './growth';
@@ -8,7 +7,7 @@ import { average } from './health';
 import { thisWeekVolume } from './home';
 import { DaySummary, DayType, pfcRatio } from './meals';
 import { BALANCE_PARTS, BalancePart, balanceAxisOf, partBalanceBetween } from './partBalance';
-import { PartRecovery, recoveryAnchor, recoveryMeshesFor } from './recoveryMap';
+import type { PartRecovery } from './recoveryMap';
 import { big3Trend, daysInMonth, focusByDate, setVolume, trainingDates, TrainingSetRow, volumeBetween } from './training';
 
 /** PARTS の期間（日）。今の 28 日と、その前の 28 日を比べる */
@@ -50,66 +49,6 @@ export function latestSession(rows: TrainingSetRow[], upTo: DateKey): LatestSess
     volumeKg: day.reduce((a, r) => a + setVolume(r), 0),
     prs: personalBestEvents(rows, date).filter((e) => e.date === date),
   };
-}
-
-/** 3D の体の札（LATEST の種目の札 EX-01〜）。no は種目の番号（1 から） */
-export type HeroCalloutInput = { key: string; no: number; part: string };
-export type HeroCallout = { key: string; no: number; side: 'left' | 'right'; top: number; anchor: Vec3; facing: 'front' | 'back' };
-
-/**
- * 部位の付け根を、画面の side の側の片から選ぶ（左右のある部位は、正面を向いた体で画面のその側に見える片。腹筋のように片のない部位はまん中）。
- * 前後の向きは回復マップの札と同じ（recoveryAnchor）。知らない部位は null
- */
-export function heroAnchor(part: string, side: 'left' | 'right', w: number, h: number): { anchor: Vec3; facing: 'front' | 'back' } | null {
-  const base = recoveryAnchor(part);
-  if (!base) return null;
-  const meshes = recoveryMeshesFor(part);
-  const groups = ['_r', '_l'].map((sfx) => meshes.filter((m) => m.endsWith(sfx)));
-  const center = meshes.filter((m) => !/_[rl]$/.test(m));
-  const anchorOf = (list: string[]): Vec3 | null => {
-    const boxes = list.map(boxOf).filter((b): b is [Vec3, Vec3] => b != null);
-    if (boxes.length === 0) return null;
-    const lo = [0, 1, 2].map((i) => Math.min(...boxes.map((b) => b[0][i])));
-    const hi = [0, 1, 2].map((i) => Math.max(...boxes.map((b) => b[1][i])));
-    return [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, base.facing === 'front' ? hi[2] : lo[2]];
-  };
-  const options = [...groups.map(anchorOf), anchorOf(center)].filter((a): a is Vec3 => a != null);
-  if (options.length === 0) return base;
-  const want = side === 'left' ? -1 : 1;
-  const best = options.reduce((a, b) => ((projectFront(b, w, h).x - w / 2) * want > (projectFront(a, w, h).x - w / 2) * want ? b : a));
-  return { anchor: best, facing: base.facing };
-}
-
-/**
- * LATEST の札の置き場所。種目の番号の順に、少ないほうの側へ交互に置く（同じ数なら、その部位の付け根が見える側。胸の日でも左右に分かれる）。
- * 片側 perSide まで。あふれた種目は more（「+N」）。高さは付け根に合わせ、band（上下の四隅の数字の間）の中で重ならないようにずらす。
- * 位置は体が正面を向いたときで決め、回っても札は動かさない（線の先だけが追う。回復マップと同じ）
- */
-export function heroCallouts(
-  items: HeroCalloutInput[], w: number, h: number, o: { perSide: number; height: number; gap: number; top: number; bottom: number },
-): { placed: HeroCallout[]; more: number[] } {
-  const count = { left: 0, right: 0 };
-  const chosen: (HeroCallout & { y: number })[] = [];
-  const more: number[] = [];
-  for (const it of [...items].sort((a, b) => a.no - b.no)) {
-    const natural = recoveryAnchor(it.part);
-    const naturalSide: 'left' | 'right' = natural && projectFront(natural.anchor, w, h).x > w / 2 ? 'right' : 'left';
-    const side: 'left' | 'right' = count.left === count.right ? naturalSide : count.left < count.right ? 'left' : 'right';
-    const pick = count[side] < o.perSide ? side : count[side === 'left' ? 'right' : 'left'] < o.perSide ? (side === 'left' ? 'right' : 'left') : null;
-    const at = pick ? heroAnchor(it.part, pick, w, h) : null;
-    if (!pick || !at) { more.push(it.no); continue; }
-    count[pick] += 1;
-    chosen.push({ key: it.key, no: it.no, side: pick, top: 0, anchor: at.anchor, facing: at.facing, y: projectFront(at.anchor, w, h).y });
-  }
-  const placed = (['left', 'right'] as const).flatMap((side) => {
-    const list = chosen.filter((c) => c.side === side).sort((a, b) => a.y - b.y || a.no - b.no);
-    let next = o.top;
-    const tops = list.map((c) => { const t = Math.max(next, c.y - o.height / 2); next = t + o.height + o.gap; return t; });
-    let limit = o.bottom - o.height;
-    for (let i = tops.length - 1; i >= 0; i--) { tops[i] = Math.max(o.top, Math.min(tops[i], limit)); limit = tops[i] - o.height - o.gap; }
-    return list.map(({ y: _y, ...c }, i) => ({ ...c, top: tops[i] }));
-  });
-  return { placed, more };
 }
 
 // ---- BIG3 ----
