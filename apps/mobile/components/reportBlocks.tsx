@@ -19,25 +19,23 @@ import {
   ReportLink, ReportReview, weeklyAchievementRows, weekStreakText,
 } from '@/lib/reports';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { colors, radius } from '@/theme';
+import { colors } from '@/theme';
 import { GoalRings, LineChart } from './charts';
 import { Icon } from './Icon';
 import { GrowBar } from './motion';
+import { REPORT_PANEL_BG2, REPORT_TRACK_BG, ReportPanelHead, reportPanelStyle } from './report/panel';
 import { AREA_ICON, Delta, useEntering } from './reports';
 import { T } from './Text';
 import { Button } from './ui';
 
-/** 達成のカードの枠：題と右の補足、行、下の段（footer。なければ出さない） */
-function AchievementCard({ title, right, index, testID, children, footer }: {
-  title: string; right: string; index: number; testID: string; children: ReactNode; footer?: ReactNode;
+/** 達成のパネルの枠：マイクロラベル＋題と右の補足、行、下の段（footer。なければ出さない）。見た目は詳細画面のパネル文法（report/panel） */
+function AchievementCard({ en, title, right, index, testID, children, footer }: {
+  en: string; title: string; right: string; index: number; testID: string; children: ReactNode; footer?: ReactNode;
 }) {
   const enter = useEntering();
   return (
-    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 14 }} testID={testID}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <T bold size={17} accessibilityRole="header">{title}</T>
-        <T size={13} color={colors.sub}>{right}</T>
-      </View>
+    <Animated.View entering={enter(index)} style={[reportPanelStyle, { padding: 12, gap: 10 }]} testID={testID}>
+      <ReportPanelHead en={en} title={title} right={right} />
       {children}
       {footer}
     </Animated.View>
@@ -54,7 +52,7 @@ const openGoalSettings = () => router.push({ pathname: '/settings', params: { se
 function AchievementLine({ row }: { row: AchievementRow }) {
   const empty = row.value === '記録なし';
   return (
-    <View accessible accessibilityLabel={achievementRowLabel(row)} style={{ gap: 8 }}>
+    <View accessible accessibilityLabel={achievementRowLabel(row)} style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ width: 20, alignItems: 'center' }}>
           {row.mark !== 'none' && <Icon name={row.mark === 'reached' ? 'check' : 'caution'} size={20} color={row.mark === 'reached' ? colors.text : colors.sub} />}
@@ -67,8 +65,8 @@ function AchievementLine({ row }: { row: AchievementRow }) {
         </View>
       </View>
       {row.ratio != null && (
-        <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.input, overflow: 'hidden' }}>
-          <GrowBar ratio={row.ratio} style={{ height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+        <View style={{ height: 6, backgroundColor: REPORT_TRACK_BG, overflow: 'hidden' }}>
+          <GrowBar ratio={row.ratio} style={{ height: 6, backgroundColor: colors.accent }} />
         </View>
       )}
     </View>
@@ -92,7 +90,7 @@ export function DailyAchievementBlock({ date, index }: { date: string; index: nu
     .filter((r) => r.key in ringLabel)
     .map((r) => ({ key: r.key, label: ringLabel[r.key], value: r.value, goal: r.goal, unit: r.unit, ratio: r.ratio, state: MARK_LABELS[r.mark] }));
   return (
-    <AchievementCard title={date === todayKey() ? '今日の達成' : 'この日の達成'} right={formatMonthDay(date)} index={index} testID="report-achievement">
+    <AchievementCard en="ACHIEVEMENT" title={date === todayKey() ? '今日の達成' : 'この日の達成'} right={formatMonthDay(date)} index={index} testID="report-achievement">
       <GoalRings items={rings} animKey={date} />
       {rows.map((r) => <AchievementLine key={r.key} row={r} />)}
     </AchievementCard>
@@ -143,14 +141,14 @@ export function DailyStatTableBlock({ date, index }: { date: string; index: numb
     { label: '休みの日の目標', value: restTarget?.kcal != null ? `${fmtInt(restTarget.kcal)} kcal` : '—' },
   ];
   return (
-    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16 }} testID="report-daily-stats">
-      <T bold size={17} accessibilityRole="header" style={{ marginBottom: 4 }}>この日の数字</T>
+    <Animated.View entering={enter(index)} style={[reportPanelStyle, { padding: 12 }]} testID="report-daily-stats">
+      <ReportPanelHead en="STATUS" title="この日の数字" />
       {rows.map((row, i) => (
         <View
           key={row.label}
           accessible
           accessibilityLabel={`${row.label}、${row.value}`}
-          style={[{ flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingVertical: 9 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
+          style={[{ flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingVertical: 6 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
         >
           <T size={14} color={colors.sub} style={{ flex: 1 }}>{row.label}</T>
           <T num bold size={15} numberOfLines={1}>{row.value}</T>
@@ -191,7 +189,7 @@ export function WeeklyGoalsBlock({ date, index }: { date: string; index: number 
     </View>
   );
   return (
-    <AchievementCard title={current ? '今週の目標' : 'この週の目標'} right={summary} index={index} testID="report-achievement" footer={footer}>
+    <AchievementCard en="WEEKLY GOALS" title={current ? '今週の目標' : 'この週の目標'} right={summary} index={index} testID="report-achievement" footer={footer}>
       {rows.map((r) => <AchievementLine key={r.key} row={r} />)}
     </AchievementCard>
   );
@@ -218,11 +216,8 @@ export function BodyChangeBlock({ start, end, index }: { start: string; end: str
   const label = [`体の変化。体重の7日の平均 ${u(c.first.value)} から ${u(c.last.value)} ${unit}、この期間で ${formatSigned(kgToUnit(c.change, unit))} ${unit}`, goalText]
     .filter(Boolean).join('。');
   return (
-    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 8 }} testID="report-body-change">
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <T bold size={17} accessibilityRole="header">体の変化</T>
-        <T size={13} color={colors.sub}>体重・7日の平均</T>
-      </View>
+    <Animated.View entering={enter(index)} style={[reportPanelStyle, { padding: 12, gap: 8 }]} testID="report-body-change">
+      <ReportPanelHead en="BODY CHANGE" title="体の変化" right="体重・7日の平均" />
       <View accessible accessibilityLabel={label} style={{ gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
           <T num size={22} color={colors.sub}>{u(c.first.value)} →</T>
@@ -255,9 +250,9 @@ export function LinkCard({ link, index }: { link: ReportLink; index: number }) {
       entering={enter(index)}
       accessible
       accessibilityLabel={`${AREA_LABELS[link.from]}から${AREA_LABELS[link.to]}へ${link.basis ? `（${link.basis}）` : ''}。${link.text}`}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 12 }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, ...reportPanelStyle, padding: 10 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: REPORT_PANEL_BG2, borderWidth: 1, borderColor: colors.line, borderRadius: 2, paddingHorizontal: 10, paddingVertical: 8 }}>
         <Icon name={AREA_ICON[link.from]} size={20} color={colors.text} />
         <Icon name="chevron" size={14} color={colors.sub} />
         <Icon name={AREA_ICON[link.to]} size={20} color={colors.text} />
@@ -274,8 +269,8 @@ export function LinkCard({ link, index }: { link: ReportLink; index: number }) {
 export function ReviewCard({ review, index }: { review: ReportReview; index: number }) {
   const enter = useEntering();
   return (
-    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 8, marginTop: 8 }} testID="report-review">
-      <T bold size={17} accessibilityRole="header">目標の見直し</T>
+    <Animated.View entering={enter(index)} style={[reportPanelStyle, { padding: 12, gap: 8, marginTop: 8 }]} testID="report-review">
+      <ReportPanelHead en="GOAL REVIEW" title="目標の見直し" />
       <T size={16} style={{ lineHeight: 24 }}>{review.text}</T>
       {review.target === 'meals_goal' && (
         <Button label="食事の目標を開く" variant="text" small onPress={() => router.push('/meals/goal')}

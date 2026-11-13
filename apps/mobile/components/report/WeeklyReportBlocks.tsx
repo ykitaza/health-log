@@ -15,16 +15,17 @@ import {
   injuryPeriodInjuryCount, loadInjuryPeriodReport, type InjuryPeriodReport, type InjuryReportEntry,
 } from '@/lib/injuryReport';
 import { BALANCE_PARTS, partBalanceAnchored, partBalancePeriodLabel } from '@/lib/partBalance';
-import { colors, fonts, radius, space } from '@/theme';
+import { colors, radius, space } from '@/theme';
 import { PartStackRadar } from '../PartBalance';
+import { ReportMicro, reportPanelStyle } from './panel';
 import { useEntering } from '../reports';
 import { T } from '../Text';
 
-/** ブロックの見出し：英字の小ラベル＋日本語の題、右に期間。週次のほかのブロックと字の大きさをそろえる */
+/** ブロックの見出し：英字のマイクロラベル＋日本語の題、右に期間。週次のほかのブロックと字の大きさをそろえる */
 function BlockHead({ en, title, start, end }: { en: string; title: string; start: DateKey; end: DateKey }) {
   return (
     <View style={{ gap: 2 }}>
-      <T style={{ fontFamily: fonts.num, fontSize: 11, letterSpacing: 1.5 }} color={colors.sub}>{en}</T>
+      <ReportMicro>{en}</ReportMicro>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.s }}>
         <T bold size={17} accessibilityRole="header">{title}</T>
         <T size={13} color={colors.sub}>{`${formatMonthDay(start)}〜${formatMonthDay(end)}`}</T>
@@ -33,7 +34,7 @@ function BlockHead({ en, title, start, end }: { en: string; title: string; start
   );
 }
 
-const cardStyle = { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l, gap: space.m } as const;
+const cardStyle = { ...reportPanelStyle, padding: 12, gap: 10 } as const;
 
 /**
  * 週次の部位のバランスのレーダー：レポートの週の終わりの日（end）を起点にした直近14日のセット数を、ホームの大きなレーダーと同じ描き方で。
@@ -172,7 +173,7 @@ export function InjuryReviewBlock({ start, end, index = 0 }: { start: DateKey; e
           <View key={g.key} style={{ gap: space.m }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s }}>
               <T variant="labelM" color={colors.sub} accessibilityRole="header">{g.title}</T>
-              <T style={{ fontFamily: fonts.num, fontSize: 11, letterSpacing: 1.5 }} color={colors.sub}>{`${g.en} · ${entries.length}`}</T>
+              <ReportMicro>{`${g.en} · ${entries.length}`}</ReportMicro>
             </View>
             {entries.map((e, i) => (
               <View key={e.id} style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, paddingTop: space.m } : undefined}>

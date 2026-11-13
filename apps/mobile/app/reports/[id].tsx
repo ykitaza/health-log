@@ -1,14 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { LoadError } from '@/components/LoadError';
 import { BodyChangeBlock, DailyAchievementBlock, DailyStatTableBlock, LinkCard, ReviewCard, WeeklyGoalsBlock } from '@/components/reportBlocks';
 import { Big3Block, GoalBarBlock, GrowthScoreBlock } from '@/components/report/MonthlyReportBlocks';
 import { InjuryReviewBlock, WeeklyRadarBlock } from '@/components/report/WeeklyReportBlocks';
+import { REPORT_PANEL_BG2, ReportMicro, reportPanelStyle } from '@/components/report/panel';
 import { HighlightCard, MarkdownBody, MetricTile, NextStepCard, ReportSection, ToneBand } from '@/components/reports';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { ConfirmDialog, EmptyState, Header, IconButton, Segmented } from '@/components/ui';
+import { ConfirmDialog, EmptyState, Header, IconButton } from '@/components/ui';
 import { PreviousTodoCard, TodoList, useTodoChecks } from '@/components/WeeklyTodo';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
@@ -17,7 +18,7 @@ import {
   achievementScope, formatCreated, formatPeriod, Highlight, KIND_LABELS, Metric, NEXT_TITLES, Report, ReportKind,
 } from '@/lib/reports';
 import { dailyReportStreak, dailyStreakText } from '@/lib/reportStreak';
-import { colors, radius } from '@/theme';
+import { colors } from '@/theme';
 
 const VS: Record<ReportKind, string> = { daily: '前の日より', weekly: '先週より', monthly: '先月より', other: '前より' };
 
@@ -25,6 +26,31 @@ type PeriodKind = Exclude<ReportKind, 'other'>;
 const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
   { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
 ];
+
+/**
+ * 期間タブ（日／週／月）。共通の Segmented（丸いピル）はほかの画面と共用なので使わず、モックの文法で
+ * この画面専用に作る：暗い面＋1px の枠の入れ物に、選んだものだけミントの塗り＋暗い文字
+ */
+function PeriodTabs({ value, onChange }: { value: ReportKind; onChange: (k: PeriodKind) => void }) {
+  return (
+    <View style={{ flexDirection: 'row', backgroundColor: REPORT_PANEL_BG2, borderWidth: 1, borderColor: colors.line, borderRadius: 2, padding: 3, gap: 4 }}>
+      {PERIOD_TABS.map((o) => {
+        const active = o.key === value;
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="button"
+            aria-selected={active}
+            onPress={() => onChange(o.key)}
+            style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 1, backgroundColor: active ? colors.accent : 'transparent' }}
+          >
+            <T bold size={14} color={active ? colors.onAccent : colors.sub}>{o.label}</T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 /**
  * レポートの中身。上の期間タブ（日／週／月）で、その種類の最新のレポートに切り替える（開いた1件に固定しない）。
@@ -81,7 +107,7 @@ export default function ReportScreen() {
   const activeKind: ReportKind = pickedKind ?? opened.kind;
   const periodTabs = (
     <View testID="report-period-tabs">
-      <Segmented<ReportKind> options={PERIOD_TABS} value={activeKind} onChange={(k) => setPickedKind(k as PeriodKind)} check={false} />
+      <PeriodTabs value={activeKind} onChange={(k) => setPickedKind(k)} />
     </View>
   );
   if (report == null) {
@@ -89,7 +115,7 @@ export default function ReportScreen() {
     return (
       <Screen>
         <Header title="レポート" onBack={back} />
-        <View style={{ gap: 12, marginTop: 4 }}>
+        <View style={{ gap: 8, marginTop: 4 }}>
           {periodTabs}
           <EmptyState icon="chart" title={`${KIND_LABELS[pickedKind!]}はまだありません`} body="チャット（Claude・ChatGPT）で作ると、ここに出ます。" />
         </View>
@@ -125,12 +151,18 @@ export default function ReportScreen() {
         onBack={back}
         right={<IconButton name="trash" label="このレポートを消す" color={colors.danger} bg="transparent" disabled={busy} onPress={() => setConfirm(true)} />}
       />
-      <View style={{ gap: 12, marginTop: 4 }}>
+      <View style={{ gap: 8, marginTop: 4 }}>
         {periodTabs}
-        <T size={12} color={colors.sub} testID="report-latest-line">
-          {period ? `${period}のレポート` : `${formatCreated(report.createdAt)}に作成したレポート`}
-          {isLatest && ' ・ 最新の生成済みレポートを表示しています'}
-        </T>
+        <View style={{ gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.accent }} />
+            <ReportMicro>{isLatest ? 'LATEST REPORT' : 'REPORT'}</ReportMicro>
+          </View>
+          <T size={12} color={colors.sub} testID="report-latest-line">
+            {period ? `${period}のレポート` : `${formatCreated(report.createdAt)}に作成したレポート`}
+            {isLatest && ' ・ 最新の生成済みレポートを表示しています'}
+          </T>
+        </View>
         <ToneBand report={report} />
         {scope?.type === 'day' && <DailyAchievementBlock date={scope.date} index={next()} />}
         {scope?.type === 'week' && <WeeklyGoalsBlock date={scope.date} index={next()} />}
@@ -146,7 +178,7 @@ export default function ReportScreen() {
           </>
         )}
         {prevTodo && (
-          <ReportSection title="先週やることの振り返り">
+          <ReportSection title="先週やることの振り返り" en="LAST WEEK REVIEW">
             <PreviousTodoCard week={prevTodo} />
           </ReportSection>
         )}
@@ -159,34 +191,35 @@ export default function ReportScreen() {
           <InjuryReviewBlock start={report.periodStart} end={report.periodEnd} index={next()} />
         )}
         {report.highlights.length > 0 && (
-          <ReportSection title="分野ごと">
+          <ReportSection title="分野ごと" en="HIGHLIGHTS">
             {report.highlights.map((h, i) => <HighlightCard key={i} highlight={h} index={next()} metricVs={daily ? VS.daily : undefined} />)}
           </ReportSection>
         )}
         {scope?.type === 'day' && <DailyStatTableBlock date={scope.date} index={next()} />}
         {report.nextSteps.length > 0 && (daily || weekly ? (
-          <View style={{ gap: 8, marginTop: 8 }}>
+          <View style={{ gap: 6, marginTop: 6 }}>
+            <ReportMicro>NEXT STEP</ReportMicro>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
               <T bold size={14} color={colors.sub} accessibilityRole="header">{NEXT_TITLES[report.kind]}</T>
               {streakText && <T size={12} color={colors.sub} testID="report-daily-streak">{streakText}</T>}
             </View>
-            <View style={{ backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 4 }} testID={daily ? 'report-daily-steps' : 'report-weekly-steps'}>
+            <View style={[reportPanelStyle, { paddingHorizontal: 12, paddingVertical: 2 }]} testID={daily ? 'report-daily-steps' : 'report-weekly-steps'}>
               <TodoList steps={report.nextSteps} done={done} onToggle={toggle} />
             </View>
           </View>
         ) : (
-          <ReportSection title={NEXT_TITLES[report.kind]}>
+          <ReportSection title={NEXT_TITLES[report.kind]} en="NEXT STEP">
             {report.nextSteps.map((s, i) => <NextStepCard key={i} n={i + 1} text={s} index={next()} />)}
           </ReportSection>
         ))}
         {report.links.length > 0 && (
-          <ReportSection title="つながり">
+          <ReportSection title="つながり" en="LINKS">
             {report.links.map((l, i) => <LinkCard key={i} link={l} index={next()} />)}
           </ReportSection>
         )}
         {report.review && <ReviewCard review={report.review} index={next()} />}
         {report.body.trim() !== '' && (
-          <ReportSection title="くわしく">
+          <ReportSection title="くわしく" en="DETAILS">
             <MarkdownBody body={report.body} />
           </ReportSection>
         )}

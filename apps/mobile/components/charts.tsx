@@ -231,9 +231,10 @@ export function GoalRings({ items, animKey }: { items: RingItem[]; animKey?: str
   );
 }
 
+/** ゴールリング（レポート詳細の「今日の達成」専用）。線は細め（6）、トラックはモックの #222B25、端は丸めない */
 function GoalRing({ item, progress, reduced }: { item: RingItem; progress: SharedValue<number>; reduced: boolean }) {
   const size = 88;
-  const stroke = 8;
+  const stroke = 6;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const ratio = item.ratio == null ? 0 : Math.min(1, Math.max(0, item.ratio));
@@ -246,12 +247,12 @@ function GoalRing({ item, progress, reduced }: { item: RingItem; progress: Share
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 4 }} accessible accessibilityLabel={label} testID={`goal-ring-${item.key}`}>
       <Svg width={size} height={size}>
-        <Circle cx={center} cy={center} r={r} stroke={colors.line} strokeWidth={stroke} fill="none" />
+        <Circle cx={center} cy={center} r={r} stroke="#222B25" strokeWidth={stroke} fill="none" />
         {item.ratio != null && (reduced ? (
-          <Circle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          <Circle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="butt"
             strokeDasharray={[c, c]} strokeDashoffset={c * (1 - ratio)} transform={`rotate(-90 ${center} ${center})`} />
         ) : (
-          <AnimatedCircle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          <AnimatedCircle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="butt"
             strokeDasharray={[c, c]} transform={`rotate(-90 ${center} ${center})`} animatedProps={arc} />
         ))}
         <SvgText x={center} y={center + 5} fill={colors.text} fontSize={16} fontFamily={fonts.num} textAnchor="middle">

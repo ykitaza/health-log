@@ -18,18 +18,16 @@ import { growthScoreAsOf } from '@/lib/growth';
 import { big3Total, bodyChange } from '@/lib/reports';
 import { big3Trend, estimated1RM } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { colors, radius } from '@/theme';
+import { colors } from '@/theme';
+import { REPORT_TRACK_BG, ReportPanelHead, reportPanelStyle } from './panel';
 
-function MonthlyCard({ title, right, index, testID, children }: {
-  title: string; right?: string; index: number; testID: string; children: ReactNode;
+function MonthlyCard({ en, title, right, index, testID, children }: {
+  en: string; title: string; right?: string; index: number; testID: string; children: ReactNode;
 }) {
   const enter = useEntering();
   return (
-    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 12 }} testID={testID}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <T bold size={17} accessibilityRole="header">{title}</T>
-        {right ? <T size={13} color={colors.sub}>{right}</T> : null}
-      </View>
+    <Animated.View entering={enter(index)} style={[reportPanelStyle, { padding: 12, gap: 10 }]} testID={testID}>
+      <ReportPanelHead en={en} title={title} right={right} />
       {children}
     </Animated.View>
   );
@@ -53,7 +51,7 @@ export function GrowthScoreBlock({ asOf, index = 0 }: { asOf: DateKey; index?: n
   const diff = diffText(score.diffFromLastWeek);
   const label = `成長スコア ${score.total}点${score.diffFromLastWeek == null ? '' : `。先週より ${formatSigned(score.diffFromLastWeek)}点`}`;
   return (
-    <MonthlyCard title="成長スコア" right="直近7日" index={index} testID="report-growth-score">
+    <MonthlyCard en="GROWTH SCORE" title="成長スコア" right="直近7日" index={index} testID="report-growth-score">
       <View accessible accessibilityLabel={label} style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <T num bold size={44} color={colors.accent}>{score.total}</T>
         <T size={13} color={colors.sub}>点</T>
@@ -91,7 +89,7 @@ export function GoalBarBlock({ start, end, index = 0 }: { start: DateKey; end: D
       : `あと ${u(p.remainingKg)} ${unit} ・ 節目 ${u(p.milestoneKg)} ${unit} まで あと ${fmt1(toMilestone)} ${unit}`;
   const label = `目標バー。現在 ${u(c.last.value)} ${unit}、目標 ${u(data.goal)} ${unit}。${milestoneText}`;
   return (
-    <MonthlyCard title="目標" right="体重" index={index} testID="report-goal-bar">
+    <MonthlyCard en="GOAL PROGRESS" title="目標" right="体重" index={index} testID="report-goal-bar">
       <View accessible accessibilityLabel={label} style={{ gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
           <T num bold size={28}>{u(c.last.value)}</T>
@@ -99,12 +97,12 @@ export function GoalBarBlock({ start, end, index = 0 }: { start: DateKey; end: D
           <T num bold size={28} color={colors.accent}>{u(data.goal)}</T>
           <T size={13} color={colors.sub}>{unit}</T>
         </View>
-        <View style={{ position: 'relative', height: 8, borderRadius: 4, backgroundColor: colors.input }}>
-          <GrowBar ratio={p.ratio} style={{ height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+        <View style={{ position: 'relative', height: 10, backgroundColor: REPORT_TRACK_BG, borderWidth: 1, borderColor: colors.line }}>
+          <GrowBar ratio={p.ratio} style={{ height: 8, backgroundColor: colors.accent }} />
           {!p.reached && (
             <View
               testID="report-goal-milestone"
-              style={{ position: 'absolute', top: -3, left: `${Math.round(p.milestoneRatio * 1000) / 10}%`, width: 2, height: 14, backgroundColor: colors.text }}
+              style={{ position: 'absolute', top: -3, left: `${Math.round(p.milestoneRatio * 1000) / 10}%`, width: 2, height: 16, backgroundColor: colors.text }}
             />
           )}
         </View>
@@ -150,7 +148,7 @@ export function Big3Block({ start, end, index = 0 }: { start: DateKey; end: Date
   });
   const label = `BIG3 推定1RM 合計 ${fmtInt(kgToUnit(total.totalKg, unit))} ${unit}${sinceText ? `。期間の初めより ${sinceText}` : ''}`;
   return (
-    <MonthlyCard title="BIG3" right="推定1RM 合計" index={index} testID="report-big3">
+    <MonthlyCard en="ESTIMATED 1RM" title="BIG3" right="推定1RM 合計" index={index} testID="report-big3">
       <View accessible accessibilityLabel={label} style={{ gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
           <T num bold size={36}>{fmtInt(kgToUnit(total.totalKg, unit))}</T>
@@ -159,9 +157,9 @@ export function Big3Block({ start, end, index = 0 }: { start: DateKey; end: Date
           {sinceText && <T size={12} color={colors.sub}>期間の初めより</T>}
         </View>
         {spark.length >= 2 && <Sparkline points={spark} height={44} animKey={`${start}:${end}`} />}
-        <View style={{ gap: 6 }}>
-          {perLift.map(({ role, bestKg }) => (
-            <View key={role} style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <View>
+          {perLift.map(({ role, bestKg }, i) => (
+            <View key={role} style={[{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingVertical: 5 }, i > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
               <T size={14} color={colors.sub}>{BIG3_LABELS[role]}</T>
               <T num size={15}>{fmtInt(kgToUnit(bestKg, unit))} {unit}</T>
             </View>

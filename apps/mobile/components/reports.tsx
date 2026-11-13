@@ -14,6 +14,7 @@ import {
 } from '@/lib/reports';
 import { colors, onToneSub, radius, space, toneColors } from '@/theme';
 import { duration, HOLD_MS, springs, staggerDelay } from '@/theme/motion';
+import { REPORT_PANEL_BG2, ReportMicro, reportPanelStyle } from './report/panel';
 import { REPORT_CHAT_LABEL, useChatChooser } from './ChatSheet';
 import { CountUpText } from './charts';
 import { Icon, IconName } from './Icon';
@@ -37,7 +38,8 @@ export function useEntering() {
       .delay(staggerDelay(index, false) + extra);
 }
 
-/** 調子のアイコン。開いたとき、帯が出たあと（80ms）に小さい大きさからポンと出る（はね返りは出るときだけ） */
+/** 調子のアイコン。開いたとき、帯が出たあと（80ms）に小さい大きさからポンと出る（はね返りは出るときだけ）。
+ * 詳細画面の文法に合わせ、塗りの丸ではなく枠のある四角に調子の色のアイコンを置く */
 function TonePop({ tone, size }: { tone: Tone; size: number }) {
   const reduced = useReducedMotion();
   const still = reduced || Platform.OS === 'web';
@@ -48,8 +50,8 @@ function TonePop({ tone, size }: { tone: Tone; size: number }) {
   }, [still, scale]);
   const anim = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   return (
-    <Animated.View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: toneColors[tone].accent, alignItems: 'center', justifyContent: 'center' }, anim]}>
-      <Icon name={TONE_ICON[tone]} color={colors.onAccent} size={Math.round(size * 0.55)} />
+    <Animated.View style={[{ width: size, height: size, borderRadius: 2, backgroundColor: REPORT_PANEL_BG2, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }, anim]}>
+      <Icon name={TONE_ICON[tone]} color={toneColors[tone].accent} size={Math.round(size * 0.55)} />
     </Animated.View>
   );
 }
@@ -217,7 +219,12 @@ export function LatestReportCard() {
   );
 }
 
-/** 中身の画面の上の帯：調子の色の面、アイコン（ポンと出る）、ラベル、種類と作った日、題、要約、期間 */
+const BAND_MICRO: Record<ReportKind, string> = { daily: 'DAILY REPORT', weekly: 'WEEKLY REPORT', monthly: 'MONTHLY REPORT', other: 'REPORT' };
+
+/**
+ * 中身の画面の上の帯：フラットなパネル（近黒＋枠）に、調子はアイコンとラベルの色だけで伝える（面に調子の色は塗らない）。
+ * マイクロラベル、アイコン（ポンと出る）、ラベル、種類と作った日、題、要約、期間
+ */
 export function ToneBand({ report }: { report: Report }) {
   const enter = useEntering();
   const tone = toneColors[report.tone];
@@ -225,9 +232,10 @@ export function ToneBand({ report }: { report: Report }) {
   return (
     <Animated.View
       entering={enter(0)}
-      style={{ backgroundColor: tone.container, borderRadius: 20, padding: 16, gap: 8 }}
+      style={[reportPanelStyle, { padding: 12, gap: 8 }]}
       testID="report-band"
     >
+      <ReportMicro>{BAND_MICRO[report.kind]}</ReportMicro>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <TonePop tone={report.tone} size={44} />
         <View style={{ flex: 1 }} accessible accessibilityLabel={`全体の調子、${TONE_LABELS[report.tone]}`}>
@@ -253,7 +261,7 @@ export function MetricTile({ highlight, index, vs, animKey }: { highlight: Highl
       entering={enter(index)}
       accessible
       accessibilityLabel={`${AREA_LABELS[highlight.area]}、${metricLabel(m)}`}
-      style={{ flexBasis: '47%', flexGrow: 1, backgroundColor: colors.card, borderRadius: radius.card, padding: 12, gap: 4 }}
+      style={{ flexBasis: '47%', flexGrow: 1, ...reportPanelStyle, padding: 10, gap: 4 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Icon name={AREA_ICON[highlight.area]} size={16} color={colors.sub} />
@@ -289,15 +297,15 @@ export function HighlightCard({ highlight, index, metricVs }: { highlight: Highl
       entering={enter(index)}
       accessible
       accessibilityLabel={metricVs ? dailyHighlightLabel(highlight) : `${AREA_LABELS[highlight.area]}、${TONE_SHORT[highlight.tone]}。${highlight.text}`}
-      style={{ flexDirection: 'row', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 12 }}
+      style={{ flexDirection: 'row', gap: 12, ...reportPanelStyle, padding: 12 }}
     >
-      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 40, height: 40, borderRadius: 2, backgroundColor: REPORT_PANEL_BG2, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={AREA_ICON[highlight.area]} size={22} color={colors.text} />
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <T size={12} color={colors.sub}>{AREA_LABELS[highlight.area]}</T>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: tone.container, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: tone.accent, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 2 }}>
             <Icon name={TONE_ICON[highlight.tone]} size={14} color={tone.accent} />
             <T size={11} bold color={tone.accent}>{TONE_SHORT[highlight.tone]}</T>
           </View>
@@ -334,9 +342,9 @@ export function NextStepCard({ n, text, index }: { n: number; text: string; inde
       entering={enter(index)}
       accessible
       accessibilityLabel={`${n}、${text}`}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: radius.card, padding: 12 }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, ...reportPanelStyle, padding: 12 }}
     >
-      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 28, height: 28, borderRadius: 2, backgroundColor: REPORT_PANEL_BG2, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
         <T bold size={14} color={colors.accent}>{n}</T>
       </View>
       <T size={16} style={{ flex: 1, lineHeight: 24 }}>{text}</T>
@@ -356,7 +364,7 @@ export function MarkdownBody({ body }: { body: string }) {
   const blocks = parseMarkdown(body);
   if (blocks.length === 0) return null;
   return (
-    <View style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 12 }} testID="report-body">
+    <View style={{ ...reportPanelStyle, padding: 12, gap: 10 }} testID="report-body">
       {blocks.map((b, i) => <MarkdownBlock key={i} block={b} />)}
     </View>
   );
@@ -378,10 +386,11 @@ function MarkdownBlock({ block }: { block: Block }) {
   return <T size={16} selectable style={{ lineHeight: 24 }}><Spans spans={block.spans} /></T>;
 }
 
-/** 中身の画面の小見出し */
-export function ReportSection({ title, children }: { title: string; children: ReactNode }) {
+/** 中身の画面の小見出し。en を渡すと、題の上に英字のマイクロラベルを出す */
+export function ReportSection({ title, en, children }: { title: string; en?: string; children: ReactNode }) {
   return (
-    <View style={{ gap: 8, marginTop: 8 }}>
+    <View style={{ gap: 6, marginTop: 6 }}>
+      {en ? <ReportMicro>{en}</ReportMicro> : null}
       <T bold size={14} color={colors.sub} accessibilityRole="header">{title}</T>
       {children}
     </View>
