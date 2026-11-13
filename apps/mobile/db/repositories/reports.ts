@@ -1,5 +1,5 @@
 import { DateKey } from '@/lib/date';
-import { isReportOrder, parseReport, parseSteps, parseStepsDone, Report, ReportOrder, ReportRow } from '@/lib/reports';
+import { isReportOrder, parseReport, parseSteps, parseStepsDone, Report, ReportKind, ReportOrder, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
@@ -104,9 +104,24 @@ export function reportRepository(db: Db, deps: Deps) {
       await setMeta(SCHEDULE_REQUESTED, date);
     },
 
+    /**
+     * 最新のレポート。kind が 'other'（分析レポート）は出さない（アプリのどこにも表示しない決まり。データは消さず、ここで隠すだけ）。
+     * ホームの「最新のレポート」と、レポートのタブの入口が使う
+     */
     async latest(): Promise<Report | null> {
       const row = await db.getFirstAsync<ReportRow>(
-        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`, [],
+        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind != 'other' ORDER BY created_at DESC, id DESC LIMIT 1`, [],
+      );
+      return row && parseReport(row);
+    },
+
+    /**
+     * その種類（日・週・月）の最新のレポート。詳細画面の期間タブが、種類ごとにいちばん新しい1件へ切り替えるのに使う。なければ null。
+     * kind は日・週・月だけを受けるので、'other' はここでも出ない
+     */
+    async latestOfKind(kind: Exclude<ReportKind, 'other'>): Promise<Report | null> {
+      const row = await db.getFirstAsync<ReportRow>(
+        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? ORDER BY created_at DESC, id DESC LIMIT 1`, [kind],
       );
       return row && parseReport(row);
     },

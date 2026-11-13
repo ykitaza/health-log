@@ -3,21 +3,24 @@
 // つながりと目標の見直しは、AI が書いた文を文字のまま出す
 import { router } from 'expo-router';
 import { ReactNode } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useDailyAchievement, useFocusData, useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
+import { weekAverage, weeklyPace } from '@/lib/body';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { DateKey, formatMonthDay, todayKey } from '@/lib/date';
+import { addDays, DateKey, formatMonthDay, todayKey } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { allGoalsReached, weekOf } from '@/lib/goals';
+import { formatClock, formatMinutes, formatSteps } from '@/lib/health';
 import { WEEKLY_GOALS_SECTION } from '@/lib/home';
+import { DAY_TYPE_LABELS, SLOT_LABELS, targetFor } from '@/lib/meals';
 import {
-  AchievementRow, achievementRowLabel, AREA_LABELS, Big3Lifts, big3Total, bodyChange, dailyAchievementRows, Highlight, linkCaption, Metric,
+  AchievementRow, achievementRowLabel, AREA_LABELS, Big3Lifts, big3Total, bodyChange, dailyAchievementRows, Highlight, linkCaption, MARK_LABELS, Metric,
   ReportLink, ReportReview, settingGoalRows, weeklyAchievementRows, weeklyGoalCardLabel, weekStreakText,
 } from '@/lib/reports';
-import { fmt1, kgToUnit } from '@/lib/units';
-import { colors, radius, space, toneColors } from '@/theme';
-import { LineChart } from './charts';
+import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
+import { colors, radius, space } from '@/theme';
+import { GoalRings, LineChart } from './charts';
 import { Icon } from './Icon';
 import { GrowBar, PressableScale } from './motion';
 import { AREA_ICON, Delta, MetricTile, useEntering } from './reports';
@@ -44,15 +47,17 @@ function AchievementCard({ title, right, index, testID, children, footer }: {
 /** 設定の今週の目標の欄を開く（settings?section=weekly-goals。欄までスクロールする） */
 const openGoalSettings = () => router.push({ pathname: '/settings', params: { section: WEEKLY_GOALS_SECTION } });
 
-/** 達成の1行：印（チェック・注意。色だけでなく形でも）、名前、値と目標、棒（届いたら緑、届かなければ琥珀色） */
+/**
+ * 達成の1行：印（チェック・注意。色だけでなく形と言葉でも）、名前、値と目標、棒。
+ * 棒は届いた分をミント色で（届いていない行も同じ色。状態は印と言葉で伝え、琥珀色などの別の色は使わない）
+ */
 function AchievementLine({ row }: { row: AchievementRow }) {
-  const color = row.mark === 'reached' ? toneColors.good.accent : toneColors.caution.accent;
   const empty = row.value === '記録なし';
   return (
     <View accessible accessibilityLabel={achievementRowLabel(row)} style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ width: 20, alignItems: 'center' }}>
-          {row.mark !== 'none' && <Icon name={row.mark === 'reached' ? 'check' : 'caution'} size={20} color={row.mark === 'reached' ? colors.text : color} />}
+          {row.mark !== 'none' && <Icon name={row.mark === 'reached' ? 'check' : 'caution'} size={20} color={row.mark === 'reached' ? colors.text : colors.sub} />}
         </View>
         <T size={15} style={{ flex: 1 }}>{row.label}</T>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
@@ -63,14 +68,17 @@ function AchievementLine({ row }: { row: AchievementRow }) {
       </View>
       {row.ratio != null && (
         <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.input, overflow: 'hidden' }}>
-          <GrowBar ratio={row.ratio} style={{ height: 8, borderRadius: 4, backgroundColor: color }} />
+          <GrowBar ratio={row.ratio} style={{ height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
         </View>
       )}
     </View>
   );
 }
 
-/** 日のまとめの「今日の達成」（過去の日は「この日の達成」）：筋トレ・kcal・たんぱく質・睡眠（昨夜） */
+/**
+ * 日のまとめの「今日の達成」（過去の日は「この日の達成」）：いちばん上にゴールリング（kcal・たんぱく質・睡眠。
+ * useDailyAchievement の値と ratio から。components/charts.tsx の GoalRings）、その下に筋トレを含む行の一覧
+ */
 export function DailyAchievementBlock({ date, index }: { date: string; index: number }) {
   const { data: a } = useDailyAchievement(date);
   const { data: extra } = useFocusData(async (r) => {
@@ -79,10 +87,76 @@ export function DailyAchievementBlock({ date, index }: { date: string; index: nu
   });
   if (!a || !extra) return null;
   const rows = dailyAchievementRows(a, extra.names, extra.unit);
+  const ringLabel: Record<string, string> = { kcal: 'kcal', protein: 'たんぱく質', sleep: '睡眠（昨夜）' };
+  const rings = rows
+    .filter((r) => r.key in ringLabel)
+    .map((r) => ({ key: r.key, label: ringLabel[r.key], value: r.value, goal: r.goal, unit: r.unit, ratio: r.ratio, state: MARK_LABELS[r.mark] }));
   return (
     <AchievementCard title={date === todayKey() ? '今日の達成' : 'この日の達成'} right={formatMonthDay(date)} index={index} testID="report-achievement">
+      <GoalRings items={rings} animKey={date} />
       {rows.map((r) => <AchievementLine key={r.key} row={r} />)}
     </AchievementCard>
+  );
+}
+
+/**
+ * 日のまとめの構造化ステータス表：その日の記録から組み立てる数値表（ラベル左／値右、行のあいだに細い線）。
+ * 値は既存の材料から出す（体重・体脂肪率は body.listDaily、週の平均と28日の傾向は lib/body.ts、kcal・たんぱく質と
+ * 食事の内訳・休みの日の目標は meals.summaries と lib/meals.ts の targetFor、睡眠・安静時心拍・歩数は health の日ごとのまとめ）。
+ * 記録のない項目は「記録なし」か「—」で、行自体は消さない（並びを固定する）
+ */
+export function DailyStatTableBlock({ date, index }: { date: string; index: number }) {
+  const enter = useEntering();
+  const { data } = useFocusData(async (r) => {
+    const [daily, settings, summaries, sleep, heart, steps] = await Promise.all([
+      r.body.listDaily(), r.settings.get(), r.meals.summaries(date, date), r.health.sleepDay(date), r.health.heartRateDay(date), r.health.stepDay(date),
+    ]);
+    return { daily, unit: settings.weightUnit, day: summaries.days[0] ?? null, goal: summaries.goal, sleep, heart, steps };
+  }, date);
+  if (!data) return null;
+  const { unit } = data;
+  const dayBody = data.daily.find((d) => d.date === date) ?? null;
+  const prevBody = data.daily.find((d) => d.date === addDays(date, -1)) ?? null;
+  const weights = data.daily.filter((d) => d.weightKg != null).map((d) => ({ date: d.date, value: d.weightKg! }));
+  const weekAvg = weekAverage(weights, date);
+  const pace = weeklyPace(data.daily.filter((d) => d.weightKg != null).map((d) => ({ date: d.date, weightKg: d.weightKg! })), date);
+  const prevDelta = dayBody?.weightKg != null && prevBody?.weightKg != null ? kgToUnit(dayBody.weightKg - prevBody.weightKg, unit) : null;
+  const mealDay = data.day;
+  const recorded = mealDay != null && mealDay.meals.length > 0;
+  const slots = mealDay ? [...new Set(mealDay.meals.map((m) => SLOT_LABELS[m.slot]))].join('・') : '';
+  const restTarget = data.goal ? targetFor(data.goal, 'rest') : null;
+  const w = (kg: number) => `${fmt1(kgToUnit(kg, unit))} ${unit}`;
+  const rows: { label: string; value: string }[] = [
+    { label: '体重', value: dayBody?.weightKg != null ? w(dayBody.weightKg) : '記録なし' },
+    { label: '体脂肪率', value: dayBody?.bodyFatPct != null ? `${fmt1(dayBody.bodyFatPct)} %` : '記録なし' },
+    { label: '週の平均（体重）', value: weekAvg != null ? w(weekAvg) : '—' },
+    { label: '前日比（体重）', value: prevDelta != null ? `${formatSigned(prevDelta)} ${unit}` : '—' },
+    { label: 'kcal', value: recorded ? `${fmtInt(mealDay.total.kcal)} kcal` : '記録なし' },
+    { label: 'たんぱく質', value: recorded ? `${fmtInt(mealDay.total.protein_g)} g` : '記録なし' },
+    { label: '睡眠', value: data.sleep ? formatMinutes(data.sleep.asleepMin) : '記録なし' },
+    { label: '寝た時刻', value: data.sleep ? formatClock(data.sleep.mainStartAt) : '—' },
+    { label: '起きた時刻', value: data.sleep ? formatClock(data.sleep.mainEndAt) : '—' },
+    { label: '安静時心拍', value: data.heart?.restingBpm != null ? `${Math.round(data.heart.restingBpm)} 拍/分` : '記録なし' },
+    { label: '歩数', value: data.steps ? `${formatSteps(data.steps.steps)} 歩` : '記録なし' },
+    { label: '体重の傾向（28日）', value: pace != null ? `${formatSigned(kgToUnit(pace, unit))} ${unit}／週` : '—' },
+    { label: '食事', value: recorded ? `${mealDay.meals.length}食（${slots}）・${DAY_TYPE_LABELS[mealDay.dayType]}` : '記録なし' },
+    { label: '休みの日の目標', value: restTarget?.kcal != null ? `${fmtInt(restTarget.kcal)} kcal` : '—' },
+  ];
+  return (
+    <Animated.View entering={enter(index)} style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16 }} testID="report-daily-stats">
+      <T bold size={17} accessibilityRole="header" style={{ marginBottom: 4 }}>この日の数字</T>
+      {rows.map((row, i) => (
+        <View
+          key={row.label}
+          accessible
+          accessibilityLabel={`${row.label}、${row.value}`}
+          style={[{ flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingVertical: 9 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
+        >
+          <T size={14} color={colors.sub} style={{ flex: 1 }}>{row.label}</T>
+          <T num bold size={15} numberOfLines={1}>{row.value}</T>
+        </View>
+      ))}
+    </Animated.View>
   );
 }
 
@@ -158,7 +232,7 @@ export function WeeklyGoalsNowCard({ today }: { today: DateKey }) {
             <T size={12} color={colors.sub}>／{r.goal} {r.unit}</T>
           </View>
           <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.input, overflow: 'hidden' }}>
-            <GrowBar ratio={r.ratio ?? 0} style={{ height: 6, borderRadius: 3, backgroundColor: r.mark === 'reached' ? toneColors.good.accent : toneColors.caution.accent }} />
+            <GrowBar ratio={r.ratio ?? 0} style={{ height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
           </View>
         </View>
       ))}
