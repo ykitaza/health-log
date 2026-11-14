@@ -4,7 +4,7 @@ import { button, goPane, goTab, moveToDate, openApp, openBody, recordOn, see, TO
 // からだのタブの回復マップ。web では 3D を出さず、2D の図（前と後ろ）で塗る（Android は 3D と引き出し線の札。実機で見る）。
 // 回復の日数と明るさ・色・部位と部品の対応・札の置き場所は jest（lib/__tests__/recoveryMap.test.ts、bodyScene.test.ts）。
 // ここは、記録がなければ出さないこと、日の切り替えのすぐ下に出ること、図の札（鍛えたことのある部位に、部位と状態）、一覧（はじめは回復中だけ・すべての部位）と SELECT //。
-// ホームの LATEST の体の回復の色と凡例も
+// ホームの LATEST の体の回復の色も
 
 const box = async (l: Locator) => (await l.boundingBox())!;
 
@@ -22,7 +22,7 @@ test('記録がなければ出さない。記録したら日の切り替えの�
   const card = page.getByTestId('recovery-map').filter({ visible: true });
   await expect(card).toBeVisible();
   await expect(see(card, 'RECOVERY MAP // LIVE')).toBeVisible();
-  await expect(card.getByTestId('recovery-legend')).toHaveText('回復済み回復中空いている・まだケガ');
+  await expect(card.getByTestId('recovery-legend')).toHaveCount(0);
   await expect(card.getByTestId('recovery-2d')).toBeVisible();
   // 図の札：鍛えたことのある部位に、部位と状態（回復中の胸・空いている脚）。一度も鍛えていない部位には付けない
   const callouts = card.getByTestId('recovery-callout');
@@ -134,11 +134,10 @@ test('空いている（回復済みの期限を過ぎた）：灰色と「空�
   await expect(suggest.getByLabel('今日は 脚 はどう？ 空いて19日', { exact: true })).toHaveText('今日は脚はどう？空いて19日');
   if (shots) await hero.locator('..').screenshot({ path: `${shots}/stale-record.png` });
 
-  // ホームの LATEST（直近は昨日の胸）：体は回復の色（RECOVERY のページはない）。読み上げに回復中の胸。凡例を押すと回復マップ
+  // ホームの LATEST（直近は昨日の胸）：体は回復の色（RECOVERY のページはない）。読み上げに回復中の胸
   await goTab(page, 'ホーム');
   await expect(page.getByTestId('home-latest').filter({ visible: true })).toHaveAccessibleName(/。回復中 胸 あと2日。その日の記録を開く$/);
   await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
   if (shots) await page.getByTestId('home-hero').filter({ visible: true }).screenshot({ path: `${shots}/stale-home.png` });
-  await page.getByTestId('hero-legend').filter({ visible: true }).click();
-  await expect(page.getByTestId('recovery-map').filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('hero-legend')).toHaveCount(0);
 });

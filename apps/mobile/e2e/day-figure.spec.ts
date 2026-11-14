@@ -118,7 +118,7 @@ for (const width of [360, 412]) {
       await expect(see(page, '回復済みの部位から選べます')).toBeVisible();
       const hero = visible(page.getByTestId('recovery-hero'));
       await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復中の部位、胸 あと2日、背中 あと2日、上腕三頭筋 あと2日');
-      await expect(visible(page.getByTestId('recovery-hero-legend'))).toHaveText('回復済み回復中空いている・まだケガ');
+      await expect(page.getByTestId('recovery-hero-legend')).toHaveCount(0);
       await expect(hero.getByTestId('recovery-callout')).toHaveCount(3);
       const chest = hero.getByTestId('recovery-callout').filter({ hasText: '胸' });
       await expect(chest).toContainText('あと2日');

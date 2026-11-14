@@ -21,11 +21,11 @@ import { Anchor, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCall
 import { siteLabel } from '@/lib/injuries';
 import { markPoint, MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
   recoveryShortText, recoveryStatusText, restColor, suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
-import { colors, recoveryPalette, space, TRAINED_GLOW } from '@/theme';
+import { colors, recoveryPalette, space } from '@/theme';
 
 /** 回復マップの材料（からだのタブと同じ：セット・部位の名前・ケガ） */
 export async function loadRecovery(r: Repositories): Promise<RecoveryInput> {
@@ -116,14 +116,6 @@ export function PartChips({ date, pickParts, picked, note, testID }: {
   );
 }
 
-/** 凡例：からだのタブの回復マップと同じ（色の四角と文字。色だけにしない） */
-const LEGEND = [
-  { color: recoveryPalette.rest, label: '回復済み' },
-  { color: LOAD_ORANGE, label: '回復中' },
-  { color: recoveryPalette.idle, label: '空いている・まだ' },
-  { color: INJURY_RED, label: 'ケガ' },
-];
-
 /** 札の幅の下限（「上腕三頭筋」「▲ 腰の筋肉」が入る幅）。図はこの残りで大きくする */
 const CALLOUT_MIN_W = 68;
 /** 札と図のあいだ、前と後ろの図のあいだ */
@@ -167,12 +159,11 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const suggestId = suggest ? pickParts.find((b) => b.name.trim() === suggest.name)?.id : undefined;
   // 札は回復中とケガの部位（からだのタブの 3D の札と同じ）
   const marked = list.filter((p) => p.level > 0 || hurt(p));
-  // 3D：回復中の部品の明るさ。前回の部位のうち、回復中でない部品があればミントで光る（凡例に出す）
+  // 3D：回復中の部品の明るさ。前回の部位のうち、回復中でない部品があればミントで光る（読み上げに出す）
   const levels = useMemo(() => recoveryLevels(list), [list]);
   const idle = useMemo(() => idleMeshes(list), [list]);
   const prevParts = previous?.parts ?? [];
   const mint = body3D.on && Object.keys(dayBodyGlow(prevParts, levels).levels).some((m) => !(levels[m] > 0));
-  const legend = mint ? [LEGEND[0], { color: TRAINED_GLOW, label: '前回' }, ...LEGEND.slice(1)] : LEGEND;
   const onPick = useCallback((mesh: string | null) => setPicked(pickMesh(mesh, pickParts)), [setPicked, pickParts]);
 
   const recovering = list.filter((p) => p.level > 0);
@@ -195,16 +186,6 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
     <Card style={{ marginTop: space.s, paddingVertical: space.m, gap: space.s }}>
       <View style={s.head}>
         <T variant="labelM" color={colors.sub} accessibilityRole="header">{trained ? (date === today ? '今日の回復マップ' : 'この日の回復マップ') : '体の図'}</T>
-        {trained && (
-          <View style={s.legend} testID={`${testID}-legend`} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            {legend.map((l) => (
-              <View key={l.label} style={s.legendItem}>
-                <View style={[s.swatch, { backgroundColor: l.color }]} />
-                <T variant="bodyS" color={colors.sub}>{l.label}</T>
-              </View>
-            ))}
-          </View>
-        )}
       </View>
       <View accessible accessibilityLabel={spoken} testID={testID}>
         {body3D.on ? (
@@ -364,9 +345,6 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: space.m, rowGap: space.xs },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.m, rowGap: space.xs },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  swatch: { width: 10, height: 10, borderRadius: 2 },
   suggest: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.s },
   suggestText: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.xs, rowGap: 2, flexShrink: 1 },
 });

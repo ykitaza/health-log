@@ -6,7 +6,7 @@ import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, swipe, tab
 //   BIG3・LOAD・FUEL の行き先には、ホームと同じカードがあり、そこまでスクロールする（SLEEP は home-phase.spec.ts。睡眠を同期で入れる）
 // - LATEST の四隅：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移
 // - 種目の札（EX-01〜）：その日の記録の、その種目のカードまでスクロール（web は 2D の図。札は 3D と同じ部品）
-// INJURY・GROWTH の四隅とケガの札、LATEST の色の凡例は home-phase.spec.ts（フェーズと療養の記録を同期で作る）
+// INJURY・GROWTH の四隅とケガの札は home-phase.spec.ts（フェーズと療養の記録を同期で作る）
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
 const pane = (page: Page, name: string) => page.getByRole('tab', { name, exact: true }).filter({ visible: true });
