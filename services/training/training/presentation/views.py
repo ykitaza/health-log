@@ -21,6 +21,7 @@ from training.domain.catalog import Catalog
 from training.domain import phase as phase_rules
 from training.domain.injury import MAX_LIST_REVIEWS, SITES, Injury, InjuryReview, site_label
 from training.domain.model import Exercise, SetRow, Workout
+from training.domain.measures import round1
 from training.domain.phase import Phase
 
 
@@ -388,13 +389,13 @@ def phase_brief(pp: PhaseProgress) -> dict:
 
 
 def phase_detail(pp: PhaseProgress, review: PhaseReview | None = None) -> dict:
-    """list_phases の1件：期間の材料の形に、食事の目標・開始時の記録・目標の変更の履歴と、振り返りの材料（review）を足したもの。"""
+    """list_phases の1件：期間の材料の形に、食事の目標・開始時の記録・目標の変更の履歴と、振り返りの材料（review_material）を足したもの。"""
     p = pp.phase
     return {**phase_brief(pp), "name": p.name, "meal_targets": p.meal_targets, "snapshot": p.snapshot,
             **({} if p.kind == "rehab" else {"target_history": [
                 {"date": c.date, "target_weight_kg": c.target_weight_kg, "end_date": c.end_date, "weight_kg": c.weight_kg}
                 for c in phase_rules.history(p)]}),
-            **({"review": phase_review(p, review)} if review is not None else {})}
+            **({"review_material": phase_review(p, review)} if review is not None else {})}
 
 
 def _big3_view(b: dict | None) -> dict | None:
@@ -402,7 +403,7 @@ def _big3_view(b: dict | None) -> dict | None:
         return None
     values = [b.get(r) for r in ("bench", "squat", "deadlift")]
     return {"bench": values[0], "squat": values[1], "deadlift": values[2],
-            "total": round(sum(v for v in values if v is not None), 1) if any(v is not None for v in values) else None}
+            "total": round1(sum(v for v in values if v is not None)) if any(v is not None for v in values) else None}
 
 
 def phase_review(p: Phase, r: PhaseReview) -> dict:
@@ -415,8 +416,8 @@ def phase_review(p: Phase, r: PhaseReview) -> dict:
     if start_big3 and end_big3:
         roles = [k for k in ("bench", "squat", "deadlift") if start_big3.get(k) is not None and end_big3.get(k) is not None]
         if roles:
-            compared = {"roles": roles, "start": round(sum(start_big3[k] for k in roles), 1),
-                        "end": round(sum(end_big3[k] for k in roles), 1)}
+            compared = {"roles": roles, "start": round1(sum(start_big3[k] for k in roles)),
+                        "end": round1(sum(end_big3[k] for k in roles))}
     return {
         "period_start": r.period_start, "period_end": r.period_end, "finished": r.finished,
         "rehab_spans": [{"start": s, "end": e} for s, e in r.rehab_spans],

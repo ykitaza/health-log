@@ -1,13 +1,14 @@
 """ある日の時点の記録（体重・体脂肪率・BIG3）。フェーズの開始時の記録（snapshot）と同じ出し方で、終わりの時点の値を出す
 （フェーズの振り返りの材料。アプリの apps/mobile/lib/phaseView.ts の measuresFrom と同じ決まり）。
 
-- 体重・体脂肪率：その日までの7日（その日を含む）の平均（0.1 に丸める）。7日に記録がなければ、その日までの最新の値
-- BIG3：役ごとに、その日までの最高の推定1RM（アプリの big3Trend の current と同じ）
+- 体重・体脂肪率：その日までの7日（その日を含む）の平均（0.1 に丸める。.5 は上げる）。7日に記録がなければ、その日までの最新の値
+- BIG3：役ごとに、その日までの最高の推定1RM（アプリの big3Trend の current と同じ。出すときに 0.1 に丸める）
 成長スコアはアプリだけが計算する（食事・睡眠・部位の記録から出すため）ので、ここでは出さない。
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -15,6 +16,11 @@ from training.domain.calculations import add_days, estimated_1rm
 from training.domain.model import SetRow
 
 WINDOW_DAYS = 7
+
+
+def round1(x: float) -> float:
+    """0.1 に丸める（.5 は上げる。アプリの Math.round(x * 10) / 10 と同じ。Python の round は偶数への丸め）。"""
+    return math.floor(x * 10 + 0.5) / 10
 Basis = Literal["week", "latest"]
 
 
@@ -29,7 +35,7 @@ def week_or_latest(values: list[tuple[str, float]], day: str) -> Measure:
     first = add_days(day, -(WINDOW_DAYS - 1))
     week = [v for d, v in values if first <= d <= day]
     if week:
-        return Measure(round(sum(week) / len(week), 1), "week")
+        return Measure(round1(sum(week) / len(week)), "week")
     past = [(d, v) for d, v in values if d <= day]
     return Measure(max(past)[1], "latest") if past else Measure(None, None)
 
@@ -43,5 +49,5 @@ def big3_best(rows: list[SetRow], assignments: dict[str, str], day: str) -> dict
         exercise_id = assignments.get(role)
         best = max((estimated_1rm(r.weight_kg, r.reps) for r in rows
                     if exercise_id is not None and r.exercise_id == exercise_id and r.date <= day), default=0)
-        out[role] = round(best, 1) if best > 0 else None
+        out[role] = round1(best) if best > 0 else None
     return out if any(v is not None for v in out.values()) else None

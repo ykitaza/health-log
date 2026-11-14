@@ -207,10 +207,10 @@ describe('ケガの文', () => {
 });
 
 describe('フェーズの振り返りの文', () => {
-  test('開始日を手がかりに list_phases で探し、review と target_history を読み、kind=phase で保存。数字はアプリが出す・療養は除く・責めない', () => {
+  test('開始日を手がかりに list_phases で探し、review_material と target_history を読み、kind=phase で保存。数字はアプリが出す・療養は除く・責めない', () => {
     const text = promptText({ kind: 'phase-review', startDate: '2026-07-01', today: TODAY });
     expect(text).toContain(`${C}で、7月1日に始めたフェーズの振り返りを作ってください。`);
-    expect(text).toContain('list_phases でそのフェーズ（療養でないもの）を探し、review と target_history を読み');
+    expect(text).toContain('list_phases でそのフェーズ（療養でないもの）を探し、review_material と target_history を読み');
     expect(text).toContain('before／after の数字はアプリが出すので並べ直さない');
     expect(text).toContain('届いた・ほぼ届いた・届かなかった');
     expect(text).toContain('申し送りを next_steps に');

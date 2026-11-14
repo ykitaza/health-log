@@ -9,6 +9,8 @@ def test_7日に記録があれば平均_なければ最新_それもなけれ�
     assert week_or_latest(values, "2026-09-25") == Measure(72.2, "week")  # 09-19〜09-25（26日は入れない）
     assert week_or_latest(values, "2026-09-15") == Measure(70.0, "latest")
     assert week_or_latest(values, "2026-08-31") == Measure(None, None)
+    # .5 は上げる（アプリの Math.round と同じ。Python の round(72.25, 1) は 72.2）
+    assert week_or_latest([("2026-09-24", 72.0), ("2026-09-25", 72.5)], "2026-09-25") == Measure(72.3, "week")
 
 
 def test_BIG3_はその日までの最高の推定1RM_どの役にも記録がなければ_None():

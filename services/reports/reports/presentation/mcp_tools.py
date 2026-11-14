@@ -50,7 +50,7 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細で読める。
+INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細（フェーズの振り返りはフェーズの画面）で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
@@ -58,10 +58,10 @@ INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 tone の良し悪しは、本人がアプリで宣言したフェーズ（period_overview の phase）の向きで決める。増量（bulk）なら体重が増えたのが good、減量（cut）なら減ったのが good（たんぱく質を保ち BIG3 が落ちていなければなおよい）、維持（maintain）なら体重がほぼ変わらず BIG3 や記録が伸びたのが good。ペース（pace.status）が on_track なら順調、fast・slow・over・under は予定からずれている（判定しないとき status は null で、遅れと書かない）。フェーズがなければ今までどおり目標体重（goals.goal_weight_kg）に近づいたかで決める。
 療養中（phase.current.kind が rehab、または rehab_in_period）は、体重や体の目標で tone を決めず、筋トレができていない・総負荷量が減ったことを caution にしない。見るのは睡眠・たんぱく質（食事が足りているか）・ケガの振り返りで、療養中に kcal を大きく減らすことを good にしない。診断や治療の助言はしない。
-フェーズの振り返り（「フェーズの振り返りを作って」）は、period_overview ではなく list_phases を読む（フェーズは31日より長いため）。対象のフェーズの review（開始時 start と終わりの時点 end の体重の週平均・体脂肪率・BIG3、療養で止まった期間 rehab_spans）と target_history（目標の変更の履歴）を材料にし、save_report の kind を phase、phase_id をそのフェーズの phase_id、期間を review の period_start〜period_end にして保存する。
+フェーズの振り返り（「フェーズの振り返りを作って」）は、period_overview ではなく list_phases を読む（フェーズは31日より長いため）。対象のフェーズの review_material（開始時 start と終わりの時点 end の体重の週平均・体脂肪率・BIG3、療養で止まった期間 rehab_spans）と target_history（目標の変更の履歴）を材料にし、save_report の kind を phase、phase_id をそのフェーズの phase_id、期間を review_material の period_start〜period_end にして保存する。
 振り返りに書くこと：達成の度合い（届いた・ほぼ届いた・届かなかった。成功の指標は向きごと：増量は体重↑＋BIG3↑、減量は体重↓＋BIG3 を保つ（−3% 以内）、維持は体重がほぼ不変（±1kg）＋BIG3↑＋成長スコア↑。ウエストは使わない。体脂肪率は参考で判定に使わない）、うまくいったこと・課題、申し送り（次のフェーズへ。next_steps）、次のフェーズの提案。before／after の数字はアプリが出すので、文章で並べ直さない。療養の期間（rehab_spans）は振り返りの対象から除き、その間に筋トレできなかったことを課題にしない。数字は list_phases などのツールが返した値だけを使い、診断や治療の助言はしない。
 次のフェーズの提案：増量・減量のあとは維持 4 週をすすめる。減量の直後に増量を考えているなら、間に維持を挟む案を出す（強制しない。決めるのは本人で、始めるのはアプリ）。
-保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
+保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える（フェーズの振り返りは「最新のレポート」には出ず、アプリのフェーズの画面で読める）。1人{MAX_REPORTS}件まで。"""
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -201,7 +201,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
         - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）、
           今月の課題に相当する一歩を3つまで
         - フェーズの振り返り（phase。phase_id は list_phases の値、期間は省いてよい）：材料は period_overview ではなく list_phases の
-          そのフェーズの review（開始時 start と終わり end の体重の週平均・体脂肪率・BIG3、療養の期間 rehab_spans）と target_history。
+          そのフェーズの review_material（開始時 start と終わり end の体重の週平均・体脂肪率・BIG3、療養の期間 rehab_spans）と target_history。
           headline に達成の度合い（届いた・ほぼ届いた・届かなかった）、highlights にうまくいったこと・課題、next_steps に申し送り
           （次のフェーズへ。3つまで）、body に次のフェーズの提案を書く。成功の指標は向きごと（増量：体重↑＋BIG3↑、減量：体重↓＋
           BIG3 を保つ（−3% 以内）、維持：体重がほぼ不変（±1kg）＋BIG3↑＋成長スコア↑）。ウエストは使わず、体脂肪率は参考で判定に使わない。
@@ -211,7 +211,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
         目標の向きはフェーズ（period_overview の phase）で決める：減量（cut）なら体重が減ったのが good、増量（bulk）なら増えたのが good、
         維持（maintain）なら体重がほぼ変わらないのが good。療養中（phase.current.kind が rehab）は体の目標で判定せず、
         筋トレができていないことを caution にしない（見るのは睡眠・たんぱく質・ケガの振り返り。診断や治療の助言はしない）。
-        保存は1回の依頼につき1回。同じ種類・期間（フェーズの振り返りは同じ phase_id）でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える。
+        保存は1回の依頼につき1回。同じ種類・期間（フェーズの振り返りは同じ phase_id）でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える（フェーズの振り返りはホームの「最新のレポート」には出ず、アプリのフェーズの画面で読める）。
         """
         sub = subject(WRITE_SCOPE)
         if kind == "phase":
@@ -227,7 +227,8 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
                 review=Review(review.text, ReviewTarget(review.target) if review.target else None) if review else None,
                 phase_id=phase_id)
             saved = await service.save(sub, report)
-        return {"report": _summary(saved), "message": "保存しました。アプリ（hlog）のホームの「最新のレポート」に出ます（同期のあと）。"}
+        where = "フェーズの画面" if kind == "phase" else "ホームの「最新のレポート」"
+        return {"report": _summary(saved), "message": f"保存しました。アプリ（hlog）の{where}に出ます（同期のあと）。"}
 
     @mcp.tool(annotations=READ)
     async def list_reports(

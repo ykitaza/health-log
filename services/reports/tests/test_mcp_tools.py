@@ -354,7 +354,9 @@ def phase_call(monkeypatch, engine):
 
 
 def test_フェーズの振り返りは_期間を省くとフェーズの開始日から終わりの日で保存し_同期でアプリに届く(phase_call, engine):
-    saved = phase_call("save_report", **PHASE_REVIEW)["report"]
+    result = phase_call("save_report", **PHASE_REVIEW)
+    saved = result["report"]
+    assert "フェーズの画面" in result["message"] and "最新のレポート" not in result["message"]
     assert (saved["kind"], saved["phase_id"], saved["period_start"], saved["period_end"]) == (
         "phase", PHASE_ID, "2026-07-01", "2026-10-20")
     state = engine.doc("alice", "report", saved["report_id"]).own

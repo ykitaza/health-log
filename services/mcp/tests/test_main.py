@@ -350,7 +350,7 @@ def test_フェーズの振り返りの材料が_list_phases_に入り_振り返
 
     listed, saved, rehab = run(server, ALL_SCOPES, body)
     phases = {p["phase_id"]: p for p in listed["phases"]}
-    review = phases["p2"]["review"]
+    review = phases["p2"]["review_material"]
     assert (review["period_start"], review["period_end"], review["finished"]) == ("2026-08-01", "2026-09-25", True)
     assert review["rehab_spans"] == [{"start": "2026-08-10", "end": "2026-08-14"}] and phases["p2"]["rehab_days"] == 5
     assert review["start"] == {"weight_kg": 70.0, "body_fat_pct": 16.0, "growth_score": 40,
@@ -360,7 +360,7 @@ def test_フェーズの振り返りの材料が_list_phases_に入り_振り返
     assert end["big3"] == {"bench": 100, "squat": None, "deadlift": None, "total": 100} and end["growth_score"] is None
     assert review["big3_compared"] == {"roles": ["bench"], "start": 80, "end": 100}
     assert [c["target_weight_kg"] for c in phases["p2"]["target_history"]] == [72.0, 73.0]
-    assert "review" not in phases["r2"]  # 療養は振り返りの対象にしない
+    assert "review_material" not in phases["r2"]  # 療養は振り返りの対象にしない
     report = saved["report"]
     assert (report["kind"], report["phase_id"], report["period_start"], report["period_end"]) == (
         "phase", "p2", "2026-08-01", "2026-09-25")

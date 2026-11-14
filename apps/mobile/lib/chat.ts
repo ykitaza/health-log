@@ -228,7 +228,7 @@ function injuryText(p: Extract<ChatPrompt, { kind: 'injury' | 'injury-review' }>
 }
 
 /**
- * フェーズの振り返りの文。材料は period_overview（31日まで）ではなく list_phases の review（開始時と終わりの値・療養の期間）と
+ * フェーズの振り返りの文。材料は period_overview（31日まで）ではなく list_phases の review_material（開始時と終わりの値・療養の期間）と
  * target_history。phase_id は URL に入れず、開始日を手がかりに list_phases で探してもらう（injury-review と同じ）。
  * 書くことの要点だけを入れ、成功の指標・次のフェーズのおすすめなどの決まりは save_report の説明に任せる（URL の上限のため）。
  * 戻るリンクは付けない（認可サーバーの案内のページ /open/… とアプリの +native-intent が、まだフェーズの画面を受けないため）
@@ -237,7 +237,7 @@ function phaseReviewText(p: Extract<ChatPrompt, { kind: 'phase-review' }>): stri
   const start = validDate(p.startDate);
   const today = validDate(p.today);
   return `${CONNECTOR}で、${start ? `${dayText(start)}に始めた` : '最近の'}フェーズの振り返りを作ってください。`
-    + `list_phases でそのフェーズ（療養でないもの）を探し、review と target_history を読み、${FACTS_ONLY}。`
+    + `list_phases でそのフェーズ（療養でないもの）を探し、review_material と target_history を読み、${FACTS_ONLY}。`
     + 'before／after の数字はアプリが出すので並べ直さない。'
     + '達成の度合い（届いた・ほぼ届いた・届かなかった）、うまくいったこと・課題、申し送りを next_steps に、次のフェーズの提案を書き、'
     + '療養の期間は除き、責めない言い方で save_report(kind=phase, phase_id)で保存してください。'
