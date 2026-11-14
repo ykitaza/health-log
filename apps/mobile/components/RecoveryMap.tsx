@@ -10,7 +10,7 @@ import { siteOfPart } from '@/lib/bodyModel';
 import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
 import {
-  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, partEnglish, partOfMesh, PartRecovery, partRecoveries, recoveryAnchor,
+  fixingOn, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, partEnglish, partOfMesh, PartRecovery, partRecoveries, recoveryCalloutAnchor,
   recoveryColor, recoveryLevels, recoveryStatusText, REST_GREEN,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
@@ -59,11 +59,12 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   const hurtOf = useMemo(() => new Map(list.map((p) => [p.name, injuriesForPart(p, injuries)])), [list, injuries]);
   const callouts = useMemo<RecoveryCallout[]>(() => list.flatMap((p) => {
     const hurt = hurtOf.get(p.name) ?? [];
-    const at = recoveryAnchor(p.name);
+    const at = recoveryCalloutAnchor(p.name, hurt);
+    const lead = leadInjury(hurt);
     if (!at || (p.level <= 0 && hurt.length === 0)) return [];
     return [{
       id: p.name, en: partEnglish(p.name), name: p.name, status: p.remaining != null ? `あと${p.remaining}日` : '回復済み',
-      injury: hurt.length > 0 ? `▲ ${siteLabel(hurt[0].site, hurt[0].side)}` : null, color: partColor(p, hurt.length > 0),
+      injury: lead ? `▲ ${siteLabel(lead.site, lead.side)}` : null, color: partColor(p, hurt.length > 0),
       anchor: at.anchor, facing: at.facing, hurt: hurt.length > 0, last: p.last ?? '',
     }];
   }), [list, hurtOf]);

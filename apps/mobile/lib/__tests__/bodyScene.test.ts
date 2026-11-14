@@ -161,6 +161,74 @@ describe('3D の体の場面', () => {
     expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.13, 1.2]);
   });
 
+  test('透視の写し（#212）：光っている部品にだけ付き、部品の裏がカメラを向いたときだけ出る。光らなくなったら外す', async () => {
+    const scene = new BodyScene();
+    const loaded = await loadBody();
+    scene.setModel(loaded);
+    const xraysOf = () => meshesIn(scene.body).filter((m) => m.name.endsWith('#xray'));
+    // 何も光っていなければ写しはない
+    expect(xraysOf()).toHaveLength(0);
+    // 胸（前）と腰の筋肉（後ろ）を光らせる。直せたケガは控えめな印では光らないので写しもない
+    scene.configure({
+      marks: [mark('a', 'lower_back', 'right', true), mark('b', 'biceps', 'left', false)], reduced: true, tipMarks: [], onPick: () => {}, onTips: () => {},
+      levels: { pec_r: 1, pec_l: 0.5, quad_l: 0 }, quietMarks: true,
+    });
+    const names = xraysOf().map((x) => x.parent!.name).sort();
+    expect(names).toEqual(['erector_low_r', 'pec_l', 'pec_r']);
+    const all = meshesIn(scene.body);
+    const part = (n: string) => all.find((m) => m.name === n)!;
+    const xray = (n: string) => part(n).children.find((c) => c.name === `${n}#xray`) as THREE.Mesh;
+    const mat = (n: string) => xray(n).material as THREE.ShaderMaterial;
+    // 形は元の部品と共有（三角形は増やさない）。奥行きを見ずに、皮膚より後に重ねる。押しても当たらない
+    expect(xray('pec_r').geometry).toBe(part('pec_r').geometry);
+    expect([mat('pec_r').depthTest, mat('pec_r').depthWrite, xray('pec_r').renderOrder]).toEqual([false, false, 3]);
+    // 色と強さは元の部品と同じ値。走査の帯と選んだ光は写さない
+    const u = (part('pec_r').material as THREE.ShaderMaterial).uniforms;
+    expect(mat('pec_r').uniforms.uColor).toBe(u.uColor);
+    expect(mat('pec_r').uniforms.uBase).toBe(u.uBase);
+    expect([mat('pec_r').uniforms.uScanAmp.value, mat('pec_r').uniforms.uSel.value]).toEqual([0, 0]);
+
+    const cam = camera(348, 380);
+    const inner = scene as unknown as { yaw: number };
+    // 正面：胸は表が見えているので写しを出さない。後ろの腰は出す（裏から透かす）
+    inner.yaw = 0;
+    scene.frame(cam, 348, 380, 0, 1 / 60);
+    expect([xray('pec_r').visible, xray('erector_low_r').visible]).toEqual([false, true]);
+    // 元の光より弱い（写しは両面で2枚重なるので、半分より弱く）
+    expect(mat('erector_low_r').uniforms.uFade.value).toBeGreaterThan(0.15);
+    expect(mat('erector_low_r').uniforms.uFade.value).toBeLessThan(0.5);
+    // 背中から：胸の写しが出る（元の光より弱い）、腰は出さない
+    inner.yaw = Math.PI;
+    scene.frame(cam, 348, 380, 0.1, 1 / 60);
+    expect([xray('pec_r').visible, xray('pec_l').visible, xray('erector_low_r').visible]).toEqual([true, true, false]);
+    expect(mat('pec_r').uniforms.uFade.value).toBeGreaterThan(0.15);
+    expect(mat('pec_r').uniforms.uFade.value).toBeLessThan(0.5);
+    // 横から（胸の外向きとカメラがほぼ直角）は弱い
+    inner.yaw = Math.PI / 2;
+    scene.frame(cam, 348, 380, 0.2, 1 / 60);
+    expect(mat('pec_r').uniforms.uFade.value).toBeLessThan(0.1);
+
+    // 光らなくなったら外す。元の部品の形は捨てない
+    scene.configure({ marks: [], reduced: true, tipMarks: [], onPick: () => {}, onTips: () => {} });
+    expect(xraysOf()).toHaveLength(0);
+    expect(meshesIn(scene.body)).toHaveLength(71);
+    expect(part('pec_r').geometry.attributes.position.count).toBeGreaterThan(0);
+  });
+
+  test('透視の写しの向き：どの部品も外向きが決まる（三角筋の中部は横）', async () => {
+    const scene = new BodyScene();
+    scene.setModel(await loadBody());
+    const faces = (scene as unknown as { faces: Record<string, { out: THREE.Vector3 }> }).faces;
+    expect(Object.keys(faces)).toHaveLength(35);
+    for (const [n, f] of Object.entries(faces)) {
+      expect(f.out.length()).toBeCloseTo(1);
+      if (n.startsWith('pec') || n === 'abs' || n.startsWith('quad') || n.startsWith('biceps')) expect(f.out.z).toBeGreaterThan(0);
+      if (n.startsWith('erector') || n.startsWith('glute') || n.startsWith('ham') || n.startsWith('lat') || n.startsWith('triceps')) expect(f.out.z).toBeLessThan(0);
+    }
+    expect(faces.delt_mid_r.out.z).toBe(0);
+    expect(Math.sign(faces.delt_mid_r.out.x)).toBe(-Math.sign(faces.delt_mid_l.out.x));
+  });
+
   test('最初のコマを描いたことを1回だけ知らせる。体を読み込む前は知らせない。あとから受けてもすぐ知らせる', async () => {
     const scene = new BodyScene();
     const cam = camera(348, 380);

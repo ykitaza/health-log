@@ -17,11 +17,11 @@ import { T } from './Text';
 import { Button, Card, Chip, ChipRow } from './ui';
 import { DateKey, relativeDays } from '@/lib/date';
 import { dayBodyGlow, partsOfMesh, TRAINED_GLOW } from '@/lib/dayBody';
-import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
+import { Anchor, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCallouts';
 import { siteLabel } from '@/lib/injuries';
-import { MuscleView, partsAt } from '@/lib/muscleFigure';
+import { markPoint, MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels, REST_GREEN,
+  fixingOn, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels, REST_GREEN,
   suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
@@ -170,7 +170,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const figH = Math.max(FIG_MIN_H, Math.min(FIG_MAX_H, Math.floor(width - 2 * (CALLOUT_MIN_W + CALLOUT_INSET) - FIG_GAP)));
   const figW = figH / 2;
   const scale = figH / 200;
-  const layout = layoutCallouts(marked.map((p, i) => ({ key: p.name, no: i + 1, part: p.name })), {
+  const layout = layoutCallouts(marked.map((p, i) => ({ key: p.name, no: i + 1, part: p.name, anchor: injuryPoint(p.name, hurtOf.get(p.name) ?? []) })), {
     figureHeight: figH, minHeight: figH + LABEL_H, slot: CALLOUT_H, gap: CALLOUT_GAP, perSide: CALLOUTS_PER_SIDE,
   });
   const frontX = Math.max(0, (width - (figW * 2 + FIG_GAP)) / 2);
@@ -296,6 +296,17 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
 }
 
 /**
+ * ケガが載る部位の札の点：載せるケガ（leadInjury）の印の位置（図の赤い印と同じ markPoint）。部位の点（partAnchor）のままだと、
+ * 背中の札が腰のケガでなく広背筋に付いてずれる（3D の回復マップと同じ。#205）。ケガがない・印がない部位は undefined（部位の点のまま）
+ */
+function injuryPoint(part: string, hurt: Injury[]): Anchor | undefined {
+  const lead = leadInjury(hurt);
+  const at = lead ? markPoint(lead.site, lead.side) : null;
+  const base = partAnchor(part);
+  return at && base ? { ...base, view: at.view, point: at.point } : undefined;
+}
+
+/**
  * 図の横の札：部位・状態（「あと1日」。回復の色）・ケガ（「▲ 腰の筋肉」。赤）。「+N」は出せなかった部位の名前。
  * align は文字を寄せる側（図の左の札は図の側の右に寄せる）。読み上げは図のまとめで言うので隠す
  */
@@ -313,14 +324,15 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
       </View>
     );
   }
+  const lead = leadInjury(hurt);
   return (
     <View style={box} testID="recovery-callout" {...hide}>
       <T variant="labelM" numberOfLines={1} align={align}>{part.name}</T>
       <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level) : colors.sub} numberOfLines={1} align={align}>
         {part.remaining != null ? `あと${part.remaining}日` : part.last ? '回復済み' : 'まだ'}
       </T>
-      {hurt.length > 0 && (
-        <T size={11} style={{ lineHeight: 16 }} color={INJURY_RED} numberOfLines={1} align={align}>{`▲ ${siteLabel(hurt[0].site, hurt[0].side)}`}</T>
+      {lead && (
+        <T size={11} style={{ lineHeight: 16 }} color={INJURY_RED} numberOfLines={1} align={align}>{`▲ ${siteLabel(lead.site, lead.side)}`}</T>
       )}
     </View>
   );

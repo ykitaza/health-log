@@ -2,7 +2,7 @@
 // three.js の物を毎コマ書き換えるので React の外に置く。React と R3F は使わない（jest で GLB を読み込んで確かめる：lib/__tests__/bodyScene.test.ts）
 import { PanResponder } from 'react-native';
 import * as THREE from 'three';
-import type { Vec3 } from '@/lib/bodyModel';
+import { facingOf, siteOfPart, type Vec3 } from '@/lib/bodyModel';
 import { colors, toneColors } from '@/theme';
 
 const GREEN = new THREE.Color(colors.accent);
@@ -25,6 +25,14 @@ const QUIET_GLOW = 0.8;
  * ちらついて見える。回復マップは色で状態を伝えるので、帯は控えめにする
  */
 const QUIET_SCAN = 0.35;
+/**
+ * 透視の写し（光っている部品が体の裏にあっても見えるように、奥行きを見ずに上から重ねる。2026-11-14 #212）の、いちばん強いときの強さ（元の光を 1 として。写しは両面を描くので、手前と奥の2枚が重なって約2倍になる）。
+ * 部品の表がカメラから向こうを向くほど強くし、こちらを向いているときは出さない（表が見えているので要らない。重ねるとうるさい）。
+ * 向きの値（部品の外向き × カメラへの向き）が XRAY_FROM 以上で 0、XRAY_FULL 以下で XRAY_GAIN
+ */
+const XRAY_GAIN = 0.25;
+const XRAY_FROM = 0.15;
+const XRAY_FULL = -0.45;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -42,7 +50,7 @@ const HOLO_VERT = `
   }`;
 const HOLO_FRAG = `
   uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel;
+  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
   varying vec3 vN; varying vec3 vV; varying float vY;
   void main() {
     float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
@@ -52,7 +60,7 @@ const HOLO_FRAG = `
     float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
     float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
     float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a, 0.0, 1.0));
+    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
   }`;
 /** 琥珀色の光のにじみ（ポストエフェクトの代わり。中心から外へ薄くなる板） */
 const GLOW_FRAG = `
@@ -69,9 +77,24 @@ function holoMat(shared: Shared, color: THREE.Color, base: number, rim: number, 
     vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG,
     uniforms: {
       uColor: { value: color.clone() }, uBase: { value: base }, uRim: { value: rim }, uPulse: { value: pulse },
-      uSel: { value: 0 }, uTime: shared.uTime, uScanY: shared.uScanY, uScanAmp: shared.uScanAmp,
+      uSel: { value: 0 }, uFade: { value: 1 }, uTime: shared.uTime, uScanY: shared.uScanY, uScanAmp: shared.uScanAmp,
     },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+}
+/**
+ * 透視の写しの材質（元の部品と同じシェーダー。奥行きを見ずに、元の部品と皮膚のあとに重ねる）。色・強さ・脈は元の部品の値をそのまま使う
+ * （同じ値の入れ物を共有する）。走査の帯と、選んだときの光は元の部品だけに出す（二重にしない）。uFade で全体を弱める
+ */
+function xrayMat(src: THREE.ShaderMaterial) {
+  const u = src.uniforms;
+  return new THREE.ShaderMaterial({
+    vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG,
+    uniforms: {
+      uColor: u.uColor, uBase: u.uBase, uRim: u.uRim, uPulse: u.uPulse, uTime: u.uTime, uScanY: u.uScanY,
+      uScanAmp: { value: 0 }, uSel: { value: 0 }, uFade: { value: 0 },
+    },
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   });
 }
 const lineMat = (opacity: number) => new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -121,6 +144,10 @@ export class BodyScene {
   private pickables: THREE.Mesh[] = [];
   private byName: Record<string, THREE.Mesh> = {};
   private glows: { mesh: THREE.Mesh; anchor: THREE.Vector3 }[] = [];
+  /** 部品ごとの、まん中と外向き（体の座標。透視の写しを出すかを決める） */
+  private faces: Record<string, { center: THREE.Vector3; out: THREE.Vector3 }> = {};
+  /** 透視の写し（光っている部品 → その子の写し） */
+  private xrays = new Map<THREE.Mesh, THREE.Mesh>();
   private selected: THREE.Mesh[] = [];
   /** 画面から選んだ部品（読み込む前に選んでも、読み込んだあとに付ける） */
   private selNames: string[] = [];
@@ -213,6 +240,18 @@ export class BodyScene {
       this.byName[o.name] = o;
     }
     this.body.add(root);
+    // 部品のまん中と外向き（体の座標）。外向きは引き出し線の先と同じ決め方（前の部位は前、後ろの部位は後ろ。腕・脚のように
+    // まん中から離れた部品は横へも傾ける）。部位のない部品（三角筋の中部）は横だけ。面の法線は部品によって向きがそろっていないので使わない
+    this.body.updateMatrixWorld(true);
+    this.faces = {};
+    for (const o of this.pickables) {
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const center = this.body.worldToLocal(o.localToWorld(o.geometry.boundingBox!.getCenter(new THREE.Vector3())));
+      const site = siteOfPart(o.name);
+      const z = site ? (facingOf(site.site, site.side) === 'front' ? 1 : -1) : 0;
+      const x = Math.abs(center.x) > 0.12 || !site ? Math.sign(center.x) * (site ? 0.6 : 1) : 0;
+      this.faces[o.name] = { center, out: new THREE.Vector3(x, 0, z).normalize() };
+    }
     // 終わってから印を付ける（途中で失敗したら、次の描画でやり直す）
     this.loaded = loaded;
     this.tint();
@@ -266,12 +305,15 @@ export class BodyScene {
    * 控えめにするとき（回復マップ）は、部品の色は変えず、小さなにじみだけを脈打たせる
    */
   private setMarks(marks: Mark[]) {
+    const lit = new Set<THREE.Mesh>();
     const set = (m: THREE.Mesh | undefined, color: THREE.Color, base: number, rim: number, pulse: number) => {
       if (!m) return;
+      lit.add(m);
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
     for (const m of this.pickables) set(m, this.base, 0.13, 1.2, 0);
+    lit.clear();
     for (const [p, v] of Object.entries(this.levels)) {
       const k = Math.min(1, Math.max(0, v));
       const lerp = (a: number, b: number) => a + (b - a) * k;
@@ -286,6 +328,7 @@ export class BodyScene {
       for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
       for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
     }
+    this.setXrays(lit);
     for (const g of this.glows) { g.mesh.geometry.dispose(); (g.mesh.material as THREE.Material).dispose(); }
     this.glowGroup.clear();
     this.glows = marks.filter((m) => m.fixing).map((m) => {
@@ -296,6 +339,29 @@ export class BodyScene {
       this.glowGroup.add(mesh);
       return { mesh, anchor: new THREE.Vector3(...m.anchor) };
     });
+  }
+
+  /**
+   * 透視の写しを、光っている部品（ふだんの光より強くした部品）にだけ付ける。形は元の部品と共有する（三角形のデータは増やさない）。
+   * 光らなくなった部品の写しは外す（形は読み込んだ体と共有なので、材質だけを捨てる）
+   */
+  private setXrays(lit: Set<THREE.Mesh>) {
+    for (const [m, x] of this.xrays) {
+      if (lit.has(m)) continue;
+      m.remove(x);
+      (x.material as THREE.Material).dispose();
+      this.xrays.delete(m);
+    }
+    for (const m of lit) {
+      if (this.xrays.has(m)) continue;
+      const x = new THREE.Mesh(m.geometry, xrayMat(m.material as THREE.ShaderMaterial));
+      x.name = `${m.name}#xray`;
+      x.renderOrder = 3;
+      x.visible = false;
+      x.raycast = () => {};
+      m.add(x);
+      this.xrays.set(m, x);
+    }
   }
 
   /** なぞる・押すの受け口（図の上いっぱいの面に付ける） */
@@ -368,6 +434,19 @@ export class BodyScene {
       gl.mesh.quaternion.copy(camera.quaternion);
       gl.mesh.scale.setScalar((reduced ? 0.3 : 0.26 + 0.08 * pul) * q);
       (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (reduced ? 0.5 : 0.25 + 0.45 * pul) * q;
+    }
+
+    // 透視の写し：部品の外向きがカメラから向こうを向くほど強く。こちらを向いているあいだは出さない
+    for (const [m, x] of this.xrays) {
+      const f = this.faces[m.name];
+      if (!f) continue;
+      this.tmp.copy(f.center);
+      g.localToWorld(this.tmp);
+      this.tmpN.copy(f.out).applyQuaternion(g.quaternion);
+      this.camDir.copy(camera.position).sub(this.tmp).normalize();
+      const k = Math.min(1, Math.max(0, (XRAY_FROM - this.tmpN.dot(this.camDir)) / (XRAY_FROM - XRAY_FULL)));
+      (x.material as THREE.ShaderMaterial).uniforms.uFade.value = k * XRAY_GAIN;
+      x.visible = k > 0;
     }
 
     // 押した所の部品を選ぶ（筋肉を先に。同じ部品・皮膚・外を押したら選ぶのをやめる）
