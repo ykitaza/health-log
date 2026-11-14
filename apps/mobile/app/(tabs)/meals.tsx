@@ -8,7 +8,7 @@ import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/compone
 import { FuelPanel } from '@/components/homeHud';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
-import { NutritionSummary } from '@/components/meals';
+import { NutritionRemaining } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { DailyHighlights } from '@/components/reports';
 import { Screen, ScrollTarget } from '@/components/Screen';
@@ -30,7 +30,8 @@ import { colors, radius, space } from '@/theme';
 
 /**
  * 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「推移」は週のふり返り（週のまとめ）。
- * 記録の上には、ホームの FUEL と同じカード（その日の kcal と PFC のドーナツ）を置く。ホームの FUEL から来たら（focus=fuel）、そこまでスクロールする
+ * 合計と目標は、記録の上の、ホームの FUEL と同じカード（その日の kcal と PFC のドーナツ）で見せ、その下に目標の残りと日の種類の切り替えを添える。
+ * ホームの FUEL から来たら（focus=fuel）、そこまでスクロールする
  */
 export default function MealsScreen() {
   const [date, setDate] = useState(todayKey);
@@ -122,10 +123,10 @@ export default function MealsScreen() {
         )}
       </ScrollTarget>
       {day && (
-        <Card style={{ marginTop: space.m }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: -space.xs }}>
-            <T variant="titleM">{date === today ? '今日の合計' : 'この日の合計'}</T>
-            {/* 日の種類は、押して切り替えられると分かる assist chip（入れ替えのアイコン付き、押せる範囲 48） */}
+        // 合計と目標は上の FUEL に出すので、カードにせず、FUEL にない目標の残りと日の種類の切り替えだけを下に添える
+        <View style={{ marginTop: space.xs }}>
+          <NutritionRemaining remaining={day.remaining} right={(
+            // 日の種類は、押して切り替えられると分かる assist chip（入れ替えのアイコン付き、押せる範囲 48）
             <PressableScale accessibilityRole="button" accessibilityLabel={`日の種類：${DAY_TYPE_LABELS[day.dayType]}（押すと切り替え）`} onPress={toggleDayType}
               disabled={busy} aria-busy={busy} style={s.chipTouch}>
               <View style={[s.dayChip, day.dayType === 'training' ? { backgroundColor: colors.accentDark, borderColor: colors.accentDark } : { borderColor: colors.outline }, busy && { opacity: 0.38 }]}>
@@ -133,16 +134,15 @@ export default function MealsScreen() {
                 <T variant="labelL" color={day.dayType === 'training' ? colors.onAccentDark : colors.sub}>{DAY_TYPE_LABELS[day.dayType]}</T>
               </View>
             </PressableScale>
-          </View>
-          <NutritionSummary total={day.total} target={day.target} remaining={day.remaining} />
+          )} />
           {!data?.goal && (
             // 文と、押せる「目標を決める」を分ける
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s, marginTop: space.s }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s }}>
               <T variant="bodyS" color={colors.sub} style={{ flex: 1 }}>目標が未設定です（Claude・ChatGPT でも決められます）</T>
               <Button label="目標を決める" variant="text" small accessibilityLabel="目標が未設定です。目標を決める" onPress={() => router.push('/meals/goal')} style={{ paddingLeft: 12, paddingRight: 12, marginRight: -12 }} />
             </View>
           )}
-        </Card>
+        </View>
       )}
       <DailyHighlights date={date} areas={TAB_AREAS.meals} />
 

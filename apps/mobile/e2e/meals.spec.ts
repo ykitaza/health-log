@@ -5,7 +5,9 @@ import { button, controlDb, enterBody, goTab, homeIcon, openApp, openBody, openM
 
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true }).filter({ visible: true });
 const bmi = (page: Page) => page.getByRole('button', { name: /^BMI .*BMIの推移を見る$/ }).filter({ visible: true });
-const totalKcal = (page: Page) => page.getByTestId('total-kcal').filter({ visible: true });
+/** 合計は、記録の上の FUEL のカード（ホームと同じ）の読み上げで見る */
+const fuel = (page: Page) => page.getByTestId('meal-fuel').filter({ visible: true });
+const expectTotal = (page: Page, kcal: string) => expect(fuel(page)).toHaveAttribute('aria-label', new RegExp(`^[^。]+の食事 ${kcal}kcal`));
 
 /** 食事タブで、区分の「＋」から品目を入れて記録する */
 async function recordItems(page: Page, slot: string, items: { name: string; amount: string; kcal: string; p?: string }[], template?: string) {
@@ -46,7 +48,7 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
 
   await recordItems(page, '昼食', [{ name: '白米', amount: '200', kcal: '312', p: '5' }, { name: '鶏むね肉', amount: '100', kcal: '108', p: '22' }]);
   await expect(button(page, '白米、鶏むね肉を開く')).toBeVisible();
-  await expect(totalKcal(page)).toHaveText('420');
+  await expectTotal(page, '420');
   await expect(see(page, '残り 1,580 kcal')).toBeVisible();
   await expect(see(page, '残り 113.0 g')).toBeVisible();
 
@@ -55,7 +57,7 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await field(page, '白米の量').fill('100');
   await expect(page.getByTestId('meal-detail-kcal').filter({ visible: true })).toContainText('264');
   await button(page, '保存').click();
-  await expect(totalKcal(page)).toHaveText('264');
+  await expectTotal(page, '264');
 
   // 消す：やめるでは消えない
   await button(page, '白米、鶏むね肉を開く').click();
@@ -65,7 +67,7 @@ test('記録 → 合計と目標の残り → 量を直す → 消す（確認�
   await button(page, 'この食事を消す').click();
   await button(page, '消す').click();
   await expect(see(page, '昼食はまだ記録していません')).toBeVisible();
-  await expect(totalKcal(page)).toHaveText('0');
+  await expectTotal(page, '0');
 });
 
 test('下の「食事を追加」：今の時刻に近い区分を選んだシートが開き、区分を選び直して記録できる', async ({ page }) => {
@@ -88,7 +90,7 @@ test('下の「食事を追加」：今の時刻に近い区分を選んだシ�
   await expect(button(page, 'ヨーグルトを開く')).toBeVisible();
   await expect(see(page, '夕食はまだ記録していません')).toBeVisible();
   await expect(see(page, '間食はまだ記録していません')).toBeHidden();
-  await expect(totalKcal(page)).toHaveText('60');
+  await expectTotal(page, '60');
 });
 
 test('過去の日に記録 → 次の日に「昨日と同じ」と「いつもの」で記録 → 週のふり返り', async ({ page }) => {
@@ -97,18 +99,18 @@ test('過去の日に記録 → 次の日に「昨日と同じ」と「いつも
   await button(page, '前の日').click();
   await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
   await recordItems(page, '朝食', [{ name: 'オートミール', amount: '40', kcal: '150' }], '朝の定番');
-  await expect(totalKcal(page)).toHaveText('150');
+  await expectTotal(page, '150');
 
   await button(page, '次の日').click();
   await expect(see(page, '11月8日（日）', { exact: true })).toBeVisible();
   await expect(see(page, '朝食はまだ記録していません')).toBeVisible();
   await button(page, '朝食を記録').click();
   await button(page, '昨日と同じ：オートミール').click();
-  await expect(totalKcal(page)).toHaveText('150');
+  await expectTotal(page, '150');
   await button(page, '間食を記録').click();
   await button(page, 'いつもの「朝の定番」を記録').click();
   await expect(button(page, 'いつもの：朝の定番を開く')).toBeVisible();
-  await expect(totalKcal(page)).toHaveText('300');
+  await expectTotal(page, '300');
 
   // 週のふり返り（記録した日だけの平均：(150 + 300) ÷ 2）
   await openMealWeek(page);

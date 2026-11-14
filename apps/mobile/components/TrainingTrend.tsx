@@ -54,7 +54,7 @@ export function parseTrendFocus(focus: string | undefined, exercise: string | un
 /**
  * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
  * すべてなら BIG3 の推定1RM の合計、部位のバランス（2週・3か月・これまで）、総負荷量（週・日）、種目ごとの自己ベスト。
- * いちばん上（BIG3 の上）に、ホームの計器と同じカード（BIG3・LOAD）を 1 つの段に並べる。
+ * いちばん上（BIG3 の上）に、ホームの計器と同じカード（BIG3・LOAD）を 1 つの段に並べる。BIG3 の今の合計と今週の総負荷量は、この段だけに大きく出す（下のグラフでは繰り返さない）。
  * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）。
  * focus があれば（ホームから来たとき）、その種目か「すべて」にして、そのグラフまでスクロールする（BIG3・総負荷量は、上のホームと同じカードの段まで）。総負荷量（load）は日ごと、部位のバランス（parts）は
  * ホームのレーダーと同じ 28日（前の28日を点線で）で見せる。覚えた期間は書き換えず、期間を選んだら onRangeChosen（focus を外す）
@@ -332,10 +332,13 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <T bold size={16}>{range === 'week' ? '週ごとの総負荷量' : '日ごとの総負荷量'}</T>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-            <CountUpText num bold size={28} value={t(range === 'week' ? thisWeek : daily.total)} format={(v) => v.toFixed(1)} animKey={range} />
-            <T size={12} color={colors.sub}>{tUnit}／{range === 'week' ? '今週' : `${DAILY_WEEKS}週間`}</T>
-          </View>
+          {/* 今週の合計は、上のホームと同じ LOAD のカードに出すので、週ごとのときは出さない。日ごとのときの 4 週間の合計は LOAD にないので出す */}
+          {range === 'day' && (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
+              <CountUpText num bold size={28} value={t(daily.total)} format={(v) => v.toFixed(1)} animKey={range} />
+              <T size={12} color={colors.sub}>{tUnit}／{DAILY_WEEKS}週間</T>
+            </View>
+          )}
         </View>
         {range === 'week' ? (
           <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
@@ -433,17 +436,14 @@ function Big3Card({ rows, exercises, today, unit }: {
       </View>
       {trend.total != null && (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, marginTop: space.s, flexWrap: 'wrap' }} testID="big3-total">
-            <CountUpText num bold size={40} value={conv(trend.total)} format={fmt1} animKey="big3" />
-            <T variant="bodyM" color={colors.sub}>{unit}</T>
-            {diff != null && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, marginLeft: space.s }}>
-                <Icon name={diff > 0.05 ? 'arrowUp' : diff < -0.05 ? 'arrowDown' : 'arrowFlat'} size={16} color={diff < -0.05 ? colors.danger : colors.accent} />
-                <T variant="labelL" color={diff < -0.05 ? colors.danger : colors.accent}>{signed(diff)} {unit}</T>
-                <T variant="bodyS" color={colors.sub}>先月より</T>
-              </View>
-            )}
-          </View>
+          {/* 今の合計は、上のホームと同じ BIG3 のカードに大きく出すので、ここは合計の先月との差だけ */}
+          {diff != null && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.s }} testID="big3-total-diff">
+              <Icon name={diff > 0.05 ? 'arrowUp' : diff < -0.05 ? 'arrowDown' : 'arrowFlat'} size={16} color={diff < -0.05 ? colors.danger : colors.accent} />
+              <T variant="labelL" color={diff < -0.05 ? colors.danger : colors.accent}>合計 {signed(diff)} {unit}</T>
+              <T variant="bodyS" color={colors.sub}>先月より</T>
+            </View>
+          )}
           {partialNote != null && <T variant="labelM" color={colors.sub} style={{ marginTop: space.xs }} testID="big3-partial">{partialNote}</T>}
           {trend.points.length >= 2 && (
             <View accessible accessibilityLabel={`BIG3 の推定1RM の合計のグラフ。${BIG3_MONTHS}か月。今 ${fmt1(conv(trend.total))}${unit}${partialNote ? `。${partialNote}` : ''}`}>

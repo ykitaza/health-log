@@ -24,7 +24,8 @@ const ICONS = { sleep: 'moon', heart: 'heart', steps: 'steps' } as const;
 /**
  * 睡眠・安静時心拍・歩数の推移（からだのタブの睡眠・心拍・歩数の行から開く）。体重の推移と同じ作り：期間の切り替え、大きな数字、グラフ、日ごとの一覧。
  * Health Connect から取り込んだ記録がないときは、つなぐ画面への導線を出す。
- * 睡眠は、いちばん上にホームの SLEEP と同じカード（7 日の棒と 7 時間の目標の線。期間の切り替えによらない）を、筋トレの推移の BIG3・LOAD の段と同じ半分の幅で左に寄せて置く。ホームの SLEEP から来ても、開いたときに見えている
+ * 睡眠は、いちばん上にホームの SLEEP と同じカード（7 日の棒と 7 時間の目標の線。期間の切り替えによらない）を、筋トレの推移の BIG3・LOAD の段と同じ半分の幅で左に寄せて置く。ホームの SLEEP から来ても、開いたときに見えている。
+ * 大きな数字は SLEEP だけにし、期間の平均はその下のグラフの見出しに小さく出す
  */
 export default function HealthTrendScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
@@ -100,18 +101,15 @@ function SleepTrend({ days, period }: { days: SleepDay[]; period: Period }) {
   const max = Math.max(9 * 60, ...days.map((d) => d.asleepMin));
   return (
     <>
-      <T variant="bodyS" color={colors.sub} style={{ marginTop: space.l }}>{PERIOD_LABELS[period]}の平均（眠っていた時間）</T>
-      <View style={s.big} testID="sleep-average" accessible accessibilityLabel={`${PERIOD_LABELS[period]}の平均 ${Math.floor(avg / 60)}時間${Math.round(avg % 60)}分`}>
-        <T variant="numDisplay">{Math.floor(shown / 60)}</T>
-        <T variant="bodyL" color={colors.sub}>時間</T>
-        <T variant="numDisplay">{shown % 60}</T>
-        <T variant="bodyL" color={colors.sub}>分</T>
-      </View>
-      <View style={s.meta}>
-        <T variant="titleS">{days.length} 晩の記録</T>
-        <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)}の朝まで</T>
-      </View>
-      <Card style={{ marginTop: space.l }}>
+      {/* 大きな数字は上の SLEEP（昨夜）だけにする。期間の平均は、グラフの見出しに小さく出す */}
+      <Card style={{ marginTop: space.m }}>
+        <View style={[s.meta, { marginBottom: space.m }]}>
+          <View style={s.big} testID="sleep-average" accessible accessibilityLabel={`${PERIOD_LABELS[period]}の平均 ${Math.floor(avg / 60)}時間${Math.round(avg % 60)}分`}>
+            <T variant="bodyS" color={colors.sub}>{PERIOD_LABELS[period]}の平均（眠っていた時間）</T>
+            <T variant="numM" bold>{formatHM(shown)}</T>
+          </View>
+          <T variant="bodyS" color={colors.sub}>{days.length} 晩の記録・{formatJpDate(last.date)}の朝まで</T>
+        </View>
         <StackedBarChart
           animKey={animKey}
           max={max}

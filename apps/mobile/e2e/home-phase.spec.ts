@@ -233,7 +233,7 @@ test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（�
   await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
 });
 
-test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事の記録に、ホームと同じカード（その下に今までのグラフ）', async ({ page, context }) => {
+test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事の記録に、ホームと同じカード（その下に期間のグラフ。大きな数字は 1 つ）', async ({ page, context }) => {
   await openWith(page, context, [...sleeps, ...lunch]);
   const homeSleep = visible(page, 'home-sleep');
   await expect(homeSleep).toHaveAttribute('aria-label', '睡眠。昨夜 7:30。7日の平均 6:28。目標 7時間。睡眠の推移を開く');
@@ -248,10 +248,10 @@ test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事�
   const box = (await sleepGauge.boundingBox())!;
   expect(box.x).toBeLessThan(20);
   expect(box.width).toBeLessThan(412 / 2);
-  // 期間を変えても同じ（7 日の棒と 7 時間の線）。今までの平均とグラフは下に残す
+  // 期間を変えても同じ（7 日の棒と 7 時間の線）。期間の平均はグラフの見出しに小さく出す（大きな数字は SLEEP だけ）
   await button(page, '3か月').click();
   await expect(sleepGauge).toHaveText(sleepText);
-  await expect(visible(page, 'sleep-average')).toBeVisible();
+  await expect(visible(page, 'sleep-average')).toHaveAttribute('aria-label', '3か月の平均 6時間28分');
   await button(page, '戻る').click();
 
   const homeFuel = visible(page, 'home-fuel');
@@ -265,4 +265,7 @@ test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事�
   await expect(mealFuel).toHaveAttribute('aria-label', fuelLabel);
   // PFC のドーナツ（下地の輪と P・F・C の 3 つ）
   await expect(mealFuel.locator('circle')).toHaveCount(4);
+  // 合計のカードは出さない（合計と PFC は FUEL だけ）。日の種類の切り替えは FUEL の下に残す
+  await expect(page.getByText('今日の合計', { exact: true })).toHaveCount(0);
+  await expect(button(page, '日の種類：休みの日（押すと切り替え）')).toBeVisible();
 });

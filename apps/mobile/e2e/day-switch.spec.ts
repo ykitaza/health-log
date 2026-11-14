@@ -81,7 +81,7 @@ test('食事の記録：日を選ぶシート（食事を記録した日に点�
   await button(page, 'kcal と PFC だけ').click();
   await page.getByRole('textbox', { name: '品目1のエネルギー', exact: true }).filter({ visible: true }).fill('300');
   await button(page, '記録する').click();
-  await expect(page.getByTestId('total-kcal').filter({ visible: true })).toHaveText('300');
+  await expect(page.getByTestId('meal-fuel').filter({ visible: true })).toHaveAttribute('aria-label', /^11月7日（土）の食事 300kcal/);
 
   // スワイプで次の日・前の日。今日より先へは進まない
   await swipe(mealsArea(page), 'next');
