@@ -22,6 +22,9 @@ const CALLOUT_W = 92;
 const CALLOUT_H = 52;
 const PER_SIDE = 4;
 
+/** 札の線と文字の色：その部位の色。空いている・まだの灰色は暗くて見えないので、補足の灰色 */
+const inkOf = (c: RecoveryCallout) => (c.color === recoveryPalette.idle ? colors.sub : c.color);
+
 function Stage({ levels, idle, injuries, selected, onPick, callouts }: Omit<RecoveryMap3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -60,7 +63,7 @@ function Stage({ levels, idle, injuries, selected, onPick, callouts }: Omit<Reco
             <Svg width={width} height={STAGE_H} style={StyleSheet.absoluteFill} pointerEvents="none">
               {places.map((p, i) => {
                 const x = p.side === 'left' ? space.l + CALLOUT_W + 4 : width - space.l - CALLOUT_W - 4;
-                return <Leader key={p.id} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={byId.get(p.id)!.color} />;
+                return <Leader key={p.id} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={inkOf(byId.get(p.id)!)} />;
               })}
             </Svg>
             {/* 札は読み上げでは読まない（下の一覧で同じことを読む） */}
@@ -78,13 +81,13 @@ function Stage({ levels, idle, injuries, selected, onPick, callouts }: Omit<Reco
   );
 }
 
-/** 注釈の札：英字の部位名（Mono）、日本語名、状態かケガ。左の札は右寄せ（線のほうへ寄せる）。空いている・まだの灰色は文字には暗いので、文字は補足の灰色 */
+/** 注釈の札：英字の部位名（Mono）、日本語名、状態かケガ。左の札は右寄せ（線のほうへ寄せる） */
 function CalloutTag({ c, align, style }: { c: RecoveryCallout; align: 'left' | 'right'; style: object }) {
-  const ink = c.color === recoveryPalette.idle ? colors.sub : c.color;
+  const ink = inkOf(c);
   return (
     <View
       pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden
-      style={[s.tag, { borderColor: c.color, alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}
+      style={[s.tag, { borderColor: ink, alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}
     >
       <Mono color={ink} size={11}>{c.en}</Mono>
       <T variant="labelM" numberOfLines={1}>{c.name}</T>
