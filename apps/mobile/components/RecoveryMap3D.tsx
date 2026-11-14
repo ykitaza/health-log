@@ -14,7 +14,7 @@ export type RecoveryMap3DProps = {
   selected: string[];
   /** 図の上で押した部品（外を押した・選んだ部品をもう一度押したら null） */
   onPick: (mesh: string | null) => void;
-  /** 注釈（引き出し線つきの札）を付ける部位。回復中とケガのある部位 */
+  /** 注釈（引き出し線つきの札）を付ける部位。鍛えたことのある部位とケガのある部位 */
   callouts: RecoveryCallout[];
   /** 描けないときに出すもの（2D の図） */
   fallback: ReactNode;

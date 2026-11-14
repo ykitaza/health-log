@@ -1,6 +1,7 @@
 // からだのタブの「回復マップ」（RECOVERY MAP // LIVE）。筋トレの部位ごとに、最後に鍛えた日と部位ごとの回復の日数で 3D の体を色分けする。
 // 色は、回復済みは緑、回復中は暖色（鍛えたばかりほど橙、回復が近いほど黄）、直している途中のケガは赤。空いている（回復済みの期限を過ぎた）・まだは灰色。
-// Android は 3D（RecoveryMap3D.native.tsx。回復中とケガの部位に引き出し線つきの札）、描けないときと web（e2e）は 2D の図（前と後ろ）。
+// Android は 3D（RecoveryMap3D.native.tsx）、描けないときと web（e2e）は 2D の図（前と後ろ。components/DayRecovery.tsx の RecoveryFigure2D）。
+// どちらも、鍛えたことのある部位とケガのある部位に引き出し線つきの札（部位と「あと1日」「回復済み」「空いて10日」。2026-11-15 ユーザーの要望：光っているだけでは分からない）。
 // 図の下は計器の読み出しのような一覧（1 部位 1 行、48dp。押すと SELECT //）。読み上げは図の部品を選べないので、一覧で同じことが分かる
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -10,13 +11,13 @@ import { siteOfPart } from '@/lib/bodyModel';
 import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
 import {
-  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, partEnglish, partOfMesh, PartRecovery, partRecoveries,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, partEnglish, partOfMesh, PartRecovery, partRecoveries,
   recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
 import { colors, recoveryPalette, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
-import { MuscleFigure } from './MuscleFigure';
+import { RecoveryFigure2D } from './DayRecovery';
 import { RecoveryCallout, RecoveryMap3D } from './RecoveryMap3D';
 import { T } from './Text';
 
@@ -38,8 +39,8 @@ const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.lev
 /** 選んだもの：筋トレの部位か、どの部位にもあたらない部品（部位の名前を付け替えたときなど） */
 type Selection = { part: string } | { mesh: string } | null;
 
-/** 凡例：緑＝回復済み、暖色＝回復中、灰色＝空いている・まだ、赤＝ケガ（色の四角と文字。色だけにしない） */
-const LEGEND = [
+/** 凡例：緑＝回復済み、暖色＝回復中、灰色＝空いている・まだ、赤＝ケガ（色の四角と文字。色だけにしない。ホームの LATEST も同じ） */
+export const LEGEND = [
   { color: recoveryPalette.rest, label: '回復済み' },
   { color: LOAD_ORANGE, label: '回復中' },
   { color: recoveryPalette.idle, label: '空いている・まだ' },
@@ -59,17 +60,24 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   const idle = useMemo(() => idleMeshes(list), [list]);
   const injuries = useMemo(() => fixingOn(input.injuries, date), [input.injuries, date]);
   const hurtOf = useMemo(() => new Map(list.map((p) => [p.name, injuriesForPart(p, injuries)])), [list, injuries]);
-  const callouts = useMemo<RecoveryCallout[]>(() => list.flatMap((p) => {
+  // 札を付ける部位：鍛えたことのある部位とケガのある部位（一度も鍛えていない灰色の部位には付けない）。
+  // 並びは札があふれたときに先に出す順：ケガ → 回復中（鍛えたばかりの順）→ 最後に鍛えた日の新しい順
+  const marked = useMemo(() => {
+    const hurt = (p: PartRecovery) => (hurtOf.get(p.name)?.length ?? 0) > 0;
+    return list.filter((p) => p.last != null || hurt(p))
+      .sort((a, b) => Number(hurt(b)) - Number(hurt(a)) || b.level - a.level || (b.last ?? '').localeCompare(a.last ?? ''));
+  }, [list, hurtOf]);
+  const callouts = useMemo<RecoveryCallout[]>(() => marked.flatMap((p) => {
     const hurt = hurtOf.get(p.name) ?? [];
     const at = recoveryCalloutAnchor(p.name, hurt);
     const lead = leadInjury(hurt);
-    if (!at || (p.level <= 0 && hurt.length === 0)) return [];
+    if (!at) return [];
     return [{
       id: p.name, en: partEnglish(p.name), name: p.name, status: recoveryShortText(p),
       injury: lead ? `▲ ${siteLabel(lead.site, lead.side)}` : null, color: partColor(p, hurt.length > 0),
       anchor: at.anchor, facing: at.facing, hurt: hurt.length > 0, last: p.last ?? '',
     }];
-  }), [list, hurtOf]);
+  }), [marked, hurtOf]);
   const [sel, setSel] = useState<Selection>(null);
   const [all, setAll] = useState(false);
   const part = sel && 'part' in sel ? list.find((p) => p.name === sel.part) ?? null : null;
@@ -92,7 +100,11 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
     idleParts.length > 0 ? `空いている部位、${idleParts.map((p) => `${p.name} ${recoveryStatusText(p)}`).join('、')}` : '',
     injuries.length > 0 ? `直している途中のケガ ${injuries.length}件` : '',
   ].filter(Boolean).join('。');
-  const figure2D = <Recovery2D list={list} injuries={injuries} />;
+  const figure2D = (
+    <View style={s.figures} testID="recovery-2d">
+      <RecoveryFigure2D list={list} injuries={injuries} hurtOf={hurtOf} marked={marked} />
+    </View>
+  );
 
   return (
     <ScanFrame strong style={{ marginTop: space.l, paddingHorizontal: space.l, paddingTop: space.m, paddingBottom: space.s }} testID="recovery-map">
@@ -196,25 +208,9 @@ function meshLabel(mesh: string): string {
   return s ? siteLabel(s.site, s.side) : '肩';
 }
 
-/** 2D の図（前と後ろ）。回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの暖色、空いている・まだの筋肉は灰色、直している途中のケガに赤の印 */
-function Recovery2D({ list, injuries }: { list: PartRecovery[]; injuries: Injury[] }) {
-  const fills = muscleFills(list, recoveryPalette);
-  const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
-  return (
-    <View style={s.figures} testID="recovery-2d">
-      {(['front', 'back'] as const).map((view) => (
-        <View key={view} style={{ alignItems: 'center', gap: space.xs }}>
-          <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={100} height={200} />
-          <Mono>{view === 'front' ? 'FRONT' : 'BACK'}</Mono>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  figures: { flexDirection: 'row', justifyContent: 'center', gap: space.xl, paddingTop: space.m, paddingBottom: space.s },
+  figures: { paddingTop: space.m, paddingBottom: space.s },
   legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.m, rowGap: space.xs },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   swatch: { width: 10, height: 10, borderRadius: 2 },

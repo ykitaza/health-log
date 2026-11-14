@@ -1,10 +1,9 @@
 import {
-  growthCorners, heroPages, heroPhase, initialHeroPage, injuryCorners, keepHeroPage, nextHeroPage, phaseLine, phaseRing, recoveryCorners,
+  growthCorners, heroPages, heroPhase, initialHeroPage, injuryCorners, keepHeroPage, nextHeroPage, phaseLine, phaseRing,
   REVIEW_DUE_DAYS, ringFooter, ringSegment, weekAverageKg,
 } from '../homeHero';
 import { big3Gauge, logGrid, logWeekLabels, logWeekRange } from '../homeHud';
 import type { Phase } from '../phases';
-import type { PartRecovery } from '../recoveryMap';
 import type { TrainingSetRow } from '../training';
 import { addDays } from '../date';
 
@@ -109,9 +108,9 @@ describe('輪', () => {
 });
 
 describe('ページ', () => {
-  test('並び：LATEST → RECOVERY → INJURY（ケガがあるときだけ）→ GROWTH', () => {
-    expect(heroPages(true)).toEqual(['latest', 'recovery', 'injury', 'growth']);
-    expect(heroPages(false)).toEqual(['latest', 'recovery', 'growth']);
+  test('並び：LATEST → INJURY（ケガがあるときだけ）→ GROWTH', () => {
+    expect(heroPages(true)).toEqual(['latest', 'injury', 'growth']);
+    expect(heroPages(false)).toEqual(['latest', 'growth']);
   });
   test('最初のページ：ふだんは LATEST、療養中は INJURY（ケガがなければ LATEST）', () => {
     expect(initialHeroPage(heroPages(true), false)).toBe('latest');
@@ -124,28 +123,10 @@ describe('ページ', () => {
   });
   test('スワイプで隣へ。端では動かない', () => {
     const pages = heroPages(true);
-    expect(nextHeroPage('latest', pages, 'next')).toBe('recovery');
+    expect(nextHeroPage('latest', pages, 'next')).toBe('injury');
     expect(nextHeroPage('growth', pages, 'prev')).toBe('injury');
     expect(nextHeroPage('latest', pages, 'prev')).toBeNull();
     expect(nextHeroPage('growth', pages, 'next')).toBeNull();
-  });
-});
-
-const part = (name: string, remaining: number | null, level = remaining ? 0.5 : 0, idle = false): PartRecovery =>
-  ({ name, last: '2026-11-07', days: idle ? 12 : 1, sets: 3, recoveryDays: 2, remaining, idle, level, meshes: [] });
-
-describe('RECOVERY の四隅', () => {
-  test('鍛えられる（回復中でない）数／全体、次の部位、回復中は残りがいちばん長い部位、ケガの数', () => {
-    const c = recoveryCorners([part('胸', 1, 0.5), part('脚', 2, 0.9), part('背中', null), part('肩', null)], '背中', 2);
-    expect(c).toEqual({ ready: 2, total: 4, next: '背中', nextIdle: null, recovering: { name: '脚', remaining: 2, level: 0.9, more: 1 }, injuries: 2 });
-  });
-  test('空いている部位も鍛えられる数に入れる。次の部位が空いていれば、最後に鍛えてからの日数', () => {
-    const c = recoveryCorners([part('胸', 1, 0.5), part('背中', null, 0, true), part('肩', null)], '背中', 0);
-    expect([c.ready, c.total, c.next, c.nextIdle]).toEqual([2, 3, '背中', 12]);
-    expect(recoveryCorners([part('背中', null, 0, true), part('肩', null)], '肩', 0).nextIdle).toBeNull();
-  });
-  test('回復中がなければ null', () => {
-    expect(recoveryCorners([part('胸', null)], null, 0).recovering).toBeNull();
   });
 });
 

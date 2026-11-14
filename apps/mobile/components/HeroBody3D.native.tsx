@@ -1,5 +1,5 @@
 // ホームのヒーローの INJURY の 3D の体。場面は回復マップ・ケガの画面と同じ（components/bodyScene.ts）。
-// ふだんの緑の体に、直している途中のケガを赤の印と札（INJ-01 ▲）で示す（ケガの画面と同じ形。RECOVERY はその日の体 DayBody の recovery を使う）。札は体が正面を向いたときの位置で止め、線の先だけが部位を追う。
+// ふだんの緑の体に、直している途中のケガを赤の印と札（INJ-01 ▲）で示す（ケガの画面と同じ形）。札は体が正面を向いたときの位置で止め、線の先だけが部位を追う。
 // 回す操作は体の列（rotate）の上だけで受ける。その外の横スワイプは、ヒーローのページの切り替えに渡す
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';

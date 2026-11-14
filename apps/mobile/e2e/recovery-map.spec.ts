@@ -1,9 +1,10 @@
 import { expect, Locator, test } from '@playwright/test';
-import { button, goPane, goTab, moveToDate, openApp, openBody, recordOn, see, swipe, TODAY } from './helpers';
+import { button, goPane, goTab, moveToDate, openApp, openBody, recordOn, see, TODAY } from './helpers';
 
 // からだのタブの回復マップ。web では 3D を出さず、2D の図（前と後ろ）で塗る（Android は 3D と引き出し線の札。実機で見る）。
 // 回復の日数と明るさ・色・部位と部品の対応・札の置き場所は jest（lib/__tests__/recoveryMap.test.ts、bodyScene.test.ts）。
-// ここは、記録がなければ出さないこと、日の切り替えのすぐ下に出ること、一覧（はじめは回復中だけ・すべての部位）と SELECT //
+// ここは、記録がなければ出さないこと、日の切り替えのすぐ下に出ること、図の札（鍛えたことのある部位に、部位と状態）、一覧（はじめは回復中だけ・すべての部位）と SELECT //。
+// ホームの LATEST の体の回復の色と凡例も
 
 const box = async (l: Locator) => (await l.boundingBox())!;
 
@@ -23,6 +24,11 @@ test('記録がなければ出さない。記録したら日の切り替えの�
   await expect(see(card, 'RECOVERY MAP // LIVE')).toBeVisible();
   await expect(card.getByTestId('recovery-legend')).toHaveText('回復済み回復中空いている・まだケガ');
   await expect(card.getByTestId('recovery-2d')).toBeVisible();
+  // 図の札：鍛えたことのある部位に、部位と状態（回復中の胸・空いている脚）。一度も鍛えていない部位には付けない
+  const callouts = card.getByTestId('recovery-callout');
+  await expect(callouts).toHaveCount(2);
+  await expect(callouts.filter({ hasText: '胸' })).toContainText('あと2日');
+  await expect(callouts.filter({ hasText: '脚' })).toContainText('空いて19日');
   await expect(card.getByLabel('回復マップ。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復中の部位、胸 あと2日。空いている部位、脚 空いて19日', { exact: true })).toHaveCount(1);
   // 日の切り替えのすぐ下、体重のカードより上
   const switcher = await box(button(page, '前の日'));
@@ -99,7 +105,7 @@ test('直している途中のケガ：一覧にケガのある部位を出し�
   if (process.env.FIGURE_SHOTS) await hero.locator('..').screenshot({ path: `${process.env.FIGURE_SHOTS}/injury-412.png` });
 });
 
-test('空いている（回復済みの期限を過ぎた）：灰色と「空いて N日」。一覧・すすめ・ホームの NEXT', async ({ page }) => {
+test('空いている（回復済みの期限を過ぎた）：灰色と「空いて N日」。図の札・一覧・すすめ・ホームの LATEST の色', async ({ page }) => {
   test.setTimeout(90_000);
   const shots = process.env.STALE_SHOTS;
   // 脚は 19日前（空いている）、背中は 4日前（回復 3日：回復済み）、胸は昨日（回復中）、ほかは一度もない（まだ）
@@ -115,6 +121,9 @@ test('空いている（回復済みの期限を過ぎた）：灰色と「空�
   await expect(button(card, '背中、4日前、回復済み、2週間で 1セット')).toBeVisible();
   await expect(button(card, '脚、19日前、空いて19日、2週間で 0セット')).toBeVisible();
   await expect(button(card, '肩、まだ鍛えていない、2週間で 0セット')).toBeVisible();
+  // 図の札は回復済みの背中にも（光っているだけでは分からない）
+  await expect(card.getByTestId('recovery-callout')).toHaveCount(3);
+  await expect(card.getByTestId('recovery-callout').filter({ hasText: '背中' })).toContainText('回復済み');
   if (shots) await card.screenshot({ path: `${shots}/stale-body.png` });
 
   // 筋トレの記録（今日は空）：いちばん長く空いている脚をすすめる（日数は 1 回だけ）
@@ -125,12 +134,11 @@ test('空いている（回復済みの期限を過ぎた）：灰色と「空�
   await expect(suggest.getByLabel('今日は 脚 はどう？ 空いて19日', { exact: true })).toHaveText('今日は脚はどう？空いて19日');
   if (shots) await hero.locator('..').screenshot({ path: `${shots}/stale-record.png` });
 
-  // ホームの RECOVERY：READY は空いている・まだも数える（回復中の胸のほか 6）。NEXT は脚で IDLE 19D
+  // ホームの LATEST（直近は昨日の胸）：体は回復の色（RECOVERY のページはない）。読み上げに回復中の胸。凡例を押すと回復マップ
   await goTab(page, 'ホーム');
-  await swipe(page.getByTestId('hero-swipe').filter({ visible: true }), 'next');
-  const next = page.getByTestId('hero-recovery-next').filter({ visible: true });
-  await expect(next).toHaveAccessibleName('次の部位 脚、空いて19日。回復マップを開く');
-  await expect(next).toContainText('IDLE 19D');
-  await expect(page.getByTestId('hero-recovery').filter({ visible: true })).toHaveAccessibleName(/^回復。鍛えられる 6部位（7部位のうち）。次の部位 脚、空いて19日。/);
-  if (shots) await page.getByTestId('hero-recovery-2d').filter({ visible: true }).locator('..').screenshot({ path: `${shots}/stale-home.png` });
+  await expect(page.getByTestId('home-latest').filter({ visible: true })).toHaveAccessibleName(/。回復中 胸 あと2日。その日の記録を開く$/);
+  await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
+  if (shots) await page.getByTestId('home-hero').filter({ visible: true }).screenshot({ path: `${shots}/stale-home.png` });
+  await page.getByTestId('hero-legend').filter({ visible: true }).click();
+  await expect(page.getByTestId('recovery-map').filter({ visible: true })).toBeVisible();
 });
