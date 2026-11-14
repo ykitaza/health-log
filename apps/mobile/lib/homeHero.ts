@@ -1,12 +1,12 @@
-// ホームのヒーロー（刷新 A のその 2）の計算：フェーズの 1 行・外の輪（週）と内の輪（主な指標の進み）・白い線（予定の位置）、
+// ホームのヒーロー（刷新 A のその 2）の計算：フェーズの 1 行・外の輪（16 の目盛り）と内の輪（主な指標の進み）・白い線（予定の位置）、
 // 横スライドのページの並びと最初のページ、RECOVERY・INJURY・GROWTH の四隅。画面（components/HomeHero.tsx）から切り離し、jest で確かめる。
 // フェーズの決まり（何週目・ペース・止まった日）は lib/phases.ts のまま使い、ここで数え方を作り直さない
 import { addDays, DateKey, daysBetween } from './date';
 import { average } from './health';
 import { RESULTS, siteLabel } from './injuries';
 import {
-  currentPhase, DIRECTION_LABELS, PACE_LABELS, PaceStatus, pauses, Phase, PhaseDirection, phaseDay, phaseLabel, phaseProgress, PhaseProgress, planLines,
-  Weight,
+  currentPhase, DIRECTION_LABELS, PACE_LABELS, PaceStatus, pauses, Phase, PhaseDirection, phaseDay, phaseLabel, phaseProgress, PhaseProgress, PhaseTicks,
+  planLines, tickState, Weight,
 } from './phases';
 import { lastEnded } from './phaseReview';
 import type { PartRecovery } from './recoveryMap';
@@ -118,11 +118,9 @@ export function ringFooter(h: HeroPhase): string | null {
 // ---- 輪 ----
 
 export type PhaseRing = {
-  /** 外の輪の区切り（フェーズの週数） */
-  weeks: number;
-  /** 今の週（1 から）。過ぎた週は current より前 */
-  current: number;
-  /** 療養で止めている（過ぎた週を止まった色で塗る） */
+  /** 外の輪の目盛り（16 個。期間に比例して進む。lib/phases.ts の phaseTicks） */
+  ticks: PhaseTicks;
+  /** 療養で止めている（過ぎた目盛りを止まった色で塗る） */
   paused: boolean;
   /** 内の輪：主な指標の進み（0〜1）。増量・減量は体重、維持は期間。出せなければ null */
   inner: number | null;
@@ -144,7 +142,7 @@ function startWeight(p: Phase): number | null {
 }
 
 /**
- * 外の輪（週）と内の輪（主な指標）。フェーズがない・止めたフェーズのない療養なら null（灰色の枠だけ）。
+ * 外の輪（16 の目盛り）と内の輪（主な指標）。フェーズがない・止めたフェーズのない療養なら null（灰色の枠だけ）。
  * 体重の進み＝（今の週平均 − 開始時）÷（目標 − 開始時）、予定の位置＝（今日の予定の値 − 開始時）÷（目標 − 開始時）。
  * 週平均は 7 日の平均（ペースと同じ。ペースが出せなければ直近 7 日の平均）。目標と開始時が同じなら出さない
  */
@@ -152,8 +150,7 @@ export function phaseRing(h: HeroPhase, weights: Weight[], today: DateKey): Phas
   const n = normalPhaseOf(h);
   if (!n) return null;
   const { phase, progress, elapsed } = n;
-  const weeks = progress.weeksTotal ?? progress.week;
-  const base = { weeks, current: Math.min(progress.week, weeks), paused: h.kind === 'rehab' };
+  const base = { ticks: progress.ticks ?? { done: 0, current: 0 }, paused: h.kind === 'rehab' };
   if (phase.direction === 'maintain') return { ...base, inner: elapsed, plan: elapsed, metric: 'time' };
   const start = startWeight(phase);
   const target = phase.targetWeightKg;
@@ -163,16 +160,9 @@ export function phaseRing(h: HeroPhase, weights: Weight[], today: DateKey): Phas
   return { ...base, inner: frac(now), plan: frac(progress.planKg), metric: 'weight' };
 }
 
-/** 外の輪の区切りの間（ラジアン）。区切りの幅に比例させ、週が多くても弧が裏返らないようにする */
-export function ringGap(weeks: number): number {
-  return Math.min(0.05, (2 * Math.PI) / Math.max(1, weeks) * 0.15);
-}
-
-/** 区切り i（0 から）の状態：過ぎた週・今の週・これから */
+/** 外の輪の目盛り i（0 から）の状態：過ぎた・今・これから（フェーズの画面の目盛りと同じ tickState） */
 export function ringSegment(ring: PhaseRing | null, i: number): 'done' | 'current' | 'todo' {
-  if (!ring) return 'todo';
-  if (i < ring.current - 1) return 'done';
-  return i === ring.current - 1 ? 'current' : 'todo';
+  return tickState(ring?.ticks ?? null, i);
 }
 
 // ---- ページ ----

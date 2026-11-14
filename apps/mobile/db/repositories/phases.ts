@@ -1,8 +1,9 @@
-import { addDays, todayKey } from '@/lib/date';
+import { todayKey } from '@/lib/date';
 import { GRAMS_MAX, KCAL_MAX, TARGET_WEIGHT } from '@/lib/meals';
+import { ChangeInput, changeError, changeFields, CorrectInput, correctError, correctFields, PlanFields, startError, targetWeightError } from '@/lib/phaseEdit';
 import {
   currentPhase, endDateFor, Phase, PHASE_DIRECTIONS, PHASE_KINDS, PHASE_LIMITS, PHASE_STATUSES, PhaseDirection, PhaseKind, PhaseMealTargets,
-  PhaseSnapshot, PhaseStatus, TargetChange, weeksTotal,
+  PhaseSnapshot, PhaseStatus, TargetChange,
 } from '@/lib/phases';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
@@ -13,11 +14,12 @@ export class PhaseError extends Error {}
 export type PhaseInput = {
   direction: PhaseDirection;
   name: string;
+  /** 開始日（今日か過去の日。始め忘れたときは過去の日にする） */
   startDate: string;
   weeks: number;
   targetWeightKg: number;
   mealTargets: PhaseMealTargets | null;
-  /** 開始時の記録（体重・体脂肪率・BIG3・成長スコア。画面が今の記録から出して渡す） */
+  /** 開始時の記録（体重・体脂肪率・BIG3・成長スコア。画面が開始日までの記録から出して渡す） */
   snapshot: PhaseSnapshot | null;
 };
 
@@ -96,11 +98,6 @@ function nameError(name: string): string | null {
   return [...name.trim()].length > PHASE_LIMITS.name ? `名前は${PHASE_LIMITS.name}文字までです` : null;
 }
 
-function targetError(kg: number): string | null {
-  return Number.isFinite(kg) && kg >= TARGET_WEIGHT.min && kg <= TARGET_WEIGHT.max
-    ? null : `目標体重は${TARGET_WEIGHT.min}〜${TARGET_WEIGHT.max}kg で入れてください`;
-}
-
 /**
  * フェーズ。アプリだけが書く（MCP は読むだけ）。書き込みはトリガーが outbox に積み、次の同期でサーバーに届く。
  * 1つの操作は1つの行につき1回の UPDATE にする（状態と終えた日、目標と終了日と履歴を同じ変更で送るため。db/syncSpec.ts の together）。
@@ -147,22 +144,13 @@ export function phaseRepository(db: Db, deps: Deps) {
       [status, on, nowIso(), p.id]);
   }
 
-  /** 目標と終了日を変え、変えた日から線を引き直す（同じ日にもう一度変えたら、その日の1件を置き換える） */
-  async function replan(p: Phase, targetWeightKg: number, endDate: string, weightKg: number | null) {
-    if (p.status !== 'active') throw new PhaseError('終えたフェーズは変えられません');
-    const day = today() < p.startDate ? p.startDate : today();
-    const replaced = p.targetHistory.find((c) => c.date === day);
-    const history = p.targetHistory.filter((c) => c.date !== day);
-    // 同じ日に2回変えたとき、線の始まりの体重を渡さなければ、置き換える1件の体重を残す（開始日なら開始時の体重）
-    if (weightKg == null) weightKg = replaced?.weight_kg ?? (day === p.startDate ? p.snapshot?.weight_kg ?? null : null);
-    if (history.length === 0 && day !== p.startDate && p.endDate && p.targetWeightKg != null) {
-      // 前の版の行などで履歴がないときは、最初の線を先に入れる（前の線を薄く残すため）
-      history.push({ date: p.startDate, target_weight_kg: p.targetWeightKg, end_date: p.endDate, weight_kg: p.snapshot?.weight_kg ?? null });
-    }
-    history.push({ date: day, target_weight_kg: targetWeightKg, end_date: endDate, weight_kg: weightKg });
-    if (history.length > PHASE_LIMITS.targetHistory) throw new PhaseError(`目標の変更は${PHASE_LIMITS.targetHistory}回までです`);
-    await db.runAsync('UPDATE phases SET target_weight_kg = ?, end_date = ?, target_history = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-      [targetWeightKg, endDate, JSON.stringify(history), nowIso(), p.id]);
+  /** 計画の項目（開始日・終了日・目標・履歴・開始時の記録）を 1 回の UPDATE で書く（同期の 1 つの変更にする。db/syncSpec.ts の together） */
+  async function writePlan(id: string, f: PlanFields) {
+    await db.runAsync(
+      `UPDATE phases SET start_date = ?, end_date = ?, target_weight_kg = ?, target_history = ?, snapshot = ?, updated_at = ?
+       WHERE id = ? AND deleted_at IS NULL AND status = 'active'`,
+      [f.startDate, f.endDate, f.targetWeightKg, JSON.stringify(f.targetHistory), f.snapshot ? JSON.stringify(f.snapshot) : null, nowIso(), id],
+    );
   }
 
   return serializeWrites(db, {
@@ -176,17 +164,17 @@ export function phaseRepository(db: Db, deps: Deps) {
       return currentPhase(await list(), asOf);
     },
 
-    /** 通常のフェーズを始める（本人の宣言）。実施中のフェーズがあれば断る（先に終えるか中断する）。作った ID を返す */
+    /**
+     * 通常のフェーズを始める（本人の宣言）。開始日は過去の日でもよい（始め忘れ。lib/phaseEdit.ts の startError：今日より後・ほかのフェーズと
+     * 重なる日・終わりが今日より前になる週数は断る）。実施中のフェーズがあれば断る（先に終えるか中断する）。作った ID を返す
+     */
     async start(input: PhaseInput): Promise<string> {
       if (!isOneOf(PHASE_DIRECTIONS, input.direction)) throw new PhaseError('向きを選んでください');
-      if (!isDay(input.startDate)) throw new PhaseError('開始日を選んでください');
-      if (!Number.isInteger(input.weeks) || input.weeks < 1 || input.weeks > PHASE_LIMITS.weeks) {
-        throw new PhaseError(`期間は1〜${PHASE_LIMITS.weeks}週で入れてください`);
-      }
-      const error = targetError(input.targetWeightKg) ?? nameError(input.name) ?? mealTargetsError(input.mealTargets);
+      const phases = await list();
+      const error = startError(phases, today(), input) ?? nameError(input.name) ?? mealTargetsError(input.mealTargets);
       if (error) throw new PhaseError(error);
       const snapshot = cleanSnapshot(input.snapshot);
-      if ((await list()).some((p) => p.status === 'active')) throw new PhaseError('実施中のフェーズがあります。終えるか中断してから始めてください');
+      if (phases.some((p) => p.status === 'active')) throw new PhaseError('実施中のフェーズがあります。終えるか中断してから始めてください');
       await checkCount();
       const endDate = endDateFor(input.startDate, input.weeks);
       const history: TargetChange[] = [{
@@ -233,21 +221,26 @@ export function phaseRepository(db: Db, deps: Deps) {
       });
     },
 
-    /** 目標体重を変える。weightKg は線の始まりの体重（今の週の平均。なければ null で、前の線の今日の値から引く） */
-    async changeTarget(id: string, targetWeightKg: number, weightKg: number | null): Promise<void> {
+    /**
+     * 直す（入れ間違い・始め忘れ）：開始日・期間・目標体重を、最初からこの計画だったことにして書き直す。予定の線は開始日から1本に引き直し
+     * （今までの「計画を変える」の線は消える）、開始日を変えたら開始時の記録も input.snapshot（新しい開始日までの記録から出したもの）にする
+     */
+    async correct(id: string, input: CorrectInput): Promise<void> {
       const p = await mustGet(id, 'normal');
-      const error = targetError(targetWeightKg) ?? (weightKg == null ? null : targetError(weightKg));
+      const phases = await list();
+      const error = correctError(p, phases, today(), input);
       if (error) throw new PhaseError(error);
-      await replan(p, targetWeightKg, p.endDate!, weightKg);
+      await writePlan(id, correctFields(p, { ...input, snapshot: cleanSnapshot(input.snapshot) }));
     },
 
-    /** 延長する（終了日を weeks 週だけ後ろへ）。線は前の線の今日の値から引き直す */
-    async extend(id: string, weeks: number): Promise<void> {
+    /** 計画を変える：目標体重と期間（全体の週数。延ばす・縮める）を変え、今日から線を引き直す（前の線は薄く残る） */
+    async changePlan(id: string, input: ChangeInput): Promise<void> {
       const p = await mustGet(id, 'normal');
-      if (!Number.isInteger(weeks) || weeks < 1 || (weeksTotal(p) ?? 0) + weeks > PHASE_LIMITS.weeks) {
-        throw new PhaseError(`期間は${PHASE_LIMITS.weeks}週までです`);
-      }
-      await replan(p, p.targetWeightKg!, addDays(p.endDate!, weeks * 7), null);
+      const error = changeError(p, await list(), today(), input) ?? (input.weekAvgKg == null ? null : targetWeightError(input.weekAvgKg));
+      if (error) throw new PhaseError(error);
+      const fields = changeFields(p, input, today());
+      if (!fields) throw new PhaseError(`計画の変更は${PHASE_LIMITS.targetHistory}回までです`);
+      await writePlan(id, fields);
     },
 
     /** 食事の目標を変える */
@@ -275,5 +268,5 @@ export function phaseRepository(db: Db, deps: Deps) {
     async abort(id: string): Promise<void> {
       await finish(await mustGet(id), 'aborted');
     },
-  }, ['start', 'startRehab', 'endRehab', 'changeTarget', 'extend', 'setMealTargets', 'rename', 'end', 'abort']);
+  }, ['start', 'startRehab', 'endRehab', 'correct', 'changePlan', 'setMealTargets', 'rename', 'end', 'abort']);
 }

@@ -4,9 +4,11 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleProp, useWindowDimensions, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PHASE_LIMITS } from '@/lib/phases';
+import { addDays, addMonths, DateKey, formatJpDate, MONTH_NAMES_EN, WEEKDAY_EN, weekday, yearMonth } from '@/lib/date';
+import { PHASE_LIMITS, PHASE_TICKS, PhaseTicks, tickState } from '@/lib/phases';
 import { colors } from '@/theme';
 import { Input } from '../Input';
+import { MonthCalendar } from '../MonthCalendar';
 import { PressableScale, Sheet } from '../motion';
 import { hud, HudFonts, Micro, Mono, NotchChip, Panel, useMono } from '../report/hud';
 import { T } from '../Text';
@@ -247,5 +249,119 @@ export function RehabStartSheet({ visible, onClose, title, paused, defaultName =
         <TextButton label="やめる" onPress={onClose} />
       </SheetBody>
     </Sheet>
+  );
+}
+
+/**
+ * 進み具合の目盛り（16 個で決まった数。期間に比例して進む：8 週なら 1 週で 2 つ。lib/phases.ts の phaseTicks）。
+ * 過ぎた目盛りはミント、今の目盛りは明るいミントの枠、これからは灰色。止まっているあいだ（療養）は過ぎた目盛りも灰色。ホームの輪と同じ数え方
+ */
+export function TickBar({ ticks, paused = false, accessibilityLabel, testID }: {
+  ticks: PhaseTicks | null; paused?: boolean; accessibilityLabel: string; testID?: string;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 3 }} accessible accessibilityLabel={accessibilityLabel} testID={testID}>
+      {Array.from({ length: PHASE_TICKS }, (_, i) => {
+        const k = tickState(ticks, i);
+        const bg = k === 'todo' ? hud.barTrack : paused ? hud.faint : k === 'done' ? hud.green : hud.panel2;
+        return (
+          <View key={i} testID={testID ? `${testID}-${k}` : undefined}
+            style={{ flex: 1, height: 10, backgroundColor: bg, borderWidth: k === 'current' ? 1 : 0, borderColor: paused ? hud.muted : hud.green }} />
+        );
+      })}
+    </View>
+  );
+}
+
+/** 2 つの切り替え（編集のシートの「今日から計画を変える」「開始日・最初の計画を直す」）。選んだものはミントの枠と塗り */
+export function ModeTabs<K extends string>({ options, value, onChange }: {
+  options: { key: K; title: string; sub: string }[]; value: K; onChange: (k: K) => void;
+}) {
+  return (
+    <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 6 }}>
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <Pressable key={o.key} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${o.title}。${o.sub}`}
+            onPress={() => onChange(o.key)} style={{ flex: 1 }} testID={`phase-mode-${o.key}`}>
+            <Panel border={on ? hud.green : hud.line} bg={on ? '#0F1C15' : hud.panel2} cut={6} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 2, minHeight: 64 }}>
+              <T bold size={13} color={on ? hud.green : hud.ink}>{o.title}</T>
+              <T size={11} color={hud.muted} style={{ lineHeight: 15 }}>{o.sub}</T>
+            </Panel>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** 四角い小さなボタン（−・＋・‹・›）。押せる大きさは 48 */
+function SquareButton({ label, text, onPress, disabled, testID }: { label: string; text: string; onPress: () => void; disabled?: boolean; testID?: string }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled}
+      onPress={onPress} testID={testID} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.35 : 1 }}>
+      <View style={{ width: 40, height: 40, borderWidth: 1, borderColor: hud.line, backgroundColor: hud.panel2, alignItems: 'center', justifyContent: 'center' }}>
+        <Mono size={16} color={hud.green}>{text}</Mono>
+      </View>
+    </Pressable>
+  );
+}
+
+/** 期間（週）：− と ＋ で 1 週ずつ。まん中は直接入れられる。min〜max の外は押せない */
+export function WeeksStepper({ value, onChange, min, max, testID }: {
+  value: string; onChange: (text: string) => void; min: number; max: number; testID?: string;
+}) {
+  const n = Number(value);
+  const ok = value.trim() !== '' && Number.isInteger(n);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
+      <SquareButton label="期間を1週短くする" text="−" disabled={!ok || n <= min} onPress={() => onChange(String(Math.max(min, n - 1)))} testID={testID ? `${testID}-minus` : undefined} />
+      <NumberField label={`期間（${min}〜${max}週）`} unit="週" value={value} onChange={onChange} keyboardType="number-pad" maxLength={3} testID={testID} />
+      <SquareButton label="期間を1週長くする" text="＋" disabled={!ok || n >= max} onPress={() => onChange(String(Math.min(max, n + 1)))} testID={testID ? `${testID}-plus` : undefined} />
+    </View>
+  );
+}
+
+/**
+ * 日付の欄（フェーズの開始日）：‹ › で 1 日ずつ、「カレンダー」で月のカレンダーを開いて選ぶ。min〜max の外は選べない（max は今日）
+ */
+export function DateField({ label, value, onChange, min, max, testID }: {
+  label: string; value: DateKey; onChange: (d: DateKey) => void; min: DateKey | null; max: DateKey; testID?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(value.slice(0, 7) + '-01');
+  useEffect(() => { if (open) setMonth(value.slice(0, 7) + '-01'); }, [open, value]);
+  const prev = addDays(value, -1);
+  const next = addDays(value, 1);
+  const { year, month: m } = yearMonth(month);
+  const lastMonth = max.slice(0, 7) + '-01';
+  const firstMonth = min ? min.slice(0, 7) + '-01' : null;
+  return (
+    <View style={{ gap: 4 }}>
+      <T size={11.5} color={hud.muted}>{label}</T>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <SquareButton label="1日前にする" text="‹" disabled={min != null && prev < min} onPress={() => onChange(prev)} testID={testID ? `${testID}-prev` : undefined} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label}：${formatJpDate(value)}${value === max ? '（今日）' : ''}。カレンダーで選ぶ`}
+          accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} testID={testID}
+          style={{ flex: 1, minHeight: 48, borderWidth: 1, borderColor: open ? hud.green : hud.line, backgroundColor: hud.panel2, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Mono size={18} color={hud.white}>{value.slice(5).replace('-', '/')}</Mono>
+          <Mono size={11} color={hud.muted}>{WEEKDAY_EN[weekday(value)]}</Mono>
+          <View style={{ flex: 1 }} />
+          <Mono size={10} color={value === max ? hud.green : hud.muted}>{value === max ? 'TODAY' : 'CAL'}</Mono>
+        </Pressable>
+        <SquareButton label="1日後にする" text="›" disabled={next > max} onPress={() => onChange(next)} testID={testID ? `${testID}-next` : undefined} />
+      </View>
+      {open && (
+        <View style={{ borderWidth: 1, borderColor: hud.line2, padding: 8, gap: 6 }} testID={testID ? `${testID}-calendar` : undefined}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <SquareButton label="前の月" text="‹" disabled={firstMonth != null && month <= firstMonth} onPress={() => setMonth(addMonths(month, -1))} />
+            <Mono size={13} color={hud.ink}>{`${MONTH_NAMES_EN[m - 1]} ${year}`}</Mono>
+            <SquareButton label="次の月" text="›" disabled={month >= lastMonth} onPress={() => setMonth(addMonths(month, 1))} />
+          </View>
+          <MonthCalendar year={year} month={m} today={max} marked={new Set()} selected={value} maxDate={max} minDate={min} cell={40}
+            onPressDay={(d) => { onChange(d); setOpen(false); }} />
+        </View>
+      )}
+    </View>
   );
 }

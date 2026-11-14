@@ -46,31 +46,90 @@ describe('フェーズ', () => {
     expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   });
 
-  test('目標を変える・延長すると、目標と終了日と履歴を1つの update で送る（同じ日にもう一度変えたら置き換える）', async () => {
+  test('計画を変える（目標・期間を延ばす・縮める）と、計画の5つの項目を1つの update で送る（同じ日にもう一度変えたら置き換える）', async () => {
     const d = await device();
     const id = await d.r.phases.start(INPUT);
     await d.engine.run();
-    await d.r.phases.changeTarget(id, 78, 73.1);
-    await d.r.phases.changeTarget(id, 77, 73.1);
+    await d.r.phases.changePlan(id, { weeks: 16, targetWeightKg: 78, weekAvgKg: 73.1 });
+    await d.r.phases.changePlan(id, { weeks: 16, targetWeightKg: 77, weekAvgKg: 73.1 });
     d.deps.advance(DAY);
-    await d.r.phases.extend(id, 4);
+    // 期間だけ変える（20 週に延ばす）：線は前の線の今日の値から（体重は入れない）
+    await d.r.phases.changePlan(id, { weeks: 20, targetWeightKg: 77, weekAvgKg: 73.5 });
+    // 縮める（12 週）
+    await d.r.phases.changePlan(id, { weeks: 12, targetWeightKg: 77, weekAvgKg: 73.5 });
     const first = { date: '2026-11-02', target_weight_kg: 80, end_date: '2027-02-21', weight_kg: 72.4 };
+    const second = { date: '2026-11-08', target_weight_kg: 77, end_date: '2027-02-21', weight_kg: 73.1 };
+    const plan = { start_date: '2026-11-02', snapshot: INPUT.snapshot };
     expect(outbox(d)).toEqual([
-      ['phase', 'update', { target_weight_kg: 78, end_date: '2027-02-21', target_history: [first, { date: '2026-11-08', target_weight_kg: 78, end_date: '2027-02-21', weight_kg: 73.1 }] }],
-      ['phase', 'update', { target_weight_kg: 77, end_date: '2027-02-21', target_history: [first, { date: '2026-11-08', target_weight_kg: 77, end_date: '2027-02-21', weight_kg: 73.1 }] }],
-      ['phase', 'update', { target_weight_kg: 77, end_date: '2027-03-21', target_history: [
-        first, { date: '2026-11-08', target_weight_kg: 77, end_date: '2027-02-21', weight_kg: 73.1 },
-        { date: '2026-11-09', target_weight_kg: 77, end_date: '2027-03-21', weight_kg: null },
+      ['phase', 'update', { ...plan, target_weight_kg: 78, end_date: '2027-02-21', target_history: [first, { ...second, target_weight_kg: 78 }] }],
+      ['phase', 'update', { ...plan, target_weight_kg: 77, end_date: '2027-02-21', target_history: [first, second] }],
+      ['phase', 'update', { ...plan, target_weight_kg: 77, end_date: '2027-03-21', target_history: [
+        first, second, { date: '2026-11-09', target_weight_kg: 77, end_date: '2027-03-21', weight_kg: null },
+      ] }],
+      ['phase', 'update', { ...plan, target_weight_kg: 77, end_date: '2027-01-24', target_history: [
+        first, second, { date: '2026-11-09', target_weight_kg: 77, end_date: '2027-01-24', weight_kg: null },
       ] }],
     ]);
     expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   });
 
-  test('開始日に延長・目標を変えても、最初の線の始まりは開始時の体重のまま（予定の線が消えない）', async () => {
+  test('計画を変える：終わりが今日より前になる期間・範囲の外は断る。終えたフェーズは変えられない', async () => {
+    const d = await device();
+    d.deps.advance(14 * DAY); // 11/22。開始（11/2）から 3 週目
+    const id = await d.r.phases.start(INPUT);
+    await expect(d.r.phases.changePlan(id, { weeks: 2, targetWeightKg: 80, weekAvgKg: null })).rejects.toThrow('3週より短くできません');
+    await d.r.phases.changePlan(id, { weeks: 3, targetWeightKg: 80, weekAvgKg: null });
+    expect((await d.r.phases.get(id))!.endDate).toBe('2026-11-22');
+    await expect(d.r.phases.changePlan(id, { weeks: 105, targetWeightKg: 80, weekAvgKg: null })).rejects.toThrow('期間は1〜104週');
+    await expect(d.r.phases.changePlan(id, { weeks: 8, targetWeightKg: 400, weekAvgKg: null })).rejects.toThrow('目標体重は');
+    await d.r.phases.end(id);
+    await expect(d.r.phases.changePlan(id, { weeks: 8, targetWeightKg: 80, weekAvgKg: null })).rejects.toThrow('終えたフェーズは変えられません');
+    await expect(d.r.phases.correct(id, { startDate: '2026-11-02', weeks: 8, targetWeightKg: 80, snapshot: null })).rejects.toThrow('終えたフェーズは変えられません');
+  });
+
+  test('直す：開始日・期間・目標を、開始日から1本の線に引き直す。開始日を変えたら開始時の記録も入れ替え、5つを1つの update で送る', async () => {
     const d = await device();
     const id = await d.r.phases.start({ ...INPUT, startDate: '2026-11-08' });
-    await d.r.phases.extend(id, 4);
-    await d.r.phases.changeTarget(id, 79, null);
+    await d.r.phases.changePlan(id, { weeks: 16, targetWeightKg: 79, weekAvgKg: 72.6 });
+    await d.engine.run();
+    // 始め忘れ：本当は 11/1（先週の日曜）から。開始時の記録は 11/1 までの記録から出したもの
+    const before = { weight_kg: 71.8, body_fat_pct: null, big3: null, growth_score: 40 };
+    await d.r.phases.correct(id, { startDate: '2026-11-01', weeks: 12, targetWeightKg: 78, snapshot: before });
+    const line = { date: '2026-11-01', target_weight_kg: 78, end_date: '2027-01-23', weight_kg: 71.8 };
+    expect(outbox(d)).toEqual([['phase', 'update', {
+      start_date: '2026-11-01', end_date: '2027-01-23', target_weight_kg: 78, target_history: [line], snapshot: before,
+    }]]);
+    // 開始日を変えないで直す：開始時の記録はそのまま（渡したものは使わない）
+    await d.r.phases.correct(id, { startDate: '2026-11-01', weeks: 10, targetWeightKg: 77, snapshot: null });
+    const p = (await d.r.phases.get(id))!;
+    expect(p).toMatchObject({ startDate: '2026-11-01', endDate: '2027-01-09', targetWeightKg: 77, snapshot: before });
+    expect(p.targetHistory).toEqual([{ ...line, target_weight_kg: 77, end_date: '2027-01-09' }]);
+    expect(planValue(p, [], '2026-11-01')).toBe(71.8);
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+  });
+
+  test('開始日の範囲：今日より後・前のフェーズと重なる日は断る（始めるときも直すときも）。終えた日からは始められる', async () => {
+    const d = await device();
+    const old = await d.r.phases.start({ ...INPUT, startDate: '2026-10-01', weeks: 6 });
+    d.deps.advance(-3 * DAY); // 11/5 に終えた
+    await d.r.phases.end(old);
+    d.deps.advance(3 * DAY); // 今日は 11/8
+    await expect(d.r.phases.start({ ...INPUT, startDate: '2026-11-09' })).rejects.toThrow('今日より後にできません');
+    await expect(d.r.phases.start({ ...INPUT, startDate: '2026-11-04' })).rejects.toThrow('前のフェーズを終えた日（11/05）より前にできません');
+    // 終わりが今日より前になる週数は断る（11/5 から 1 週なら 11/11 まで。それより前の日からなら 2 週から）
+    expect(await (await device()).r.phases.start({ ...INPUT, startDate: '2026-11-01', weeks: 1 }).catch((e: Error) => e.message)).toBe('期間は2週より短くできません（終わりが今日より前になります）');
+    const id = await d.r.phases.start({ ...INPUT, startDate: '2026-11-05', weeks: 1 });
+    await expect(d.r.phases.correct(id, { startDate: '2026-11-04', weeks: 2, targetWeightKg: 80, snapshot: null })).rejects.toThrow('11/05');
+    await expect(d.r.phases.correct(id, { startDate: '2026-11-09', weeks: 2, targetWeightKg: 80, snapshot: null })).rejects.toThrow('今日より後');
+    await d.r.phases.correct(id, { startDate: '2026-11-08', weeks: 1, targetWeightKg: 80, snapshot: null });
+    expect((await d.r.phases.get(id))!.startDate).toBe('2026-11-08');
+  });
+
+  test('開始日に計画を変えても、最初の線の始まりは開始時の体重のまま（予定の線が消えない）', async () => {
+    const d = await device();
+    const id = await d.r.phases.start({ ...INPUT, startDate: '2026-11-08' });
+    await d.r.phases.changePlan(id, { weeks: 20, targetWeightKg: 80, weekAvgKg: null });
+    await d.r.phases.changePlan(id, { weeks: 20, targetWeightKg: 79, weekAvgKg: null });
     const p = (await d.r.phases.get(id))!;
     expect(p.targetHistory).toEqual([{ date: '2026-11-08', target_weight_kg: 79, end_date: '2027-03-27', weight_kg: 72.4 }]);
     expect(planValue(p, [], '2026-11-08')).toBe(72.4);

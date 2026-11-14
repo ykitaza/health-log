@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, View } from 'react-native';
 import { MealFields } from '@/components/phase/MealFields';
 import { Sheet } from '@/components/motion';
-import { ChoiceCard, HudButton, HudChip, NumberField, PhaseFrame, PhaseTitle, SheetBody, StepBars, TextButton, TextField } from '@/components/phase/parts';
+import { ChoiceCard, DateField, HudButton, HudChip, NumberField, PhaseFrame, PhaseTitle, SheetBody, StepBars, TextButton, TextField } from '@/components/phase/parts';
 import { hud, Micro, Mono, Panel, StatusRow } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { ConfirmDialog } from '@/components/ui';
@@ -11,11 +11,12 @@ import { PhaseError } from '@/db/repositories/phases';
 import { useBusy } from '@/hooks/busy';
 import { useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { formatMonthDay } from '@/lib/date';
+import { formatJpDate, formatMonthDay } from '@/lib/date';
 import { BIG3_LABELS } from '@/lib/exercises';
-import { loadGrowthData } from '@/lib/growthData';
+import { GrowthData, loadGrowthData } from '@/lib/growthData';
 import { NutritionGoal, TARGET_WEIGHT } from '@/lib/meals';
 import { currentPhase, DIRECTION_LABELS, endDateFor, Phase, PHASE_DIRECTIONS, PHASE_LIMITS, PhaseDirection, PhaseMealTargets, phaseLabel } from '@/lib/phases';
+import { earliestStart, minWeeksFor, startError } from '@/lib/phaseEdit';
 import { cutJustBefore } from '@/lib/phaseReview';
 import {
   autoName, big3Sum, DEFAULT_WEEKS, DIRECTION_CHOICES, DIRECTIONS, initialTarget, MealDraft, mealDraftFromGoal, measuresFrom, parseMealDraft,
@@ -24,13 +25,15 @@ import {
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
 import { colors } from '@/theme';
 
-type Ctx = { unit: WeightUnit; goalKg: number | null; goal: NutritionGoal | null; measures: PhaseMeasures; cut: Phase | null };
+type Ctx = { unit: WeightUnit; goalKg: number | null; goal: NutritionGoal | null; growth: GrowthData; phases: Phase[]; cut: Phase | null };
 const STEPS = 4;
 const STEP_EN = ['01/04 DIRECTION', '02/04 GOAL', '03/04 FUEL', '04/04 BASELINE'];
 
 /**
  * フェーズを始める（オンボーディング。Figma「スタディ：フェーズ」のセクション 2）。
- * 向き → 目標体重と週数（名前は任意）→ 食事の目標（今の目標を取り込んで直す。スキップできる）→ 開始時の記録の確認 → 始める。
+ * 向き → 開始日・目標体重と週数（名前は任意）→ 食事の目標（今の目標を取り込んで直す。スキップできる）→ 開始時の記録の確認 → 始める。
+ * 開始日は今日（初期値）か過去の日（始め忘れ。「先週の日曜から増量していた」）。前のフェーズと重なる日・今日より後は選べない。
+ * 過去の日にしたら、開始時の記録・今の体重・終了日・予定のペースは、その日までの記録とその日からの週数で出す。
  * 自動では始めない（本人が「この内容で始める」を押したときだけ）。「あとで」で何も保存せずに閉じ、様子見のまま戻る。
  * 実施中のフェーズ・療養があるときは、進捗の詳細へ移す。
  * 振り返りの画面の「次のフェーズ」から開くと、向き（direction）と週数（weeks）を選んだ状態で始まる。
@@ -42,6 +45,7 @@ export default function PhaseNewScreen() {
   const params = useLocalSearchParams<{ direction?: string; weeks?: string }>();
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const [step, setStep] = useState(1);
+  const [startDate, setStartDate] = useState(today);
   const [direction, setDirection] = useState<PhaseDirection | null>(null);
   const [target, setTarget] = useState('');
   const [imported, setImported] = useState(false);
@@ -63,7 +67,7 @@ export default function PhaseNewScreen() {
       const [phases, goal, growth] = await Promise.all([repos.phases.list(), repos.meals.getGoal(), loadGrowthData(repos, today)]);
       if (!alive) return;
       if (currentPhase(phases, today).current) { router.replace('/phase'); return; }
-      setCtx({ unit: growth.weightUnit, goalKg: growth.goalWeightKg, goal, measures: measuresFrom(growth, today), cut: cutJustBefore(phases, today) });
+      setCtx({ unit: growth.weightUnit, goalKg: growth.goalWeightKg, goal, growth, phases, cut: cutJustBefore(phases, today) });
       setMeal(mealDraftFromGoal(goal));
     })();
     return () => { alive = false; };
@@ -79,7 +83,11 @@ export default function PhaseNewScreen() {
   }, [step]);
 
   const unit = ctx?.unit ?? 'kg';
-  const nowKg = ctx?.measures.weightKg ?? null;
+  // 開始時の記録（と目標や予定のペースの基準の体重）は、開始日までの記録から出す
+  const measures = useMemo(() => (ctx ? measuresFrom(ctx.growth, startDate) : null), [ctx, startDate]);
+  const nowKg = measures?.weightKg ?? null;
+  const past = startDate < today;
+  const floor = ctx ? earliestStart(ctx.phases) : null;
   const toUnit = (kg: number) => trimNumber(Math.round(kgToUnit(kg, unit) * 10) / 10);
   const fmtW = (kg: number) => `${fmt1(kgToUnit(kg, unit))} ${unit}`;
 
@@ -111,12 +119,21 @@ export default function PhaseNewScreen() {
     setImported(t.imported);
   };
   const editTarget = (text: string) => { setTarget(text); setTargetTouched(true); setImported(false); };
+  // 開始日を変えたら、本人が直していない目標の初期値は、その日の体重から入れ直す（維持は開始日の体重が目標になるため）
+  const changeStart = (d: typeof startDate) => {
+    setStartDate(d);
+    if (targetTouched || !ctx || !direction) return;
+    const t = initialTarget(direction, ctx.goalKg, measuresFrom(ctx.growth, d).weightKg);
+    setTarget(t.kg == null ? '' : toUnit(t.kg));
+    setImported(t.imported);
+  };
 
   const targetNum = parseNumber(target);
   const targetKg = targetNum == null ? null : Math.round(unitToKg(targetNum, unit) * 100) / 100;
   const weeksNum = otherWeeks == null ? weeks : parseNumber(otherWeeks);
-  const weeksOk = weeksNum != null && Number.isInteger(weeksNum) && weeksNum >= 1 && weeksNum <= PHASE_LIMITS.weeks;
-  const endDate = weeksOk ? endDateFor(today, weeksNum) : null;
+  const minWeeks = minWeeksFor(startDate, 0, today);
+  const weeksOk = weeksNum != null && Number.isInteger(weeksNum) && weeksNum >= minWeeks && weeksNum <= PHASE_LIMITS.weeks;
+  const endDate = weeksOk ? endDateFor(startDate, weeksNum) : null;
   const perWeek = weeksOk ? plannedWeeklyKg(nowKg, targetKg, weeksNum) : null;
   const meals = useMemo(() => parseMealDraft(meal), [meal]);
 
@@ -131,7 +148,8 @@ export default function PhaseNewScreen() {
       if (targetKg < TARGET_WEIGHT.min || targetKg > TARGET_WEIGHT.max) {
         setError(`目標体重は${TARGET_WEIGHT.min}〜${TARGET_WEIGHT.max}kg で入れてください`); return;
       }
-      if (!weeksOk) { setError(`期間は1〜${PHASE_LIMITS.weeks}週で入れてください`); return; }
+      const problem = startError(ctx?.phases ?? [], today, { startDate, weeks: weeksNum ?? 0, targetWeightKg: targetKg });
+      if (problem) { setError(problem); return; }
     }
     if (step === 3) {
       if ('error' in meals) { setError(meals.error); return; }
@@ -142,11 +160,11 @@ export default function PhaseNewScreen() {
   const skipMeals = () => { setMealSkipped(true); setError(null); setStep(4); };
 
   const start = () => run(async (stayBusy) => {
-    if (!ctx || !direction || targetKg == null || !weeksOk) return;
+    if (!ctx || !measures || !direction || targetKg == null || !weeksOk) return;
     const mealTargets = mealSkipped || 'error' in meals ? null : meals.value;
     try {
       await repos.phases.start({
-        direction, name, startDate: today, weeks: weeksNum, targetWeightKg: targetKg, mealTargets, snapshot: snapshotOf(ctx.measures),
+        direction, name, startDate, weeks: weeksNum, targetWeightKg: targetKg, mealTargets, snapshot: snapshotOf(measures),
       });
     } catch (e) {
       if (e instanceof PhaseError) { setError(e.message); return; }
@@ -189,14 +207,20 @@ export default function PhaseNewScreen() {
 
       {step === 2 && direction && (
         <View style={{ gap: 10 }}>
-          <PhaseTitle en="GOAL // WEIGHT + WEEKS" title={`${DIRECTION_LABELS[direction]}の目標と期間`} />
+          <PhaseTitle en="GOAL // START + WEIGHT + WEEKS" title={`${DIRECTION_LABELS[direction]}の開始日・目標と期間`} />
+          <DateField label="開始日（始め忘れたら、過去の日にできます）" value={startDate} onChange={changeStart} min={floor} max={today} testID="phase-start-date" />
+          {past && (
+            <T size={11.5} color={hud.muted} testID="phase-start-past">
+              {`${formatJpDate(startDate)}から始めたことにします。開始時の記録はその日までの記録から出し、週はその日から数えます。`}
+            </T>
+          )}
           <NumberField label="目標体重" unit={unit} value={target} onChange={editTarget} testID="phase-target" />
           {imported && <T size={11.5} color={hud.muted}>アカウントの目標体重から取り込みました</T>}
           <Panel bg={hud.panel2} border={hud.line2} cut={6} style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
             <T size={12.5} color={hud.note} style={{ lineHeight: 19 }}>
               {nowKg == null
                 ? '体重の記録がまだありません。開始時の体重がないと、予定の線とペースは出せません（あとで目標を変えると、そのときの体重から線を引きます）。'
-                : `今の体重（${ctx?.measures.weightBasis === 'week' ? '7日平均' : '最新'}）${fmtW(nowKg)}${targetKg != null ? ` から ${signed(kgToUnit(targetKg - nowKg, unit))} ${unit}` : ''}。体脂肪率は目標に入れず、参考として出します。`}
+                : `${past ? `開始日の体重（${formatMonthDay(startDate)}までの` : '今の体重（'}${measures?.weightBasis === 'week' ? '7日平均' : '最新'}）${fmtW(nowKg)}${targetKg != null ? ` から ${signed(kgToUnit(targetKg - nowKg, unit))} ${unit}` : ''}。体脂肪率は目標に入れず、参考として出します。`}
             </T>
           </Panel>
           {targetAgainstDirection(direction, nowKg, targetKg) && (
@@ -212,10 +236,10 @@ export default function PhaseNewScreen() {
             <HudChip label="ほか" selected={otherWeeks != null} onPress={() => setOtherWeeks(otherWeeks ?? String(weeks))} accessibilityLabel="期間 ほかの週数" />
           </View>
           {otherWeeks != null && (
-            <NumberField label={`週数（1〜${PHASE_LIMITS.weeks}）`} unit="週" value={otherWeeks} onChange={setOtherWeeks} keyboardType="number-pad" maxLength={3} testID="phase-weeks" />
+            <NumberField label={`週数（${minWeeks}〜${PHASE_LIMITS.weeks}）`} unit="週" value={otherWeeks} onChange={setOtherWeeks} keyboardType="number-pad" maxLength={3} testID="phase-weeks" />
           )}
           <Panel style={{ paddingHorizontal: 12, paddingVertical: 2 }}>
-            <StatusRow en="END" ja="終了日" value={endDate ? `${formatMonthDay(endDate)}。延長はあとで` : '—'} wide />
+            <StatusRow en="END" ja="終了日" value={endDate ? `${formatMonthDay(endDate)}。あとで変えられます` : '—'} wide />
             <StatusRow en="PLAN" ja="予定のペース（直線）" value={perWeek == null ? '—' : `週 ${signed(kgToUnit(perWeek, unit), 2)} ${unit}`} last wide />
           </Panel>
           <TextField label="名前（なくてもよい）" value={name} onChange={setName} maxLength={PHASE_LIMITS.name} testID="phase-name"
@@ -238,20 +262,21 @@ export default function PhaseNewScreen() {
         </View>
       )}
 
-      {step === 4 && ctx && (
+      {step === 4 && ctx && measures && (
         <View style={{ gap: 10 }}>
-          <PhaseTitle en="BASELINE // AUTO" title="今日の記録を控えます" note="振り返りの before になります。入力はいりません。" />
+          <PhaseTitle en="BASELINE // AUTO" title={past ? `開始日（${formatMonthDay(startDate)}）までの記録を控えます` : '今日の記録を控えます'}
+            note="振り返りの before になります。入力はいりません。" />
           <Panel style={{ paddingHorizontal: 12, paddingVertical: 2 }} testID="phase-snapshot">
-            <StatusRow en="WEIGHT" ja={ctx.measures.weightBasis === 'latest' ? '体重（最新）' : '体重（7日平均）'}
-              value={<Val v={ctx.measures.weightKg == null ? null : fmt1(kgToUnit(ctx.measures.weightKg, unit))} unit={unit} />} />
-            <StatusRow en="BODY FAT" ja="体脂肪率（参考）" value={<Val v={ctx.measures.bodyFatPct == null ? null : fmt1(ctx.measures.bodyFatPct)} unit="%" />} />
-            <StatusRow en="BIG3" ja={`BIG3 推定1RM 合計${big3Detail(ctx.measures, unit)}`}
-              value={<Val v={big3Sum(ctx.measures.big3) == null ? null : fmt1(kgToUnit(big3Sum(ctx.measures.big3)!, unit))} unit={unit} />} />
-            <StatusRow en="SCORE" ja="成長スコア（直近7日）" value={<Val v={ctx.measures.growthScore == null ? null : String(ctx.measures.growthScore)} />} last />
+            <StatusRow en="WEIGHT" ja={measures.weightBasis === 'latest' ? '体重（最新）' : '体重（7日平均）'}
+              value={<Val v={measures.weightKg == null ? null : fmt1(kgToUnit(measures.weightKg, unit))} unit={unit} />} />
+            <StatusRow en="BODY FAT" ja="体脂肪率（参考）" value={<Val v={measures.bodyFatPct == null ? null : fmt1(measures.bodyFatPct)} unit="%" />} />
+            <StatusRow en="BIG3" ja={`BIG3 推定1RM 合計${big3Detail(measures, unit)}`}
+              value={<Val v={big3Sum(measures.big3) == null ? null : fmt1(kgToUnit(big3Sum(measures.big3)!, unit))} unit={unit} />} />
+            <StatusRow en="SCORE" ja="成長スコア（直近7日）" value={<Val v={measures.growthScore == null ? null : String(measures.growthScore)} />} last />
           </Panel>
           <Panel bg={hud.panel2} border={hud.line2} cut={6} style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 2 }}>
             <StatusRow en="PHASE" ja={name.trim() || autoName(direction!, weeksNum ?? weeks)}
-              value={`${formatMonthDay(today)}〜${endDate ? formatMonthDay(endDate) : ''}`} wide />
+              value={`${formatMonthDay(startDate)}〜${endDate ? formatMonthDay(endDate) : ''}`} wide />
             <StatusRow en="GOAL" ja="目標体重" value={targetKg == null ? '—' : fmtW(targetKg)} />
             <StatusRow en="FUEL" ja="食事の目標" value={mealSkipped || 'error' in meals || meals.value == null ? 'なし' : mealLine(meals.value)} last wide />
           </Panel>

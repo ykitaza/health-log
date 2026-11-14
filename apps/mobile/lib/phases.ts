@@ -174,6 +174,33 @@ export function phaseWeek(p: Phase, spans: Span[], asOf: DateKey): number {
   return total ? Math.min(n, total) : n;
 }
 
+/** 進み具合の目盛りの数（ホームの輪・フェーズの画面）。見た目をそろえるため、週の数によらず決まった数にする */
+export const PHASE_TICKS = 16;
+
+/** 目盛りの進み：done は過ぎた目盛りの数、current は今の目盛り（0 から。実際の終わりを過ぎたら null） */
+export type PhaseTicks = { done: number; current: number | null };
+
+/**
+ * 目盛りの進み。期間に比例させる：目盛り i は全体の日数（週数 × 7）の [i/16, (i+1)/16) で、フェーズの時計の今日が入る目盛りが今、
+ * それより前が過ぎた目盛り。8 週なら 1 週で 2 目盛り、16 週なら 1 週で 1 目盛り、24 週なら 1 目盛りが 10.5 日（1.5 週）。
+ * 止まった日（療養）は時計に入らないので進まない。開始日より前は 0、実際の終わりを過ぎたら全部過ぎた（今はない）。
+ * 何週目かの文字（W02/16）は今までどおり週で出す
+ */
+export function phaseTicks(p: Phase, spans: Span[], asOf: DateKey): PhaseTicks {
+  if (p.endDate == null) return { done: 0, current: 0 };
+  const total = daysBetween(p.startDate, p.endDate) + 1;
+  const day = Math.max(0, phaseDay(p, spans, asOf));
+  const i = Math.floor((day * PHASE_TICKS) / total);
+  return i >= PHASE_TICKS ? { done: PHASE_TICKS, current: null } : { done: i, current: i };
+}
+
+/** 目盛り i（0 から）の状態：過ぎた・今・これから。ticks が null（フェーズがない）なら、どれもこれから */
+export function tickState(ticks: PhaseTicks | null, i: number): 'done' | 'current' | 'todo' {
+  if (!ticks) return 'todo';
+  if (i === ticks.current) return 'current';
+  return i < ticks.done ? 'done' : 'todo';
+}
+
 export function remainingDays(p: Phase, spans: Span[], asOf: DateKey): number | null {
   const end = effectiveEnd(p, spans);
   return end == null ? null : Math.max(0, daysBetween(asOf, end));
@@ -313,6 +340,8 @@ export type PhaseProgress = {
   pace: Pace | null;
   /** asOf の予定の体重（0.01kg） */
   planKg: number | null;
+  /** 進み具合の目盛り（16 個。療養は null） */
+  ticks: PhaseTicks | null;
 };
 
 /** asOf の時点の進み具合（サーバーの phase_progress と同じ） */
@@ -322,7 +351,7 @@ export function phaseProgress(p: Phase, phases: Phase[], weights: Weight[], asOf
     const days = Math.max(0, daysBetween(p.startDate, last) + 1);
     return {
       phase: p, asOf, paused: false, week: Math.floor(Math.max(0, days - 1) / 7) + 1, weeksTotal: null, effectiveEnd: null,
-      remainingDays: null, rehabDays: days, pace: null, planKg: null,
+      remainingDays: null, rehabDays: days, pace: null, planKg: null, ticks: null,
     };
   }
   const spans = pauses(p, phases, asOf);
@@ -330,7 +359,7 @@ export function phaseProgress(p: Phase, phases: Phase[], weights: Weight[], asOf
   return {
     phase: p, asOf, paused: isPaused(spans, asOf), week: phaseWeek(p, spans, asOf), weeksTotal: weeksTotal(p),
     effectiveEnd: effectiveEnd(p, spans), remainingDays: remainingDays(p, spans, asOf), rehabDays: pausedDays(spans),
-    pace: phasePace(p, phases, weights, asOf), planKg: plan == null ? null : cents(plan) / 100,
+    pace: phasePace(p, phases, weights, asOf), planKg: plan == null ? null : cents(plan) / 100, ticks: phaseTicks(p, spans, asOf),
   };
 }
 
