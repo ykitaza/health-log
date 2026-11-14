@@ -7,6 +7,7 @@
 // - 予定の線は直線で、目標や終了日を変えたら変えた日から引き直す（targetHistory の1件が1本の線）。線の時刻は止まった日を除いた日数
 // - ペースは今日までの7日（開始より前と止まった日を除く）の体重の平均と、同じ日の予定の値の平均の差。±0.3kg 以内なら順調。
 //   測った日が1日以下・療養で止まっている・療養から戻って14日は判定しない
+import { big3TotalOf, Big3Values } from './big3';
 import { addDays, DateKey, daysBetween } from './date';
 
 export type PhaseKind = 'normal' | 'rehab';
@@ -414,9 +415,14 @@ export type SuccessNow = {
 /** BIG3 の合計。開始時と今の両方に値がある役だけを足す（片方にしかない役で増減が出ないように）。ホームの BIG3 の Δ PHASE でも使う */
 export function big3Totals(start: PhaseSnapshot['big3'], now: SuccessNow['big3']): [number, number] | null {
   if (!start || !now) return null;
-  const roles = (['bench', 'squat', 'deadlift'] as const).filter((r) => start[r] != null && now[r] != null);
-  if (roles.length === 0) return null;
-  return [roles.reduce((s, r) => s + start[r]!, 0), roles.reduce((s, r) => s + now[r]!, 0)];
+  const both = (v: Big3Values): Big3Values => ({
+    bench: start.bench != null && now.bench != null ? v.bench : null,
+    squat: start.squat != null && now.squat != null ? v.squat : null,
+    deadlift: start.deadlift != null && now.deadlift != null ? v.deadlift : null,
+  });
+  const s0 = big3TotalOf(both(start), 'present');
+  const s1 = big3TotalOf(both(now), 'present');
+  return s0 == null || s1 == null ? null : [s0, s1];
 }
 
 const round1 = (x: number) => Math.round(x * 10) / 10;

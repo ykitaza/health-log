@@ -5,7 +5,7 @@ import { BIG3_LABELS, BIG3_ROLES, Big3Role } from './exercises';
 import { GrowthScore, longestTrainingStreak, PersonalBestEvent, personalBestEvents, ScoreDetail, WeekScore } from './growth';
 import { formatMinutes } from './health';
 import { BALANCE_PARTS, PartBalance } from './partBalance';
-import { exerciseDailySeries, setVolume, trainingDates, TrainingSetRow, vehicleRatio } from './training';
+import { big3Series, bestIn, setVolume, trainingDates, TrainingSetRow, vehicleRatio } from './training';
 import { fmt1, kgToUnit, trimNumber, WeightUnit } from './units';
 
 /** 見出しの下の1行（「始めたとき（6月7日）→ 今日（11月11日）・158日」）。記録がなければ null */
@@ -80,13 +80,12 @@ export type Big3Growth = {
  */
 export function big3Growth(sets: TrainingSetRow[], big3: Partial<Record<Big3Role, string>>, today: DateKey): Big3Growth[] {
   const out: Big3Growth[] = [];
+  const all = big3Series(sets, big3, today);
   for (const role of BIG3_ROLES) {
-    const id = big3[role];
-    if (!id) continue;
-    const series = exerciseDailySeries(sets, id).filter((p) => p.max1RM > 0 && p.date <= today);
+    const series = all[role];
     if (series.length === 0) continue;
     const startKg = series[0].max1RM;
-    const nowKg = Math.max(...series.map((p) => p.max1RM));
+    const nowKg = bestIn(series, today)!;
     out.push({
       role, name: BIG3_LABELS[role], startDate: series[0].date, startKg, nowKg,
       pct: startKg > 0 ? Math.round(((nowKg - startKg) / startKg) * 100) : null,

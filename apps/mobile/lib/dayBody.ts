@@ -1,6 +1,5 @@
 // その日の体（3D の体と種目の札 EX-01〜）の札の置き場所と、記録から札を作るところ、光らせ方。ホームの LATEST と、筋トレの記録の画面で使う。
 // three.js は読まない（jest で確かめる）
-import { colors } from '@/theme';
 import { boxOf, projectFront, Vec3 } from './bodyModel';
 import { calloutSet } from './dayCallouts';
 import { recoveryAnchor, recoveryMeshesFor } from './recoveryMap';
@@ -15,9 +14,6 @@ export function dayBodyEntries(entries: { id: string; exerciseName: string; body
     parts: dayFocus(list).names,
   };
 }
-
-/** 鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑） */
-export const TRAINED_GLOW = colors.onAccentDark;
 
 /**
  * 3D の体の光らせ方。parts（その日・前回の部位）の部品は明るさ 1（ミント）、recovery（部品ごとの回復の明るさ。lib/recoveryMap.ts の recoveryLevels）が

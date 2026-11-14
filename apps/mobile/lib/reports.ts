@@ -2,12 +2,13 @@
 // 同期で受け取るだけで、アプリからは読むのと消すのだけ。本文（Markdown）はモデルが書いた文なので、
 // 文字として表示するだけにする（HTML やリンクを開かない。下の parseMarkdown は見出し・箇条書き・太字・段落だけを見分ける）。
 // 端末の値はサーバーで確かめたものだが、前の版や壊れた値でも画面が落ちないよう、読むときにもう一度形を確かめる
+import { big3TotalOf } from './big3';
 import { movingAverage } from './body';
 import { addDays, addMonths, DateKey, daysBetween, formatJpDate, formatMonthDay, toDateKey } from './date';
 import { tonnes } from './format';
 import { DailyAchievement, GoalStreak, weekOf, WeeklyAchievement } from './goals';
 import { formatHM } from './health';
-import { estimated1RM, TrainingSetRow } from './training';
+import { big3Series, bestIn, TrainingSetRow } from './training';
 import { fmtInt, WeightUnit } from './units';
 
 export type Tone = 'good' | 'steady' | 'caution';
@@ -545,19 +546,13 @@ export type Big3Lifts = { squat: string; bench: string; deadlift: string };
 
 /**
  * BIG3 の合計（それぞれの期間の中の推定1RMのいちばん高い値を足したもの、kg）と、前の同じ長さの期間からの変化。
- * 割り当てがない、または期間にどれかの記録がなければ null（タイルを出さない）。前の期間にどれかがなければ delta は null
+ * 割り当てがない、または期間にどれかの記録がなければ null（タイルを出さない。lib/big3.ts の big3TotalOf の all）。前の期間にどれかがなければ delta は null
  */
 export function big3Total(sets: TrainingSetRow[], lifts: Big3Lifts | null, start: DateKey, end: DateKey): { totalKg: number; deltaKg: number | null } | null {
   if (!lifts) return null;
-  const sum = (from: DateKey, to: DateKey) => {
-    let total = 0;
-    for (const id of [lifts.squat, lifts.bench, lifts.deadlift]) {
-      const best = Math.max(0, ...sets.filter((r) => r.exerciseId === id && r.date >= from && r.date <= to).map((r) => estimated1RM(r.weightKg, r.reps)));
-      if (best <= 0) return null;
-      total += best;
-    }
-    return total;
-  };
+  const series = big3Series(sets, lifts, end);
+  const sum = (from: DateKey, to: DateKey) =>
+    big3TotalOf({ bench: bestIn(series.bench, to, from), squat: bestIn(series.squat, to, from), deadlift: bestIn(series.deadlift, to, from) }, 'all');
   const now = sum(start, end);
   if (now == null) return null;
   const length = daysBetween(start, end) + 1;

@@ -20,7 +20,7 @@ import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, PartRecovery, recoveryColor } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, hudColors, size, space } from '@/theme';
+import { colors, hudColors, recoveryPalette, size, space } from '@/theme';
 import { DayBody } from './DayBody';
 import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { usePageSlide } from './DayPicker';
@@ -363,7 +363,7 @@ function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
         <Corner align="right" label="NEXT //" value={c.next ?? '—'} sub={!c.next ? undefined : c.nextIdle != null ? `IDLE ${c.nextIdle}D` : 'RECOVERED'} />
       </CornerButton>
       <CornerButton at="bl" label={`${rec ? `回復中 ${rec.name} あと${rec.remaining}日` : '回復中の部位はありません'}。回復マップを開く`} testID="hero-recovery-recovering" onPress={openRecoveryMap}>
-        <Corner align="left" label="RECOVERING" value={rec?.name ?? '—'} valueColor={rec ? recoveryColor(rec.level) : colors.text}
+        <Corner align="left" label="RECOVERING" value={rec?.name ?? '—'} valueColor={rec ? recoveryColor(rec.level, recoveryPalette) : colors.text}
           sub={rec ? `${rec.remaining}D LEFT${rec.more > 0 ? ` +${rec.more}` : ''}` : 'ALL READY'} />
       </CornerButton>
       <CornerButton at="br" label={`直している途中のケガ ${c.injuries}件。ケガの一覧を開く`} testID="hero-recovery-injury" onPress={openInjuries}>

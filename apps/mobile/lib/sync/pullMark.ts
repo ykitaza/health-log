@@ -3,7 +3,6 @@
  * （lib/__tests__/pull-mark.test.ts）。関数は worklet で、components/PullMark.tsx の useAnimatedStyle・useAnimatedProps から呼ぶ。
  * 形はアプリのアイコン（assets/icon-src/icon.svg）と同じ path。座標もアイコンのまま（viewBox で切り出す）
  */
-import { duration } from '@/theme/motion';
 
 /** K の線（名前は前のマークの h のまま） */
 export const MARK_H_PATH = 'M330 250 V774 M570 250 L350 515 L570 774';
@@ -67,9 +66,10 @@ export function pulseLoopOffset(t: number): number {
 
 /**
  * 動き方。動きを減らす設定なら、線を描く・光る・はずむ動きはせず、マークを出して消すだけ（長さ 0）。
- * 出る 250ms（ease-out）、消える 150ms（ease-in、小さくなりながら）。はずむのは出るときだけ
+ * 出る duration.enter（250ms、ease-out）、消える duration.exit（150ms、ease-in、小さくなりながら）。はずむのは出るときだけ。
+ * 長さは theme/motion の duration を画面から渡す（lib は theme を読まない）
  */
-export function pullMarkMotion(reduced: boolean) {
+export function pullMarkMotion(reduced: boolean, duration: { enter: number; exit: number }) {
   return reduced
     ? { enterMs: 0, exitMs: 0, loop: false, pop: false }
     : { enterMs: duration.enter, exitMs: duration.exit, loop: true, pop: true };

@@ -8,9 +8,9 @@ import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
-import { dayBodyCallouts, dayBodyGlow, TRAINED_GLOW } from '@/lib/dayBody';
-import { IDLE_GRAY, INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
-import { colors } from '@/theme';
+import { dayBodyCallouts, dayBodyGlow } from '@/lib/dayBody';
+import { INJURY_RED, recoveryColor } from '@/lib/recoveryMap';
+import { colors, recoveryPalette, TRAINED_GLOW } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
 import type { DayBody3DProps } from './DayBody3D';
@@ -44,8 +44,8 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
     const tipMarks: Mark[] = layout.placed.map((p) => ({ id: p.key, parts: [], anchor: p.anchor, facing: p.facing, fixing: false }));
     scene.configure({
       marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
-      baseColor: REST_GREEN, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k) : TRAINED_GLOW), injuryColor: INJURY_RED,
-      idle, idleColor: IDLE_GRAY,
+      baseColor: recoveryPalette.rest, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k, recoveryPalette) : TRAINED_GLOW), injuryColor: INJURY_RED,
+      idle, idleColor: recoveryPalette.idle,
     });
   }, [scene, reduced, layout, glow, idle, marks, tips]);
   const tags = (

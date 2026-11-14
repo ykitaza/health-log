@@ -6,12 +6,14 @@ import { ALL_PARTS, anchorFor, boxOf, jointAnchor, layoutCallouts, projectFront 
 import { muscleFigureFor } from '@/lib/muscleFigure';
 import { contrastRatio } from '@/lib/contrast';
 import {
-  DEFAULT_RECOVERY_DAYS, fixingOn, IDLE_AFTER_DAYS, IDLE_FILL, IDLE_GRAY, idleMeshes, INJURY_RED, injuriesForPart, isIdle, leadInjury, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
+  DEFAULT_RECOVERY_DAYS, fixingOn, IDLE_AFTER_DAYS, idleMeshes, INJURY_RED, injuriesForPart, isIdle, leadInjury, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
   recoveryAnchor, recoveryCalloutAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryShortText,
-  recoveryStatusText, remainingDays, restColor, REST_FILL, REST_GREEN, suggestRecovered,
+  recoveryStatusText, remainingDays, restColor, suggestRecovered,
 } from '@/lib/recoveryMap';
-import { colors, toneColors } from '@/theme';
+import { colors, figureColors, recoveryPalette, toneColors } from '@/theme';
 import type { TrainingSetRow } from '@/lib/training';
+
+const { rest: REST_GREEN, restFill: REST_FILL, idle: IDLE_GRAY, idleFill: IDLE_FILL } = recoveryPalette;
 
 /** GLB の部品の名前（皮膚を除く） */
 function glbParts(): string[] {
@@ -295,25 +297,33 @@ describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () 
   };
 
   test('明るさ 0 は回復済みの緑（アプリのアクセント）、0.25 は黄、0.75 からは橙', () => {
-    expect(recoveryColor(0)).toBe(REST_GREEN);
+    expect(recoveryColor(0, recoveryPalette)).toBe(REST_GREEN);
     expect(REST_GREEN).toBe(colors.accent);
-    expect(recoveryColor(-1)).toBe(REST_GREEN);
-    expect(recoveryColor(0.25)).toBe(LOAD_YELLOW);
-    expect(recoveryColor(0.75)).toBe(LOAD_ORANGE);
-    expect(recoveryColor(1)).toBe(LOAD_ORANGE);
+    expect(recoveryColor(-1, recoveryPalette)).toBe(REST_GREEN);
+    expect(recoveryColor(0.25, recoveryPalette)).toBe(LOAD_YELLOW);
+    expect(recoveryColor(0.75, recoveryPalette)).toBe(LOAD_ORANGE);
+    expect(recoveryColor(1, recoveryPalette)).toBe(LOAD_ORANGE);
+  });
+
+  test('色の値をテーマから渡すようにしても、前と同じ色（イシュー #213 の M3・A7。寄せる前の recoveryColor の値）', () => {
+    const before: [number, string][] = [
+      [0, '#5BE49B'], [0.12, '#8AEC53'], [0.25, '#F5C94A'], [1 / 3, '#F7C048'], [0.5, '#FAAB44'], [2 / 3, '#FD963F'], [0.75, '#FF8A3D'], [1, '#FF8A3D'],
+    ];
+    for (const [k, c] of before) expect(recoveryColor(k, recoveryPalette)).toBe(c);
+    expect([REST_FILL, IDLE_GRAY, IDLE_FILL]).toEqual([colors.accentMuted, colors.outline, figureColors.muscle]);
   });
 
   test('回復中の色は、鍛えた日ほど橙（色相が小さい）、回復が近いほど黄。間は濁らない（鮮やかさ 70% 以上）', () => {
     for (const R of [1, 2, 3]) {
-      const hues = Array.from({ length: R + 1 }, (_, d) => hsl(recoveryColor(recoveryLevel(d, R))));
+      const hues = Array.from({ length: R + 1 }, (_, d) => hsl(recoveryColor(recoveryLevel(d, R), recoveryPalette)));
       for (const c of hues) { expect(c.s).toBeGreaterThan(0.7); expect(c.h).toBeLessThanOrEqual(50); }
       for (let i = 1; i < hues.length; i++) expect(hues[i].h).toBeGreaterThanOrEqual(hues[i - 1].h);
     }
     // 胸（R=2）：鍛えた日と翌日は橙寄り（色相 35 未満）、2日目は黄寄り
-    expect(hsl(recoveryColor(recoveryLevel(1, 2))).h).toBeLessThan(35);
-    expect(hsl(recoveryColor(recoveryLevel(2, 2))).h).toBeGreaterThan(38);
+    expect(hsl(recoveryColor(recoveryLevel(1, 2), recoveryPalette)).h).toBeLessThan(35);
+    expect(hsl(recoveryColor(recoveryLevel(2, 2), recoveryPalette)).h).toBeGreaterThan(38);
     // 緑と黄の間（理屈の上だけの明るさ）も、色相を回すので濁らない
-    expect(hsl(recoveryColor(0.12)).s).toBeGreaterThan(0.6);
+    expect(hsl(recoveryColor(0.12, recoveryPalette)).s).toBeGreaterThan(0.6);
   });
 
   test('ケガの赤は橙・ケガの画面の琥珀色と別の色。文字に使う色はカードと画面の背景に 4.5:1 以上', () => {
@@ -329,7 +339,7 @@ describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () 
     expect(recoveryMusclesFor('脚')).toEqual(['quads', 'hamstrings', 'glutes', 'calves', 'shins']);
     expect(recoveryMusclesFor('上腕三頭筋')).toEqual(['triceps', 'forearm']);
     expect(recoveryMusclesFor('肩')).toEqual(['deltoid']);
-    const fills = muscleFills(partRecoveries([row('2026-11-13', 'tri'), row('2026-11-13', 'l')], name, ['上腕三頭筋', '上腕二頭筋', '脚'], '2026-11-13'));
+    const fills = muscleFills(partRecoveries([row('2026-11-13', 'tri'), row('2026-11-13', 'l')], name, ['上腕三頭筋', '上腕二頭筋', '脚'], '2026-11-13'), recoveryPalette);
     expect([fills.triceps, fills.hamstrings, fills.calves]).toEqual([LOAD_ORANGE, LOAD_ORANGE, LOAD_ORANGE]);
     // 二頭筋（まだ）は灰色
     expect(fills.biceps).toBe(IDLE_FILL);
@@ -338,7 +348,7 @@ describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () 
   test('2D の図：回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの色、空いている・まだの筋肉は灰色（2D の図の対応で）', () => {
     // 胸は今日（回復中）、脚は 11-09（回復済み）、肩は 10-01（空いている）、背中は一度もない
     const list = partRecoveries([row('2026-11-13', 'c'), row('2026-11-09', 'l'), row('2026-10-01', 's')], name, ['胸', '脚', '肩', '背中'], '2026-11-13');
-    const fills = muscleFills(list);
+    const fills = muscleFills(list, recoveryPalette);
     expect(fills.pecs).toBe(LOAD_ORANGE);
     expect(fills.quads).toBe(REST_FILL);
     expect(fills.deltoid).toBe(IDLE_FILL);
@@ -352,7 +362,7 @@ describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () 
   test('いくつかの部位にある筋肉・部品（前腕）：回復中 → 回復済み → 空いている・まだの順に先', () => {
     // 二頭筋は 11-10（回復済み）、三頭筋は 10-01（空いている）
     const list = partRecoveries([row('2026-11-10', 'bi'), row('2026-10-01', 'tri')], name, ['上腕二頭筋', '上腕三頭筋'], '2026-11-13');
-    const fills = muscleFills(list);
+    const fills = muscleFills(list, recoveryPalette);
     expect([fills.forearm, fills.biceps, fills.triceps]).toEqual([REST_FILL, REST_FILL, IDLE_FILL]);
     // 3D：前腕は回復済みの二頭筋にもあるので灰色にしない
     expect(idleMeshes(list).sort()).toEqual(['triceps_l', 'triceps_r']);
@@ -363,8 +373,8 @@ describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () 
   test('空いている・まだの色は色相のない灰色（色相は増やさない）。回復済みの緑と別', () => {
     expect(hsl(IDLE_GRAY).s).toBeLessThan(0.15);
     expect(hsl(IDLE_FILL).s).toBeLessThan(0.15);
-    expect(restColor({ last: '2026-11-10', idle: false })).toBe(REST_GREEN);
-    expect(restColor({ last: '2026-10-01', idle: true })).toBe(IDLE_GRAY);
-    expect(restColor({ last: null, idle: false })).toBe(IDLE_GRAY);
+    expect(restColor({ last: '2026-11-10', idle: false }, recoveryPalette)).toBe(REST_GREEN);
+    expect(restColor({ last: '2026-10-01', idle: true }, recoveryPalette)).toBe(IDLE_GRAY);
+    expect(restColor({ last: null, idle: false }, recoveryPalette)).toBe(IDLE_GRAY);
   });
 });

@@ -1,4 +1,5 @@
 import { addDays, daysBetween, DateKey, weekStart, yearMonth, addMonths } from './date';
+import { big3TotalOf } from './big3';
 import { BIG3_LABELS, type Big3Role } from './exercises';
 import type { SetInput } from './sets';
 import { parseNumber } from './units';
@@ -310,38 +311,38 @@ export type Big3Trend = {
 };
 
 /**
+ * BIG3 の役ごとの日ごとの推定1RM（exerciseDailySeries）。割り当てがない役は空。推定1RM の出ない日と today より後の日は入れない。
+ * BIG3 の合計・役ごとの最高を出すところ（big3Trend・big3Growth・big3Best・big3Total）はすべてこれを使う
+ */
+export function big3Series(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey): Record<Big3Role, DailyPoint[]> {
+  const of = (id: string | undefined) => (id ? exerciseDailySeries(rows, id).filter((p) => p.max1RM > 0 && p.date <= today) : []);
+  return { bench: of(assignments.bench), squat: of(assignments.squat), deadlift: of(assignments.deadlift) };
+}
+
+/** 日ごとの推定1RM の、from〜to（両端を含む。from が null なら to まで全部）の最高。丸めない。なければ null */
+export function bestIn(series: DailyPoint[], to: DateKey, from: DateKey | null = null): number | null {
+  let best: number | null = null;
+  for (const p of series) if (p.date <= to && (from == null || p.date >= from) && (best == null || p.max1RM > best)) best = p.max1RM;
+  return best;
+}
+
+/**
  * BIG3 の推定1RM の合計。役ごとに、その日までの最高の推定1RM（estimated1RM）を出し、記録がある役だけの和を合計とする
- * （割り当てがない・記録がない役は 0 として足す。どの役にも記録がない日は合計なし）。
+ * （割り当てがない・記録がない役は 0 として足す。どの役にも記録がない日は合計なし。lib/big3.ts の big3TotalOf の present）。
  * 推移は from〜today（3か月など）。from より前の記録も「その日までの最高」には入る
  */
 export function big3Trend(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey, from: DateKey): Big3Trend {
   const roles: Big3Role[] = ['bench', 'squat', 'deadlift'];
-  const series = new Map(roles.map((role) => {
-    const id = assignments[role];
-    return [role, id ? exerciseDailySeries(rows, id).filter((p) => p.max1RM > 0 && p.date <= today) : []];
-  }));
-  const bestUpTo = (role: Big3Role, d: DateKey): number | null => {
-    let best: number | null = null;
-    for (const p of series.get(role)!) if (p.date <= d && (best == null || p.max1RM > best)) best = p.max1RM;
-    return best;
-  };
-  const sumAt = (d: DateKey): number | null => {
-    let sum = 0;
-    let count = 0;
-    for (const role of roles) {
-      const v = bestUpTo(role, d);
-      if (v == null) continue;
-      sum += v;
-      count += 1;
-    }
-    return count === 0 ? null : sum;
-  };
+  const series = big3Series(rows, assignments, today);
+  const bestUpTo = (role: Big3Role, d: DateKey): number | null => bestIn(series[role], d);
+  const sumAt = (d: DateKey): number | null =>
+    big3TotalOf({ bench: bestUpTo('bench', d), squat: bestUpTo('squat', d), deadlift: bestUpTo('deadlift', d) }, 'present');
   const monthAgo = addMonths(today, -1);
   const lifts = roles.map((role) => ({
     role, exerciseId: assignments[role] ?? null, current: bestUpTo(role, today), monthAgo: bestUpTo(role, monthAgo),
   }));
   const dates = new Set<DateKey>([from, today]);
-  for (const role of roles) for (const p of series.get(role)!) if (p.date > from) dates.add(p.date);
+  for (const role of roles) for (const p of series[role]) if (p.date > from) dates.add(p.date);
   const points: { date: DateKey; total: number }[] = [];
   for (const d of [...dates].sort()) {
     const total = sumAt(d);
