@@ -13,7 +13,7 @@ scope は筋トレと同じ torelog-api/training.read・training.write（レポ�
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import AfterValidator, Field
 
@@ -35,6 +35,10 @@ from reports.domain.report import (
     MAX_REVIEW_TEXT,
     MAX_TITLE,
     MAX_UNIT,
+    AreaName,
+    KindName,
+    ReviewTargetName,
+    ToneName,
     encoded_size,
 )
 from sync.fields import Day, FieldsModel, Ref
@@ -57,7 +61,6 @@ def _sorted_unique(done: list[int]) -> list[int]:
     return done
 
 
-Tone = Literal["good", "steady", "caution"]
 Number = Annotated[float, Field(ge=-MAX_METRIC_VALUE, le=MAX_METRIC_VALUE)]
 
 
@@ -70,13 +73,10 @@ class MetricFields(FieldsModel):
 
 
 class HighlightFields(FieldsModel):
-    area: Literal["training", "meals", "body", "sleep"]
-    tone: Tone
+    area: AreaName
+    tone: ToneName
     text: Annotated[str, Field(min_length=1, max_length=MAX_HIGHLIGHT_TEXT), AfterValidator(_not_blank)]
     metric: MetricFields | None = None
-
-
-AreaName = Literal["training", "meals", "body", "sleep"]
 
 
 class LinkFields(FieldsModel):
@@ -88,16 +88,16 @@ class LinkFields(FieldsModel):
 
 class ReviewFields(FieldsModel):
     text: Annotated[str, Field(min_length=1, max_length=MAX_REVIEW_TEXT), AfterValidator(_not_blank)]
-    target: Literal["meals_goal"] | None = None
+    target: ReviewTargetName | None = None
 
 
 class ReportFields(FieldsModel):
     title: Annotated[str, Field(min_length=1, max_length=MAX_TITLE), AfterValidator(_not_blank)] = None
     body: Annotated[str, Field(max_length=MAX_BODY)] = None  # Markdown。アプリは文字として表示するだけ
-    kind: Literal["daily", "weekly", "monthly", "phase", "other"] = None
+    kind: KindName = None
     period_start: Day | None = None
     period_end: Day | None = None
-    overall_tone: Tone | None = None
+    overall_tone: ToneName | None = None
     headline: Annotated[str, Field(max_length=MAX_HEADLINE)] = None
     highlights: Annotated[list[HighlightFields], Field(max_length=MAX_HIGHLIGHTS)] = None
     next_steps: Annotated[list[Annotated[str, Field(min_length=1, max_length=MAX_NEXT_STEP_TEXT),
