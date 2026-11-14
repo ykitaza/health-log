@@ -79,8 +79,11 @@ function Big({ value, format, unit, testID }: { value: number | null; format: (v
 const trendColor = (n: number) => (n > 0 ? colors.accent : n < 0 ? colors.danger : colors.sub);
 const big3Short = { bench: 'B', squat: 'S', deadlift: 'D' } as const;
 
-/** BIG3：今の合計（推定1RM）、差（フェーズ実施中は開始から Δ PHASE、ほかは 28 日前から）、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移の BIG3 */
-export function Big3Panel({ gauge, unit, ready }: { gauge: Big3Gauge | null; unit: WeightUnit; ready: boolean }) {
+/** 行き先の画面（筋トレの推移・睡眠の推移・食事のタブ）にも同じ計器を置く。そのときは link を false にして押せなくし、testID をほかにする（ほかのタブも DOM に残るため） */
+type Placement = { link?: boolean; testID?: string };
+
+/** BIG3：今の合計（推定1RM）、差（フェーズ実施中は開始から Δ PHASE、ほかは 28 日前から）、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移の、同じカードと BIG3 のグラフ */
+export function Big3Panel({ gauge, unit, ready, link = true, testID = 'home-big3' }: { gauge: Big3Gauge | null; unit: WeightUnit; ready: boolean } & Placement) {
   const [w, setW] = useState(0);
   const u = (kg: number) => kgToUnit(kg, unit);
   const max = gauge ? Math.max(...gauge.lifts.map((l) => l.kg ?? 0)) : 0;
@@ -93,8 +96,8 @@ export function Big3Panel({ gauge, unit, ready }: { gauge: Big3Gauge | null; uni
       gauge.lifts.map((l) => `${BIG3_LABELS[l.role]} ${l.kg == null ? 'まだ' : `${fmt1(u(l.kg))}${unit}`}`).join('、'),
     ].filter(Boolean).join('。');
   return (
-    <Panel testID="home-big3" label={`${label}。筋トレの推移を開く`} style={s.gauge}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } })}>
+    <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
+      onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } }) : undefined}>
       <Head left="BIG3" />
       <Big value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} unit={unit.toUpperCase()} />
       {gauge?.deltaKg != null
@@ -147,15 +150,17 @@ function DayLetters({ dates, today }: { dates: DateKey[]; today: DateKey }) {
 
 const BAR_H = 34;
 
-/** LOAD：今週の合計負荷量、今週 7 日の棒と、先週の日ごとの破線の枠、先週の同じ曜日までとの比。押すと筋トレの推移の総負荷量を日ごとで（今週と先週の日ごとの棒がある） */
-export function LoadPanel({ gauge, dates, today, unit, ready }: { gauge: LoadGauge; dates: DateKey[]; today: DateKey; unit: WeightUnit; ready: boolean }) {
+/** LOAD：今週の合計負荷量、今週 7 日の棒と、先週の日ごとの破線の枠、先週の同じ曜日までとの比。押すと筋トレの推移の、同じカードと総負荷量を日ごとで */
+export function LoadPanel({ gauge, dates, today, unit, ready, link = true, testID = 'volume-week' }: {
+  gauge: LoadGauge; dates: DateKey[]; today: DateKey; unit: WeightUnit; ready: boolean;
+} & Placement) {
   const max = Math.max(1, ...gauge.lastWeek, ...gauge.thisWeek.map((v) => v ?? 0));
   const pct = gauge.vsLastWeekPct;
   const tUnit = unit === 'kg' ? 't' : 'k lb';
   const label = `今週の合計負荷量 ${tonnes(gauge.totalKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}${pct != null ? `。先週の同じ曜日までより ${pct >= 0 ? `${pct}% 多い` : `${-pct}% 少ない`}` : ''}`;
   return (
-    <Panel testID="volume-week" label={`${label}。筋トレの推移を開く`} style={s.gauge}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } })}>
+    <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
+      onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } }) : undefined}>
       <Head left="LOAD" />
       <View style={s.big}>
         <CountToText value={ready ? gauge.totalKg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={22} style={s.bigText} />
@@ -175,14 +180,14 @@ export function LoadPanel({ gauge, dates, today, unit, ready }: { gauge: LoadGau
   );
 }
 
-/** SLEEP：昨夜、7 日の棒、7H の目標線、平均（Health Connect の睡眠）。押すと睡眠の推移 */
-export function SleepPanel({ gauge, today }: { gauge: SleepGauge; today: DateKey }) {
+/** SLEEP：昨夜、7 日の棒、7H の目標線、平均（Health Connect の睡眠）。押すと睡眠の推移（いちばん上に同じカード） */
+export function SleepPanel({ gauge, today, link = true, testID = 'home-sleep' }: { gauge: SleepGauge; today: DateKey } & Placement) {
   const max = Math.max(gauge.goalMin * 1.25, ...gauge.days.map((d) => d.min ?? 0));
   const goalY = (gauge.goalMin / max) * BAR_H;
   const label = `睡眠。昨夜 ${gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '記録なし'}${gauge.averageMin != null ? `。7日の平均 ${formatHM(gauge.averageMin)}` : ''}。目標 7時間`;
   return (
-    <Panel testID="home-sleep" label={`${label}。睡眠の推移を開く`} style={s.gauge}
-      onPress={() => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } })}>
+    <Panel testID={testID} label={link ? `${label}。睡眠の推移を開く` : label} style={s.gauge}
+      onPress={link ? () => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } }) : undefined}>
       <Head left="SLEEP" />
       <View style={s.big}>
         <T num bold size={22} style={s.bigText}>{gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '—'}</T>
@@ -331,20 +336,23 @@ function Radar({ width, radar, states }: { width: number; radar: PartsRadar | nu
 
 const PFC_COLORS = { P: hudColors.mint3, F: hudColors.mint2, C: hudColors.mint1 } as const;
 
-/** FUEL：今日の kcal（摂った／目標）、日の種類、PFC の割合のドーナツ（ミントの濃淡）と、P・F・C のグラム／目標の棒。押すと食事のタブ */
-export function FuelPanel({ fuel, date }: { fuel: FuelGauge | null; date: DateKey }) {
+/**
+ * FUEL：今日の kcal（摂った／目標）、日の種類、PFC の割合のドーナツ（ミントの濃淡）と、P・F・C のグラム／目標の棒。押すと食事のタブ（同じカードまでスクロール）。
+ * dayLabel は読み上げの日（食事のタブでは選んだ日）
+ */
+export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID = 'home-fuel' }: { fuel: FuelGauge | null; date: DateKey; dayLabel?: string } & Placement) {
   const ratio = fuel?.ratio ?? null;
   const pct = (k: 'P' | 'F' | 'C') => (ratio ? Math.round(k === 'P' ? ratio.p : k === 'F' ? ratio.f : ratio.c) : null);
   const kcalRatio = fuel?.kcalTarget ? Math.min(1, fuel.kcal / fuel.kcalTarget) : 0;
-  const label = fuel == null ? '今日の食事'
+  const label = fuel == null ? `${dayLabel}の食事`
     : [
-      `今日の食事 ${fmtInt(fuel.kcal)}kcal${fuel.kcalTarget != null ? `、目標 ${fmtInt(fuel.kcalTarget)}kcal` : ''}`,
+      `${dayLabel}の食事 ${fmtInt(fuel.kcal)}kcal${fuel.kcalTarget != null ? `、目標 ${fmtInt(fuel.kcalTarget)}kcal` : ''}`,
       DAY_TYPE_LABELS[fuel.dayType],
       fuel.grams.map((g) => `${g.key === 'P' ? 'たんぱく質' : g.key === 'F' ? '脂質' : '炭水化物'} ${fmtInt(g.g)}g${g.target != null ? `／${fmtInt(g.target)}g` : ''}${pct(g.key) != null ? `（${pct(g.key)}%）` : ''}`).join('、'),
     ].join('。');
   return (
-    <Panel testID="home-fuel" label={`${label}。食事のタブを開く`} style={s.half}
-      onPress={() => router.navigate({ pathname: '/meals', params: { date } })}>
+    <Panel testID={testID} label={link ? `${label}。食事のタブを開く` : label} style={s.half}
+      onPress={link ? () => router.navigate({ pathname: '/meals', params: { date, focus: 'fuel' } }) : undefined}>
       <Head left="FUEL //" right={fuel ? (fuel.dayType === 'training' ? 'TRAIN DAY' : 'REST DAY') : null} />
       <View style={s.big}>
         <CountToText value={fuel ? fuel.kcal : null} format={(v) => fmtInt(v ?? 0)} num bold size={22} style={s.bigText} />

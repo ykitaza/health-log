@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { CountUpText, LineChart, StackedBarChart } from './charts';
 import { PartBadge } from './ExerciseFields';
+import { Big3Panel, LoadPanel } from './homeHud';
 import { Icon } from './Icon';
 import { LoadError } from './LoadError';
 import { PressableScale } from './motion';
@@ -16,11 +17,14 @@ import type { Entry } from '@/db/repositories/workouts';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useEntrance } from '@/hooks/entrance';
 import { dateLabels, datePoints } from '@/lib/chart';
-import { addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey } from '@/lib/date';
+import { addDays, addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey, weekStart } from '@/lib/date';
 import { BIG3_LABELS, big3Assignments, Big3Role } from '@/lib/exercises';
 import { formatSetLong } from '@/lib/format';
 import { partsNote, topPart } from '@/lib/growthRecords';
+import { heroPhase, normalPhaseOf } from '@/lib/homeHero';
+import { big3Gauge, loadGauge } from '@/lib/homeHud';
 import { BALANCE_RANGES, BalanceRange, BalanceView, partBalanceForRange, partBalanceRangeLabel, recentLabel } from '@/lib/partBalance';
+import type { Phase } from '@/lib/phases';
 import {
   bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
   weeklySummary, weeklyVolumeByBodyPart,
@@ -50,8 +54,9 @@ export function parseTrendFocus(focus: string | undefined, exercise: string | un
 /**
  * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
  * すべてなら BIG3 の推定1RM の合計、部位のバランス（2週・3か月・これまで）、総負荷量（週・日）、種目ごとの自己ベスト。
+ * いちばん上（BIG3 の上）に、ホームの計器と同じカード（BIG3・LOAD）を 1 つの段に並べる。
  * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）。
- * focus があれば（ホームから来たとき）、その種目か「すべて」にして、そのグラフまでスクロールする。総負荷量（load）は日ごと、部位のバランス（parts）は
+ * focus があれば（ホームから来たとき）、その種目か「すべて」にして、そのグラフまでスクロールする（BIG3・総負荷量は、上のホームと同じカードの段まで）。総負荷量（load）は日ごと、部位のバランス（parts）は
  * ホームのレーダーと同じ 28日（前の28日を点線で）で見せる。覚えた期間は書き換えず、期間を選んだら onRangeChosen（focus を外す）
  */
 export function TrainingTrend({ onOpenDay, focus, onRangeChosen }: {
@@ -68,12 +73,14 @@ export function TrainingTrend({ onOpenDay, focus, onRangeChosen }: {
   const target = focus && !focus.exercise ? focus.target : null;
 
   const { data, error, reload } = useFocusData(async (r) => {
-    const [parts, exercises, rows, settings, volumeRange, balanceRange] = await Promise.all([
+    const [parts, exercises, rows, settings, volumeRange, balanceRange, phases] = await Promise.all([
       r.catalog.listBodyParts({ includeHidden: true }), r.catalog.listExercises({ includeHidden: true }), r.workouts.allSetRows(), r.settings.get(),
       r.settings.volumeRange().catch((): VolumeRange => 'week'),
       r.settings.balanceRange().catch((): BalanceRange => '2w'),
+      // ホームと同じ BIG3 のカードの差（フェーズ実施中は開始から）
+      r.phases.list(),
     ]);
-    return { parts, exercises, rows, settings, volumeRange, balanceRange };
+    return { parts, exercises, rows, settings, volumeRange, balanceRange, phases };
   });
   // 部位のバランスの期間。選んだら端末に覚える。種目を選んで「すべて」に戻ったときも選んだままにするため、ここに置く
   const repos = useRepos();
@@ -263,7 +270,7 @@ const WEEKLY_WEEKS = 8;
 function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, target, scrollRequest, onRangeChosen }: {
   data: {
     parts: { id: string; name: string }[]; exercises: Exercise[];
-    rows: Parameters<typeof weeklyVolumeByBodyPart>[0]; volumeRange: VolumeRange;
+    rows: Parameters<typeof weeklyVolumeByBodyPart>[0]; volumeRange: VolumeRange; phases: Phase[];
   };
   today: string; unit: 'kg' | 'lb'; onPick: (exerciseId: string) => void;
   balanceRange: BalanceView; onBalanceRange: (k: BalanceRange) => void;
@@ -296,14 +303,26 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
   const peakIndex = daily.peak ? days.indexOf(daily.peak) : -1;
   const pbs = [...personalBests(data.rows).values()].sort((a, b) => b.e1rm - a.e1rm);
   const exName = new Map(data.exercises.map((e) => [e.id, e]));
+  // ホームの計器と同じカード（BIG3・LOAD）。集計もホームと同じ（lib/homeHud.ts）。BIG3 の差の基準は、実施中か療養で止めている通常のフェーズの開始時
+  const phaseStart = normalPhaseOf(heroPhase(data.phases, [], today))?.phase.snapshot?.big3 ?? null;
+  const big3 = big3Gauge(data.rows, big3Assignments(data.exercises), today, phaseStart);
+  const load = loadGauge(data.rows, today);
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart(today), i));
 
   return (
     <>
-      <ScrollTarget request={scrollTo('big3')}><Big3Card rows={data.rows} exercises={data.exercises} today={today} unit={unit} /></ScrollTarget>
+      {/* ホームの BIG3・LOAD のどちらから来ても、この段までスクロールする */}
+      <ScrollTarget request={scrollTo('big3') ?? scrollTo('load')} testID="trend-gauges">
+        <View style={s.gaugeRow}>
+          <Big3Panel gauge={big3} unit={unit} ready link={false} testID="trend-big3-gauge" />
+          <LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready link={false} testID="trend-load-gauge" />
+        </View>
+      </ScrollTarget>
+      <Big3Card rows={data.rows} exercises={data.exercises} today={today} unit={unit} />
       <ScrollTarget request={scrollTo('parts')}>
         <PartBalanceCard rows={data.rows} parts={data.parts} today={today} range={balanceRange} onRange={onBalanceRange} />
       </ScrollTarget>
-      <ScrollTarget request={scrollTo('load')} testID="trend-volume">
+      <View testID="trend-volume">
       <Card style={{ marginTop: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.m, marginBottom: 8 }}>
           <T variant="titleM" accessibilityRole="header">総負荷量</T>
@@ -361,7 +380,7 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
           ))}
         </View>
       </Card>
-      </ScrollTarget>
+      </View>
       <ScrollTarget request={scrollTo('best')} testID="trend-best">
       <Card style={{ marginTop: 14, padding: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 16, paddingBottom: 4 }}>
@@ -533,3 +552,8 @@ function PartBalanceCard({ rows, parts, today, range, onRange }: {
     </Card>
   );
 }
+
+const s = StyleSheet.create({
+  // ホームの計器の段と同じ横の並びと間隔（計器は flex: 1 で、2 枚で横幅を分ける）
+  gaugeRow: { flexDirection: 'row', gap: space.s, marginTop: 14 },
+});

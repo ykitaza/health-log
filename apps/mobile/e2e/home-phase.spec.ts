@@ -6,7 +6,8 @@ import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 4 ページ、BIG3 の Δ PHASE、LOG のフェーズの週。
 // フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
-// web では 3D の体を描かないので、RECOVERY・INJURY は 2D の図になる。今日は 2026-11-08（日）
+// web では 3D の体を描かないので、RECOVERY・INJURY は 2D の図になる。今日は 2026-11-08（日）。
+// 同期で入れる睡眠・食事を使って、SLEEP・FUEL の行き先（睡眠の推移・食事のタブ）のホームと同じカードもここで見る
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
 const AT = '2026-11-08T01:00:00.000Z';
@@ -67,6 +68,19 @@ const rehab = change('phase', REHAB, {
   kind: 'rehab', direction: null, name: '', start_date: '2026-11-06', end_date: null, target_weight_kg: null, meal_targets: null, snapshot: null,
   status: 'active', paused_phase_id: BULK, target_history: [], ended_on: null,
 });
+
+/** 睡眠（起きた日）：11/8 7:30、11/7 6:20、11/5 7:00、11/2 5:00。7 日の平均は 6:28 */
+const sleeps = ([['2026-11-08', 450], ['2026-11-07', 380], ['2026-11-05', 420], ['2026-11-02', 300]] as const).map(([date, min], i) =>
+  change('sleep_session', `aaaa0000-0000-4000-8000-00000000000${i + 1}`, {
+    date, start_at: `${date}T00:00:00+09:00`, end_at: `${date}T07:00:00+09:00`, asleep_min: min, awake_min: 0, source: 'health_connect',
+  }));
+/** 今日の昼の食事 1 品（P・F・C がそろう） */
+const lunch = [
+  change('meal', 'dddddddd-0000-4000-8000-000000000001', { date: '2026-11-08', slot: 'lunch', time: '12:00', description: '定食', source: 'text' }),
+  { ...change('meal_item', 'dddddddd-0000-4000-8000-000000000001-i1', {
+    name: '定食', amount: 1, unit: '個', kcal: 800, protein_g: 40, fat_g: 20, carbs_g: 110, confidence: 'high', sort_order: 0,
+  }), parent_id: 'dddddddd-0000-4000-8000-000000000001' },
+];
 
 async function openWith(page: Page, context: BrowserContext, changes: Change[]) {
   const server = createFakeSyncServer({ clock: () => AT });
@@ -137,6 +151,12 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(hero).toContainText('WEIGHT76.3→ 80.0 KG');
   await expect(page.getByTestId('hero-ring-inner')).toHaveCount(1);
   await expect(page.getByTestId('hero-ring-plan')).toHaveCount(1);
+
+  // 推移の BIG3 のカードも、ホームと同じ Δ PHASE
+  await visible(page, 'home-big3').click();
+  await expect(visible(page, 'trend-big3-gauge')).toContainText('Δ PHASE +16.0');
+  await expect(visible(page, 'trend-big3-gauge')).toHaveAttribute('aria-label', /フェーズの開始より \+16\.0kg/);
+  await goTab(page, 'ホーム');
 
   await line.click();
   await expect(page.getByRole('heading', { name: '増量 16週' }).filter({ visible: true })).toBeVisible();
@@ -211,4 +231,38 @@ test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（�
   await button(page, '戻る').click();
   await visible(page, 'hero-injury-alert').click();
   await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
+});
+
+test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事の記録に、ホームと同じカード（その下に今までのグラフ）', async ({ page, context }) => {
+  await openWith(page, context, [...sleeps, ...lunch]);
+  const homeSleep = visible(page, 'home-sleep');
+  await expect(homeSleep).toHaveAttribute('aria-label', '睡眠。昨夜 7:30。7日の平均 6:28。目標 7時間。睡眠の推移を開く');
+  const sleepText = (await homeSleep.textContent())!;
+  await homeSleep.click();
+  await expect(page.getByRole('heading', { name: '睡眠の推移' }).filter({ visible: true })).toBeVisible();
+  const sleepGauge = visible(page, 'sleep-gauge');
+  await expect(sleepGauge).toBeInViewport();
+  await expect(sleepGauge).toHaveText(sleepText);
+  await expect(sleepGauge).toHaveAttribute('aria-label', '睡眠。昨夜 7:30。7日の平均 6:28。目標 7時間');
+  // 筋トレの推移の BIG3・LOAD の段と同じく半分の幅で、左に寄せる
+  const box = (await sleepGauge.boundingBox())!;
+  expect(box.x).toBeLessThan(20);
+  expect(box.width).toBeLessThan(412 / 2);
+  // 期間を変えても同じ（7 日の棒と 7 時間の線）。今までの平均とグラフは下に残す
+  await button(page, '3か月').click();
+  await expect(sleepGauge).toHaveText(sleepText);
+  await expect(visible(page, 'sleep-average')).toBeVisible();
+  await button(page, '戻る').click();
+
+  const homeFuel = visible(page, 'home-fuel');
+  await expect(homeFuel).toHaveAttribute('aria-label', /^今日の食事 800kcal。/);
+  const fuelText = (await homeFuel.textContent())!;
+  const fuelLabel = (await homeFuel.getAttribute('aria-label'))!.replace('。食事のタブを開く', '');
+  await homeFuel.click();
+  await expect(tab(page, '食事')).toHaveAttribute('aria-selected', 'true');
+  const mealFuel = visible(page, 'meal-fuel');
+  await expect(mealFuel).toHaveText(fuelText);
+  await expect(mealFuel).toHaveAttribute('aria-label', fuelLabel);
+  // PFC のドーナツ（下地の輪と P・F・C の 3 つ）
+  await expect(mealFuel.locator('circle')).toHaveCount(4);
 });
