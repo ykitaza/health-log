@@ -17,30 +17,21 @@ class CimdClientDirectory:
     SSRF の対策として、https の URL だけを、リダイレクトをたどらず、5秒・5KB までで取りに行く。
     allow_loopback_http は PC で動かすときだけ True にする（localhost の http も取りに行く）。
     allowed_hosts を渡すと、そのホスト（既定のポート）の URL だけを取りに行く。None なら絞らない（PC で動かすとき）。
+    hosted は、認可API が自分で公開している文書（client_id → 文書）。client_id が完全に一致するものは取りに行かずに使う
+    （自分の API Gateway を呼ぶと、認可API の流量の制限を自分で使ってしまう。自分のホストは allowed_hosts に入れない）。
     """
 
-    def __init__(self, http_get=None, *, allow_loopback_http: bool = False, allowed_hosts: frozenset[str] | None = None):
+    def __init__(self, http_get=None, *, allow_loopback_http: bool = False, allowed_hosts: frozenset[str] | None = None,
+                 hosted: dict[str, dict] | None = None):
         self.http_get = http_get or self._get
         self.allow_loopback_http = allow_loopback_http
         self.allowed_hosts = allowed_hosts
+        self.hosted = hosted or {}
 
     def find(self, client_id: str) -> Client:
-        if not is_client_id_url(client_id, allow_loopback_http=self.allow_loopback_http):
-            raise ClientRejected("client_id は https の URL である必要があります")
-        if self.allowed_hosts is not None:
-            url = urlsplit(client_id)
-            if url.hostname not in self.allowed_hosts or url.port is not None:
-                raise ClientRejected("このクライアントには対応していません")
-        try:
-            res = self.http_get(client_id)
-        except httpx.HTTPError:
-            raise ClientRejected("クライアントのメタデータを取得できません")
-        if res.status_code != 200 or len(res.content) > CIMD_MAX_BYTES:
-            raise ClientRejected("クライアントのメタデータを取得できません")
-        try:
-            doc = res.json()
-        except ValueError:
-            raise ClientRejected("クライアントのメタデータが JSON ではありません")
+        doc = self.hosted.get(client_id)
+        if doc is None:
+            doc = self._fetch(client_id)
 
         # 文書の中の client_id が、取りに行った URL と同じか（他人の文書を使い回していないか）
         if doc.get("client_id") != client_id:
@@ -59,6 +50,25 @@ class CimdClientDirectory:
             client_name=doc.get("client_name") or client_id,
             redirect_uris=tuple(str(uri) for uri in doc["redirect_uris"]),
         )
+
+    def _fetch(self, client_id: str) -> dict:
+        if not is_client_id_url(client_id, allow_loopback_http=self.allow_loopback_http):
+            raise ClientRejected("client_id は https の URL である必要があります")
+        if self.allowed_hosts is not None:
+            url = urlsplit(client_id)
+            if url.hostname not in self.allowed_hosts or url.port is not None:
+                raise ClientRejected("このクライアントには対応していません")
+        try:
+            res = self.http_get(client_id)
+        except httpx.HTTPError:
+            raise ClientRejected("クライアントのメタデータを取得できません")
+        if res.status_code != 200 or len(res.content) > CIMD_MAX_BYTES:
+            raise ClientRejected("クライアントのメタデータを取得できません")
+        try:
+            doc = res.json()
+        except ValueError:
+            raise ClientRejected("クライアントのメタデータが JSON ではありません")
+        return doc
 
     @staticmethod
     def _get(url: str) -> httpx.Response:
