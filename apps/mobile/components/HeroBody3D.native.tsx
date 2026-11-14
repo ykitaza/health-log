@@ -6,7 +6,8 @@ import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import { anchorFor, facingOf, layoutCallouts, partsFor } from '@/lib/bodyModel';
-import { INJURY_RED, REST_GREEN } from '@/lib/recoveryMap';
+import { INJURY_RED } from '@/lib/recoveryMap';
+import { recoveryPalette } from '@/theme';
 import { BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
 import { HERO_TAG_H, HERO_TAG_W, HeroInjuryTag } from './heroInjuryTag';
@@ -38,7 +39,7 @@ function Stage({ width, height, band, injuries, numbers, rotate, shield, onPress
   useEffect(() => {
     scene.configure({
       marks, reduced, tipMarks: places.map((p) => marks.find((m) => m.id === p.id)!), onPick: () => {}, onTips: (v) => tips.set(v),
-      baseColor: REST_GREEN, injuryColor: INJURY_RED,
+      baseColor: recoveryPalette.rest, injuryColor: INJURY_RED,
     });
   }, [scene, marks, reduced, places, tips]);
   return (

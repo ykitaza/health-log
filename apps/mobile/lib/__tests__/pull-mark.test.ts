@@ -1,6 +1,7 @@
 import {
   markPose, PULSE_DASH, PULSE_LENGTH, pulseDrawOffset, pulseLoopOffset, pullMarkMotion, reachedThreshold, MARK_DROP,
 } from '../sync/pullMark';
+import { duration } from '@/theme/motion';
 
 /** strokeDashoffset と点線の形から、線のうち見えている区間（path の始めからの長さ）。見えなければ null */
 function visible(offset: number): [number, number] | null {
@@ -69,10 +70,10 @@ describe('同期のあいだの心拍の線', () => {
 
 describe('動きを減らす設定', () => {
   test('オンなら、線を描く・光る・はずむ動きはせず、マークを出して消すだけ（長さ 0）', () => {
-    expect(pullMarkMotion(true)).toEqual({ enterMs: 0, exitMs: 0, loop: false, pop: false });
+    expect(pullMarkMotion(true, duration)).toEqual({ enterMs: 0, exitMs: 0, loop: false, pop: false });
   });
 
   test('オフなら、出る 250ms、消える 150ms（消えるほうが短い）。同期中はくり返し動く', () => {
-    expect(pullMarkMotion(false)).toEqual({ enterMs: 250, exitMs: 150, loop: true, pop: true });
+    expect(pullMarkMotion(false, duration)).toEqual({ enterMs: 250, exitMs: 150, loop: true, pop: true });
   });
 });

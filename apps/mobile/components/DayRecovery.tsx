@@ -16,16 +16,16 @@ import { PartBadge } from './ExerciseFields';
 import { T } from './Text';
 import { Button, Card, Chip, ChipRow } from './ui';
 import { DateKey, relativeDays } from '@/lib/date';
-import { dayBodyGlow, partsOfMesh, TRAINED_GLOW } from '@/lib/dayBody';
+import { dayBodyGlow, partsOfMesh } from '@/lib/dayBody';
 import { Anchor, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCallouts';
 import { siteLabel } from '@/lib/injuries';
 import { markPoint, MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, IDLE_GRAY, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
-  recoveryShortText, recoveryStatusText, REST_GREEN, restColor, suggestRecovered,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
+  recoveryShortText, recoveryStatusText, restColor, suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
-import { colors, space } from '@/theme';
+import { colors, recoveryPalette, space, TRAINED_GLOW } from '@/theme';
 
 /** 回復マップの材料（からだのタブと同じ：セット・部位の名前・ケガ） */
 export async function loadRecovery(r: Repositories): Promise<RecoveryInput> {
@@ -118,9 +118,9 @@ export function PartChips({ date, pickParts, picked, note, testID }: {
 
 /** 凡例：からだのタブの回復マップと同じ（色の四角と文字。色だけにしない） */
 const LEGEND = [
-  { color: REST_GREEN, label: '回復済み' },
+  { color: recoveryPalette.rest, label: '回復済み' },
   { color: LOAD_ORANGE, label: '回復中' },
-  { color: IDLE_GRAY, label: '空いている・まだ' },
+  { color: recoveryPalette.idle, label: '空いている・まだ' },
   { color: INJURY_RED, label: 'ケガ' },
 ];
 
@@ -142,7 +142,7 @@ const CALLOUT_GAP = space.xs;
 const CALLOUTS_PER_SIDE = 4;
 
 /** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色（からだのタブと同じ） */
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level) : restColor(p));
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
 
 /**
  * 記録のない日のヒーロー：その日の時点の体（3D は前回の部位と回復、2D は回復マップ）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
@@ -188,7 +188,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
     const to = toScreen(c.anchor.view, c.anchor.point);
     return [{ key: c.key, x1: x, y1: c.top + CALLOUT_H / 2, ...to, color: partColor(byName.get(c.key)!, hurt(byName.get(c.key)!)) }];
   });
-  const fills = trained ? muscleFills(list) : undefined;
+  const fills = trained ? muscleFills(list, recoveryPalette) : undefined;
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
   const point = pickedPoint(picked);
   const mark = point ? toScreen(point.view, point.point) : null;
@@ -212,7 +212,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
     const p = byName.get(name.trim());
     if (!p) return null;
     if (hurt(p)) return { dot: INJURY_RED, text: 'ケガ', spoken: '直している途中のケガ' };
-    if (p.remaining != null) return { dot: recoveryColor(p.level), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
+    if (p.remaining != null) return { dot: recoveryColor(p.level, recoveryPalette), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
     return null;
   };
 
@@ -334,7 +334,7 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
   return (
     <View style={box} testID="recovery-callout" {...hide}>
       <T variant="labelM" numberOfLines={1} align={align}>{part.name}</T>
-      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level) : colors.sub} numberOfLines={1} align={align}>
+      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level, recoveryPalette) : colors.sub} numberOfLines={1} align={align}>
         {recoveryShortText(part)}
       </T>
       {lead && (
