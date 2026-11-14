@@ -206,6 +206,28 @@ describe('ケガの文', () => {
   });
 });
 
+describe('フェーズの振り返りの文', () => {
+  test('開始日を手がかりに list_phases で探し、review と target_history を読み、kind=phase で保存。数字はアプリが出す・療養は除く・責めない', () => {
+    const text = promptText({ kind: 'phase-review', startDate: '2026-07-01', today: TODAY });
+    expect(text).toContain(`${C}で、7月1日に始めたフェーズの振り返りを作ってください。`);
+    expect(text).toContain('list_phases でそのフェーズ（療養でないもの）を探し、review と target_history を読み');
+    expect(text).toContain('before／after の数字はアプリが出すので並べ直さない');
+    expect(text).toContain('届いた・ほぼ届いた・届かなかった');
+    expect(text).toContain('申し送りを next_steps に');
+    expect(text).toContain('療養の期間は除き');
+    expect(text).toContain('save_report(kind=phase, phase_id)で保存');
+    expect(text).toContain('今日は11月9日。');
+    expect(text).not.toContain('period_overview');
+    expect(promptSummary({ kind: 'phase-review', startDate: '2026-07-01', today: TODAY })).toBe('フェーズの振り返りを作る');
+  });
+
+  test('決まった形でない日付は入れない（フェーズの ID や中身も入れない）', () => {
+    const text = promptText({ kind: 'phase-review', startDate: 'p1&x=1', today: 'x&q=1' });
+    expect(text).toContain('最近のフェーズの振り返り');
+    expect(text).not.toMatch(/p1|x=1|q=1|今日は/);
+  });
+});
+
 const ALL: ChatPrompt[] = [
   { kind: 'report', span: 'day', today: TODAY },
   { kind: 'report', span: 'week', today: TODAY },
@@ -215,6 +237,7 @@ const ALL: ChatPrompt[] = [
   { kind: 'training', date: '2026-11-06', today: TODAY },
   { kind: 'injury', today: TODAY },
   { kind: 'injury-review', occurredOn: '2026-11-03', today: TODAY },
+  { kind: 'phase-review', startDate: '2026-07-01', today: TODAY },
   { kind: 'pending', items: [{ kind: 'weekly', periodStart: '2026-11-02', periodEnd: '2026-11-08', key: 'weekly:2026-11-02' }] },
   { kind: 'schedule' },
 ];
@@ -229,6 +252,7 @@ describe('どの文も', () => {
         { kind: 'training', date: day, today: day },
         { kind: 'injury', today: day },
         { kind: 'injury-review', occurredOn: addDays(day, -30), today: day },
+        { kind: 'phase-review', startDate: addDays(day, -112), today: day },
       ];
       for (const p of ps) longest = Math.max(longest, chatUrl('claude', p).length, chatUrl('chatgpt', p).length);
     }

@@ -11,6 +11,7 @@ from training.application.queries import (
     InjuryRecord,
     PeriodTraining,
     PhaseProgress,
+    PhaseReview,
     SleepSummary,
     StepSummary,
     WeeklyTrainingReview,
@@ -20,6 +21,7 @@ from training.domain.catalog import Catalog
 from training.domain import phase as phase_rules
 from training.domain.injury import MAX_LIST_REVIEWS, SITES, Injury, InjuryReview, site_label
 from training.domain.model import Exercise, SetRow, Workout
+from training.domain.phase import Phase
 
 
 def r1(value: float | None) -> float | None:
@@ -385,10 +387,45 @@ def phase_brief(pp: PhaseProgress) -> dict:
     }
 
 
-def phase_detail(pp: PhaseProgress) -> dict:
-    """list_phases の1件：期間の材料の形に、食事の目標・開始時の記録・目標の変更の履歴を足したもの。"""
+def phase_detail(pp: PhaseProgress, review: PhaseReview | None = None) -> dict:
+    """list_phases の1件：期間の材料の形に、食事の目標・開始時の記録・目標の変更の履歴と、振り返りの材料（review）を足したもの。"""
     p = pp.phase
     return {**phase_brief(pp), "name": p.name, "meal_targets": p.meal_targets, "snapshot": p.snapshot,
             **({} if p.kind == "rehab" else {"target_history": [
                 {"date": c.date, "target_weight_kg": c.target_weight_kg, "end_date": c.end_date, "weight_kg": c.weight_kg}
-                for c in phase_rules.history(p)]})}
+                for c in phase_rules.history(p)]}),
+            **({"review": phase_review(p, review)} if review is not None else {})}
+
+
+def _big3_view(b: dict | None) -> dict | None:
+    if not b:
+        return None
+    values = [b.get(r) for r in ("bench", "squat", "deadlift")]
+    return {"bench": values[0], "squat": values[1], "deadlift": values[2],
+            "total": round(sum(v for v in values if v is not None), 1) if any(v is not None for v in values) else None}
+
+
+def phase_review(p: Phase, r: PhaseReview) -> dict:
+    """フェーズの振り返りの材料。start は開始時の記録（snapshot）、end は period_end の時点の値（同じ出し方）。
+    BIG3 の比べは、開始時と終わりの両方に値がある役だけを足す（アプリの big3Totals と同じ）。"""
+    snap = p.snapshot or {}
+    start_big3 = snap.get("big3") or None
+    end_big3 = r.big3
+    compared = None
+    if start_big3 and end_big3:
+        roles = [k for k in ("bench", "squat", "deadlift") if start_big3.get(k) is not None and end_big3.get(k) is not None]
+        if roles:
+            compared = {"roles": roles, "start": round(sum(start_big3[k] for k in roles), 1),
+                        "end": round(sum(end_big3[k] for k in roles), 1)}
+    return {
+        "period_start": r.period_start, "period_end": r.period_end, "finished": r.finished,
+        "rehab_spans": [{"start": s, "end": e} for s, e in r.rehab_spans],
+        "start": {"weight_kg": snap.get("weight_kg"), "body_fat_pct": snap.get("body_fat_pct"),
+                  "big3": _big3_view(start_big3), "growth_score": snap.get("growth_score")},
+        "end": {"weight_kg": r.weight.value, "weight_basis": r.weight.basis,
+                "body_fat_pct": r.body_fat.value, "body_fat_basis": r.body_fat.basis,
+                "big3": _big3_view(end_big3), "growth_score": None},
+        "big3_compared": compared,
+        "note": ("end は period_end の時点（体重・体脂肪率は7日の平均。weight_basis が latest なら7日に記録がなく最新の値）。"
+                 "成長スコアの終わりの値と before／after の表はアプリが出す。体脂肪率は参考で、達成の判定に使わない"),
+    }

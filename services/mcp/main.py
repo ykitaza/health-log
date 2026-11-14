@@ -46,6 +46,7 @@ from sync.engine import SyncEngine
 from sync.store import DynamoDBSyncStore, InMemorySyncStore
 from training.application.commands import TrainingCommands
 from training.application.queries import TrainingQueries
+from training.domain import phase as phase_rules
 from training.main import create_commands, create_queries
 from training.presentation import mcp_tools as training_tools
 
@@ -107,6 +108,22 @@ class WorkoutTrainingDays:
     async def training_days(self, eater_id: EaterId, start: date, end: date) -> set[date]:
         days = await self.queries.training_dates(eater_id.value, start.isoformat(), end.isoformat())
         return {date.fromisoformat(d) for d in days}
+
+
+class TrainingPhasePeriods:
+    """レポートの PhasePeriods の実装。フェーズの振り返りの期間（開始日〜続いた最後の日。実施中なら今日まで）を、筋トレのフェーズから求める。"""
+
+    def __init__(self, queries: TrainingQueries, today):
+        self.queries, self.today = queries, today
+
+    async def phase_period(self, subject: str, phase_id: str) -> dict | None:
+        phases = await self.queries.phases(subject)
+        p = next((x for x in phases if x.id == phase_id), None)
+        if p is None:
+            return None
+        as_of = self.today().isoformat()
+        return {"kind": p.kind, "start_date": p.start_date,
+                "end_date": max(p.start_date, min(phase_rules.end_of(p, phases, as_of), as_of))}
 
 
 class BodyRecordWeights:
@@ -174,7 +191,7 @@ def create_server(
         mcp, training_commands, training_queries, today=today, sync_status=sync_status)
     # 期間の材料（レポートを書くため）。筋トレ・食事・からだ・目標をまたぐので、ここでつなぐ
     register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today, previous_steps)
-    report_tools.register_report_tools(mcp, report_service)
+    report_tools.register_report_tools(mcp, report_service, TrainingPhasePeriods(training_queries, today))
     register_connector_tools(mcp, session)
     return mcp
 

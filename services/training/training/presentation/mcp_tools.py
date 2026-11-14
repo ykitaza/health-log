@@ -479,14 +479,25 @@ def register_training_tools(
         pace.status は on_track（順調。直近7日の体重の平均と予定の差が ±0.3kg 以内）・fast（早い）・slow（遅い）、
         維持は over・under。判定しないときは status が null で、not_judged_reason（not_active・paused 療養中・
         recovering 療養から戻って14日・few_weigh_ins 7日に測った日が1日以下・no_plan）。
+        通常のフェーズには、振り返りの材料（review）も付ける：period_start〜period_end（開始日〜続いた最後の日。実施中は今日まで、
+        finished が false）、rehab_spans（療養で止まった期間。振り返りの対象から除く）、start（開始時の記録：体重・体脂肪率・
+        BIG3・成長スコア）と end（period_end の時点の、同じ出し方の値：体重と体脂肪率は7日の平均、BIG3 はその日までの最高の
+        推定1RM。成長スコアはアプリが出すので null）、big3_compared（両方に値がある役だけの合計）。目標の変更の履歴は target_history、
+        療養の日数は rehab_days。フェーズの振り返り（save_report の kind が phase）はこれを材料に書く。
         フェーズを始める・変えるのは本人がアプリでする（このサーバーには書くツールがない）。
         """
         sub = subject(READ_SCOPE)
-        listed, current, paused = await queries.phase_progresses(sub, day_of(None), limit=limit)
+        today = day_of(None)
+        listed, current, paused = await queries.phase_progresses(sub, today, limit=limit)
+        reviews = await queries.phase_reviews(sub, [pp for pp in (*listed, current, paused) if pp is not None], today)
+
+        def detail(pp):
+            return views.phase_detail(pp, reviews.get(pp.phase.id))
+
         return await synced(sub, {
-            "current": views.phase_detail(current) if current else None,
-            "paused": views.phase_detail(paused) if paused else None,
-            "phases": [views.phase_detail(pp) for pp in listed],
+            "current": detail(current) if current else None,
+            "paused": detail(paused) if paused else None,
+            "phases": [detail(pp) for pp in listed],
             "total": len(await queries.phases(sub)),
         })
 

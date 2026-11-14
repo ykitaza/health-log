@@ -143,16 +143,16 @@ def test_日のまとめは_期間が同じ日でないと断る(call, period):
     assert call("list_reports")["reports"] == []
 
 
-def test_save_report_の_kind_は必須で_other_を含まない():
+def test_save_report_の_kind_は必須で_other_を含まず_phase_を含む():
     mcp = MCPServer(name="test")
     mcp_tools.register_report_tools(mcp, None)
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     schema = tools["save_report"].input_schema
     assert "kind" in schema["required"]  # 省くと断る（既定の other はない）
-    assert schema["properties"]["kind"]["enum"] == ["daily", "weekly", "monthly"]
+    assert schema["properties"]["kind"]["enum"] == ["daily", "weekly", "monthly", "phase"]
     # 一覧の絞り込みでは、前に保存した other を探せるよう残す
     assert tools["list_reports"].input_schema["properties"]["kind"]["anyOf"][0]["enum"] == [
-        "daily", "weekly", "monthly", "other"]
+        "daily", "weekly", "monthly", "phase", "other"]
 
 
 def test_other_は保存できない(call):
@@ -312,3 +312,94 @@ def test_前の週のまとめの次の一歩と_アプリのチェック(call, 
     assert asyncio.run(previous.previous_next_steps("alice", date(2026, 11, 17))) is None  # 2週前のまとめは見ない
     assert asyncio.run(previous.previous_next_steps("bob", date(2026, 11, 9))) is None
     assert call("get_report", report_id=report_id)["next_steps_done"] == [0, 2]
+
+
+# --- フェーズの振り返り（kind が phase） ---
+
+PHASE_ID = "phase-bulk-1"
+PHASE_REVIEW = {
+    "title": "増量 16週の振り返り", "overall_tone": "good", "headline": "体重も BIG3 も伸び、目標に届いた",
+    "kind": "phase", "phase_id": PHASE_ID,
+    "highlights": [{"area": "training", "tone": "good", "text": "脚の日を週2回続けられた"}],
+    "next_steps": ["維持の4週は、たんぱく質を今の量のまま"],
+    "body": "## 次のフェーズ\n- 維持 4 週をすすめます",
+}
+
+
+class FakePhases:
+    """フェーズの期間（main.py の TrainingPhasePeriods の代わり）。"""
+
+    def __init__(self):
+        self.periods = {PHASE_ID: {"kind": "normal", "start_date": "2026-07-01", "end_date": "2026-10-20"},
+                        "rehab-1": {"kind": "rehab", "start_date": "2026-08-01", "end_date": "2026-08-10"}}
+
+    async def phase_period(self, subject, phase_id):
+        return self.periods.get(phase_id) if subject == "alice" else None
+
+
+@pytest.fixture
+def phase_call(monkeypatch, engine):
+    token = AccessToken(token="t", client_id="c", scopes=ALL_SCOPES, subject="alice")
+    monkeypatch.setattr(mcp_tools, "get_access_token", lambda: token)
+    mcp = MCPServer(name="test")
+    phases = FakePhases()
+    mcp_tools.register_report_tools(mcp, create_service(engine), phases)
+
+    def _call(tool: str, **arguments):
+        result = asyncio.run(mcp.call_tool(tool, arguments))
+        return json.loads(result.content[0].text)
+
+    _call.phases = phases
+    return _call
+
+
+def test_フェーズの振り返りは_期間を省くとフェーズの開始日から終わりの日で保存し_同期でアプリに届く(phase_call, engine):
+    saved = phase_call("save_report", **PHASE_REVIEW)["report"]
+    assert (saved["kind"], saved["phase_id"], saved["period_start"], saved["period_end"]) == (
+        "phase", PHASE_ID, "2026-07-01", "2026-10-20")
+    state = engine.doc("alice", "report", saved["report_id"]).own
+    assert (state.values["kind"], state.values["phase_id"]) == ("phase", PHASE_ID)
+    assert [r["report_id"] for r in phase_call("list_reports", kind="phase")["reports"]] == [saved["report_id"]]
+    assert phase_call("list_reports", kind="weekly")["reports"] == []
+
+
+def test_フェーズの振り返りは_同じフェーズなら置き換える_終わりの日が変わっても(phase_call):
+    first = phase_call("save_report", **PHASE_REVIEW)["report"]
+    phase_call.phases.periods[PHASE_ID] = {"kind": "normal", "start_date": "2026-07-01", "end_date": "2026-11-03"}  # 延長した
+    second = phase_call("save_report", **{**PHASE_REVIEW, "headline": "延長して届いた"})["report"]
+    assert [r["report_id"] for r in phase_call("list_reports")["reports"]] == [second["report_id"]]
+    assert second["report_id"] != first["report_id"] and second["period_end"] == "2026-11-03"
+
+
+def test_フェーズが違えば置き換えない(phase_call):
+    phase_call.phases.periods["phase-cut-1"] = {"kind": "normal", "start_date": "2026-11-01", "end_date": "2026-11-10"}
+    phase_call("save_report", **PHASE_REVIEW)
+    phase_call("save_report", **{**PHASE_REVIEW, "phase_id": "phase-cut-1"})
+    assert len(phase_call("list_reports", kind="phase")["reports"]) == 2
+
+
+@pytest.mark.parametrize("change, message", [
+    ({"phase_id": "nothing"}, "見つかりません"),
+    ({"phase_id": "rehab-1"}, "療養"),
+    ({"period_start": "2026-07-01", "period_end": "2026-10-01"}, "period_end=2026-10-20"),
+    ({"phase_id": None}, "phase_id"),
+])
+def test_フェーズの振り返りの_フェーズと期間を確かめる(phase_call, change, message):
+    with pytest.raises(ToolError, match=message):
+        phase_call("save_report", **{k: v for k, v in {**PHASE_REVIEW, **change}.items() if v is not None})
+
+
+def test_ほかの種類は_phase_id_を持てない(phase_call):
+    with pytest.raises(ToolError, match="phase_id"):
+        phase_call("save_report", **{**WEEKLY, "phase_id": PHASE_ID})
+
+
+def test_期間を合わせて渡しても保存できる_366日より長くても(phase_call):
+    phase_call.phases.periods[PHASE_ID] = {"kind": "normal", "start_date": "2025-01-01", "end_date": "2026-10-20"}
+    saved = phase_call("save_report", **{**PHASE_REVIEW, "period_start": "2025-01-01", "period_end": "2026-10-20"})["report"]
+    assert saved["period_start"] == "2025-01-01"
+
+
+def test_説明に_フェーズの振り返りの決まりがある():
+    for words in ("list_phases", "phase_id", "維持 4 週", "療養", "ウエスト", "体脂肪率は参考", "診断や治療の助言はしない"):
+        assert words in mcp_tools.INSTRUCTIONS

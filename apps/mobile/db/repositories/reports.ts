@@ -1,11 +1,13 @@
 import { DateKey } from '@/lib/date';
-import { parseReport, parseSteps, parseStepsDone, Report, ReportKind, ReportRow } from '@/lib/reports';
+import { isPeriodReportKind, parseReport, parseSteps, parseStepsDone, PeriodReportKind, Report, ReportRow } from '@/lib/reports';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
-const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, created_at';
+const COLUMNS = 'id, title, body, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, phase_id, created_at';
 /** 本文を除いた列（listWithoutBody 用。本文は最大20,000字あるので、要らない用途では読まない） */
-const LIGHT_COLUMNS = 'id, title, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, created_at';
+const LIGHT_COLUMNS = 'id, title, kind, period_start, period_end, overall_tone, headline, highlights, next_steps, links, review, next_steps_done, phase_id, created_at';
+/** 日・週・月のまとめ（最新のレポート・お知らせに出すもの）。phase（フェーズの振り返り）と other は出さない */
+const PERIOD_KINDS_SQL = "kind IN ('daily', 'weekly', 'monthly')";
 
 /** 閉じた「まだ作っていないまとめ」の key（lib/reports.ts の PendingReport）。端末だけに覚える（同期しない sync_meta に置く） */
 const DISMISSED_PENDING = 'reports.dismissed_pending';
@@ -60,12 +62,12 @@ export function reportRepository(db: Db, deps: Deps) {
 
   async function latest(): Promise<Report | null> {
     const row = await db.getFirstAsync<ReportRow>(
-      `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind != 'other' ORDER BY created_at DESC, id DESC LIMIT 1`, [],
+      `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND ${PERIOD_KINDS_SQL} ORDER BY created_at DESC, id DESC LIMIT 1`, [],
     );
     return row && parseReport(row);
   }
 
-  async function latestOfKind(kind: Exclude<ReportKind, 'other'>): Promise<Report | null> {
+  async function latestOfKind(kind: PeriodReportKind): Promise<Report | null> {
     const row = await db.getFirstAsync<ReportRow>(
       `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? ORDER BY created_at DESC, id DESC LIMIT 1`, [kind],
     );
@@ -96,11 +98,12 @@ export function reportRepository(db: Db, deps: Deps) {
 
     /**
      * まだ開いていないレポート（作った時刻の新しい順）。
-     * kind が 'other'（分析レポート）は出さない（latest と同じく、アプリのどこにも表示しない決まり。お知らせの帯にも出ない）
+     * 日・週・月のまとめだけ。'other'（分析レポート）は出さない（latest と同じく、アプリのどこにも表示しない決まり。お知らせの帯にも出ない）。
+     * 'phase'（フェーズの振り返り）もここには出さない（フェーズの画面で見せる）
      */
     async unread(): Promise<Report[]> {
       const seen = await seenIds();
-      return (await list()).filter((r) => r.kind !== 'other' && !seen.has(r.id));
+      return (await list()).filter((r) => isPeriodReportKind(r.kind) && !seen.has(r.id));
     },
 
     /**
@@ -127,14 +130,15 @@ export function reportRepository(db: Db, deps: Deps) {
     },
 
     /**
-     * 最新のレポート。kind が 'other'（分析レポート）は出さない（アプリのどこにも表示しない決まり。データは消さず、ここで隠すだけ）。
+     * 最新のレポート（日・週・月のまとめ）。kind が 'other'（分析レポート）は出さない（アプリのどこにも表示しない決まり。データは消さず、
+     * ここで隠すだけ）。'phase'（フェーズの振り返り）も出さない（フェーズの画面で見せる。forPhase）。
      * ホームの「最新のレポート」と、レポートのタブの入口が使う
      */
     latest,
 
     /**
      * その種類（日・週・月）の最新のレポート。詳細画面の期間タブが、種類ごとにいちばん新しい1件へ切り替えるのに使う。なければ null。
-     * kind は日・週・月だけを受けるので、'other' はここでも出ない
+     * kind は日・週・月だけを受けるので、'other'・'phase' はここでも出ない
      */
     latestOfKind,
 
@@ -143,12 +147,24 @@ export function reportRepository(db: Db, deps: Deps) {
      * （いくつかあれば、いちばん新しく作ったもの）、なければその種類の最新、それもなければ最新（latest）。1件もなければ null。
      * date がなければ、その種類の最新から
      */
-    async forLink(kind: Exclude<ReportKind, 'other'>, date: string | null): Promise<Report | null> {
+    async forLink(kind: PeriodReportKind, date: string | null): Promise<Report | null> {
       const row = date == null ? null : await db.getFirstAsync<ReportRow>(
         `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = ? AND period_start <= ? AND ? <= period_end
          ORDER BY created_at DESC, id DESC LIMIT 1`, [kind, date, date],
       );
       return (row && parseReport(row)) ?? (await latestOfKind(kind)) ?? latest();
+    },
+
+    /**
+     * そのフェーズの振り返り（kind が phase で phase_id が同じもの）。いくつかあれば、いちばん新しく作ったもの。なければ null。
+     * サーバーは同じフェーズの振り返りを置き換えるので、ふつうは1件
+     */
+    async forPhase(phaseId: string): Promise<Report | null> {
+      const row = await db.getFirstAsync<ReportRow>(
+        `SELECT ${COLUMNS} FROM reports WHERE deleted_at IS NULL AND kind = 'phase' AND phase_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [phaseId],
+      );
+      return row && parseReport(row);
     },
 
     /** その日の日のまとめ（期間がその日だけの daily）。いくつかあれば、いちばん新しいもの */

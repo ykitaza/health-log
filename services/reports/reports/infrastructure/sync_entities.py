@@ -7,6 +7,7 @@ next_steps_done は済んだ次の一歩の番号（0 から。小さい順、�
 scope は筋トレと同じ torelog-api/training.read・training.write（レポートは筋トレと食事の両方をまとめるので、MCP では
 接続のところで食事の scope、ツールで筋トレの scope を確かめる。新しい scope は作らない）。
 上限は domain/report.py と同じ。
+フェーズの振り返り（kind が phase）は、どのフェーズかを phase_id に持つ（項目を足しただけで、キーや今までの項目の形は変えない）。
 """
 
 from __future__ import annotations
@@ -30,12 +31,13 @@ from reports.domain.report import (
     MAX_NEXT_STEP_TEXT,
     MAX_NEXT_STEPS,
     MAX_PERIOD_DAYS,
+    MAX_PHASE_PERIOD_DAYS,
     MAX_REVIEW_TEXT,
     MAX_TITLE,
     MAX_UNIT,
     encoded_size,
 )
-from sync.fields import Day, FieldsModel
+from sync.fields import Day, FieldsModel, Ref
 from sync.registry import UUID_PATTERN, EntitySpec, Registry, Rejection
 
 AREA = "training"
@@ -92,7 +94,7 @@ class ReviewFields(FieldsModel):
 class ReportFields(FieldsModel):
     title: Annotated[str, Field(min_length=1, max_length=MAX_TITLE), AfterValidator(_not_blank)] = None
     body: Annotated[str, Field(max_length=MAX_BODY)] = None  # Markdown。アプリは文字として表示するだけ
-    kind: Literal["daily", "weekly", "monthly", "other"] = None
+    kind: Literal["daily", "weekly", "monthly", "phase", "other"] = None
     period_start: Day | None = None
     period_end: Day | None = None
     overall_tone: Tone | None = None
@@ -105,6 +107,8 @@ class ReportFields(FieldsModel):
     # 済んだ次の一歩の番号（アプリのホームとレポートの中身のチェック）。アプリだけが書く
     next_steps_done: Annotated[list[Annotated[int, Field(ge=0, lt=MAX_NEXT_STEPS)]], Field(max_length=MAX_NEXT_STEPS),
                                AfterValidator(_sorted_unique)] = None
+    # どのフェーズの振り返りか（kind が phase のときだけ。フェーズ phase の ID。ほかの種類のレポートは持たない）
+    phase_id: Ref | None = None
 
 
 def _check(entity_id: str, fields: dict) -> Rejection | None:
@@ -112,11 +116,20 @@ def _check(entity_id: str, fields: dict) -> Rejection | None:
         return Rejection("invalid_fields", "レポートが大きすぎます。本文を短くしてください（絵文字が多いと字数より先に上限に届きます）",
                          ({"field": "fields.body", "message": f"JSON で {MAX_ENCODED_BYTES} バイトまで"},))
     start, end = fields.get("period_start"), fields.get("period_end")
+    kind = fields.get("kind")
     if start and end:
         days = (date.fromisoformat(end) - date.fromisoformat(start)).days
-        if not 0 <= days < MAX_PERIOD_DAYS:
-            return Rejection("invalid_fields", f"期間は period_start から period_end まで（{MAX_PERIOD_DAYS}日以内）にしてください",
+        max_days = MAX_PHASE_PERIOD_DAYS if kind == "phase" else MAX_PERIOD_DAYS
+        if not 0 <= days < max_days:
+            return Rejection("invalid_fields", f"期間は period_start から period_end まで（{max_days}日以内）にしてください",
                              ({"field": "fields.period_end", "message": "period_start と同じか後の日"},))
+    # フェーズの振り返りは、どのフェーズかと期間が要る。ほかの種類は phase_id を持たない（kind のない変更＝アプリのチェックは見ない）
+    if kind == "phase" and not (fields.get("phase_id") and start and end):
+        return Rejection("invalid_fields", "フェーズの振り返り（phase）は、phase_id と期間（period_start・period_end）を入れてください",
+                         ({"field": "fields.phase_id", "message": "フェーズの ID"},))
+    if kind is not None and kind != "phase" and fields.get("phase_id") is not None:
+        return Rejection("invalid_fields", "phase_id はフェーズの振り返り（kind が phase）だけが持ちます",
+                         ({"field": "fields.phase_id", "message": "phase のときだけ"},))
     if fields.get("kind") == "daily" and not (start and start == end):
         return Rejection("invalid_fields", "日のまとめ（daily）は、period_start と period_end を同じ日にしてください",
                          ({"field": "fields.period_end", "message": "period_start と同じ日"},))
