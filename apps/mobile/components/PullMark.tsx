@@ -10,7 +10,7 @@ import {
   PULL_CYCLE_MS, PULSE_DASH, pulseDrawOffset, pulseLoopOffset, pullMarkMotion, reachedThreshold,
 } from '@/lib/sync/pullMark';
 import { colors } from '@/theme';
-import { springs } from '@/theme/motion';
+import { duration, springs } from '@/theme/motion';
 import { easeIn, easeOut } from './motion';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -26,7 +26,7 @@ const WIDTH = (MARK_SIZE * MARK_VIEWBOX.width) / MARK_VIEWBOX.height;
  */
 export function usePullMark(active: boolean) {
   const reduced = useReducedMotion();
-  const motion = pullMarkMotion(reduced);
+  const motion = pullMarkMotion(reduced, duration);
   /** 引っぱった量（0〜1）。Android の RefreshControl は途中の量を渡さないので、放したあとに 0 から 1 まで動かす */
   const progress = useSharedValue(0);
   /** 出ている量（0〜1）。中身を下げる量と、消えるときの大きさ・透明度 */

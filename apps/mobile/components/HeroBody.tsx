@@ -7,7 +7,7 @@ import { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Injury } from '@/db/repositories/injuries';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
-import { colors } from '@/theme';
+import { colors, recoveryPalette } from '@/theme';
 import { DayBody } from './DayBody';
 import type { DayBodyEntry } from './DayBody3D';
 import { HeroBody3D } from './HeroBody3D';
@@ -60,7 +60,7 @@ function Figure2D({ kind, width, band, list, injuries, numbers, shield, onPressI
   const figW = figH / 2;
   const frontX = (width - (figW * 2 + FIG_GAP)) / 2;
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
-  const fills = kind === 'recovery' ? muscleFills(list) : undefined;
+  const fills = kind === 'recovery' ? muscleFills(list, recoveryPalette) : undefined;
   const tags = kind === 'injury' ? injuries.slice(0, 4) : [];
   const tagW = Math.min(HERO_TAG_W, Math.max(0, frontX - 4));
   return (

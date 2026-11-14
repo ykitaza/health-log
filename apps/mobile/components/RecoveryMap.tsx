@@ -10,11 +10,11 @@ import { siteOfPart } from '@/lib/bodyModel';
 import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
 import {
-  fixingOn, IDLE_GRAY, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, partEnglish, partOfMesh, PartRecovery, partRecoveries,
-  recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, REST_GREEN, restColor,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, partEnglish, partOfMesh, PartRecovery, partRecoveries,
+  recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
-import { colors, space } from '@/theme';
+import { colors, recoveryPalette, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
 import { MuscleFigure } from './MuscleFigure';
 import { RecoveryCallout, RecoveryMap3D } from './RecoveryMap3D';
@@ -33,16 +33,16 @@ export type RecoveryInput = {
 const agoText = (p: PartRecovery, date: DateKey) => (p.last == null ? 'まだ' : relativeDays(p.last, date));
 
 /** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色 */
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level) : restColor(p));
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
 
 /** 選んだもの：筋トレの部位か、どの部位にもあたらない部品（部位の名前を付け替えたときなど） */
 type Selection = { part: string } | { mesh: string } | null;
 
 /** 凡例：緑＝回復済み、暖色＝回復中、灰色＝空いている・まだ、赤＝ケガ（色の四角と文字。色だけにしない） */
 const LEGEND = [
-  { color: REST_GREEN, label: '回復済み' },
+  { color: recoveryPalette.rest, label: '回復済み' },
   { color: LOAD_ORANGE, label: '回復中' },
-  { color: IDLE_GRAY, label: '空いている・まだ' },
+  { color: recoveryPalette.idle, label: '空いている・まだ' },
   { color: INJURY_RED, label: 'ケガ' },
 ];
 
@@ -198,7 +198,7 @@ function meshLabel(mesh: string): string {
 
 /** 2D の図（前と後ろ）。回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの暖色、空いている・まだの筋肉は灰色、直している途中のケガに赤の印 */
 function Recovery2D({ list, injuries }: { list: PartRecovery[]; injuries: Injury[] }) {
-  const fills = muscleFills(list);
+  const fills = muscleFills(list, recoveryPalette);
   const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
   return (
     <View style={s.figures} testID="recovery-2d">

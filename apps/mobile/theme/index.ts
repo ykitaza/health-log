@@ -63,6 +63,30 @@ export const figureColors = {
   body: '#343A44',
 } as const;
 
+/**
+ * 回復マップの色のうち、テーマの色から取るもの（lib/recoveryMap.ts の RecoveryPalette。どの状態にどれを使うかは lib が決める）。
+ * 回復中の暖色とケガの赤は lib/recoveryMap.ts の LOAD_ORANGE・LOAD_YELLOW・INJURY_RED
+ */
+export const recoveryPalette = {
+  /** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
+  rest: colors.accent,
+  /**
+   * 回復済み（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
+   * （3D の緑は弱い縁の光なので、見た目の強さがそろう）
+   */
+  restFill: colors.accentMuted,
+  /**
+   * 空いている・まだ（3D の部品の光、凡例、一覧の印）。入力欄の枠と同じ灰色。
+   * まだ（一度も鍛えていない）も、いちばん長く空いている部位として同じ灰色にする（緑だと回復済みと見分けられない）。見分けは文字（「まだ」と「空いて N日」）
+   */
+  idle: colors.outline,
+  /** 空いている・まだ（2D の図の塗り）。色を付けない筋肉と同じ灰色 */
+  idleFill: figureColors.muscle,
+} as const;
+
+/** その日の体で鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑）。lib/dayBody.ts の dayBodyGlow の levels に使う */
+export const TRAINED_GLOW = colors.onAccentDark;
+
 /** 入力のヒント（placeholder）の色 */
 export const placeholderColor = colors.sub;
 

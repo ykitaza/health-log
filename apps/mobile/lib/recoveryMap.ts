@@ -1,7 +1,6 @@
 // からだのタブの「回復マップ」：筋トレの部位ごとの最後に鍛えた日と、部位ごとの回復の日数から、3D の体（assets/models/body.glb）の
 // 部品の光の強さと色を決める。three.js は読まない（テストで確かめられるように）
 import type { Injury } from '@/db/repositories/injuries';
-import { colors, figureColors } from '@/theme';
 import { addDays, DateKey, daysBetween } from './date';
 import { anchorFor, boxOf, facingOf, partsFor, Vec3 } from './bodyModel';
 import { isSiteCode, SiteCode } from './injuries';
@@ -47,28 +46,28 @@ export const partEnglish = (part: string) => PART_EN[part.trim()] ?? 'PART';
 // 色は HSL の色相を回して混ぜる（RGB でまっすぐ混ぜると、緑と黄・黄と橙の間がくすむ）。回復中の明るさは最小でも 0.25（背中の最後の日）
 // なので、0.25 を黄、0.75 からを橙にし、鍛えた日と次の日が橙、最後の日が黄に寄るようにする
 
-/** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
-export const REST_GREEN = colors.accent;
 /**
- * 回復済み（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
- * （3D の緑は弱い縁の光なので、見た目の強さがそろう）
+ * 回復マップの色のうち、アプリのテーマから取るもの。値は theme の recoveryPalette（lib は theme を読まないので、画面から渡す）。
+ * どの状態にどれを使うかは、ここ（recoveryColor・restColor・muscleFills）で決める
  */
-export const REST_FILL = colors.accentMuted;
-/**
- * 空いている・まだ（3D の部品の光、凡例、一覧の印）。入力欄の枠と同じ灰色。
- * まだ（一度も鍛えていない）も、いちばん長く空いている部位として同じ灰色にする（緑だと回復済みと見分けられない）。見分けは文字（「まだ」と「空いて N日」）
- */
-export const IDLE_GRAY = colors.outline;
-/** 空いている・まだ（2D の図の塗り）。色を付けない筋肉と同じ灰色 */
-export const IDLE_FILL = figureColors.muscle;
+export type RecoveryPalette = {
+  /** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
+  rest: string;
+  /** 回復済み（2D の図の塗り。控えめな緑） */
+  restFill: string;
+  /** 空いている・まだ（3D の部品の光、凡例、一覧の印。灰色） */
+  idle: string;
+  /** 空いている・まだ（2D の図の塗り。色を付けない筋肉と同じ灰色） */
+  idleFill: string;
+};
 /** 回復中（鍛えた日・次の日） */
 export const LOAD_ORANGE = '#FF8A3D';
 /** 回復中（最後の日のあたり） */
 export const LOAD_YELLOW = '#F5C94A';
 /** ケガ（直している途中）。ケガの画面の琥珀色（INJURY_AMBER）とは別 */
 export const INJURY_RED = '#FF5A4F';
-/** 明るさ k（0〜1）と色の点。間は HSL で混ぜる */
-const STOPS: [number, string][] = [[0, REST_GREEN], [0.25, LOAD_YELLOW], [0.75, LOAD_ORANGE], [1, LOAD_ORANGE]];
+/** 明るさ k（0〜1）と色の点。間は HSL で混ぜる。0 は回復済みの緑（palette.rest） */
+const stops = (rest: string): [number, string][] => [[0, rest], [0.25, LOAD_YELLOW], [0.75, LOAD_ORANGE], [1, LOAD_ORANGE]];
 
 const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
 const toHex = (v: number[]) => `#${v.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
@@ -89,7 +88,8 @@ function fromHsl(h: number, s: number, l: number): string {
 }
 
 /** 明るさ k（0〜1）の色。0 は回復済みの緑、0.25 は黄、0.75 からは橙。色相は近いほうへ回す */
-export function recoveryColor(k: number): string {
+export function recoveryColor(k: number, palette: Pick<RecoveryPalette, 'rest'>): string {
+  const STOPS = stops(palette.rest);
   const t = Math.min(1, Math.max(0, k));
   const i = STOPS.findIndex(([at]) => at >= t);
   if (i <= 0) return STOPS[0][1];
@@ -171,7 +171,7 @@ export function recoveryShortText(p: StatusOf): string {
 }
 
 /** 回復中でない部位の色：回復済みは緑、空いている・まだは灰色 */
-export const restColor = (p: Pick<PartRecovery, 'last' | 'idle'>) => (p.last != null && !p.idle ? REST_GREEN : IDLE_GRAY);
+export const restColor = (p: Pick<PartRecovery, 'last' | 'idle'>, palette: RecoveryPalette) => (p.last != null && !p.idle ? palette.rest : palette.idle);
 
 export type PartRecovery = {
   /** 部位の名前 */
@@ -252,7 +252,7 @@ export function recoveryMusclesFor(part: string): Muscle[] {
  * 回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの色、空いている・まだの筋肉は灰色。いくつかの部位にある筋肉は、回復中（明るいほう）→ 回復済み
  * → 空いている・まだの順に先。どの部位にもない筋肉は控えめな緑（今までどおり）
  */
-export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
+export function muscleFills(list: PartRecovery[], palette: RecoveryPalette): Record<Muscle, string> {
   const level: Partial<Record<Muscle, number>> = {};
   const fresh = new Set<Muscle>();
   const idle = new Set<Muscle>();
@@ -262,7 +262,7 @@ export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
       (p.last != null && !p.idle ? fresh : idle).add(m);
     }
   }
-  const fill = (m: Muscle) => ((level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : idle.has(m) && !fresh.has(m) ? IDLE_FILL : REST_FILL);
+  const fill = (m: Muscle) => ((level[m] ?? 0) > 0 ? recoveryColor(level[m]!, palette) : idle.has(m) && !fresh.has(m) ? palette.idleFill : palette.restFill);
   return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, fill(m)])) as Record<Muscle, string>;
 }
 

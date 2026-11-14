@@ -1,5 +1,6 @@
 // フェーズの設定（app/phase/new.tsx）と進捗の詳細（app/phase/index.tsx）の計算。画面から切り離し、jest で確かめる。
 // フェーズの決まり（何週目・ペース・止まった日・予定の線・成功の指標）は lib/phases.ts のまま使い、ここで数え方を作り直さない
+import { big3TotalOf } from './big3';
 import { addDays, DateKey, daysBetween } from './date';
 import type { Big3Role } from './exercises';
 import { average } from './health';
@@ -12,7 +13,7 @@ import {
   Phase, PhaseDirection, phaseDay, PhaseMealTargets, phasePace, PhaseSnapshot, planPolylines, Span,
   SuccessMetric, SuccessNow, Weight,
 } from './phases';
-import { estimated1RM, TrainingSetRow } from './training';
+import { big3Series, bestIn, TrainingSetRow } from './training';
 import { parseNumber } from './units';
 
 // ---- 今の記録（開始時の記録と、成功の指標の「今」） ----
@@ -60,19 +61,10 @@ export const BIG3_END_DAYS = 28;
 export function big3Best(
   rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, day: DateKey, since: DateKey | null = null,
 ): PhaseSnapshot['big3'] {
-  const roles = ['bench', 'squat', 'deadlift'] as const;
-  const out = { bench: null, squat: null, deadlift: null } as { bench: number | null; squat: number | null; deadlift: number | null };
-  for (const role of roles) {
-    const id = assignments[role];
-    if (!id) continue;
-    let best = 0;
-    for (const r of rows) {
-      if (r.exerciseId !== id || r.date > day || (since != null && r.date < since)) continue;
-      best = Math.max(best, estimated1RM(r.weightKg, r.reps));
-    }
-    out[role] = best > 0 ? Math.round(best * 10) / 10 : null;
-  }
-  return roles.some((r) => out[r] != null) ? out : null;
+  const series = big3Series(rows, assignments, day);
+  const round = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+  const out = { bench: round(bestIn(series.bench, day, since)), squat: round(bestIn(series.squat, day, since)), deadlift: round(bestIn(series.deadlift, day, since)) };
+  return out.bench != null || out.squat != null || out.deadlift != null ? out : null;
 }
 
 /** 終わりの時点の BIG3 を見る最初の日：最後の日から 28 日（最後の日を含む）。フェーズの開始日より前にはしない（サーバーの big3_end_since と同じ） */
@@ -105,11 +97,11 @@ export function snapshotOf(m: PhaseMeasures): PhaseSnapshot {
   return { weight_kg: m.weightKg, body_fat_pct: m.bodyFatPct, big3: m.big3, growth_score: m.growthScore };
 }
 
-/** BIG3 の合計（記録のある役だけ）。どれもなければ null */
+/** BIG3 の合計（記録のある役だけ。lib/big3.ts の big3TotalOf の present を 0.1kg に丸める）。どれもなければ null */
 export function big3Sum(b: PhaseSnapshot['big3']): number | null {
   if (!b) return null;
-  const v = [b.bench, b.squat, b.deadlift].filter((x): x is number => x != null);
-  return v.length === 0 ? null : Math.round(v.reduce((s, x) => s + x, 0) * 10) / 10;
+  const sum = big3TotalOf(b, 'present');
+  return sum == null ? null : Math.round(sum * 10) / 10;
 }
 
 // ---- 設定のステップ ----
