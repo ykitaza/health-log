@@ -449,3 +449,100 @@ def test_local_pc_accepts_localhost_client_id(monkeypatch, login):
                                              redirect_uri="http://localhost:6274/callback",
                                              client_id=LOCAL_CLIENT_ID, code_verifier=VERIFIER, resource=MEALS))
     assert token.status_code == 200, token.json
+
+
+# ---- Muse（認可API が自分で公開する CIMD の文書） ----
+
+MUSE_CLIENT_ID = f"{ISSUER}/clients/muse.json"
+MUSE_REDIRECT = "https://agent.meta.ai/api/hatch/oauth/callback"
+
+
+def test_muse_client_metadata_is_published_at_its_client_id(client):
+    res = client.get("/clients/muse.json")
+    assert res.status_code == 200 and res.mimetype == "application/json"
+    assert res.headers["Cache-Control"] == "public, max-age=3600"
+    assert "Set-Cookie" not in res.headers
+    assert res.json == {
+        "client_id": MUSE_CLIENT_ID,
+        "client_name": "Muse",
+        "redirect_uris": [MUSE_REDIRECT],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",
+        "scope": "meals:read meals:write training:read training:write",
+    }
+
+
+@pytest.mark.parametrize("path", [
+    "/clients/other.json",
+    "/clients/muse.json/",
+    "/clients/../main.py",
+    "/clients/%2e%2e/main.py",
+    "/clients/..%2fmain.py",
+    "/clients/muse.json/../../.env",
+    "/clients/MUSE.json",
+    "/clients/muse.json%00",
+    "/clients/",
+    "/clients",
+])
+def test_only_the_muse_document_is_served_under_clients(client, path):
+    # パスを書き換えても、ほかのファイルは読まれない（パスからファイルを読む作りにしていない）
+    assert client.get(path).status_code == 404
+
+
+def hosted_fetch_guard(monkeypatch):
+    """CIMD の取得を記録する（本物の取得の代わり）。自分の文書は取りに行かないことを確かめる。"""
+    fetched = []
+    real_client = httpx.Client
+    transport = httpx.MockTransport(lambda request: fetched.append(str(request.url)) or httpx.Response(404))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: real_client(transport=transport, **kwargs))
+    return fetched
+
+
+def test_lambda_accepts_muse_without_fetching_its_own_document(monkeypatch, login):
+    fetched = hosted_fetch_guard(monkeypatch)
+    client = app_for(True, login)
+    res = client.get("/authorize", query_string=authorize_params(client_id=MUSE_CLIENT_ID, redirect_uri=MUSE_REDIRECT))
+    assert res.status_code == 302 and res.headers["Location"].startswith("https://login.example/")
+    page = client.get("/cognito/callback").get_data(as_text=True)
+    assert "Muse" in page
+    consent = client.post("/consent", data={"decision": "allow"})
+    assert consent.status_code == 303 and consent.headers["Location"].startswith(MUSE_REDIRECT + "?")
+    code = query_of(consent)["code"]
+    token = client.post("/token", data=dict(grant_type="authorization_code", code=code, redirect_uri=MUSE_REDIRECT,
+                                             client_id=MUSE_CLIENT_ID, code_verifier=VERIFIER, resource=MEALS),
+                        base_url=ISSUER)
+    assert token.status_code == 200, token.json
+    assert claims_of(token.json)["client_id"] == MUSE_CLIENT_ID
+    assert fetched == []  # 自分の API Gateway へは取りに行かない
+
+
+@pytest.mark.parametrize("redirect_uri", [
+    MUSE_REDIRECT + "/",
+    MUSE_REDIRECT + "/extra",
+    MUSE_REDIRECT + "?next=https://evil.example",
+    "https://agent.meta.ai.evil.example/api/hatch/oauth/callback",
+    "http://agent.meta.ai/api/hatch/oauth/callback",
+    REDIRECT,  # 他のクライアントの戻り先
+])
+def test_muse_rejects_other_redirect_uris(monkeypatch, login, redirect_uri):
+    fetched = hosted_fetch_guard(monkeypatch)
+    res = app_for(True, login).get("/authorize", query_string=authorize_params(
+        client_id=MUSE_CLIENT_ID, redirect_uri=redirect_uri))
+    assert res.status_code == 400 and "Location" not in res.headers
+    assert fetched == []
+
+
+@pytest.mark.parametrize("client_id", [
+    f"{ISSUER}/clients/other.json",  # 自分のホストのほかのパス
+    f"{ISSUER}/clients/muse.json?x=1",
+    f"{ISSUER}/clients/muse.json/",
+    f"{ISSUER}/.well-known/oauth-authorization-server",
+])
+def test_lambda_does_not_fetch_other_paths_on_its_own_host(monkeypatch, login, client_id):
+    # 自分のホストは取りに行ってよいホストに入れていない。完全に一致する Muse の client_id だけを受け付ける
+    fetched = hosted_fetch_guard(monkeypatch)
+    res = app_for(True, login).get("/authorize", query_string=authorize_params(
+        client_id=client_id, redirect_uri=MUSE_REDIRECT))
+    assert res.status_code == 400 and "Location" not in res.headers
+    assert fetched == []
