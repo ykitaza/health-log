@@ -79,6 +79,15 @@ test('始める → ホームの 1 行 → 詳細 → 延長 → 目標を変え
     await expect(visible(page, 'phase-meals')).toContainText('筋トレの日 2,800・休みの日 2,500 kcal・たんぱく質 150 g');
   });
 
+  await test.step('中間の週（12/21 は 8 週目）は、上に中間の見直し。「このまま続ける」で閉じる', async () => {
+    await moveToDate(page, '2026-12-21');
+    await expect(phaseLine(page)).toHaveText('BULK 08/16 · NO DATA');
+    await phaseLine(page).click();
+    await expect(visible(page, 'phase-mid')).toContainText('8／16週');
+    await visible(page, 'phase-mid-keep').click();
+    await expect(visible(page, 'phase-mid')).toHaveCount(0);
+  });
+
   await test.step('延長：+4 週で 20 週に', async () => {
     await visible(page, 'phase-extend').click();
     await page.getByRole('radio', { name: '4週 延長' }).filter({ visible: true }).click();
@@ -96,7 +105,7 @@ test('始める → ホームの 1 行 → 詳細 → 延長 → 目標を変え
 
   await test.step('戻るとホームの 1 行は 01/20', async () => {
     await button(page, '戻る').click();
-    await expect(phaseLine(page)).toHaveText('BULK 02/20 · NO DATA');
+    await expect(phaseLine(page)).toHaveText('BULK 08/20 · NO DATA');
   });
 
   await test.step('中断：確かめてから様子見に戻る', async () => {

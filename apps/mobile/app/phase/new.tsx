@@ -13,7 +13,7 @@ import { useToday } from '@/hooks/today';
 import { formatMonthDay } from '@/lib/date';
 import { BIG3_LABELS } from '@/lib/exercises';
 import { loadGrowthData } from '@/lib/growthData';
-import { NutritionGoal } from '@/lib/meals';
+import { NutritionGoal, TARGET_WEIGHT } from '@/lib/meals';
 import { currentPhase, DIRECTION_LABELS, endDateFor, PHASE_LIMITS, PhaseDirection, PhaseMealTargets } from '@/lib/phases';
 import {
   autoName, big3Sum, DEFAULT_WEEKS, DIRECTION_CHOICES, DIRECTIONS, initialTarget, MealDraft, mealDraftFromGoal, measuresFrom, parseMealDraft,
@@ -80,11 +80,13 @@ export default function PhaseNewScreen() {
     setDirection(d);
     setWeeks(DEFAULT_WEEKS[d]);
     setOtherWeeks(null);
-    if (!targetTouched && ctx) {
-      const t = initialTarget(d, ctx.goalKg, nowKg);
-      setTarget(t.kg == null ? '' : toUnit(t.kg));
-      setImported(t.imported);
-    }
+  };
+  /** 目標体重の初期値は、目標と週数のステップに入るときに入れる（向きと読み込んだ記録がそろってから。本人が直した値は変えない） */
+  const prefillTarget = (d: PhaseDirection) => {
+    if (targetTouched || !ctx) return;
+    const t = initialTarget(d, ctx.goalKg, nowKg);
+    setTarget(t.kg == null ? '' : toUnit(t.kg));
+    setImported(t.imported);
   };
   const editTarget = (text: string) => { setTarget(text); setTargetTouched(true); setImported(false); };
 
@@ -98,9 +100,15 @@ export default function PhaseNewScreen() {
 
   const next = () => {
     setError(null);
-    if (step === 1 && !direction) { setError('向きを選んでください'); return; }
+    if (step === 1) {
+      if (!direction) { setError('向きを選んでください'); return; }
+      prefillTarget(direction);
+    }
     if (step === 2) {
       if (targetKg == null) { setError('目標体重を入れてください'); return; }
+      if (targetKg < TARGET_WEIGHT.min || targetKg > TARGET_WEIGHT.max) {
+        setError(`目標体重は${TARGET_WEIGHT.min}〜${TARGET_WEIGHT.max}kg で入れてください`); return;
+      }
       if (!weeksOk) { setError(`期間は1〜${PHASE_LIMITS.weeks}週で入れてください`); return; }
     }
     if (step === 3) {

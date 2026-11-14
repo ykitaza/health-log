@@ -85,6 +85,8 @@ describe('設定のステップ', () => {
       value: { training_day: { kcal: 2800, protein_g: 150 }, rest_day: { kcal: 2500, protein_g: 150 } },
     });
     expect(parseMealDraft({ training: '', rest: '', protein: '' })).toEqual({ value: null });
+    expect(parseMealDraft({ training: '20001', rest: '', protein: '' })).toEqual({ error: 'kcal は0〜20000で入れてください' });
+    expect(parseMealDraft({ training: '', rest: '', protein: '5001' })).toEqual({ error: 'たんぱく質は0〜5000g で入れてください' });
     expect(parseMealDraft({ training: 'abc', rest: '', protein: '' })).toEqual({ error: '筋トレの日の kcalを数字で入れてください' });
     expect(mealDraftFromPhase({ training_day: { kcal: 3000, protein_g: 150 }, rest_day: { kcal: null, protein_g: 150 } }))
       .toEqual({ training: '3000', rest: '', protein: '150' });

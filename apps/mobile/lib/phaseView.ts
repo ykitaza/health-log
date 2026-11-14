@@ -5,7 +5,7 @@ import { average } from './health';
 import { big3Gauge } from './homeHud';
 import type { GrowthData } from './growthData';
 import { growthScore } from './growth';
-import { NutritionGoal, targetFor } from './meals';
+import { GRAMS_MAX, KCAL_MAX, NutritionGoal, targetFor } from './meals';
 import {
   cents, DIRECTION_LABELS, effectiveEnd, isPaused, MIN_WEIGH_INS, Pace, PACE_BAND_CENTS, PACE_WINDOW_DAYS, PaceStatus, pauses,
   Phase, PhaseDirection, phaseDay, PhaseMealTargets, phasePace, PhaseSnapshot, planPolylines, Span,
@@ -138,6 +138,8 @@ export function parseMealDraft(d: MealDraft): { value: PhaseMealTargets | null }
   const rest = read(d.rest, '休みの日の kcal');
   const protein = read(d.protein, 'たんぱく質');
   for (const v of [training, rest, protein]) if (typeof v === 'string') return { error: v };
+  if ([training, rest].some((v) => (v as number | null) != null && (v as number) > KCAL_MAX)) return { error: `kcal は0〜${KCAL_MAX}で入れてください` };
+  if ((protein as number | null) != null && (protein as number) > GRAMS_MAX) return { error: `たんぱく質は0〜${GRAMS_MAX}g で入れてください` };
   if (training == null && rest == null && protein == null) return { value: null };
   const p = protein as number | null;
   return {
