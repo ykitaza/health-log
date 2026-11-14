@@ -47,6 +47,7 @@ from sync.registry import UUID_PATTERN, EntitySpec, Registry, Rejection
 AREA = "training"
 ENTITY = "report"
 APP_FIELD = "next_steps_done"  # アプリが書ける、ただ1つの項目
+REQUIRED = ("title", "body", "kind")  # create で要る項目。読む側（sync_repository.py の report_from_state）も、これがそろったものだけを読む
 
 
 def _not_blank(text: str) -> str:
@@ -138,6 +139,6 @@ def _check(entity_id: str, fields: dict) -> Rejection | None:
 
 def register(registry: Registry) -> None:
     registry.register(ENTITY, EntitySpec(
-        ReportFields, ("title", "body", "kind"), AREA,
+        ReportFields, REQUIRED, AREA,
         valid_id=lambda entity_id: bool(UUID_PATTERN.match(entity_id)), check=_check,
         app_ops=("update", "delete"), app_fields=(APP_FIELD,)))

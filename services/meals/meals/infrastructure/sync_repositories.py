@@ -22,7 +22,7 @@ from meals.domain.meal import FoodItem, Meal
 from meals.domain.meal_template import MealTemplate
 from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
 from meals.domain.values import Confidence, DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
-from meals.infrastructure.sync_entities import day_key, template_id
+from meals.infrastructure.sync_entities import MEAL_ITEM_REQUIRED, MEAL_REQUIRED, day_key, template_id
 from sync.engine import SyncEngine
 from sync.model import Change, Doc, EntityState
 from sync.registry import Rejection
@@ -74,9 +74,9 @@ def meal_from_doc(doc: Doc, eater: EaterId) -> Meal | None:
     ドメインが断る値（空白だけの品目の名前など）があるときも None にし、ログに残す。
     """
     own = doc.own
-    if own is None or own.deleted or not {"date", "slot", "description", "source"} <= own.values.keys():
+    if own is None or own.deleted or not set(MEAL_REQUIRED) <= own.values.keys():
         return None
-    children = [c for c in doc.children.values() if not c.deleted and _ITEM_KEYS <= c.values.keys()]
+    children = [c for c in doc.children.values() if not c.deleted and set(MEAL_ITEM_REQUIRED) <= c.values.keys()]
     if not children:
         return None  # 品目がない（アプリで全部消した）
     children.sort(key=lambda c: (c.values["sort_order"], c.entity_id))
@@ -89,9 +89,6 @@ def meal_from_doc(doc: Doc, eater: EaterId) -> Meal | None:
     except (MealError, ValueError) as e:
         _unreadable("meal", eater, doc.entity_id, e)
         return None
-
-
-_ITEM_KEYS = {"name", "amount", "unit", "kcal", "protein_g", "fat_g", "carbs_g", "confidence", "sort_order"}
 
 
 def template_fields(t: MealTemplate) -> dict:

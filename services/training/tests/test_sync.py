@@ -4,14 +4,17 @@ import asyncio
 import uuid
 
 import pytest
+from pydantic import TypeAdapter
 
 from sync.engine import SyncEngine
+from sync.fields import Memo
 from sync.model import Change
 from sync.registry import Registry, Rejection
 from sync.store import InMemorySyncStore
 from training.domain.errors import TrainingError
 from training.domain.injury import Injury
 from training.domain.model import TraineeId, WorkoutEntry, WorkoutSet
+from training.domain.rules import MEMO_MAX
 from training.infrastructure.sync_repository import SyncTrainingRepository
 from training.main import create_queries, register_sync_entities
 
@@ -125,6 +128,11 @@ def test_アプリの範囲の端は受け付ける_名前は絵文字を含め�
                "fields": fields, "changed_at": "2026-11-08T09:00:00Z"}
         assert isinstance(REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel"), Change), entity_type
     assert len(name) == 280
+
+
+def test_同期のメモの上限は_入力の決まりと同じ():
+    # Memo は同期の仕組み（sync.fields）にあり、sync は training を import しないので、値が同じことをここで確かめる
+    assert TypeAdapter(Memo).json_schema()["maxLength"] == MEMO_MAX
 
 
 def test_体組成の筋肉率とウエストは_前の版のアプリが送っても断らずに捨てる():

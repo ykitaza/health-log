@@ -9,10 +9,13 @@ SET_WEIGHT_MAX = 500  # kg。0 より大きい
 REPS_MAX = 10000
 MEMO_MAX = 1000
 NAME_MAX = 40  # 種目と部位の名前（アプリは書記素で40。ここではコードポイントで数えるので、絵文字はアプリより短くなる）
+BODY_WEIGHT_MIN, BODY_WEIGHT_MAX = 30, 300  # 体重（kg）
+BODY_FAT_MIN, BODY_FAT_MAX = 0, 100  # 体脂肪率（%）
 BODY_LIMITS = {  # 項目 → (下限, 上限, 名前)
-    "weight_kg": (30, 300, "体重（kg）"),
-    "body_fat_pct": (0, 100, "体脂肪率（%）"),
+    "weight_kg": (BODY_WEIGHT_MIN, BODY_WEIGHT_MAX, "体重（kg）"),
+    "body_fat_pct": (BODY_FAT_MIN, BODY_FAT_MAX, "体脂肪率（%）"),
 }
+RATIO_MIN, RATIO_MAX = 0, 1  # 体重に対する割合（bodyweight_ratio）
 
 
 def check_set(exercise: Exercise, weight_kg: float | None, reps: int, memo: str) -> None:
@@ -56,6 +59,6 @@ def check_ratio(record_type: RecordType, ratio: float | None) -> float | None:
         return None
     if record_type != RecordType.REPS_ONLY:
         raise TrainingError("体重に対する割合（bodyweight_ratio）は、回数だけ（reps_only）の種目にだけ入れられます")
-    if not 0 <= ratio <= 1:
+    if not RATIO_MIN <= ratio <= RATIO_MAX:
         raise TrainingError("体重に対する割合（bodyweight_ratio）は 0〜1 で入れてください（例：腕立て伏せ 0.65）")
     return ratio
