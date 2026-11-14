@@ -2,7 +2,7 @@
  * アプリに届いたリンクを、画面の道に変える前に見る（Android・iOS だけ。web では使われない）。
  * ログインの戻り（torelog://callback?code=…&state=…）と、Cookie を消したあとの戻り（torelog://signout）は
  * expo-web-browser が受け取るので、画面は動かさない。認可コードを画面の道（履歴）に残さないためでもある。
- * 開発用の hlog (dev) は scheme が torelog-dev なので、torelog-dev:// も同じに扱う（app.config.ts）
+ * 開発用の KARADA (dev) は scheme が torelog-dev なので、torelog-dev:// も同じに扱う（app.config.ts）
  */
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }): string | null {
   if (/^(torelog(?:-dev)?:\/\/|\/)?callback([/?#]|$)/.test(path)) {

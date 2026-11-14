@@ -6,7 +6,7 @@ skinparam BoxPadding 8
 hide footbox
 
 actor "利用者" as User
-participant "hlog\n（スマホアプリ）" as App
+participant "KARADA\n（スマホアプリ）" as App
 participant "Cognito\n（ログイン画面）" as Cognito
 participant "アプリ用の API\n（HTTP API・JWT のオーソライザー）" as Api
 participant "AppApiFunction\n（services/app_api）" as Fn

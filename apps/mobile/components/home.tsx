@@ -44,7 +44,7 @@ const diffColor = (dir: 'up' | 'down' | 'flat') => (dir === 'up' ? colors.accent
 
 /**
  * ホームのいちばん上の見出しの行（ステータスバーの下まで含め、中身と一緒にスクロールする）：
- * アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）、「HLOG // NOV 2026」、設定の歯車
+ * アカウントの写真（なければアプリのアイコン。押すとアカウントの画面）、「KARADA // NOV 2026」、設定の歯車
  */
 export function HomeHeader({ year, month }: { year: number; month: number }) {
   const insets = useSafeAreaInsets();
@@ -61,7 +61,7 @@ export function HomeHeader({ year, month }: { year: number; month: number }) {
         num bold size={20} color={colors.accent} accessibilityRole="header" numberOfLines={1} style={{ flex: 1, letterSpacing: 2 }}
         accessibilityLabel={`${year}年${month}月`}
       >
-        {`HLOG // ${MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase()} ${year}`}
+        {`KARADA // ${MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase()} ${year}`}
       </T>
       <View style={{ marginRight: -12 }}><SettingsButton /></View>
     </View>

@@ -143,7 +143,7 @@ export function reportRepository(db: Db, deps: Deps) {
     latestOfKind,
 
     /**
-     * チャットの「hlog で見る」のリンク（reports?date=…&kind=…）で開くレポート。期間に date を含むその種類（日・週・月）のレポート
+     * チャットの「KARADA で見る」のリンク（reports?date=…&kind=…）で開くレポート。期間に date を含むその種類（日・週・月）のレポート
      * （いくつかあれば、いちばん新しく作ったもの）、なければその種類の最新、それもなければ最新（latest）。1件もなければ null。
      * date がなければ、その種類の最新から
      */

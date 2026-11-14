@@ -116,7 +116,7 @@ describe('スマホアプリ用のクライアント', () => {
     expect(app().ExplicitAuthFlows).toEqual(['ALLOW_USER_AUTH']);
   });
 
-  test('戻り先はアプリのカスタムスキームだけ（torelog-dev は開発用の hlog (dev)）', () => {
+  test('戻り先はアプリのカスタムスキームだけ（torelog-dev は開発用の KARADA (dev)）', () => {
     expect(app().CallbackURLs).toEqual(['torelog://callback', 'torelog-dev://callback']);
     expect(app().LogoutURLs).toEqual(['torelog://signout', 'torelog-dev://signout']);
   });
@@ -152,7 +152,7 @@ describe('スマホアプリ用のクライアント', () => {
     template.resourceCountIs('AWS::Cognito::ManagedLoginBranding', 2);
   });
 
-  test('ブランディングは hlog のもの（ダークモード、ロゴとファビコン）で、両方のクライアントに同じものが付く', () => {
+  test('ブランディングは KARADA のもの（ダークモード、ロゴとファビコン）で、両方のクライアントに同じものが付く', () => {
     const resources = template.toJSON().Resources as Record<string, any>;
     const clientIds = Object.entries(resources)
       .filter(([, r]) => r.Type === 'AWS::Cognito::UserPoolClient')

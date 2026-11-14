@@ -25,7 +25,7 @@ type LinkRequest = { date: string | null; kind: PeriodKind };
  * レポートのタブ（下のタブの5つ目）。一覧（カードの並び）と「やること」のペインは廃止し、開いたらレポートの詳細
  * （/reports/[id]）へ直行する入口だけの画面（app/workout/index.tsx の移行画面と同じ形）。行き先は：
  * - 通常は、最新の生成済みレポート（kind が 'other' のものは除く。db/repositories/reports.ts の latest）
- * - チャットの返事の「hlog で見る」リンク（torelog://reports?date=…&kind=…。app/+native-intent.tsx が /reports?date=…&kind=… に変える）から
+ * - チャットの返事の「KARADA で見る」リンク（torelog://reports?date=…&kind=…。app/+native-intent.tsx が /reports?date=…&kind=… に変える）から
  *   開いたときは、その期間に date を含む、その種類（kind。なければ日）のレポート。なければその種類の最新、
  *   それもなければ最新の生成済みレポートに落ちる（db/repositories/reports.ts の forLink）
  * - ホームの「すべて」・新しいレポートのお知らせ・今週やることの「すべて」は、ここを通らず詳細（/reports/[id]）を直接開く

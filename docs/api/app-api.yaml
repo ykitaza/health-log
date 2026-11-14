@@ -1,11 +1,11 @@
-# hlog アプリ用 API（同期）。設計は docs/sync-design.md。
+# KARADA アプリ用 API（同期）。設計は docs/sync-design.md。
 # 生成したあとは、この YAML を直接直す。
 openapi: 3.1.0
 info:
-  title: hlog アプリ用 API
+  title: KARADA アプリ用 API
   version: 0.1.0
   description: |-
-    スマホアプリ（hlog）の同期の API。設計は docs/sync-design.md。
+    スマホアプリ（KARADA）の同期の API。設計は docs/sync-design.md。
 
     - 認可：Cognito のアプリ用クライアント（torelog-app）のアクセストークンを `Authorization: Bearer` で送る。ID トークンは断る
     - 利用者はトークンの sub で決まる。本文や URL に利用者の ID は入れない

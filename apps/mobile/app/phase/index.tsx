@@ -74,7 +74,7 @@ export default function PhaseScreen() {
   const none = view != null && view.current == null;
   useEffect(() => { if (none) router.replace('/phase/new'); }, [none]);
 
-  if (error) return <PhaseFrame sys="HLOG // PHASE" onBack={close}><LoadError onRetry={reload} /></PhaseFrame>;
+  if (error) return <PhaseFrame sys="KARADA // PHASE" onBack={close}><LoadError onRetry={reload} /></PhaseFrame>;
 
   /** 操作を実行して読み直す。断られたら理由を出す。leave が true ならそのあとでホームへ、文字ならその画面へ（読み直さない） */
   const act = (task: () => Promise<void>, leave: boolean | string = false) => run(async (stayBusy) => {
@@ -91,7 +91,7 @@ export default function PhaseScreen() {
     await reload();
   });
 
-  if (!view || !view.current) return <PhaseFrame sys="HLOG // PHASE" onBack={close} testID="phase-progress"><View /></PhaseFrame>;
+  if (!view || !view.current) return <PhaseFrame sys="KARADA // PHASE" onBack={close} testID="phase-progress"><View /></PhaseFrame>;
   const { current, paused, weights, measures, now, unit } = view;
   const phases = data!.phases;
   const u = (kg: number) => kgToUnit(kg, unit);
@@ -104,7 +104,7 @@ export default function PhaseScreen() {
     const watch = rehabWatch(data!.growth.days, data!.reviews, current, today);
     const names = data!.targets.map((i) => siteLabel(i.site, i.side)).join('・');
     return (
-      <PhaseFrame sys={`HLOG // REHAB · DAY ${two(progress.rehabDays)}`} onBack={close} testID="phase-progress">
+      <PhaseFrame sys={`KARADA // REHAB · DAY ${two(progress.rehabDays)}`} onBack={close} testID="phase-progress">
         <Heading en={`REHAB · DAY ${two(progress.rehabDays)}`} sub={`${formatMonthDay(current.startDate)}から ・ ${progress.rehabDays}日目`} title={phaseLabel(current)} />
         {ready && (
           <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-rehab-ready">
@@ -192,7 +192,7 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
   const expired = end != null && today > end;
 
   return (
-    <PhaseFrame sys={`HLOG // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} onBack={onBack} testID="phase-progress">
+    <PhaseFrame sys={`KARADA // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} onBack={onBack} testID="phase-progress">
       <Heading en={`${DIRECTION_EN[dir]} · W${two(progress.week)}/${two(total)}`}
         sub={`${formatMonthDay(phase.startDate)}〜${end ? formatMonthDay(end) : ''} ・ ${progress.week}／${total}週目`} title={phaseLabel(phase)} />
 

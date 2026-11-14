@@ -59,12 +59,12 @@ function args(pairs: [string, string | null][]): string {
   return set.length ? `（${set.join('、')}）` : '';
 }
 
-const CONNECTOR = 'hlog（健康記録の MCP コネクタ）';
+const CONNECTOR = 'KARADA（健康記録の MCP コネクタ）';
 const FACTS_ONLY = '数字は記録の値だけを使ってください';
 const AFTER_SAVE = '保存したら、記録した内容を短く見せてください。';
 
 /**
- * チャットの返事に添えてもらう「戻る」リンクの行き先。認可サーバーの案内のページ（/open/…）で、押すと「hlog で開く」から
+ * チャットの返事に添えてもらう「戻る」リンクの行き先。認可サーバーの案内のページ（/open/…）で、押すと「KARADA で開く」から
  * アプリ（torelog://…。app/+native-intent.tsx が画面の道に変える）を開く。チャットのアプリの中のブラウザは torelog:// を直接は開けないため
  */
 export const OPEN_BASE = authzUrl;
@@ -73,7 +73,7 @@ export const OPEN_BASE = authzUrl;
  * チャットの返事の最後に、アプリへ戻るリンクを添えてもらう文。path はアプリの中の道（'meals?date=2026-11-12' など）。
  * base（認可サーバーの URL）がなければ、何も添えてもらわない
  */
-function backLink(path: string, base: string, label = 'hlog に戻る'): string {
+function backLink(path: string, base: string, label = 'KARADA に戻る'): string {
   return base ? `最後に [${label}](${base}/open/${path}) を押せるリンクの形で添えてください。` : '';
 }
 
@@ -110,7 +110,7 @@ const KIND_OF_SPAN: Record<ReportSpan, ReportKind> = { day: 'daily', week: 'week
 
 /**
  * 1件のまとめを頼む文。同じ期間のまとめがあれば作らないよう、初めに list_reports で確かめてもらう（スケジュールの文と同じ）。
- * 「hlog で見る」のリンクには今日の日付と種類を付け、アプリでその日を含む期間のタブを開く（app/(tabs)/reports.tsx）。
+ * 「KARADA で見る」のリンクには今日の日付と種類を付け、アプリでその日を含む期間のタブを開く（app/(tabs)/reports.tsx）。
  * URL の上限（2,000 文字）に収めるため文は短く保つ（月がいちばん長く、FACTS_ONLY はその分短くしてある）
  */
 function reportText(span: ReportSpan, rawToday: string, base: string): string {
@@ -125,7 +125,7 @@ function reportText(span: ReportSpan, rawToday: string, base: string): string {
     + `${call('list_reports', [['kind', kind]])}に同じ期間があれば作らない。`
     + `${call('period_overview', [['start', start], ['end', today]])}を読み、${FACTS_ONLY}。${ACHIEVED_BY_APP}`
     + `${WRITE[kind]}、責めない言い方で書き、${call('save_report', [['kind', kind], ['period_start', start], ['period_end', today]])}で保存してください。`
-    + (base ? backLink(`reports?${today ? `date=${today}&` : ''}kind=${kind}`, base, 'hlog で見る') : '');
+    + (base ? backLink(`reports?${today ? `date=${today}&` : ''}kind=${kind}`, base, 'KARADA で見る') : '');
 }
 
 /**
@@ -186,14 +186,14 @@ export const REPORT_SCHEDULES: { kind: ReportKind; title: string; when: string; 
 ];
 
 /**
- * 「自動で作る」の文。3つの予定を入れてもらい、すでに hlog のまとめの予定があれば作らずに教えてもらう。
+ * 「自動で作る」の文。3つの予定を入れてもらい、すでに KARADA のまとめの予定があれば作らずに教えてもらう。
  * 各回は list_reports で同じ種類・期間のまとめを探し、なければ period_overview で読んで save_report で保存する。
  * URL の上限（2,000 文字）に収めるため、種類ごとの書き方は今の頼みの文の要点だけにし、くわしくは save_report の説明に任せる
  */
 function scheduleText(): string {
   const plans = REPORT_SCHEDULES.map((s, i) => `${i + 1}.${s.prompt}(${s.kind})`).join(' ');
   return `${CONNECTOR}で、まとめのスケジュールを3つ入れてください。`
-    + 'hlog のまとめのタスクがもうあれば、作らず教えてください。'
+    + 'KARADA のまとめのタスクがもうあれば、作らず教えてください。'
     + `${plans}。`
     + '各回：list_reports(kind)に同じ期間があれば作らない。'
     + 'なければ period_overview(start, end)を読み、記録の値だけで書いて save_report(kind, period_start, period_end)で保存。'

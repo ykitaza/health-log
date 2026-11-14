@@ -6,7 +6,7 @@ import { button, goPane, goTab, homeLatest, moveToDate, openApp, openSettings, r
 
 const AI_RECORD = 'AI で記録。ChatGPT か Claude を開きます';
 const REPORT_CHAT = 'チャットで作る。ChatGPT か Claude を開きます';
-const C = 'hlog（健康記録の MCP コネクタ）';
+const C = 'KARADA（健康記録の MCP コネクタ）';
 const SAVED = '保存したら、記録した内容を短く見せてください。';
 // 開いた URL を、アプリの URL（origin + path）と q の文に分ける。q 以外の引数は入れない
 const parse = (url: string) => {
@@ -19,7 +19,7 @@ const CHATGPT = 'https://chatgpt.com/';
 const CLAUDE = 'https://claude.ai/new';
 // 戻るリンクの行き先（lib/auth/config.ts の authzUrl）
 const OPEN = 'https://urfpbaok5e.execute-api.ap-northeast-1.amazonaws.com';
-const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
+const back = (path: string, label = 'KARADA に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
 const training = (when: string, day: string) => `${C}に${when}の筋トレを記録してください。`
   + `これから伝える種目・重さ・回数・セットを list_exercises の一覧と照らし、record_workout（day=${day}）で保存してください。`
   + '一覧にない種目は、add_exercise で足す前に名前と部位を確かめてください。' + SAVED + back(`training?date=${day}`);
@@ -222,14 +222,14 @@ test('自動で作る：設定の「チャットとの連携」からシート�
   const schedule = page.getByTestId('schedule-sheet').filter({ visible: true });
   await expect(see(schedule, 'ChatGPT のスケジュール（タスク）に、まとめを作る予定を入れます。すでに入っていれば、作り直しません。')).toBeVisible();
   await expect(schedule.getByLabel('週のまとめ、毎週月曜 8:00、先週の分', { exact: true })).toBeVisible();
-  await expect(see(schedule, 'Claude のスケジュールは、いまは hlog のコネクタを使えないため、ChatGPT だけです。')).toBeVisible();
+  await expect(see(schedule, 'Claude のスケジュールは、いまは KARADA のコネクタを使えないため、ChatGPT だけです。')).toBeVisible();
   await expect(see(schedule, /^前回/)).toHaveCount(0); // まだ頼んでいない
   await button(schedule, 'ChatGPT で設定する（外のアプリ）').click();
   await expect(schedule).toBeHidden();
   await waitOpened(page, 1);
   const [{ app, q }] = (await opened(page)).map(parse);
   expect(app).toBe(CHATGPT);
-  expect(q).toContain(`${C}で、まとめのスケジュールを3つ入れてください。hlog のまとめのタスクがもうあれば、作らず教えてください。`);
+  expect(q).toContain(`${C}で、まとめのスケジュールを3つ入れてください。KARADA のまとめのタスクがもうあれば、作らず教えてください。`);
   expect(q).toContain('各回：list_reports(kind)に同じ期間があれば作らない。');
 
   await button(page, SCHEDULE).click();

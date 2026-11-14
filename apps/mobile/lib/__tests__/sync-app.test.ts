@@ -1,4 +1,4 @@
-// 前面に戻ったときの同期が、画面に届くか（ChatGPT で MCP から記録 → hlog に戻る、の流れ）。
+// 前面に戻ったときの同期が、画面に届くか（ChatGPT で MCP から記録 → KARADA に戻る、の流れ）。
 // AppState の 'active' → 受け取り → notifyRemoteChange → 画面（useFocusData は onRemoteChange で読み直す）
 import { createAppSync } from '../sync/app';
 import { onRemoteChange } from '../sync/events';
@@ -47,7 +47,7 @@ describe('前面に戻ったときの同期', () => {
       await flush();
       expect(done).toHaveLength(1);
 
-      // hlog に戻る
+      // KARADA に戻る
       app.appStateChanged('active');
       await flush();
       expect(done).toEqual([true, true]);

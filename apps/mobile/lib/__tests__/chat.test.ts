@@ -10,10 +10,10 @@ const OPEN = OPEN_BASE;
 const promptText = (p: ChatPrompt) => promptTextWith(p, OPEN);
 const chatUrl = (app: Parameters<typeof chatUrlWith>[0], p?: ChatPrompt) => chatUrlWith(app, p, OPEN);
 const pendingPrompt = (items: PendingReport[]) => pendingPromptWith(items, OPEN);
-const back = (path: string, label = 'hlog に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
+const back = (path: string, label = 'KARADA に戻る') => `最後に [${label}](${OPEN}/open/${path}) を押せるリンクの形で添えてください。`;
 
 const TODAY = '2026-11-09';
-const C = 'hlog（健康記録の MCP コネクタ）';
+const C = 'KARADA（健康記録の MCP コネクタ）';
 const SAVED = '保存したら、記録した内容を短く見せてください。';
 
 describe('まとめの文', () => {
@@ -24,7 +24,7 @@ describe('まとめの文', () => {
       + 'period_overview(start=2026-11-09, end=2026-11-09)を読み、数字は記録の値だけを使ってください。達成の数字はアプリが出します。'
       + '分野ごとに目標に対して一言（体重は前の日でなく週の平均と比べる）、明日の一歩を1つ、責めない言い方で書き、'
       + 'save_report(kind=daily, period_start=2026-11-09, period_end=2026-11-09)で保存してください。'
-      + back('reports?date=2026-11-09&kind=daily', 'hlog で見る'));
+      + back('reports?date=2026-11-09&kind=daily', 'KARADA で見る'));
   });
 
   test('週：月曜から今日まで（アプリの「今週の目標」と同じ区切り）。つながり（links）と来週の一歩', () => {
@@ -34,8 +34,8 @@ describe('まとめの文', () => {
     expect(text).toContain('period_overview(start=2026-11-09, end=2026-11-12)');
     expect(text).toContain('分野をまたぐ気づきを links に3つまで、来週の一歩を3つまで');
     expect(text).toContain('save_report(kind=weekly, period_start=2026-11-09, period_end=2026-11-12)');
-    // 「hlog で見る」は今日の日付と種類で、アプリのその日を含む週のタブを開く
-    expect(text).toContain(back('reports?date=2026-11-12&kind=weekly', 'hlog で見る'));
+    // 「KARADA で見る」は今日の日付と種類で、アプリのその日を含む週のタブを開く
+    expect(text).toContain(back('reports?date=2026-11-12&kind=weekly', 'KARADA で見る'));
     expect(promptText({ kind: 'report', span: 'week', today: '2026-01-02' })).toContain('period_overview(start=2025-12-29, end=2026-01-02)');
   });
 
@@ -46,7 +46,7 @@ describe('まとめの文', () => {
     expect(text).toContain('体重の推移と目標までのペース');
     expect(text).toContain('分野ごとに一言、links、目標の見直しを review に、今月の課題を3つまで');
     expect(text).not.toContain('来月');
-    expect(text).toContain(back('reports?date=2026-11-09&kind=monthly', 'hlog で見る'));
+    expect(text).toContain(back('reports?date=2026-11-09&kind=monthly', 'KARADA で見る'));
     expect(text).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-09)');
   });
 
@@ -55,7 +55,7 @@ describe('まとめの文', () => {
     expect(text).toContain(`${C}で今週のまとめ`);
     expect(text).toContain('period_overviewを読み');
     expect(text).toContain('save_report(kind=weekly)で保存');
-    expect(text).toContain(back('reports?kind=weekly', 'hlog で見る')); // 日付なしでも種類のタブは開ける
+    expect(text).toContain(back('reports?kind=weekly', 'KARADA で見る')); // 日付なしでも種類のタブは開ける
     expect(text).not.toMatch(/x&q|\d{4}-/);
   });
 });
@@ -103,10 +103,10 @@ describe('まだのまとめを、まとめて作る文', () => {
 describe('自動で作る（ChatGPT のスケジュール）の文', () => {
   const schedule = { kind: 'schedule' } as const;
 
-  test('3つの予定を入れてもらう。すでに hlog のまとめのタスクがあれば作らずに教えてもらう。各回は list_reports → period_overview → save_report', () => {
+  test('3つの予定を入れてもらう。すでに KARADA のまとめのタスクがあれば作らずに教えてもらう。各回は list_reports → period_overview → save_report', () => {
     expect(promptText(schedule)).toBe(
       `${C}で、まとめのスケジュールを3つ入れてください。`
-      + 'hlog のまとめのタスクがもうあれば、作らず教えてください。'
+      + 'KARADA のまとめのタスクがもうあれば、作らず教えてください。'
       + '1.毎日22:00 その日(daily) 2.毎週月曜8:00 先週の月〜日(weekly) 3.毎月1日8:00 先月(monthly)。'
       + '各回：list_reports(kind)に同じ期間があれば作らない。'
       + 'なければ period_overview(start, end)を読み、記録の値だけで書いて save_report(kind, period_start, period_end)で保存。'
@@ -265,7 +265,7 @@ describe('どの文も', () => {
       // 日付を除くと、残る数字は決まった件数（1つ・3つまで）だけ。記録の数字（重さ・kcal など）は入らない
       const rest = text.replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/\d{1,2}月\d{1,2}日/g, '');
       expect(rest).not.toMatch(/\d{3,}/);
-      // & は、まとめの「hlog で見る」のリンクの、日付と種類のあいだにだけ入る
+      // & は、まとめの「KARADA で見る」のリンクの、日付と種類のあいだにだけ入る
       expect(text.replace(/\/open\/reports\?date=\d{4}-\d{2}-\d{2}&kind=(daily|weekly|monthly)\)/, '')).not.toMatch(/[\n<>&@]/);
     }
   });

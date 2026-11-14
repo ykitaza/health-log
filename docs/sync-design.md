@@ -1,6 +1,6 @@
 # 同期の設計
 
-スマホアプリ（hlog）と MCP（Claude・ChatGPT）が、同じ記録を読み書きするための仕組みです。
+スマホアプリ（KARADA）と MCP（Claude・ChatGPT）が、同じ記録を読み書きするための仕組みです。
 API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
 サーバーの側（アプリ用の API、同期の仕組み、MCP からの書き込み）はデプロイ済みです。アプリの側は、ログインと、筋トレ・体組成・設定・食事の同期が入りました（下の「アプリの同期」）。流れは [シーケンス図](sequence.md#アプリの同期) にあります。
 

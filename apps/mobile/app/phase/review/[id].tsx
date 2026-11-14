@@ -53,11 +53,11 @@ export default function PhaseReviewScreen() {
     };
   }, [data, id, today]);
 
-  if (error) return <PhaseFrame sys="HLOG // PHASE REVIEW" onBack={close}><LoadError onRetry={reload} /></PhaseFrame>;
-  if (!data || !view) return <PhaseFrame sys="HLOG // PHASE REVIEW" onBack={close} testID="phase-review"><View /></PhaseFrame>;
+  if (error) return <PhaseFrame sys="KARADA // PHASE REVIEW" onBack={close}><LoadError onRetry={reload} /></PhaseFrame>;
+  if (!data || !view) return <PhaseFrame sys="KARADA // PHASE REVIEW" onBack={close} testID="phase-review"><View /></PhaseFrame>;
   if (!view.phase) {
     return (
-      <PhaseFrame sys="HLOG // PHASE REVIEW" onBack={close} testID="phase-review">
+      <PhaseFrame sys="KARADA // PHASE REVIEW" onBack={close} testID="phase-review">
         <T bold size={18} color={hud.ink} accessibilityRole="header">フェーズが見つかりません</T>
         <T size={13} color={hud.muted}>消されたか、まだ届いていない記録です。</T>
       </PhaseFrame>
@@ -76,7 +76,7 @@ export default function PhaseReviewScreen() {
 
   return (
     <PhaseFrame
-      sys={`HLOG // PHASE REVIEW · ${DIRECTION_EN[dir]}`} onBack={close} testID="phase-review"
+      sys={`KARADA // PHASE REVIEW · ${DIRECTION_EN[dir]}`} onBack={close} testID="phase-review"
       footer={hasCurrent ? undefined : (
         <>
           <HudButton label="次のフェーズを始める" onPress={() => router.push('/phase/new')} testID="phase-review-next" />

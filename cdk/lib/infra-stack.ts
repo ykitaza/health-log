@@ -22,7 +22,7 @@ const MEALS_URL_PARAM = `${PARAM_PREFIX}/meals/url`;
 const COGNITO_CLIENT_ID_PARAM = `${PARAM_PREFIX}/authorization/cognito-client-id`;
 const SIGNING_KEY_PARAM = `${PARAM_PREFIX}/authorization/signing-key`; // 認可APIが初回起動時に作る（SecureString）
 const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 同上。セッション Cookie の署名用
-// スマホアプリ（hlog）が使う値。どれも秘密ではない
+// スマホアプリ（KARADA）が使う値。どれも秘密ではない
 const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
 const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
 const APP_COGNITO_DOMAIN_PARAM = `${PARAM_PREFIX}/app/cognito-domain`;
@@ -45,7 +45,7 @@ const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
 // 認可APIが書き込める /cognito-study/* の外に置く
 const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
 
-// マネージドログイン（パスキーでログインする画面）の hlog のブランディング。アプリと MCP の接続のログインで同じものを使う。
+// マネージドログイン（パスキーでログインする画面）の KARADA のブランディング。アプリと MCP の接続のログインで同じものを使う。
 // 色はアプリ（apps/mobile/theme/index.ts）と同じで、ダークモードの画面だけにする。文言は Cognito が決めるので変えない。
 // 色は RRGGBBAA の形。ここに書かない項目は Cognito の既定の値のまま。
 // ロゴは apps/mobile/assets/icon-src/icon.svg の写し。ファビコンの ICO は、それを rsvg-convert で 16・32・48px の PNG にして ICO に詰めたもの
@@ -347,7 +347,7 @@ export class InfraStack extends cdk.Stack {
       parameterName: COGNITO_CLIENT_ID_PARAM, stringValue: client.userPoolClientId,
     });
 
-    // マネージドログインの画面デザイン（hlog のブランディング。これがないとログイン画面が出ない）。
+    // マネージドログインの画面デザイン（KARADA のブランディング。これがないとログイン画面が出ない）。
     // MCP（Claude・ChatGPT）の接続のログインは、このクライアントの画面になる
     new cognito.CfnManagedLoginBranding(this, 'Branding', {
       userPoolId: userPool.userPoolId,
@@ -355,7 +355,7 @@ export class InfraStack extends cdk.Stack {
       ...LOGIN_BRANDING,
     });
 
-    // ---- スマホアプリ（hlog）のログイン ----
+    // ---- スマホアプリ（KARADA）のログイン ----
 
     // アプリ用の API の scope。ルートごとに必須にし、ID トークンや認可API 用のクライアントのトークンを断る
     const mealsRead = new cognito.ResourceServerScope({ scopeName: 'meals.read', scopeDescription: '食事の記録を読む' });
@@ -381,7 +381,7 @@ export class InfraStack extends cdk.Stack {
           cognito.OAuthScope.OPENID,
           ...[mealsRead, mealsWrite, trainingRead, trainingWrite].map((s) => cognito.OAuthScope.resourceServer(appApi, s)),
         ],
-        // torelog-dev は開発用のアプリ hlog (dev)（apps/mobile/app.config.ts。PC の Metro につなぐ開発ビルド）
+        // torelog-dev は開発用のアプリ KARADA (dev)（apps/mobile/app.config.ts。PC の Metro につなぐ開発ビルド）
         callbackUrls: ['torelog://callback', 'torelog-dev://callback'],
         logoutUrls: ['torelog://signout', 'torelog-dev://signout'],
       },
@@ -396,7 +396,7 @@ export class InfraStack extends cdk.Stack {
       preventUserExistenceErrors: true, // ユーザーがいるかどうかを、エラーの違いから知られないようにする
     });
 
-    // アプリのクライアントのログイン画面のデザイン（認可API のクライアントと同じ hlog のブランディング）
+    // アプリのクライアントのログイン画面のデザイン（認可API のクライアントと同じ KARADA のブランディング）
     new cognito.CfnManagedLoginBranding(this, 'AppBranding', {
       userPoolId: userPool.userPoolId,
       clientId: appClient.userPoolClientId,
