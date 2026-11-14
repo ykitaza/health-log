@@ -111,10 +111,10 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     await expect(button(page, 'すべて')).toHaveAttribute('aria-selected', 'true');
     await expect(button(page, '日')).toHaveAttribute('aria-selected', 'true');
     await expect(visible(page, 'volume-chart-day')).toBeVisible();
-    // ホームと同じカードが上の端に来て、その下に総負荷量のグラフ
-    await expectScrolledTo(visible(page, 'trend-load-gauge'));
+    // ホームと同じ BIG3・LOAD の段が上の端に来る（総負荷量のグラフはその下に残す）
+    await expectScrolledTo(visible(page, 'trend-gauges'));
     await expectSameGauge(visible(page, 'trend-load-gauge'), home);
-    await expectScrolledTo(visible(page, 'trend-volume'));
+    await expect(visible(page, 'trend-volume')).toBeAttached();
     // 下のタブで開き直すと、覚えた「週」
     await goTab(page, 'ホーム');
     await goTab(page, '筋トレ');
@@ -144,8 +144,12 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     const home = await gaugeOf(visible(page, 'home-big3'));
     await visible(page, 'home-big3').click();
     await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
-    await expectScrolledTo(visible(page, 'trend-big3-gauge'));
+    await expectScrolledTo(visible(page, 'trend-gauges'));
     await expectSameGauge(visible(page, 'trend-big3-gauge'), home);
+    // BIG3 と LOAD は 1 つの段に、同じ幅で並ぶ
+    const [b, l] = [(await visible(page, 'trend-big3-gauge').boundingBox())!, (await visible(page, 'trend-load-gauge').boundingBox())!];
+    expect(Math.abs(b.y - l.y)).toBeLessThan(1);
+    expect(Math.abs(b.width - l.width)).toBeLessThan(1);
     await expect(visible(page, 'trend-big3-gauge').locator('svg polyline')).toHaveCount(1);
     await expect(see(page, 'BIG3 の推定1RM（合計）', { exact: true })).toBeInViewport();
   });

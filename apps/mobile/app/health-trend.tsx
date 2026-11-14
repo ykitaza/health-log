@@ -24,7 +24,7 @@ const ICONS = { sleep: 'moon', heart: 'heart', steps: 'steps' } as const;
 /**
  * 睡眠・安静時心拍・歩数の推移（からだのタブの睡眠・心拍・歩数の行から開く）。体重の推移と同じ作り：期間の切り替え、大きな数字、グラフ、日ごとの一覧。
  * Health Connect から取り込んだ記録がないときは、つなぐ画面への導線を出す。
- * 睡眠は、いちばん上にホームの SLEEP と同じカード（7 日の棒と 7 時間の目標の線。期間の切り替えによらない）を置く。ホームの SLEEP から来ても、開いたときに見えている
+ * 睡眠は、いちばん上にホームの SLEEP と同じカード（7 日の棒と 7 時間の目標の線。期間の切り替えによらない）を、筋トレの推移の BIG3・LOAD の段と同じ半分の幅で左に寄せて置く。ホームの SLEEP から来ても、開いたときに見えている
  */
 export default function HealthTrendScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
@@ -51,7 +51,11 @@ export default function HealthTrendScreen() {
     <Screen>
       <Header title={title} onBack={() => router.back()} />
       {kind === 'sleep' && data && data.sleep.length > 0 && (
-        <View style={s.gaugeRow}><SleepPanel gauge={sleepGauge(data.sleep, today)} today={today} link={false} testID="sleep-gauge" /></View>
+        <View style={s.gaugeRow}>
+          <SleepPanel gauge={sleepGauge(data.sleep, today)} today={today} link={false} testID="sleep-gauge" />
+          {/* 筋トレの推移の BIG3・LOAD の段と同じ幅（半分）にして、左に寄せる */}
+          <View style={{ flex: 1 }} />
+        </View>
       )}
       <View style={{ marginTop: space.s }}>
         <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
@@ -255,8 +259,8 @@ function StepsTrend({ days, period }: { days: StepDay[]; period: Period }) {
 }
 
 const s = StyleSheet.create({
-  // ホームの計器の段と同じく横の並びに置く（計器は flex: 1 で、並びの幅いっぱい）
-  gaugeRow: { flexDirection: 'row', marginTop: space.s },
+  // ホームの計器の段と同じ横の並びと間隔（計器は flex: 1）
+  gaugeRow: { flexDirection: 'row', gap: space.s, marginTop: space.s },
   big: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
   meta: { flexDirection: 'row', alignItems: 'baseline', gap: space.s, flexWrap: 'wrap' },
   legend: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },

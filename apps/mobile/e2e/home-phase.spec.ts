@@ -244,6 +244,10 @@ test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事�
   await expect(sleepGauge).toBeInViewport();
   await expect(sleepGauge).toHaveText(sleepText);
   await expect(sleepGauge).toHaveAttribute('aria-label', '睡眠。昨夜 7:30。7日の平均 6:28。目標 7時間');
+  // 筋トレの推移の BIG3・LOAD の段と同じく半分の幅で、左に寄せる
+  const box = (await sleepGauge.boundingBox())!;
+  expect(box.x).toBeLessThan(20);
+  expect(box.width).toBeLessThan(412 / 2);
   // 期間を変えても同じ（7 日の棒と 7 時間の線）。今までの平均とグラフは下に残す
   await button(page, '3か月').click();
   await expect(sleepGauge).toHaveText(sleepText);

@@ -54,9 +54,9 @@ export function parseTrendFocus(focus: string | undefined, exercise: string | un
 /**
  * 筋トレの推移（筋トレのタブの「推移」）。種目のチップ1列（先頭に「すべて」、あとは部位の順）とグラフ。
  * すべてなら BIG3 の推定1RM の合計、部位のバランス（2週・3か月・これまで）、総負荷量（週・日）、種目ごとの自己ベスト。
- * BIG3 と総負荷量の上には、ホームの計器と同じカード（BIG3・LOAD）を置く。
+ * いちばん上（BIG3 の上）に、ホームの計器と同じカード（BIG3・LOAD）を 1 つの段に並べる。
  * 種目を選ぶと、その種目の推定1RM の折れ線（回数だけの種目は総負荷量）と、その種目の記録（新しい順。押すと記録のタブのその日）。
- * focus があれば（ホームから来たとき）、その種目か「すべて」にして、そのグラフまでスクロールする（BIG3・総負荷量は上のホームと同じカードから）。総負荷量（load）は日ごと、部位のバランス（parts）は
+ * focus があれば（ホームから来たとき）、その種目か「すべて」にして、そのグラフまでスクロールする（BIG3・総負荷量は、上のホームと同じカードの段まで）。総負荷量（load）は日ごと、部位のバランス（parts）は
  * ホームのレーダーと同じ 28日（前の28日を点線で）で見せる。覚えた期間は書き換えず、期間を選んだら onRangeChosen（focus を外す）
  */
 export function TrainingTrend({ onOpenDay, focus, onRangeChosen }: {
@@ -311,15 +311,18 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
 
   return (
     <>
-      <ScrollTarget request={scrollTo('big3')} testID="trend-big3">
-        <View style={s.gaugeRow}><Big3Panel gauge={big3} unit={unit} ready link={false} testID="trend-big3-gauge" /></View>
-        <Big3Card rows={data.rows} exercises={data.exercises} today={today} unit={unit} />
+      {/* ホームの BIG3・LOAD のどちらから来ても、この段までスクロールする */}
+      <ScrollTarget request={scrollTo('big3') ?? scrollTo('load')} testID="trend-gauges">
+        <View style={s.gaugeRow}>
+          <Big3Panel gauge={big3} unit={unit} ready link={false} testID="trend-big3-gauge" />
+          <LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready link={false} testID="trend-load-gauge" />
+        </View>
       </ScrollTarget>
+      <Big3Card rows={data.rows} exercises={data.exercises} today={today} unit={unit} />
       <ScrollTarget request={scrollTo('parts')}>
         <PartBalanceCard rows={data.rows} parts={data.parts} today={today} range={balanceRange} onRange={onBalanceRange} />
       </ScrollTarget>
-      <ScrollTarget request={scrollTo('load')} testID="trend-volume">
-      <View style={s.gaugeRow}><LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready link={false} testID="trend-load-gauge" /></View>
+      <View testID="trend-volume">
       <Card style={{ marginTop: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.m, marginBottom: 8 }}>
           <T variant="titleM" accessibilityRole="header">総負荷量</T>
@@ -377,7 +380,7 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
           ))}
         </View>
       </Card>
-      </ScrollTarget>
+      </View>
       <ScrollTarget request={scrollTo('best')} testID="trend-best">
       <Card style={{ marginTop: 14, padding: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 16, paddingBottom: 4 }}>
@@ -551,6 +554,6 @@ function PartBalanceCard({ rows, parts, today, range, onRange }: {
 }
 
 const s = StyleSheet.create({
-  // ホームの計器の段と同じく横の並びに置く（計器は flex: 1 で、並びの幅いっぱい）
-  gaugeRow: { flexDirection: 'row', marginTop: 14 },
+  // ホームの計器の段と同じ横の並びと間隔（計器は flex: 1 で、2 枚で横幅を分ける）
+  gaugeRow: { flexDirection: 'row', gap: space.s, marginTop: 14 },
 });
