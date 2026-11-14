@@ -234,7 +234,7 @@ class TrainingQueries:
             out[p.id] = PhaseReview(
                 p.start_date, last, p.status != "active", [(s, min(e, last)) for s, e in spans],
                 measures.week_or_latest(weights, last), measures.week_or_latest(fats, last),
-                measures.big3_best(rows, roles, last))
+                measures.big3_best(rows, roles, last, measures.big3_end_since(p.start_date, last)))
         return out
 
     async def phase_progresses(self, subject: str, as_of: str, start: str | None = None,

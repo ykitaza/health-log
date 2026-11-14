@@ -481,8 +481,8 @@ def register_training_tools(
         recovering 療養から戻って14日・few_weigh_ins 7日に測った日が1日以下・no_plan）。
         通常のフェーズには、振り返りの材料（review_material）も付ける：period_start〜period_end（開始日〜続いた最後の日。実施中は今日まで、
         finished が false）、rehab_spans（療養で止まった期間。振り返りの対象から除く）、start（開始時の記録：体重・体脂肪率・
-        BIG3・成長スコア）と end（period_end の時点の、同じ出し方の値：体重と体脂肪率は7日の平均、BIG3 はその日までの最高の
-        推定1RM。成長スコアはアプリが出すので null）、big3_compared（両方に値がある役だけの合計）。目標の変更の履歴は target_history、
+        BIG3・成長スコア）と end（period_end の時点の値：体重と体脂肪率は開始時と同じ7日の平均、BIG3 はフェーズの最後の28日の
+        最高の推定1RM（28日に記録がない役は null）。成長スコアはアプリが出すので null）、big3_compared（両方に値がある役だけの合計）。目標の変更の履歴は target_history、
         療養の日数は rehab_days。フェーズの振り返り（save_report の kind が phase）はこれを材料に書く。
         フェーズを始める・変えるのは本人がアプリでする（このサーバーには書くツールがない）。
         """

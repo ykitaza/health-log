@@ -21,7 +21,7 @@ import {
   successMetrics, Weight,
 } from '@/lib/phases';
 import {
-  MealDraft, mealDraftFromPhase, measuresFrom, metricNote, midDate, midWeek, offPaceStreak, orderMetrics, paceSentence, parseMealDraft,
+  endMeasuresFrom, MealDraft, mealDraftFromPhase, measuresFrom, metricNote, midDate, midWeek, offPaceStreak, orderMetrics, paceSentence, parseMealDraft,
   PhaseMeasures, planSlopePerWeek, projectedKg, recentSlopePerWeek, snapshotOf, STREAK_TITLES, SUCCESS_RULE, weightChart,
 } from '@/lib/phaseView';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
@@ -57,7 +57,9 @@ export default function PhaseScreen() {
     if (!data) return null;
     const weights: Weight[] = data.growth.weights.map((w) => ({ date: w.date, kg: w.weightKg }));
     const { current, paused } = currentPhase(data.phases, today);
-    return { weights, current, paused, measures: measuresFrom(data.growth, today), unit: data.growth.weightUnit };
+    // 成功の指標の「今」は振り返りの after と同じ出し方（BIG3 はフェーズの最後の 28 日）
+    const now = current?.kind === 'normal' ? endMeasuresFrom(data.growth, current.startDate, today) : null;
+    return { weights, current, paused, measures: measuresFrom(data.growth, today), now, unit: data.growth.weightUnit };
   }, [data, today]);
 
   // フェーズがない（終えた・中断した・別の端末で消した）ときは設定へ
@@ -81,7 +83,7 @@ export default function PhaseScreen() {
   });
 
   if (!view || !view.current) return <PhaseFrame sys="HLOG // PHASE" onBack={close} testID="phase-progress"><View /></PhaseFrame>;
-  const { current, paused, weights, measures, unit } = view;
+  const { current, paused, weights, measures, now, unit } = view;
   const phases = data!.phases;
   const u = (kg: number) => kgToUnit(kg, unit);
   const kg = (n: number) => `${fmt1(u(n))} ${unit}`;
@@ -130,7 +132,7 @@ export default function PhaseScreen() {
 
   return (
     <NormalPhase
-      phase={current} phases={phases} weights={weights} measures={measures} unit={unit} today={today}
+      phase={current} phases={phases} weights={weights} measures={measures} now={now!} unit={unit} today={today}
       dialog={dialog} setDialog={(d) => { setOpError(null); setDialog(d); }} dismissed={dismissed} setDismissed={setDismissed}
       act={act} busy={busy} opError={opError} onBack={close} repos={repos}
     />
@@ -139,8 +141,8 @@ export default function PhaseScreen() {
 
 type Repos = ReturnType<typeof useRepos>;
 
-function NormalPhase({ phase, phases, weights, measures, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
-  phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; unit: WeightUnit; today: DateKey;
+function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
+  phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; now: PhaseMeasures; unit: WeightUnit; today: DateKey;
   dialog: Dialog; setDialog: (d: Dialog) => void; dismissed: { streak?: boolean; mid?: boolean }; setDismissed: (d: { streak?: boolean; mid?: boolean }) => void;
   act: (task: () => Promise<void>, leave?: boolean) => void; busy: boolean; opError: string | null; onBack: () => void; repos: Repos;
 }) {
@@ -156,7 +158,7 @@ function NormalPhase({ phase, phases, weights, measures, unit, today, dialog, se
   const mid = midWeek(progress.weeksTotal);
   const showMid = mid != null && progress.week === mid && !dismissed.mid;
   const projection = projectedKg(chart);
-  const { metrics } = successMetrics(phase, measures);
+  const { metrics } = successMetrics(phase, now);
   const weekAvg = pace.weekAvgKg ?? (measures.weightBasis === 'week' ? measures.weightKg : null);
   const end = progress.effectiveEnd;
 

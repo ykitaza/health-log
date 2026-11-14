@@ -3,8 +3,8 @@ import type { GrowthData } from '../growthData';
 import type { NutritionGoal } from '../meals';
 import { Phase, successMetrics } from '../phases';
 import {
-  autoName, big3Sum, initialTarget, mealDraftFromGoal, mealDraftFromPhase, measuresFrom, metricNote, midDate, midWeek, offPaceStreak,
-  orderMetrics, paceSentence, parseMealDraft, planSlopePerWeek, plannedWeeklyKg, projectedKg, recentSlopePerWeek, snapshotOf,
+  autoName, big3Sum, endMeasuresFrom, initialTarget, mealDraftFromGoal, mealDraftFromPhase, measuresFrom, metricNote, midDate, midWeek, offPaceStreak,
+  orderMetrics, paceSentence, parseMealDraft, phaseLastDay, planSlopePerWeek, plannedWeeklyKg, projectedKg, recentSlopePerWeek, snapshotOf,
   targetAgainstDirection, weightChart,
 } from '../phaseView';
 
@@ -53,6 +53,39 @@ describe('今の記録（開始時の記録と成功の指標の「今」）', (
     expect(big3Sum({ bench: 95, squat: 120, deadlift: 147.5 })).toBe(362.5);
     expect(big3Sum({ bench: null, squat: null, deadlift: null })).toBeNull();
     expect(big3Sum(null)).toBeNull();
+  });
+});
+
+describe('終わりの時点の記録（振り返りの after・成功の指標の「今」）', () => {
+  const g = (sets: { date: string; kg: number; reps: number }[]): GrowthData => ({
+    today: TODAY, days: [], exerciseNames: new Map(), big3: { bench: 'b' }, weights: [{ date: '2026-10-30', weightKg: 72 }], bodyFats: [],
+    mealCount: 0, partNames: new Map(), goalWeightKg: null, weeklyGoals: {} as GrowthData['weeklyGoals'], weeklyTrainingGoal: 3, weightUnit: 'kg',
+    sets: sets.map((x) => ({ date: x.date, exerciseId: 'b', bodyPartId: 'chest', weightKg: x.kg, reps: x.reps })),
+  });
+  test('減量で BIG3 が下がったら「保つ」から外れる（終わりは最後の 28 日の最高。開始時の最高は残らない）', () => {
+    // 開始時 100×5（116.7）、最後の 28 日は 90×3（99.0）。−15% なので外れる
+    const data = g([{ date: '2026-09-01', kg: 100, reps: 5 }, { date: '2026-10-20', kg: 90, reps: 3 }]);
+    const cut = phase({ direction: 'cut', startDate: '2026-09-01', snapshot: { weight_kg: 76, body_fat_pct: null, big3: { bench: 116.7, squat: null, deadlift: null }, growth_score: null } });
+    const now = endMeasuresFrom(data, cut.startDate, '2026-10-31');
+    expect(now.big3).toEqual({ bench: 99, squat: null, deadlift: null });
+    expect(now.weightKg).toBe(72);
+    const big3 = successMetrics(cut, now).metrics.find((m) => m.key === 'big3')!;
+    expect(big3).toMatchObject({ start: 116.7, now: 99, ok: false });
+    // 前の出し方（その日までの最高）だと 116.7 のままで外れなかった
+    expect(measuresFrom(data, '2026-10-31').big3?.bench).toBeCloseTo(116.67, 2);
+  });
+  test('28 日に記録がない役は null（比べない）。フェーズが 28 日より短ければ開始日から', () => {
+    const data = g([{ date: '2026-09-01', kg: 100, reps: 1 }, { date: '2026-10-10', kg: 80, reps: 1 }]);
+    expect(endMeasuresFrom(data, '2026-09-01', '2026-11-30').big3).toBeNull();
+    expect(endMeasuresFrom(data, '2026-10-11', '2026-10-20').big3).toBeNull();
+    expect(endMeasuresFrom(data, '2026-10-10', '2026-10-20').big3).toEqual({ bench: 80, squat: null, deadlift: null });
+  });
+  test('最後の日：終えたものは終えた日の前の日、実施中は今日。開始日より前・今日より後にはしない', () => {
+    expect(phaseLastDay(phase({ status: 'ended', endedOn: '2026-11-01' }), TODAY)).toBe('2026-10-31');
+    expect(phaseLastDay(phase({ status: 'ended', endedOn: '2026-09-28' }), TODAY)).toBe('2026-09-28');
+    expect(phaseLastDay(phase(), TODAY)).toBe(TODAY);
+    // 実際の終わりを過ぎても実施中なら今日
+    expect(phaseLastDay(phase({ endDate: '2026-10-31' }), TODAY)).toBe(TODAY);
   });
 });
 

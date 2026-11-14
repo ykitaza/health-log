@@ -6,6 +6,7 @@ import * as path from 'path';
 import { BPM_MAX, BPM_MIN, SLEEP_MAX_MIN, STEPS_MAX, STEPS_MIN } from '../healthConnect/importer';
 import { SITE_CODES, SITES } from '../injuries';
 import { MIN_WEIGH_INS, PACE_BAND_CENTS, PACE_WINDOW_DAYS, PHASE_LIMITS, RECOVERY_DAYS } from '../phases';
+import { BIG3_END_DAYS } from '../phaseView';
 import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, INJURY_LIMITS, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
@@ -92,6 +93,8 @@ describe('同期のサーバーの決まりと合っている', () => {
       phase: constant('MAX_PHASE'), symptom: constant('MAX_SYMPTOM'), cause: constant('MAX_CAUSE'), fix: constant('MAX_FIX'),
       reviewNote: constant('MAX_REVIEW_NOTE'), injuries: constant('MAX_INJURIES'), reviewsPerInjury: constant('MAX_REVIEWS_PER_INJURY'),
     }).toEqual(INJURY_LIMITS);
+    // 振り返りの終わりの BIG3 を見る日数（training.domain.measures）
+    expect(Number(/^BIG3_END_DAYS = (\d+)/m.exec(read('services/training/training/domain/measures.py'))?.[1])).toBe(BIG3_END_DAYS);
     // 同期の項目も同じ定数を使う（Field(max_length=MAX_…)）
     for (const [field, name] of [['phase', 'MAX_PHASE'], ['symptom', 'MAX_SYMPTOM'], ['cause', 'MAX_CAUSE'], ['fix', 'MAX_FIX']]) {
       expect(entities).toMatch(new RegExp(`^class InjuryFields[\\s\\S]*?^\\s+${field}: Annotated\\[str, Field\\(max_length=${name}\\)\\]`, 'm'));
@@ -119,6 +122,8 @@ describe('同期のサーバーの決まりと合っている', () => {
     }).toEqual(PHASE_LIMITS);
     expect([constant('PACE_BAND_CENTS'), constant('MIN_WEIGH_INS'), constant('PACE_WINDOW_DAYS'), constant('RECOVERY_DAYS')])
       .toEqual([PACE_BAND_CENTS, MIN_WEIGH_INS, PACE_WINDOW_DAYS, RECOVERY_DAYS]);
+    // 振り返りの終わりの BIG3 を見る日数（training.domain.measures）
+    expect(Number(/^BIG3_END_DAYS = (\d+)/m.exec(read('services/training/training/domain/measures.py'))?.[1])).toBe(BIG3_END_DAYS);
     // 同期の項目も同じ定数を使う
     expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+name: Annotated\[str, Field\(max_length=MAX_PHASE_NAME\)\]/m);
     expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+target_history: Annotated\[list\[PhaseTargetChange\], Field\(max_length=MAX_TARGET_HISTORY\)\]/m);
