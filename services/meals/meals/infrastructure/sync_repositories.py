@@ -5,7 +5,7 @@
 消えた対象を MCP が保存し直すとき（同じ名前のいつもの、目標、日の種類）は、restore してから書く。
 書く前に、アプリから届く変更と同じ決まり（sync_entities.py）で確かめる（量を変えて kcal が上限を超えた、など）。
 アプリから届いた値をドメインが断るときは、その対象だけを読まずにログに残す（一覧の残りは返す）。
-体重は食事では保存しない（筋トレの体組成に一本化した。services/mcp/main.py の BodyRecordWeights）。
+体重は食事では保存しない（筋トレの体組成に一本化した。services/composition/composition/adapters.py の BodyRecordWeights）。
 """
 
 from __future__ import annotations
