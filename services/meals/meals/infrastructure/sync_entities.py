@@ -131,12 +131,14 @@ def _template_named(entity_id: str, fields: dict) -> Rejection | None:
     return None
 
 
+# create で要る項目。読む側（sync_repositories.py の meal_from_doc）も、これがそろった食事と品目だけを読む
+MEAL_REQUIRED = ("date", "slot", "description", "source")
+MEAL_ITEM_REQUIRED = ("name", "amount", "unit", "kcal", "protein_g", "fat_g", "carbs_g", "confidence", "sort_order")
+
+
 def register(registry: Registry) -> None:
-    registry.register("meal", EntitySpec(
-        MealFields, ("date", "slot", "description", "source"), AREA, index_key=_meal_index))
-    registry.register("meal_item", EntitySpec(
-        MealItemFields, ("name", "amount", "unit", "kcal", "protein_g", "fat_g", "carbs_g", "confidence", "sort_order"),
-        AREA, parent_type="meal"))
+    registry.register("meal", EntitySpec(MealFields, MEAL_REQUIRED, AREA, index_key=_meal_index))
+    registry.register("meal_item", EntitySpec(MealItemFields, MEAL_ITEM_REQUIRED, AREA, parent_type="meal"))
     registry.register("meal_template", EntitySpec(MealTemplateFields, ("name", "items"), AREA, check=_template_named))
     registry.register("nutrition_goal", EntitySpec(
         NutritionGoalFields, ("policy",), AREA, valid_id=lambda entity_id: entity_id == "current"))

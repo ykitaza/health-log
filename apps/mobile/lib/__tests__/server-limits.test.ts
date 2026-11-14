@@ -8,13 +8,22 @@ import { SITE_CODES, SITES } from '../injuries';
 import { MIN_WEIGH_INS, PACE_BAND_CENTS, PACE_WINDOW_DAYS, PHASE_LIMITS, RECOVERY_DAYS } from '../phases';
 import { BIG3_END_DAYS } from '../phaseView';
 import { FORM_VIDEO_URL_MAX_LENGTH, FORM_VIDEO_URL_PATTERN, INJURY_LIMITS, LIMITS, MEMO_MAX_LENGTH, NAME_MAX_LENGTH, REPS_MAX } from '../limits';
+import { MAX_PUSH, MAX_PUSH_BYTES } from '../sync/engine';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 const entities = read('services/training/training/infrastructure/sync_entities.py');
 const fields = read('services/sync/sync/fields.py');
+const httpApi = read('services/sync/sync/presentation/http_api.py');
+// 入力の決まりの定数（training.domain.rules）。同期の項目は、上限をここから import する（`NAME = 1` と `A, B = 1, 2` の形）
+const rules: Record<string, number> = Object.fromEntries(
+  [...read('services/training/training/domain/rules.py').matchAll(/^(\w+(?:, \w+)*) = (\d+(?:, \d+)*)\b/gm)].flatMap(([, names, values]) => {
+    const vs = values.split(', ').map(Number);
+    return names.split(', ').map((n, i) => [n, vs[i]]);
+  }),
+);
 
-/** モデルの中の項目の Field(...) の引数（ge・gt・le・max_length）を読む */
+/** モデルの中の項目の Field(...) の引数（ge・gt・le・max_length）を読む。数でなければ rules.py の定数の値にする */
 function fieldArgs(source: string, model: string | null, name: string): Record<string, number> {
   const body = model == null ? source : source.split(new RegExp(`^class ${model}\\b.*$`, 'm'))[1]?.split(/^class /m)[0];
   if (body == null) throw new Error(`${model} がない`);
@@ -22,7 +31,11 @@ function fieldArgs(source: string, model: string | null, name: string): Record<s
   if (line == null) throw new Error(`${model}.${name} がない`);
   const args = /Field\(([^)]*)\)/.exec(line)?.[1];
   if (args == null) throw new Error(`${model}.${name} に Field がない: ${line}`);
-  return Object.fromEntries(args.split(',').map((a) => a.trim().split('=')).map(([k, v]) => [k, Number(v)]));
+  return Object.fromEntries(args.split(',').map((a) => a.trim().split('=')).map(([k, v]) => {
+    if (/^-?\d/.test(v)) return [k, Number(v)];
+    if (!(v in rules)) throw new Error(`${model}.${name} の ${v} が rules.py にない`);
+    return [k, rules[v]];
+  }));
 }
 
 describe('同期のサーバーの決まりと合っている', () => {
@@ -127,6 +140,14 @@ describe('同期のサーバーの決まりと合っている', () => {
     // 同期の項目も同じ定数を使う
     expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+name: Annotated\[str, Field\(max_length=MAX_PHASE_NAME\)\]/m);
     expect(entities).toMatch(/^class PhaseFields[\s\S]*?^\s+target_history: Annotated\[list\[PhaseTargetChange\], Field\(max_length=MAX_TARGET_HISTORY\)\]/m);
+  });
+
+  test('1回に送る件数と大きさは、サーバーの上限（http_api.py の MAX_PUSH・MAX_PUSH_BYTES）の内側', () => {
+    const count = /^MAX_PUSH = (\d+)$/m.exec(httpApi);
+    const bytes = /^MAX_PUSH_BYTES = (\d+) \* (\d+)$/m.exec(httpApi);
+    if (!count || !bytes) throw new Error('http_api.py に MAX_PUSH・MAX_PUSH_BYTES がない');
+    expect(MAX_PUSH).toBeLessThanOrEqual(Number(count[1]));
+    expect(MAX_PUSH_BYTES).toBeLessThanOrEqual(Number(bytes[1]) * Number(bytes[2]));
   });
 
   test('設定の値（身長・目標体重などを文字にしたもの）は、サーバーの上限に収まる', () => {

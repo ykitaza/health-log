@@ -63,9 +63,6 @@ class Registry:
     def types_in(self, areas: set[str]) -> set[str]:
         return {t for t, spec in self.specs.items() if spec.area in areas}
 
-    def areas(self) -> set[str]:
-        return {spec.area for spec in self.specs.values()}
-
     def parent_type(self, entity_type: str) -> str | None:
         spec = self.specs.get(entity_type)
         return spec.parent_type if spec else None

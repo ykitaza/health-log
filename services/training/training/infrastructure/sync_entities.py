@@ -36,6 +36,16 @@ from training.domain.phase import MAX_NAME as MAX_PHASE_NAME
 from training.domain.phase import MAX_TARGET_HISTORY, Direction
 from training.domain.phase import Kind as PhaseKind
 from training.domain.phase import Status as PhaseStatus
+from training.domain.rules import (
+    BODY_FAT_MAX,
+    BODY_FAT_MIN,
+    BODY_WEIGHT_MAX,
+    BODY_WEIGHT_MIN,
+    RATIO_MAX,
+    RATIO_MIN,
+    REPS_MAX,
+    SET_WEIGHT_MAX,
+)
 
 AREA = "training"
 Name = Annotated[str, Field(min_length=1, max_length=200)]
@@ -56,7 +66,7 @@ class ExerciseFields(FieldsModel):
     sort_order: SortOrder = None
     hidden: bool = None
     # 回数だけの種目の、体重に対する割合（0〜1。自重の負荷量 ＝ 体重 × 割合 × 回数）。null・なしは名前から決める
-    bodyweight_ratio: Annotated[float, Field(ge=0, le=1)] | None = None
+    bodyweight_ratio: Annotated[float, Field(ge=RATIO_MIN, le=RATIO_MAX)] | None = None
     # BIG3 の役。1つの役は1つの種目だけ（アプリが前の種目から外して送る。重なったら ID の小さいほう。training.domain.big3）
     big3: Literal["bench", "squat", "deadlift"] | None = None
     form_video_url: FormVideoUrl | None = None  # フォームの動画のリンク。記録の入力の画面から開く
@@ -71,8 +81,8 @@ class WorkoutEntryFields(FieldsModel):
 class WorkoutSetFields(FieldsModel):
     entry_id: Ref = None
     set_index: Annotated[int, Field(ge=0, le=1000)] = None
-    weight_kg: Annotated[float, Field(gt=0, le=500)] | None = None  # 回数だけの種目は null
-    reps: Annotated[int, Field(ge=0, le=10000)] = None
+    weight_kg: Annotated[float, Field(gt=0, le=SET_WEIGHT_MAX)] | None = None  # 回数だけの種目は null
+    reps: Annotated[int, Field(ge=0, le=REPS_MAX)] = None
     memo: Memo = None
     done: bool = None
 
@@ -80,8 +90,8 @@ class WorkoutSetFields(FieldsModel):
 class BodyRecordFields(FieldsModel):
     date: Day = None
     measured_at: Moment = None
-    weight_kg: Annotated[float, Field(ge=30, le=300)] | None = None
-    body_fat_pct: Annotated[float, Field(ge=0, le=100)] | None = None
+    weight_kg: Annotated[float, Field(ge=BODY_WEIGHT_MIN, le=BODY_WEIGHT_MAX)] | None = None
+    body_fat_pct: Annotated[float, Field(ge=BODY_FAT_MIN, le=BODY_FAT_MAX)] | None = None
     lean_mass_kg: Annotated[float, Field(ge=0, le=300)] | None = None
     memo: Memo = None
     source: Literal["manual", "health_connect"] = None
@@ -156,8 +166,10 @@ class InjuryReviewFields(FieldsModel):
     exercise_id: Ref | None = None  # 試した種目（なければ null）
 
 
-Weight = Annotated[float, Field(ge=30, le=300)]  # 体重（体組成の weight_kg と同じ範囲）
-Kcal = Annotated[float, Field(ge=0, le=20000)]  # 食事の目標と同じ範囲（meals の KCAL_MAX・GRAMS_MAX）
+Weight = Annotated[float, Field(ge=BODY_WEIGHT_MIN, le=BODY_WEIGHT_MAX)]  # 体重（体組成の weight_kg と同じ範囲）
+# 食事の目標と同じ範囲（meals の sync_entities.py の Kcal・Grams）。training は meals に依存しない（pyproject に meals がない）ので
+# import せず、値が同じことは両方を入れる組み立ての場所のテスト（services/app_api/tests）で確かめる
+Kcal = Annotated[float, Field(ge=0, le=20000)]
 Grams = Annotated[float, Field(ge=0, le=5000)]
 OneRm = Annotated[float, Field(gt=0, le=1000)]
 
@@ -186,7 +198,7 @@ class PhaseSnapshot(FieldsModel):
     """開始時の記録（振り返りの before に使う）。ないものは null。"""
 
     weight_kg: Weight | None = None
-    body_fat_pct: Annotated[float, Field(ge=0, le=100)] | None = None
+    body_fat_pct: Annotated[float, Field(ge=BODY_FAT_MIN, le=BODY_FAT_MAX)] | None = None
     big3: PhaseBig3 | None = None
     growth_score: Annotated[int, Field(ge=0, le=100)] | None = None
 
@@ -248,33 +260,45 @@ def _check_injury(entity_id: str, fields: dict) -> Rejection | None:
     """同じ変更に入っている項目どうしの決まり（入っていない項目とは比べない。項目ごとに後勝ちのため）。"""
     site, side = fields.get("site"), fields.get("side")
     if site is not None and side is not None and not SITES[site].sided:
-        return Rejection("invalid_fields", f"{site} には左右がありません",
-                         ({"field": "fields.side", "message": "左右のない部位は null"},))
+        return _reject("side", f"{site} には左右がありません", "左右のない部位は null")
     if "status" in fields and "fixed_on" in fields and (fields["status"] == "fixed") != (fields["fixed_on"] is not None):
-        return Rejection("invalid_fields", "直せた日（fixed_on）は、状態が fixed のときだけ入れてください",
-                         ({"field": "fields.fixed_on", "message": "fixed なら日付、fixing なら null"},))
+        return _reject("fixed_on", "直せた日（fixed_on）は、状態が fixed のときだけ入れてください", "fixed なら日付、fixing なら null")
     occurred, fixed = fields.get("occurred_on"), fields.get("fixed_on")
     if occurred and fixed and fixed < occurred:
-        return Rejection("invalid_fields", "直せた日は、痛めた日と同じか後の日にしてください",
-                         ({"field": "fields.fixed_on", "message": "occurred_on と同じか後の日"},))
+        return _reject("fixed_on", "直せた日は、痛めた日と同じか後の日にしてください", "occurred_on と同じか後の日")
     return None
 
 
+# create で要る項目。読む側（sync_repository.py）も、これがそろったものだけを読む
+REQUIRED: dict[str, tuple[str, ...]] = {
+    "body_part": ("name", "sort_order", "hidden"),
+    "exercise": ("body_part_id", "name", "record_type", "sort_order", "hidden"),
+    "workout_entry": ("date", "exercise_id", "sort_order"),
+    "workout_set": ("entry_id", "set_index", "reps"),
+    "body_record": ("date", "measured_at", "source"),
+    "setting": ("value",),
+    "sleep_session": ("date", "start_at", "end_at", "asleep_min", "awake_min", "source"),
+    "heart_rate_day": ("date", "samples"),
+    "step_day": ("date", "steps"),
+    "injury": ("occurred_on", "site", "status"),
+    "injury_review": ("injury_id", "date", "result"),
+    "phase": ("kind", "start_date", "status"),
+}
+
+
 def register(registry: Registry) -> None:
-    registry.register("body_part", EntitySpec(BodyPartFields, ("name", "sort_order", "hidden"), AREA))
-    registry.register("exercise", EntitySpec(
-        ExerciseFields, ("body_part_id", "name", "record_type", "sort_order", "hidden"), AREA))
-    registry.register("workout_entry", EntitySpec(WorkoutEntryFields, ("date", "exercise_id", "sort_order"), AREA))
-    registry.register("workout_set", EntitySpec(WorkoutSetFields, ("entry_id", "set_index", "reps"), AREA,
+    registry.register("body_part", EntitySpec(BodyPartFields, REQUIRED["body_part"], AREA))
+    registry.register("exercise", EntitySpec(ExerciseFields, REQUIRED["exercise"], AREA))
+    registry.register("workout_entry", EntitySpec(WorkoutEntryFields, REQUIRED["workout_entry"], AREA))
+    registry.register("workout_set", EntitySpec(WorkoutSetFields, REQUIRED["workout_set"], AREA,
                                                 owner=("workout_entry", "entry_id")))
-    registry.register("body_record", EntitySpec(BodyRecordFields, ("date", "measured_at", "source"), AREA))
-    registry.register("setting", EntitySpec(SettingFields, ("value",), AREA))
-    registry.register("sleep_session", EntitySpec(
-        SleepSessionFields, ("date", "start_at", "end_at", "asleep_min", "awake_min", "source"), AREA))
-    registry.register("heart_rate_day", EntitySpec(HeartRateDayFields, ("date", "samples"), AREA))
-    registry.register("step_day", EntitySpec(StepDayFields, ("date", "steps"), AREA))
-    registry.register("injury", EntitySpec(InjuryFields, ("occurred_on", "site", "status"), AREA, check=_check_injury))
+    registry.register("body_record", EntitySpec(BodyRecordFields, REQUIRED["body_record"], AREA))
+    registry.register("setting", EntitySpec(SettingFields, REQUIRED["setting"], AREA))
+    registry.register("sleep_session", EntitySpec(SleepSessionFields, REQUIRED["sleep_session"], AREA))
+    registry.register("heart_rate_day", EntitySpec(HeartRateDayFields, REQUIRED["heart_rate_day"], AREA))
+    registry.register("step_day", EntitySpec(StepDayFields, REQUIRED["step_day"], AREA))
+    registry.register("injury", EntitySpec(InjuryFields, REQUIRED["injury"], AREA, check=_check_injury))
     # 振り返りはケガといっしょに消す（アプリも MCP も、ケガを消すときに振り返りも消す）。owner は大量の削除の数え方だけが使う
-    registry.register("injury_review", EntitySpec(InjuryReviewFields, ("injury_id", "date", "result"), AREA,
+    registry.register("injury_review", EntitySpec(InjuryReviewFields, REQUIRED["injury_review"], AREA,
                                                   owner=("injury", "injury_id")))
-    registry.register("phase", EntitySpec(PhaseFields, ("kind", "start_date", "status"), AREA, check=_check_phase))
+    registry.register("phase", EntitySpec(PhaseFields, REQUIRED["phase"], AREA, check=_check_phase))

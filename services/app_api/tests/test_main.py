@@ -7,15 +7,18 @@ from datetime import date
 
 import boto3
 from moto import mock_aws
+from pydantic import TypeAdapter
 
 import main
 from meals.application.commands import NewItem, NewMeal
 from meals.application.meals import MealService
 from meals.domain.values import EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.infrastructure import sync_entities as meals_entities
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from meals.infrastructure.sync_repositories import SyncMealRepository
 from sync.engine import SyncEngine
 from sync.store import BY_DAY_INDEX, InMemorySyncStore
+from training.infrastructure import sync_entities as training_entities
 
 APP_CLIENT = "app-client"
 MEALS = {"meal", "meal_item", "meal_template", "nutrition_goal", "day_type"}
@@ -33,6 +36,12 @@ def event(method, path, sub="cognito-sub-1", scope="torelog-api/meals.read torel
 def test_食事と筋トレとレポートの種類を登録し_scope_で分ける():
     registry = main.create_registry()
     assert registry.types_in({"meals"}) == MEALS and registry.types_in({"training"}) == TRAINING
+
+
+def test_フェーズの食事の目標の範囲は_食事の目標と同じ():
+    # training は meals に依存しないので import で結べない。両方を入れるこの組み立ての場所で、値が同じことを確かめる
+    assert TypeAdapter(training_entities.Kcal).json_schema() == TypeAdapter(meals_entities.Kcal).json_schema()
+    assert TypeAdapter(training_entities.Grams).json_schema() == TypeAdapter(meals_entities.Grams).json_schema()
 
 
 def test_MCP_で記録した人と_アプリの人は_同じ_sub_なら同じデータ():

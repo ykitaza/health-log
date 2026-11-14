@@ -15,13 +15,12 @@ import anyio
 
 from reports.domain.errors import ReportError
 from reports.domain.report import Area, Highlight, Kind, Link, Metric, Report, Review, ReviewTarget, Tone
-from reports.infrastructure.sync_entities import ENTITY
+from reports.infrastructure.sync_entities import ENTITY, REQUIRED
 from sync.engine import SyncEngine
 from sync.model import Change, EntityState
 from sync.registry import Rejection
 
 logger = logging.getLogger(__name__)
-REQUIRED = {"title", "body", "kind"}
 
 
 def report_fields(r: Report) -> dict:
@@ -64,7 +63,7 @@ def _highlight_fields(h: Highlight) -> dict:
 
 def report_from_state(state: EntityState) -> Report | None:
     v = state.values
-    if state.deleted or not REQUIRED <= v.keys():
+    if state.deleted or not set(REQUIRED) <= v.keys():
         return None
     try:
         highlights = tuple(

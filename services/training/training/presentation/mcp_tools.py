@@ -42,6 +42,7 @@ from training.domain.injury import (
     SiteCode,
 )
 from training.domain.model import RecordType
+from training.domain.rules import MEMO_MAX, RATIO_MAX, RATIO_MIN, REPS_MAX, SET_WEIGHT_MAX
 from training.presentation import views
 
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
@@ -93,9 +94,9 @@ class NoAppSync:
 
 class SetInput(BaseModel):
     weight_kg: float | None = Field(
-        None, gt=0, le=500, description="重量（kg）。lb で言われたら kg に直す。回数だけの種目（懸垂・腕立て伏せなど）は省く")
-    reps: int = Field(ge=1, le=10000, description="回数")
-    memo: str = Field("", max_length=1000, description="メモ（フォーム、補助ありなど）。なければ省く")
+        None, gt=0, le=SET_WEIGHT_MAX, description="重量（kg）。lb で言われたら kg に直す。回数だけの種目（懸垂・腕立て伏せなど）は省く")
+    reps: int = Field(ge=1, le=REPS_MAX, description="回数")
+    memo: str = Field("", max_length=MEMO_MAX, description="メモ（フォーム、補助ありなど）。なければ省く")
 
 
 class ExerciseInput(BaseModel):
@@ -105,9 +106,9 @@ class ExerciseInput(BaseModel):
 
 class SetChangeInput(BaseModel):
     set_id: str = Field(description="get_workout で調べた set_id")
-    weight_kg: float | None = Field(None, gt=0, le=500, description="新しい重量（kg）。変えないなら省く")
-    reps: int | None = Field(None, ge=1, le=10000, description="新しい回数。変えないなら省く")
-    memo: str | None = Field(None, max_length=1000, description="新しいメモ。変えないなら省く。消すなら空の文字")
+    weight_kg: float | None = Field(None, gt=0, le=SET_WEIGHT_MAX, description="新しい重量（kg）。変えないなら省く")
+    reps: int | None = Field(None, ge=1, le=REPS_MAX, description="新しい回数。変えないなら省く")
+    memo: str | None = Field(None, max_length=MEMO_MAX, description="新しいメモ。変えないなら省く。消すなら空の文字")
 
 
 def register_training_tools(
@@ -285,7 +286,8 @@ def register_training_tools(
     @mcp.tool(annotations=WRITE)
     async def add_exercise(
         name: str, body_part: str, record_type: Literal["weight_reps", "reps_only"] = "weight_reps",
-        bodyweight_ratio: Annotated[float | None, Field(ge=0, le=1, description=RATIO_DESCRIPTION)] = None,
+        bodyweight_ratio: Annotated[
+            float | None, Field(ge=RATIO_MIN, le=RATIO_MAX, description=RATIO_DESCRIPTION)] = None,
     ) -> dict:
         """種目を足す（アプリにも出る）。list_exercises にない種目を記録したいときに、利用者に名前と部位を確かめてから呼ぶ。
 
@@ -304,7 +306,8 @@ def register_training_tools(
         name: str | None = None,
         body_part: str | None = None,
         hidden: bool | None = None,
-        bodyweight_ratio: Annotated[float | None, Field(ge=0, le=1, description=RATIO_DESCRIPTION)] = None,
+        bodyweight_ratio: Annotated[
+            float | None, Field(ge=RATIO_MIN, le=RATIO_MAX, description=RATIO_DESCRIPTION)] = None,
     ) -> dict:
         """種目の名前・部位・体重に対する割合（回数だけの種目）を変える、隠す（hidden=true）・表示に戻す（hidden=false）。
         変えない項目は省く（アプリにも反映される）。割合を変えると、過去の記録の総負荷量も新しい割合で出る。
