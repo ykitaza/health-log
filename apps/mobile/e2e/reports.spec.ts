@@ -242,7 +242,7 @@ async function recordMeal(page: Page) {
   await field('品目1の量').fill('1');
   await field('品目1のエネルギー').fill('200');
   await button(page, '記録する').click();
-  await expect(page.getByTestId('total-kcal').filter({ visible: true })).toHaveText('200');
+  await expect(page.getByTestId('meal-fuel').filter({ visible: true })).toHaveAttribute('aria-label', /^今日の食事 200kcal/);
   await goTab(page, 'ホーム');
 }
 

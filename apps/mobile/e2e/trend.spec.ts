@@ -52,7 +52,8 @@ test('記録があるときの推移', async ({ page }) => {
   await test.step('グラフ「すべて」：BIG3 の推定1RM（そろうまで）と、総負荷量の週 → 日の切り替え（開き直しても覚えている）、自己ベスト', async () => {
     // BIG3：ベンチ 101.3（1か月前の 10/8 までは 80 → +21.3）、スクワット 116.7（1か月前は記録なし）、デッドリフトは記録なし
     // 記録がある2種目だけの合計（101.3 + 116.7 = 218.0）と添え書き。デッドリフトの記録を促す案内も残る
-    await expect(page.getByTestId('big3-total')).toContainText('218.0');
+    // 今の合計は上のホームと同じ BIG3 のカードだけに出す（下の BIG3 のカードは、合計の先月との差と 3か月の折れ線）
+    await expect(page.getByTestId('trend-big3-gauge')).toContainText('218.0');
     await expect(page.getByTestId('big3-partial')).toHaveText('2種目の合計（デッドリフトはまだ）');
     await expect(page.getByTestId('big3-missing')).toContainText('デッドリフトの記録（重量 × 回数）があると合計に加わります');
     await expect(page.getByTestId('big3-bench')).toContainText('101.3kg+21.3');
@@ -64,7 +65,8 @@ test('記録があるときの推移', async ({ page }) => {
     await expect(page.getByTestId('volume-chart-week')).toBeVisible();
     await expect(page.getByTestId('volume-chart-day')).toHaveCount(0);
     // 週は月曜始まり。今週（11/2〜）1280+425 = 1705kg → 1.7t。8週（9/14〜）の合計 600+500+1705 = 2805 → 平均 350.6kg → 0.4t。先週 0 との差 +1.7t
-    await expect(see(page, '1.7', { exact: true })).toBeVisible();
+    // 今週の合計は上の LOAD のカードだけに出す（総負荷量のカードの週ごとには出さない）
+    await expect(page.getByTestId('trend-load-gauge')).toContainText('1.71');
     await expect(see(page, '週の平均 0.4t ・ 先週より +1.7t')).toBeVisible();
 
     // 日ごと：4週（週は月曜始まり。10/12〜11/8）の 28 日。10/20 の 500、11/5 の 1280、11/8 の 425（懸垂は体重がないので 0）

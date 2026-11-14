@@ -1,20 +1,10 @@
+import { ReactNode } from 'react';
 import { View } from 'react-native';
-import { GrowBar, RollNumber } from '@/components/motion';
+import { RollNumber } from '@/components/motion';
 import { T } from '@/components/Text';
-import { Gap, Nutrition } from '@/lib/meals';
+import { Gap } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors } from '@/theme';
-
-/** 進み具合の棒（目標がなければ出さない） */
-export function Bar({ value, target, height = 8 }: { value: number; target: number | null; height?: number }) {
-  if (target == null || target <= 0) return <View style={{ height }} />;
-  const ratio = Math.min(1, Math.max(0, value / target));
-  return (
-    <View style={{ height, borderRadius: height / 2, backgroundColor: colors.input, overflow: 'hidden' }}>
-      <GrowBar ratio={ratio} style={{ height, borderRadius: height / 2, backgroundColor: value > target ? colors.star : colors.accent }} />
-    </View>
-  );
-}
 
 const PFC: { key: 'protein_g' | 'fat_g' | 'carbs_g'; letter: string; label: string }[] = [
   { key: 'protein_g', letter: 'P', label: 'たんぱく質' },
@@ -29,38 +19,36 @@ function Remain({ r, unit, fmt = fmt1, size, bold, color }: { r: number; unit: s
     : <RollNumber value={fmt(-r)} suffix={`${unit} 超え`} size={size} bold={bold} color={color} />;
 }
 
-/** 合計（kcal と PFC）、目標、残り。目標がない項目は合計だけ */
-export function NutritionSummary({ total, target, remaining }: { total: Nutrition; target: Gap | null; remaining: Gap | null }) {
+/**
+ * 目標の残り（kcal と PFC）。合計と目標は、上の FUEL のカード（ホームと同じ）に出すので、ここは残りだけ。目標がない項目は出さない。
+ * right は kcal の残りの行の右に置くもの（日の種類の切り替え）
+ */
+export function NutritionRemaining({ remaining, right }: { remaining: Gap | null; right?: ReactNode }) {
   return (
-    <View testID="meal-summary">
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          <RollNumber num bold size={48} testID="total-kcal" value={fmtInt(total.kcal)} />
-          <T variant="bodyM" color={colors.sub}>{target?.kcal != null ? `/ ${fmtInt(target.kcal)} kcal` : 'kcal'}</T>
+    <View testID="meal-remaining">
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        {remaining?.kcal != null
+          ? <Remain r={remaining.kcal} unit=" kcal" fmt={fmtInt} size={14} bold color={remaining.kcal >= 0 ? colors.accent : colors.star} />
+          : <View />}
+        {right}
+      </View>
+      {PFC.some((p) => remaining?.[p.key] != null) && (
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {PFC.map((p) => {
+            const r = remaining?.[p.key] ?? null;
+            return (
+              <View key={p.key} style={{ flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 4 }} accessibilityLabel={r == null ? undefined : `${p.label} ${r >= 0 ? `残り ${fmt1(r)}g` : `${fmt1(-r)}g 超え`}`}>
+                {r != null && (
+                  <>
+                    <T num bold size={14} color={colors.accent}>{p.letter}</T>
+                    <Remain r={r} unit=" g" size={12} color={r >= 0 ? colors.sub : colors.star} />
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
-        {remaining?.kcal != null && <Remain r={remaining.kcal} unit=" kcal" fmt={fmtInt} size={14} bold color={remaining.kcal >= 0 ? colors.accent : colors.star} />}
-      </View>
-      <View style={{ marginTop: 8 }}><Bar value={total.kcal} target={target?.kcal ?? null} /></View>
-      <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-        {PFC.map((p) => {
-          const t = target?.[p.key] ?? null;
-          const r = remaining?.[p.key] ?? null;
-          return (
-            <View key={p.key} style={{ flex: 1, gap: 4 }} accessibilityLabel={`${p.label} ${fmt1(total[p.key])}g${t != null ? ` 目標 ${fmt1(t)}g` : ''}`}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                <T num bold size={16} color={colors.accent}>{p.letter}</T>
-                <T variant="bodyS" color={colors.sub}>{p.label}</T>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-                <RollNumber num bold size={18} value={fmt1(total[p.key])} />
-                <T variant="labelS" bold={false} color={colors.sub}>{t != null ? `/ ${fmt1(t)}g` : 'g'}</T>
-              </View>
-              <Bar value={total[p.key]} target={t} height={6} />
-              {r != null && <Remain r={r} unit=" g" size={12} color={r >= 0 ? colors.sub : colors.star} />}
-            </View>
-          );
-        })}
-      </View>
+      )}
     </View>
   );
 }
