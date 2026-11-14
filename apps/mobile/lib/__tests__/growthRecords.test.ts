@@ -210,6 +210,8 @@ describe('⑤ 部位の積み重ね', () => {
     const none = partBalance([], nameOf, TODAY);
     expect(partsNote(all, none)).toBe('外周は、その期間でいちばん多い部位（これまでは胸。直近2週は記録なし）');
     expect(partsNote(none, none)).toBeNull();
+    // 推移の 28日（ホームの PARTS から来たとき）は期間の名前を変える
+    expect(partsNote(all, recent, { all: '直近28日', recent: '前の28日' })).toBe('外周は、その期間でいちばん多い部位（直近28日は胸、前の28日は脚）');
     const list = (b: typeof all) => BALANCE_PARTS.map((p, i) => `${p} ${b.sets[i]}`).join('、');
     expect(partsCardLabel(all, recent)).toBe(`部位の積み重ね、これまでの部位ごとのセット数。${list(all)}。直近2週は ${list(recent)}`);
     expect(partsCardLabel(none, none)).toBe('部位の積み重ね。まだ記録がありません');

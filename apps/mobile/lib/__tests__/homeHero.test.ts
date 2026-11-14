@@ -150,14 +150,14 @@ describe('INJURY の四隅', () => {
     const list = [inj('a', '2026-11-06', { date: '2026-11-07', result: 'not_yet' }), inj('b', '2026-10-20')];
     const c = injuryCorners(list, null, TODAY);
     expect(c.count).toBe(2);
-    expect(c.fix).toEqual({ label: '右肩の関節', review: { date: '2026-11-07', mark: '△' } });
-    expect(c.since).toEqual({ date: '2026-10-20', day: 20 });
+    expect(c.fix).toEqual({ id: 'a', label: '右肩の関節', review: { date: '2026-11-07', mark: '△' } });
+    expect(c.since).toEqual({ date: '2026-10-20', day: 20, injuryId: 'b' });
     // b は痛めてから REVIEW_DUE_DAYS 日以上振り返りがない
     expect(REVIEW_DUE_DAYS).toBe(7);
     expect(c.alert).toBe(1);
   });
   test('療養中は療養の開始日から', () => {
-    expect(injuryCorners([inj('a', '2026-11-01')], rehab(), TODAY).since).toEqual({ date: '2026-11-06', day: 3 });
+    expect(injuryCorners([inj('a', '2026-11-01')], rehab(), TODAY).since).toEqual({ date: '2026-11-06', day: 3, injuryId: null });
   });
   test('ケガがなければ空', () => {
     expect(injuryCorners([], null, TODAY)).toEqual({ count: 0, fix: null, since: null, alert: 0 });

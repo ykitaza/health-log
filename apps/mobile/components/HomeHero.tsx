@@ -242,21 +242,28 @@ function Corner({ label, value, sub, align, labelColor = colors.accent, valueCol
   );
 }
 
-/** 四隅の置き場所（読み上げは、ページのまとめの文で読む） */
-function Corners({ children }: { children: [ReactNode, ReactNode, ReactNode, ReactNode] }) {
-  const pos = [{ left: 0, top: 0 }, { right: 0, top: 0 }, { left: 0, bottom: 0, justifyContent: 'flex-end' as const }, { right: 0, bottom: 0, justifyContent: 'flex-end' as const }];
+/** 四隅の置き場所（左上・右上・左下・右下） */
+const AT = {
+  tl: { left: 0, top: 0 },
+  tr: { right: 0, top: 0 },
+  bl: { left: 0, bottom: 0, justifyContent: 'flex-end' as const },
+  br: { right: 0, bottom: 0, justifyContent: 'flex-end' as const },
+};
+
+/** 押せる四隅（見た目は Corner。押せる大きさは 44dp 以上。label は読み上げ） */
+function CornerButton({ at, label, onPress, disabled, testID, children }: {
+  at: keyof typeof AT; label: string; onPress: () => void; disabled?: boolean; testID?: string; children: ReactNode;
+}) {
   return (
-    <>
-      {children.map((c, i) => c != null && (
-        <View key={i} style={[s.corner, pos[i]]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>{c}</View>
-      ))}
-    </>
+    <PressableScale accessibilityRole="button" accessibilityLabel={label} scaleTo={0.97} onPress={onPress} disabled={disabled} style={[s.corner, AT[at]]} testID={testID}>
+      {children}
+    </PressableScale>
   );
 }
 
 /**
  * 体の列の外に重ねる面（3D のページすべて）。その日の体（DayBody）の 3D と Canvas はヒーロー全面で指を受けるので、列の外に指が届かないように
- * 何もしない面を重ね、そこからの横スワイプをページの切り替えに回す（DayBody の部品は変えない）
+ * 何もしない面を重ね、そこからの横スワイプをページの切り替えに回す。体と札のあいだに重ねる（札はこの上で押せる。DayBody・HeroBody の shield）
  */
 function SwipeShield({ width, rotate }: { width: number; rotate: { left: number; width: number } }) {
   return (
@@ -269,9 +276,17 @@ function SwipeShield({ width, rotate }: { width: number; rotate: { left: number;
 
 const PR_EN: Record<string, string> = { ベンチプレス: 'BENCH', スクワット: 'SQUAT', デッドリフト: 'DEAD' };
 
+/** 筋トレのタブの記録のその日（entry があれば、その種目のカードまでスクロール） */
+const openTrainingDay = (date: DateKey, entry?: string | null) =>
+  router.navigate({ pathname: '/training', params: entry ? { view: 'record', date, entry } : { view: 'record', date } });
+const openInjuries = () => router.navigate({ pathname: '/training', params: { view: 'injury' } });
+const openInjury = (id: string) => router.push(`/injuries/${id}`);
+const openRecoveryMap = () => router.navigate('/body');
+
 /**
  * LATEST：直近のトレーニング（今日までのいちばん新しい日）の体と種目の札。四隅に日付（今日なら TODAY）・種目の数（セット数）・
- * 合計負荷量・自己ベストの数。左上を押すとその日の記録。Android は 3D の体、web と 3D が描けないときは 2D の図（前と後ろ）
+ * 合計負荷量・自己ベストの数。Android は 3D の体、web と 3D が描けないときは 2D の図（前と後ろ）。
+ * 押すと：日付・種目の数・合計負荷量はその日の記録、種目の札はその日の記録のその種目、自己ベストは 1 種目ならその種目の推移、ほかは種目ごとの自己ベスト
  */
 function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
   width: number; height: number; today: DateKey; unit: WeightUnit; latest: HeroLatest | null; ready: boolean; rotate: { left: number; width: number };
@@ -290,31 +305,40 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
       entries.map((e) => `${e.no} ${e.name} ${e.set}`).join('、'),
       'その日の記録を開く',
     ].filter(Boolean).join('。');
-  const open = () => { if (ss) router.push({ pathname: '/workout', params: { date: ss.date } }); };
+  const open = (entry?: string | null) => { if (ss) openTrainingDay(ss.date, entry); };
+  // 自己ベスト：1 種目ならその種目の推移（推定1RM の折れ線）、0 か 2 種目以上なら推移の「種目ごとの自己ベスト」
+  const onePr = ss?.prs.length === 1 ? ss.prs[0] : null;
+  const openPr = () => router.navigate({ pathname: '/training', params: onePr ? { view: 'trend', exercise: onePr.exerciseId } : { view: 'trend', focus: 'best' } });
+  const prSpoken = !ss ? '自己ベスト' : onePr ? `自己ベスト 1（${latest!.prNames[0]}）。${latest!.prNames[0]}の推移を開く`
+    : `自己ベスト ${ss.prs.length}${ss.prs.length > 0 ? `（${latest!.prNames.join('、')}）` : ''}。種目ごとの自己ベストを開く`;
   const prSub = latest && latest.prNames.length > 0 ? PR_EN[latest.prNames[0]] ?? 'BEST' : undefined;
+  const volumeText = ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}` : '';
   return (
     <>
-      <DayBody width={width} height={height} entries={entries} parts={parts} band={band} />
-      <SwipeShield width={width} rotate={rotate} />
-      <PressableScale accessibilityRole="button" accessibilityLabel={spoken} scaleTo={0.97} onPress={open} disabled={!ss} style={[s.corner, { left: 0, top: 0 }]} testID="home-latest">
+      <DayBody width={width} height={height} entries={entries} parts={parts} band={band}
+        onPressEntry={open} shield={<SwipeShield width={width} rotate={rotate} />} />
+      <CornerButton at="tl" label={spoken} onPress={() => open()} disabled={!ss} testID="home-latest">
         <Corner align="left" label="LATEST //" value={!ss ? '—' : isToday ? 'TODAY' : formatShortDate(ss.date)} sub={ss ? WEEKDAY_EN[weekday(ss.date)] : ready ? 'NO LOG' : undefined} />
-      </PressableScale>
-      <View style={[s.corner, { right: 0, top: 0 }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden testID="home-latest-ex">
+      </CornerButton>
+      <CornerButton at="tr" label={ss ? `${ss.exercises}種目 ${ss.sets}セット。その日の記録を開く` : '種目の数'} onPress={() => open()} disabled={!ss} testID="home-latest-ex">
         <Corner align="right" label="EX //" value={ss ? String(ss.exercises) : '—'} sub={ss ? `SETS ${ss.sets}` : undefined} />
-      </View>
-      <View style={[s.corner, { left: 0, bottom: 0, justifyContent: 'flex-end' }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden testID="home-latest-load">
+      </CornerButton>
+      <CornerButton at="bl" label={ss ? `合計負荷量 ${volumeText}。その日の記録を開く` : '合計負荷量'} onPress={() => open()} disabled={!ss} testID="home-latest-load">
         <Corner align="left" label="LOAD" value={ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 't' : 'k'}` : '—'} sub="TOTAL" />
-      </View>
-      <View style={[s.corner, { right: 0, bottom: 0, justifyContent: 'flex-end' }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden testID="home-latest-pr">
+      </CornerButton>
+      <CornerButton at="br" label={prSpoken} onPress={openPr} disabled={!ss} testID="home-latest-pr">
         <Corner align="right" label="PR //" value={ss ? String(ss.prs.length) : '—'} sub={prSub} />
-      </View>
+      </CornerButton>
     </>
   );
 }
 
 type BodyPageProps = { width: number; height: number; band: { top: number; bottom: number }; rotate: { left: number; width: number }; data: HeroData };
 
-/** RECOVERY：3D の体を回復の色で塗る（からだのタブの回復マップと同じ）。四隅に READY・NEXT・RECOVERING・INJURY */
+/**
+ * RECOVERY：3D の体を回復の色で塗る（からだのタブの回復マップと同じ）。四隅に READY・NEXT・RECOVERING・INJURY。
+ * 押すと：READY・NEXT・RECOVERING は回復マップ（からだのタブ）、INJURY はケガの一覧
+ */
 function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const c = data.recovery.corners;
   const rec = c.recovering;
@@ -327,25 +351,29 @@ function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <HeroBody kind="recovery" width={width} height={height} band={band} list={data.recovery.list} levels={data.recovery.levels}
-        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} />
-      <SwipeShield width={width} rotate={rotate} />
-      <PressableScale accessibilityRole="button" accessibilityLabel={`${spoken}。回復マップを開く`} scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]}
-        testID="hero-recovery" onPress={() => router.navigate('/body')}>
+        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
+      <CornerButton at="tl" label={`${spoken}。回復マップを開く`} testID="hero-recovery" onPress={openRecoveryMap}>
         <Corner align="left" label="READY //" value={String(c.ready)} sub={`/ ${c.total} PARTS`} />
-      </PressableScale>
-      <Corners>
-        {null}
+      </CornerButton>
+      <CornerButton at="tr" label={`次の部位 ${c.next ?? 'なし'}。回復マップを開く`} testID="hero-recovery-next" onPress={openRecoveryMap}>
         <Corner align="right" label="NEXT //" value={c.next ?? '—'} sub={c.next ? 'RECOVERED' : undefined} />
+      </CornerButton>
+      <CornerButton at="bl" label={`${rec ? `回復中 ${rec.name} あと${rec.remaining}日` : '回復中の部位はありません'}。回復マップを開く`} testID="hero-recovery-recovering" onPress={openRecoveryMap}>
         <Corner align="left" label="RECOVERING" value={rec?.name ?? '—'} valueColor={rec ? recoveryColor(rec.level) : colors.text}
           sub={rec ? `${rec.remaining}D LEFT${rec.more > 0 ? ` +${rec.more}` : ''}` : 'ALL READY'} />
+      </CornerButton>
+      <CornerButton at="br" label={`直している途中のケガ ${c.injuries}件。ケガの一覧を開く`} testID="hero-recovery-injury" onPress={openInjuries}>
         <Corner align="right" label="INJURY" labelColor={c.injuries > 0 ? INJURY_RED : colors.accent} value={String(c.injuries)}
           valueColor={c.injuries > 0 ? INJURY_RED : colors.text} sub="FIXING" />
-      </Corners>
+      </CornerButton>
     </View>
   );
 }
 
-/** INJURY：3D の体にケガの部位と札（ケガの画面と同じ形、赤）。四隅に INJURY・FIX・SINCE・ALERT */
+/**
+ * INJURY：3D の体にケガの部位と札（ケガの画面と同じ形、赤。札を押すとそのケガ）。四隅に INJURY・FIX・SINCE・ALERT。
+ * 押すと：INJURY・ALERT はケガの一覧、FIX は直している部位のケガ、SINCE はいちばん古いケガ（療養中はフェーズの画面）
+ */
 function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const c = data.injury.corners;
   const spoken = [
@@ -355,32 +383,36 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
     c.alert > 0 ? `振り返りが1週間以上ないケガ ${c.alert}件` : '',
     'ケガの一覧を開く',
   ].filter(Boolean).join('。');
+  const since = c.since;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <HeroBody kind="injury" width={width} height={height} band={band} list={data.recovery.list} levels={{}}
-        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} />
-      <SwipeShield width={width} rotate={rotate} />
-      <PressableScale accessibilityRole="button" accessibilityLabel={spoken} scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]} testID="hero-injury"
-        onPress={() => router.navigate({ pathname: '/training', params: { view: 'injury' } })}>
+        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
+      <CornerButton at="tl" label={spoken} testID="hero-injury" onPress={openInjuries}>
         <Corner align="left" label="INJURY //" labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub="ACTIVE" />
-      </PressableScale>
-      <View style={[s.corner, { right: 0, top: 0 }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      </CornerButton>
+      <CornerButton at="tr" label={c.fix ? `直している部位 ${c.fix.label}。このケガを開く` : '直している部位はありません。ケガの一覧を開く'} testID="hero-injury-fix"
+        onPress={() => (c.fix ? openInjury(c.fix.id) : openInjuries())}>
         <Corner align="right" label="FIX //" value={c.fix?.label ?? '—'} sub={c.fix ? (c.fix.review ? `${formatShortDate(c.fix.review.date)} ${c.fix.review.mark}` : 'NO REVIEW') : undefined} />
-      </View>
-      <View style={[s.corner, { left: 0, bottom: 0, justifyContent: 'flex-end' }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <Corner align="left" label="SINCE" value={c.since ? formatShortDate(c.since.date) : '—'} sub={c.since ? `DAY ${String(c.since.day).padStart(2, '0')}` : undefined} />
-      </View>
-      <View style={[s.corner, { right: 0, bottom: 0, justifyContent: 'flex-end' }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      </CornerButton>
+      <CornerButton at="bl" testID="hero-injury-since"
+        label={!since ? 'いつから。ケガの一覧を開く' : `${formatJpDate(since.date)}から ${since.day}日目。${since.injuryId ? 'このケガを開く' : 'フェーズの進み具合を開く'}`}
+        onPress={() => (since?.injuryId ? openInjury(since.injuryId) : since ? router.push('/phase') : openInjuries())}>
+        <Corner align="left" label="SINCE" value={since ? formatShortDate(since.date) : '—'} sub={since ? `DAY ${String(since.day).padStart(2, '0')}` : undefined} />
+      </CornerButton>
+      <CornerButton at="br" label={`振り返りが1週間以上ないケガ ${c.alert}件。ケガの一覧を開く`} testID="hero-injury-alert" onPress={openInjuries}>
         <Corner align="right" label="ALERT" labelColor={c.alert > 0 ? INJURY_RED : colors.accent} value={c.alert > 0 ? `▲ ${c.alert}` : '0'}
           valueColor={c.alert > 0 ? INJURY_RED : colors.text} sub="REVIEW" />
-      </View>
+      </CornerButton>
     </View>
   );
 }
 
-/** GROWTH の四隅のうち PHASE・PACE・WEIGHT（SCORE は GrowthPage が出す） */
+/** GROWTH の四隅のうち PHASE・PACE・WEIGHT（SCORE は GrowthPage が出す）。PHASE・PACE はフェーズ（なければ始める）、WEIGHT は体重の推移 */
 function GrowthCornersView({ c, unit, route }: { c: GrowthCorners; unit: WeightUnit; route: PhaseRoute }) {
   const u = (kg: number) => fmt1(kgToUnit(kg, unit));
+  const openPhase = () => router.push(route);
+  const phaseAction = route === '/phase' ? 'フェーズの進み具合を開く' : route === '/phase/new' ? 'フェーズを始める' : 'フェーズの振り返りを開く';
   const spoken = [
     c.phase ? `フェーズ ${c.phase.value}` : 'フェーズは未設定',
     c.pace ? `ペース ${c.pace.value ?? '判定なし'}` : '',
@@ -388,16 +420,17 @@ function GrowthCornersView({ c, unit, route }: { c: GrowthCorners; unit: WeightU
   ].filter(Boolean).join('。');
   return (
     <>
-      <PressableScale accessibilityRole="button" accessibilityLabel={`${spoken}。${route === '/phase' ? 'フェーズの進み具合を開く' : route === '/phase/new' ? 'フェーズを始める' : 'フェーズの振り返りを開く'}`}
-        scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]} testID="hero-growth" onPress={() => router.push(route)}>
+      <CornerButton at="tl" label={`${spoken}。${phaseAction}`} testID="hero-growth" onPress={openPhase}>
         <Corner align="left" label="PHASE //" value={c.phase?.value ?? '—'} sub={c.phase?.sub ?? 'NO PHASE'} />
-      </PressableScale>
-      <View style={[s.corner, { right: 0, top: 0 }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      </CornerButton>
+      <CornerButton at="tr" label={`ペース ${c.pace?.value ?? '判定なし'}。${phaseAction}`} testID="hero-growth-pace" onPress={openPhase}>
         <Corner align="right" label="PACE //" value={c.pace?.value ?? '—'} sub={c.pace?.sub ?? 'NO DATA'} />
-      </View>
-      <View style={[s.corner, { left: 0, bottom: 0, justifyContent: 'flex-end' }]} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      </CornerButton>
+      <CornerButton at="bl" testID="hero-growth-weight"
+        label={`体重 週平均 ${c.weekAvgKg != null ? `${u(c.weekAvgKg)}${unit}` : 'まだ'}${c.goalKg != null ? `、目標 ${u(c.goalKg)}${unit}` : ''}。体重の推移を開く`}
+        onPress={() => router.push({ pathname: '/body-trend', params: { metric: 'weight' } })}>
         <Corner align="left" label="WEIGHT" value={c.weekAvgKg != null ? u(c.weekAvgKg) : '—'} sub={c.goalKg != null ? `→ ${u(c.goalKg)} ${unit.toUpperCase()}` : 'NO GOAL'} />
-      </View>
+      </CornerButton>
     </>
   );
 }

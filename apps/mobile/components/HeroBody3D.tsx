@@ -16,6 +16,10 @@ export type HeroBody3DProps = {
   rotate: { left: number; width: number };
   /** 描けないときに出すもの（2D の図） */
   fallback: ReactNode;
+  /** 体の列の外に重ねる面（横スワイプをページの切り替えに回す）。札はこの上に出す */
+  shield: ReactNode;
+  /** ケガの札を押した */
+  onPressInjury: (id: string) => void;
 };
 
 export const HeroBody3D: ComponentType<HeroBody3DProps> | null = null;

@@ -24,11 +24,11 @@ export type DayBodyProps = {
   band?: { top: number; bottom: number };
   /** 3D を描けないときに出すもの（省くと、この部品の 2D の図） */
   fallback?: ReactNode;
-} & Pick<DayBody3DProps, 'recovery' | 'injuries' | 'onPick'>;
+} & Pick<DayBody3DProps, 'recovery' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
 export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, ...rest }: DayBodyProps) {
-  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} />;
+  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} onPressEntry={rest.onPressEntry} shield={rest.shield} />;
   return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={figure2D} {...rest} /> : figure2D;
 }
 
@@ -72,8 +72,14 @@ export function DayBodyForDate({ date, unit, ...rest }: Omit<DayBodyProps, 'entr
 
 const FIG_GAP = space.s;
 
-/** 2D の図（前と後ろ）：その日の部位を緑で塗り、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts） */
-function Figure2D({ width, band, entries, parts }: { width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[] }) {
+/**
+ * 2D の図（前と後ろ）：その日の部位を緑で塗り、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts）。
+ * onPressEntry があれば札を押せる（shield は図と札のあいだに重ねる）
+ */
+function Figure2D({ width, band, entries, parts, onPressEntry, shield }: {
+  width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[];
+  onPressEntry?: (key: string | null) => void; shield?: ReactNode;
+}) {
   const figH = Math.min(200, band.bottom - band.top);
   const figW = figH / 2;
   const scale = figH / 200;
@@ -91,20 +97,21 @@ function Figure2D({ width, band, entries, parts }: { width: number; band: { top:
   const tag = (c: PlacedCallout, side: 'left' | 'right'): ReactNode => {
     const style = { position: 'absolute', [side]: 0, top: band.top + c.top, width: tagW } as const;
     return c.kind === 'more'
-      ? <MoreTag key={`more-${side}`} nos={c.nos} style={style} />
-      : <DayBodyTag key={c.key} e={byKey.get(c.key)!} align={side === 'left' ? 'right' : 'left'} style={style} />;
+      ? <MoreTag key={`more-${side}`} nos={c.nos} style={style} onPress={onPressEntry && (() => onPressEntry(null))} />
+      : <DayBodyTag key={c.key} e={byKey.get(c.key)!} align={side === 'left' ? 'right' : 'left'} style={style} onPress={onPressEntry && (() => onPressEntry(c.key))} />;
   };
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="day-body-2d">
+    <View style={StyleSheet.absoluteFill} pointerEvents={onPressEntry ? 'box-none' : 'none'} testID="day-body-2d">
       {(['front', 'back'] as const).map((view) => (
-        <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
+        <View key={view} pointerEvents="none" style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
           <MuscleFigure view={view} paint={paint} paintColor={colors.accent} width={figW} height={figH} />
         </View>
       ))}
-      <Svg width={width} height={band.bottom} style={StyleSheet.absoluteFill}>
+      <Svg width={width} height={band.bottom} style={StyleSheet.absoluteFill} pointerEvents="none">
         {lines.map((l) => <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.accent} strokeOpacity={0.7} strokeWidth={1} />)}
         {lines.map((l) => <Circle key={`d-${l.key}`} cx={l.x} cy={l.y} r={3} fill={colors.accent} stroke={colors.bg} strokeWidth={1} />)}
       </Svg>
+      {shield}
       {layout.left.map((c) => tag(c, 'left'))}
       {layout.right.map((c) => tag(c, 'right'))}
     </View>

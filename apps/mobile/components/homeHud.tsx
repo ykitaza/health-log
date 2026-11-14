@@ -79,7 +79,7 @@ function Big({ value, format, unit, testID }: { value: number | null; format: (v
 const trendColor = (n: number) => (n > 0 ? colors.accent : n < 0 ? colors.danger : colors.sub);
 const big3Short = { bench: 'B', squat: 'S', deadlift: 'D' } as const;
 
-/** BIG3：今の合計（推定1RM）、差（フェーズ実施中は開始から Δ PHASE、ほかは 28 日前から）、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移 */
+/** BIG3：今の合計（推定1RM）、差（フェーズ実施中は開始から Δ PHASE、ほかは 28 日前から）、B・S・D の棒、16 週の線（始まり・自己ベスト・今の点）。押すと筋トレの推移の BIG3 */
 export function Big3Panel({ gauge, unit, ready }: { gauge: Big3Gauge | null; unit: WeightUnit; ready: boolean }) {
   const [w, setW] = useState(0);
   const u = (kg: number) => kgToUnit(kg, unit);
@@ -94,7 +94,7 @@ export function Big3Panel({ gauge, unit, ready }: { gauge: Big3Gauge | null; uni
     ].filter(Boolean).join('。');
   return (
     <Panel testID="home-big3" label={`${label}。筋トレの推移を開く`} style={s.gauge}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })}>
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } })}>
       <Head left="BIG3" />
       <Big value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} unit={unit.toUpperCase()} />
       {gauge?.deltaKg != null
@@ -147,7 +147,7 @@ function DayLetters({ dates, today }: { dates: DateKey[]; today: DateKey }) {
 
 const BAR_H = 34;
 
-/** LOAD：今週の合計負荷量、今週 7 日の棒と、先週の日ごとの破線の枠、先週の同じ曜日までとの比。押すと筋トレの推移 */
+/** LOAD：今週の合計負荷量、今週 7 日の棒と、先週の日ごとの破線の枠、先週の同じ曜日までとの比。押すと筋トレの推移の総負荷量を日ごとで（今週と先週の日ごとの棒がある） */
 export function LoadPanel({ gauge, dates, today, unit, ready }: { gauge: LoadGauge; dates: DateKey[]; today: DateKey; unit: WeightUnit; ready: boolean }) {
   const max = Math.max(1, ...gauge.lastWeek, ...gauge.thisWeek.map((v) => v ?? 0));
   const pct = gauge.vsLastWeekPct;
@@ -155,7 +155,7 @@ export function LoadPanel({ gauge, dates, today, unit, ready }: { gauge: LoadGau
   const label = `今週の合計負荷量 ${tonnes(gauge.totalKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}${pct != null ? `。先週の同じ曜日までより ${pct >= 0 ? `${pct}% 多い` : `${-pct}% 少ない`}` : ''}`;
   return (
     <Panel testID="volume-week" label={`${label}。筋トレの推移を開く`} style={s.gauge}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend' } })}>
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } })}>
       <Head left="LOAD" />
       <View style={s.big}>
         <CountToText value={ready ? gauge.totalKg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={22} style={s.bigText} />
@@ -266,7 +266,7 @@ const TREND_MARK = { up: '▲', down: '▼', flat: '-' } as const;
 
 /**
  * PARTS：部位のレーダー。今の 28 日（実線と塗り）、前の 28 日（破線）、等分の六角形、頂点ごとのセット数と増減、
- * 回復中（暖色）・ケガ（赤）の点、右上に「LOW › 部位」。押すと筋トレの推移
+ * 回復中（暖色）・ケガ（赤）の点、右上に「LOW › 部位」。押すと筋トレの推移の部位のバランスを、同じ 28日（前の28日を点線で）で
  */
 export function PartsPanel({ radar, states }: { radar: PartsRadar | null; states: PartState[] }) {
   const [w, setW] = useState(0);
@@ -275,7 +275,7 @@ export function PartsPanel({ radar, states }: { radar: PartsRadar | null; states
     : `部位のバランス、直近28日のセット数。${BALANCE_PARTS.map((p, i) => `${p} ${radar.sets[i]}（前の28日 ${radar.prevSets[i]}）${states[i] === 'injury' ? ' ケガ' : states[i] === 'recovering' ? ' 回復中' : ''}`).join('、')}${radar.low ? `。いちばん少ないのは${radar.low}` : ''}`;
   return (
     <Panel testID="home-parts" label={`${label}。筋トレの推移を開く`} style={s.half}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', balance: '2w' } })}>
+      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'parts' } })}>
       <Head left="PARTS // 28D" right={radar?.low ? `LOW › ${radar.low}` : null} rightColor={colors.accent} />
       <View style={{ flex: 1, minHeight: 112 }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
         {w > 0 && <Radar width={w} radar={radar} states={states} />}

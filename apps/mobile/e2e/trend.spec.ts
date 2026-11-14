@@ -115,7 +115,7 @@ test('記録があるときの推移', async ({ page }) => {
     expect(big3).toBeLessThan(balance);
     expect(balance).toBeLessThan(volume);
 
-    // 初めは 2週（ホームと同じ。10/26〜今日）：ベンチ 11/5 の2セットと今日の1セットで胸 3、懸垂で背中 1。軸の名前の横にセット数
+    // 初めは 2週（10/26〜今日）：ベンチ 11/5 の2セットと今日の1セットで胸 3、懸垂で背中 1。軸の名前の横にセット数
     await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
     await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
     await expect(card.getByText('胸 3', { exact: true })).toBeVisible();
@@ -150,7 +150,7 @@ test('記録があるときの推移', async ({ page }) => {
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
   });
 
-  await test.step('部位のバランス：ホームの部位のバランスから来ると、覚えた期間に関係なく 2週。タブや BIG3 から開くと覚えた期間', async () => {
+  await test.step('部位のバランス：ホームの部位のバランスから来ると、覚えた期間に関係なくホームと同じ 28日。タブや BIG3 から開くと覚えた期間', async () => {
     // 前のステップで選んだ種目を外し、開き直して「すべて」から始める
     await moveToDate(page, TODAY);
     await openTrainingTrend(page);
@@ -160,12 +160,14 @@ test('記録があるときの推移', async ({ page }) => {
     await button(page, 'これまで').click();
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
 
-    // ホームの部位のレーダー（PARTS）を押すと 2週
+    // ホームの部位のレーダー（PARTS）を押すと 28日（10/12〜今日。前の28日は 9/14〜10/11 で、9/15 のベンチ）。切り替えはどれも選ばない
     await goTab(page, 'ホーム');
     await home('home-parts').click();
     await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
-    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
-    await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 0、背中 1、腕 0、脚 0、腹 0');
+    await expect(card).toHaveAttribute('aria-label',
+      '部位のバランス、直近28日のセット数。胸 3、肩 0、背中 1、腕 0、脚 1、腹 0。前の28日は 胸 1、肩 0、背中 0、腕 0、脚 0、腹 0');
+    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'false');
+    await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'false');
 
     // 覚えた期間は書き換えない：下のタブで開き直すと、これまで
     await goTab(page, 'ホーム');
@@ -175,7 +177,7 @@ test('記録があるときの推移', async ({ page }) => {
     // 上の切り替えで記録 → 推移に移っても、これまで
     await goTab(page, 'ホーム');
     await home('home-parts').click();
-    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
+    await expect(card).toHaveAttribute('aria-label', /^部位のバランス、直近28日のセット数。/);
     await goPane(page, '記録');
     await goPane(page, '推移');
     await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
@@ -248,5 +250,15 @@ test('記録があるときの推移', async ({ page }) => {
     await button(page, 'ベンチプレス').click();
     await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 6 回');
     await expect(trendDay(page, '2026-11-05')).toContainText('総負荷量1,120 kg');
+  });
+
+  await test.step('ホームの LATEST の PR // 0（今日のベンチ 85×5 は自己ベストでない）：推移の「すべて」の種目ごとの自己ベスト', async () => {
+    await goTab(page, 'ホーム');
+    const pr = page.getByTestId('home-latest-pr').filter({ visible: true });
+    await expect(pr).toHaveAccessibleName('自己ベスト 0。種目ごとの自己ベストを開く');
+    await pr.click();
+    await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(button(page, 'すべて')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('trend-best').filter({ visible: true })).toBeInViewport({ ratio: 0.9 });
   });
 });

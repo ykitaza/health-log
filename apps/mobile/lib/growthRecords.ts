@@ -208,11 +208,11 @@ export function topPart(b: PartBalance): string | null {
 }
 
 /** ⑤の下の一言（「外周は、その期間でいちばん多い部位（これまでは胸、直近2週は脚）」）。記録がなければ null */
-export function partsNote(all: PartBalance, recent: PartBalance): string | null {
+export function partsNote(all: PartBalance, recent: PartBalance, names = { all: 'これまで', recent: '直近2週' }): string | null {
   const a = topPart(all);
   if (a == null) return null;
   const r = topPart(recent);
-  const which = r == null ? `これまでは${a}。直近2週は記録なし` : a === r ? `どちらも${a}` : `これまでは${a}、直近2週は${r}`;
+  const which = r == null ? `${names.all}は${a}。${names.recent}は記録なし` : a === r ? `どちらも${a}` : `${names.all}は${a}、${names.recent}は${r}`;
   return `外周は、その期間でいちばん多い部位（${which}）`;
 }
 

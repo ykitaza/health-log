@@ -1,10 +1,10 @@
 import { useScrollToTop } from 'expo-router';
 import { ReactNode, Ref, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { RefreshControl, ScrollView, ScrollViewInstance, View } from 'react-native';
+import { RefreshControl, ScrollView, ScrollViewInstance, View, ViewInstance } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePullToSync } from '@/hooks/sync';
-import { ScrollWatchProvider, useScrollWatch } from '@/hooks/useOnScreen';
+import { ScrollWatchProvider, useScrollTarget, useScrollWatch } from '@/hooks/useOnScreen';
 import { ScrollToTopTarget, scrollToTopTarget } from '@/lib/scrollToTop';
 import { colors, size, space } from '@/theme';
 import { PullMark, usePullMark } from './PullMark';
@@ -97,4 +97,11 @@ function PullToSyncScroll({ children, contentContainerStyle, fab, markTop }: { c
       )}
     </View>
   );
+}
+
+/** ほかの画面から来たときにスクロールして見せるビュー。request が新しい値になったら、ここまでスクロールする（hooks/useOnScreen.ts の useScrollTarget） */
+export function ScrollTarget({ request, children, testID }: { request: number | null; children: ReactNode; testID?: string }) {
+  const ref = useRef<ViewInstance>(null);
+  const onLayout = useScrollTarget(ref, request);
+  return <View ref={ref} onLayout={onLayout} collapsable={false} testID={testID}>{children}</View>;
 }

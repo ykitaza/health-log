@@ -1,7 +1,9 @@
 // ホームのヒーローの RECOVERY・INJURY の体：web と 3D が描けないときは 2D の図（前と後ろ）。
 // RECOVERY は回復の色（回復済みは緑、回復中は暖色、ケガは赤。からだのタブの回復マップと同じ lib/recoveryMap.ts）。3D はその日の体（DayBody）の
 // recovery・injuries をそのまま使う（記録の画面の記録のない日と同じ光らせ方）。
-// INJURY は直している途中のケガの赤の印と札（INJ-01 ▲・部位・直し中）。札と引き出し線は DayBody にないので、3D は HeroBody3D.native.tsx
+// INJURY は直している途中のケガの赤の印と札（INJ-01 ▲・部位・直し中。押すとそのケガ）。札と引き出し線は DayBody にないので、3D は HeroBody3D.native.tsx。
+// shield（体の列の外の横スワイプをページの切り替えに回す面）は、体と札のあいだに重ねる
+import { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Injury } from '@/db/repositories/injuries';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
@@ -30,22 +32,27 @@ type Props = {
   numbers: Map<string, string>;
   /** 回す操作を受ける体の列（INJURY。RECOVERY の DayBody は全面で受けるので、ヒーローが列の外に面を重ねる） */
   rotate: { left: number; width: number };
+  /** 体の列の外に重ねる面（体と札のあいだ） */
+  shield: ReactNode;
+  /** ケガの札を押した（INJURY） */
+  onPressInjury: (id: string) => void;
 };
 
-export function HeroBody({ kind, width, height, band, list, levels, injuries, numbers, rotate }: Props) {
-  const fallback = <Figure2D kind={kind} width={width} band={band} list={list} injuries={injuries} numbers={numbers} />;
+export function HeroBody({ kind, width, height, band, list, levels, injuries, numbers, rotate, shield, onPressInjury }: Props) {
+  const fallback = <Figure2D kind={kind} width={width} band={band} list={list} injuries={injuries} numbers={numbers} shield={shield} onPressInjury={onPressInjury} />;
   if (kind === 'recovery') {
-    return <DayBody width={width} height={height} entries={NO_ENTRIES} parts={NO_PARTS} band={band} recovery={levels} injuries={injuries} fallback={fallback} />;
+    return <DayBody width={width} height={height} entries={NO_ENTRIES} parts={NO_PARTS} band={band} recovery={levels} injuries={injuries} fallback={fallback} shield={shield} />;
   }
   if (!HeroBody3D) return fallback;
-  return <HeroBody3D width={width} height={height} band={band} injuries={injuries} numbers={numbers} rotate={rotate} fallback={fallback} />;
+  return <HeroBody3D width={width} height={height} band={band} injuries={injuries} numbers={numbers} rotate={rotate} fallback={fallback} shield={shield} onPressInjury={onPressInjury} />;
 }
 
 const FIG_GAP = 8;
 
 /** 2D の図（前と後ろ）。RECOVERY は回復の色で塗り、INJURY は札を左右に並べる（線は引かない） */
-function Figure2D({ kind, width, band, list, injuries, numbers }: {
+function Figure2D({ kind, width, band, list, injuries, numbers, shield, onPressInjury }: {
   kind: 'recovery' | 'injury'; width: number; band: { top: number; bottom: number }; list: PartRecovery[]; injuries: Injury[]; numbers: Map<string, string>;
+  shield: ReactNode; onPressInjury: (id: string) => void;
 }) {
   const figH = Math.min(200, band.bottom - band.top);
   const figW = figH / 2;
@@ -55,17 +62,19 @@ function Figure2D({ kind, width, band, list, injuries, numbers }: {
   const tags = kind === 'injury' ? injuries.slice(0, 4) : [];
   const tagW = Math.min(HERO_TAG_W, Math.max(0, frontX - 4));
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" testID={`hero-${kind}-2d`}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none" testID={`hero-${kind}-2d`}>
       {(['front', 'back'] as const).map((view, i) => (
-        <View key={view} style={{ position: 'absolute', left: frontX + i * (figW + FIG_GAP), top: band.top }}>
+        <View key={view} pointerEvents="none" style={{ position: 'absolute', left: frontX + i * (figW + FIG_GAP), top: band.top }}>
           <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={figW} height={figH} />
         </View>
       ))}
+      {shield}
       {tags.map((inj, i) => {
         const side = i % 2 === 0 ? 'left' : 'right';
         return (
           <HeroInjuryTag key={inj.id} injury={inj} number={numbers.get(inj.id) ?? ''} align={side === 'left' ? 'right' : 'left'}
-            style={{ position: 'absolute', [side]: 0, top: band.top + Math.floor(i / 2) * (HERO_TAG_H + 8) + 24, width: tagW, backgroundColor: colors.bg }} />
+            style={{ position: 'absolute', [side]: 0, top: band.top + Math.floor(i / 2) * (HERO_TAG_H + 8) + 24, width: tagW, backgroundColor: colors.bg }}
+            onPress={() => onPressInjury(inj.id)} />
         );
       })}
     </View>

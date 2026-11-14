@@ -134,7 +134,7 @@ test('BIG3：28 日前との差と 16 週の線。押すと筋トレの推移', 
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
 
-  // PARTS を押したときの行き先（推移の 2週）は trend.spec.ts の「記録があるときの推移」で確かめる
+  // PARTS を押したときの行き先（推移の 28日）は trend.spec.ts の「記録があるときの推移」と home-taps.spec.ts で確かめる
 });
 
 test('「記録する」のシート：食事は時刻から区分を決め、体重はからだのタブで計測のシートを開く。FUEL・体重の点・目標体重まで', async ({ page }) => {

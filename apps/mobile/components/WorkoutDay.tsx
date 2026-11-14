@@ -13,6 +13,7 @@ import { LoadError } from './LoadError';
 import { MuscleFigure } from './MuscleFigure';
 import { DailyHighlights } from './reports';
 import { RestTimerBar } from './RestTimer';
+import { ScrollTarget } from './Screen';
 import { T } from './Text';
 import { Button, Card, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
@@ -54,9 +55,9 @@ export function WorkoutFooter({ date }: { date: string }) {
 
 /**
  * その日のトレーニングの中身（まとめ、種目の一覧、並べ替え、外す確認）。種目は実施した順に並ぶ。
- * 筋トレのタブの「記録」で使う
+ * 筋トレのタブの「記録」で使う。focus があれば（ホームの種目の札から）、その種目のカードまでスクロールする
  */
-export function WorkoutDayContent({ date }: { date: string }) {
+export function WorkoutDayContent({ date, focus }: { date: string; focus?: { entry: string; n: number } | null }) {
   const today = todayKey();
   const { data, error, reload, repos } = useFocusData(async (r) => {
     const [entries, settings, exercises, bodyParts] = await Promise.all([
@@ -164,6 +165,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
               const hasPart = e.bodyPartName.trim() !== '';
               return (
                 <Animated.View key={e.id} entering={list.entering(i)} exiting={list.exiting} layout={list.layout}>
+                  <ScrollTarget request={focus?.entry === e.id ? focus.n : null} testID={`entry-card-${i + 1}`}>
                   <Card style={{ paddingTop: space.l, paddingBottom: space.s }}>
                     <PressableScale
                       accessibilityRole="button"
@@ -206,6 +208,7 @@ export function WorkoutDayContent({ date }: { date: string }) {
                       <Button label="外す" icon="trash" variant="danger" small accessibilityLabel={`${e.exerciseName}を外す`} onPress={() => setRemoving(e)} style={{ paddingLeft: 12, paddingRight: 12 }} />
                     </View>
                   </Card>
+                  </ScrollTarget>
                 </Animated.View>
               );
             })}

@@ -236,10 +236,13 @@ type HeroInjury = { id: string; occurredOn: string; site: string; side: string |
 
 export type InjuryCorners = {
   count: number;
-  /** 直している部位（いちばん新しく痛めたもの）と、最後の振り返り（日付と記号） */
-  fix: { label: string; review: { date: DateKey; mark: string } | null } | null;
-  /** いつから：療養中は療養の開始日、ほかは直している途中でいちばん古く痛めた日。day は 1 日目から */
-  since: { date: DateKey; day: number } | null;
+  /** 直している部位（いちばん新しく痛めたもの。id は押すと開くケガ）と、最後の振り返り（日付と記号） */
+  fix: { id: string; label: string; review: { date: DateKey; mark: string } | null } | null;
+  /**
+   * いつから：療養中は療養の開始日、ほかは直している途中でいちばん古く痛めた日。day は 1 日目から。
+   * injuryId は押すと開くケガ（いちばん古いもの）。療養中は null（フェーズの画面を開く）
+   */
+  since: { date: DateKey; day: number; injuryId: string | null } | null;
   /** 振り返りが REVIEW_DUE_DAYS 日以上ないケガの数 */
   alert: number;
 };
@@ -252,10 +255,11 @@ export function injuryCorners(fixing: HeroInjury[], rehab: Phase | null, today: 
   return {
     count: fixing.length,
     fix: newest ? {
+      id: newest.id,
       label: siteLabel(newest.site, newest.side),
       review: newest.lastReview ? { date: newest.lastReview.date, mark: RESULTS[newest.lastReview.result].mark } : null,
     } : null,
-    since: sinceDate ? { date: sinceDate, day: Math.max(1, daysBetween(sinceDate, today) + 1) } : null,
+    since: sinceDate ? { date: sinceDate, day: Math.max(1, daysBetween(sinceDate, today) + 1), injuryId: rehab ? null : oldest?.id ?? null } : null,
     alert: fixing.filter((i) => daysBetween(i.lastReview?.date ?? i.occurredOn, today) >= REVIEW_DUE_DAYS).length,
   };
 }

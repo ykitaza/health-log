@@ -22,6 +22,10 @@ export type DayBody3DProps = {
   injuries?: Injury[];
   /** 体を押した（押した部品の名前。同じ部品・皮膚・外を押して選ぶのをやめたら null） */
   onPick?: (mesh: string | null) => void;
+  /** 種目の札を押した（札の key。「+N」の札は null）。渡すと札が押せる（ホームの LATEST） */
+  onPressEntry?: (key: string | null) => void;
+  /** 体と札のあいだに重ねるもの（ホームのヒーローの、体の列の外の横スワイプをページの切り替えに回す面）。札はこの上に出す */
+  shield?: ReactNode;
 };
 
 export const DayBody3D: ComponentType<DayBody3DProps> | null = null;
