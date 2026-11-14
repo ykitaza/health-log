@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
+from typing import Literal
 
 from reports.domain.errors import ReportError
 
@@ -68,6 +69,17 @@ class Area(StrEnum):
     SLEEP = "sleep"
 
 
+# 保存を受け付ける種類（other は前に保存したものを読むためにだけ残す。application/service.py の save）
+SAVABLE_KINDS = (Kind.DAILY, Kind.WEEKLY, Kind.MONTHLY, Kind.PHASE)
+
+# 同期の項目（infrastructure/sync_entities.py）とツールの入力（presentation/mcp_tools.py）の型。値は上の列挙から作る
+# （列挙を足したり変えたりしたときに、3つの層が食い違わないように。並びは列挙と同じ）
+ToneName = Literal[tuple(t.value for t in Tone)]  # type: ignore[valid-type]
+AreaName = Literal[tuple(a.value for a in Area)]  # type: ignore[valid-type]
+KindName = Literal[tuple(k.value for k in Kind)]  # type: ignore[valid-type]
+SavableKindName = Literal[tuple(k.value for k in SAVABLE_KINDS)]  # type: ignore[valid-type]
+
+
 @dataclass(frozen=True)
 class Metric:
     """ハイライトの指標。delta は前の期間からの変化（value と同じ単位）、delta_good はその向きが良いか。"""
@@ -89,6 +101,9 @@ class Highlight:
 
 class ReviewTarget(StrEnum):
     MEALS_GOAL = "meals_goal"  # 食事の目標（アプリが「食事の目標を開く」ボタンを出す）
+
+
+ReviewTargetName = Literal[tuple(t.value for t in ReviewTarget)]  # type: ignore[valid-type]
 
 
 @dataclass(frozen=True)

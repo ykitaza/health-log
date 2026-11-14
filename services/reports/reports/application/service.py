@@ -9,7 +9,7 @@ from typing import Callable
 
 from reports.domain.errors import NotFound, ReportError
 from reports.domain.ports import ReportRepository
-from reports.domain.report import MAX_REPORTS, Kind, Report
+from reports.domain.report import MAX_REPORTS, SAVABLE_KINDS, Kind, Report
 
 IdFactory = Callable[[], str]
 
@@ -56,7 +56,7 @@ class ReportService:
         種類は daily・weekly・monthly・phase だけを受け付ける。other は前に保存したものが残っているだけで、
         新しくは保存しない（読む・消すは今までどおりできる）。
         """
-        if report.kind not in (Kind.DAILY, Kind.WEEKLY, Kind.MONTHLY, Kind.PHASE):
+        if report.kind not in SAVABLE_KINDS:
             raise ReportError("レポートの種類（kind）は daily（日のまとめ）・weekly（週のまとめ）・monthly（月のまとめ）・phase（フェーズの振り返り）のどれかにしてください。other は保存できません")
         existing = await self.reports.list(owner)
         if report.kind is Kind.PHASE:  # フェーズの振り返りは、同じフェーズ（phase_id）なら期間が違っても置き換える

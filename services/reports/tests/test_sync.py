@@ -120,3 +120,18 @@ def test_前の形のレポート_本文だけ_も読める():
                                    "2026-11-09T01:00:00.000Z", "mcp")])
     report = asyncio.run(SyncReportRepository(engine).get("alice", REPORT_ID))
     assert (report.title, report.overall_tone, report.highlights, report.next_steps) == ("今週のまとめ", None, (), ())
+
+
+def test_同期の項目の列挙は_ドメインの列挙と同じ値_同じ並び():
+    from reports.domain.report import Area, Kind, ReviewTarget, Tone
+    from reports.infrastructure.sync_entities import HighlightFields, LinkFields, ReportFields, ReviewFields
+
+    def enum_of(model, name):  # 1つだけの列挙は const になる
+        prop = model.model_json_schema()["properties"][name]
+        return next(s.get("enum", [s.get("const")]) for s in prop.get("anyOf", [prop]) if "enum" in s or "const" in s)
+
+    assert enum_of(ReportFields, "kind") == [k.value for k in Kind]
+    assert enum_of(ReportFields, "overall_tone") == [t.value for t in Tone]
+    assert enum_of(HighlightFields, "tone") == [t.value for t in Tone]
+    assert enum_of(HighlightFields, "area") == enum_of(LinkFields, "from_area") == [a.value for a in Area]
+    assert enum_of(ReviewFields, "target") == [t.value for t in ReviewTarget]

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
@@ -37,14 +37,19 @@ from reports.domain.report import (
     MAX_TITLE,
     MAX_UNIT,
     Area,
+    AreaName,
     Highlight,
     Kind,
+    KindName,
     Link,
     Metric,
     Report,
     Review,
     ReviewTarget,
+    ReviewTargetName,
+    SavableKindName,
     Tone,
+    ToneName,
 )
 
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
@@ -67,9 +72,6 @@ READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
 
-ToneName = Literal["good", "steady", "caution"]
-KindName = Literal["daily", "weekly", "monthly", "phase", "other"]  # 一覧の絞り込み用。other は前に保存したものを探すために残す
-SaveKindName = Literal["daily", "weekly", "monthly", "phase"]  # 保存できる種類はこの4つだけ（kind は必須）
 Number = Annotated[float, Field(ge=-MAX_METRIC_VALUE, le=MAX_METRIC_VALUE)]
 
 
@@ -85,9 +87,6 @@ class MetricInput(BaseModel):
         None, description=(
             "その変化の向きが利用者の目標にとって良いか。向きはフェーズ（period_overview の phase）で決める"
             "（減量 cut の体重の減りは true、増量 bulk の増えは true。療養中の体重は判定しないので省く）。delta を省いたら省く"))
-
-
-AreaName = Literal["training", "meals", "body", "sleep"]
 
 
 class HighlightInput(BaseModel):
@@ -112,7 +111,7 @@ class LinkInput(BaseModel):
 class ReviewInput(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_REVIEW_TEXT,
                       description="目標の見直しの提案（一、二文）。例：体重が目標のペースより速く減っているので、kcal を少し上げる")
-    target: Literal["meals_goal"] | None = Field(
+    target: ReviewTargetName | None = Field(
         None, description="見直す目標。食事の目標（kcal・PFC・目標体重）なら meals_goal（アプリが食事の目標を開くボタンを出す）。ほかは省く")
 
 
@@ -163,7 +162,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
                          "フェーズの向きで決める（減量期は体重が減ったのが good。療養中は体の目標で判定せず、"
                          "筋トレできていないことを caution にしない）"))],
         headline: Annotated[str, Field(max_length=MAX_HEADLINE, description="ひと言の要約（40字ほど）。例：脚の日が増え、たんぱく質も目標どおり")],
-        kind: Annotated[SaveKindName, Field(description=(
+        kind: Annotated[SavableKindName, Field(description=(
             "種類（必須）：daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）、"
             "phase（フェーズの振り返り。phase_id が要る）。この4つ以外は保存できない"))],
         highlights: Annotated[list[HighlightInput], Field(

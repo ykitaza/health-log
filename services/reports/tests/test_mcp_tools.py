@@ -405,3 +405,13 @@ def test_期間を合わせて渡しても保存できる_366日より長くて�
 def test_説明に_フェーズの振り返りの決まりがある():
     for words in ("list_phases", "phase_id", "維持 4 週", "療養", "ウエスト", "体脂肪率は参考", "診断や治療の助言はしない"):
         assert words in mcp_tools.INSTRUCTIONS
+
+
+def test_ツールの入力の列挙は_ドメインの列挙から作る_保存できる種類に_other_は入らない():
+    mcp = MCPServer(name="test")
+    mcp_tools.register_report_tools(mcp, create_service(SyncEngine(InMemorySyncStore(REGISTRY.index_key), REGISTRY)))
+    tools = {t.name: t.input_schema for t in asyncio.run(mcp.list_tools())}
+    assert tools["save_report"]["properties"]["kind"]["enum"] == [k.value for k in limits.SAVABLE_KINDS]
+    assert "other" not in tools["save_report"]["properties"]["kind"]["enum"]
+    listed = tools["list_reports"]["properties"]["kind"]
+    assert next(s["enum"] for s in listed["anyOf"] if "enum" in s) == [k.value for k in limits.Kind]
