@@ -22,7 +22,7 @@ export default function PhaseHistoryScreen() {
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   return (
-    <PhaseFrame sys="HLOG // PHASE HISTORY" onBack={close} testID="phase-history">
+    <PhaseFrame sys="KARADA // PHASE HISTORY" onBack={close} testID="phase-history">
       <T bold size={20} color={hud.ink} accessibilityRole="header" style={{ marginTop: 2 }}>これまでのフェーズ</T>
       {error ? <LoadError onRetry={reload} /> : !data ? <View /> : data.ended.length === 0 ? (
         <T size={13} color={hud.muted}>終えたフェーズはまだありません。</T>

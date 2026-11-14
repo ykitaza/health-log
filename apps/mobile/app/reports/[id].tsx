@@ -28,7 +28,7 @@ const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
   { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
 ];
 
-/** 画面の枠：モックの近黒の地（この画面だけ。共通の Screen は colors.bg なので使わない）。上の段はモックの HLOG // REPORT の行に、左端に小さな戻る、右端に「…」のメニュー（menu） */
+/** 画面の枠：モックの近黒の地（この画面だけ。共通の Screen は colors.bg なので使わない）。上の段はモックの KARADA // REPORT の行に、左端に小さな戻る、右端に「…」のメニュー（menu） */
 function Frame({ sys, onBack, menu, children }: { sys: string | null; onBack: () => void; menu?: ReactNode; children: ReactNode }) {
   // 中身の幅はモックと同じく 400 まで（広い画面では左右に余白）。左右の余白は 12
   const { width } = useWindowDimensions();
@@ -39,7 +39,7 @@ function Frame({ sys, onBack, menu, children }: { sys: string | null; onBack: ()
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 44, zIndex: 2 }}>
           <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-            <Micro>HLOG // REPORT</Micro>
+            <Micro>KARADA // REPORT</Micro>
             {sys && <Micro>{sys}</Micro>}
           </View>
           {menu ?? <View style={{ width: 44 }} />}

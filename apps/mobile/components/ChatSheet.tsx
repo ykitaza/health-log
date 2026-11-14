@@ -165,7 +165,7 @@ function ScheduleSheetBody({ requested, failed, onRequest }: { requested: DateKe
         </View>
       )}
       {requested && <T variant="bodyS" color={colors.sub}>前回 {formatMonthDay(requested)}に設定を頼みました</T>}
-      <T variant="bodyS" color={colors.sub}>Claude のスケジュールは、いまは hlog のコネクタを使えないため、ChatGPT だけです。</T>
+      <T variant="bodyS" color={colors.sub}>Claude のスケジュールは、いまは KARADA のコネクタを使えないため、ChatGPT だけです。</T>
     </ScrollView>
   );
 }

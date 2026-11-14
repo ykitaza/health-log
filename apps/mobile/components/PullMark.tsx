@@ -18,9 +18,9 @@ const easeInOut = Easing.inOut(Easing.ease);
 const WIDTH = (MARK_SIZE * MARK_VIEWBOX.width) / MARK_VIEWBOX.height;
 
 /**
- * 下に引っぱって同期するときの印（RefreshControl の丸い印の代わり）。hlog のマーク（h と心拍の線）がローディングの動きをする。
+ * 下に引っぱって同期するときの印（RefreshControl の丸い印の代わり）。KARADA のマーク（K と心拍の線）がローディングの動きをする。
  * - 出る：上から下りてきて薄い状態から濃くなり、心拍の線が左から描かれる（250ms、ease-out）。描き終わり（しきい値）で一度ポンとはずむ
- * - 同期中：心拍の線が消えては描かれ、h がやわらかく光る（0.9 秒の周期、ease-in-out）
+ * - 同期中：心拍の線が消えては描かれ、K がやわらかく光る（0.9 秒の周期、ease-in-out）
  * - 終わり：150ms で小さくなりながら消える。中身（shift を使う側）も元の位置に戻る
  * 動きを減らす設定なら、マークを出して消すだけ。読み上げは usePullToSync（hooks/sync.tsx）が知らせるので、ここは読まない
  */
@@ -101,7 +101,7 @@ export function PullMark({ values }: { values: MarkValues }) {
   );
 }
 
-/** h の後ろの、緑の光のにじみ（太い線を薄く重ねる） */
+/** K の後ろの、緑の光のにじみ（太い線を薄く重ねる） */
 function Glow({ glow }: { glow: SharedValue<number> }) {
   const props = useAnimatedProps(() => ({ strokeOpacity: 0.28 * glow.get() }));
   return (

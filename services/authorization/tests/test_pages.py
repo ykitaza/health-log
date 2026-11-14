@@ -79,7 +79,7 @@ def test_pages_load_nothing_from_outside_and_keep_only_hashed_inline_code(page):
     assert not re.search(r"@import|url\(|https?://(?!www\.w3\.org)", page)
     assert tags.event_attrs == []  # インラインのイベント属性は CSP で動かないので使わない
     assert tags.blocks == {"style": [STYLE], "script": [SCRIPT]}
-    assert 'aria-label="hlog"' in page
+    assert 'aria-label="KARADA"' in page
 
 
 def test_csp_allows_only_the_embedded_style_and_script():
@@ -135,7 +135,7 @@ def test_open_app_page_links_to_the_app_with_fixed_values_only(client, path, tar
     assert res.status_code == 200
     body = res.get_data(as_text=True)
     assert f'href="intent://{target}{INTENT}"' in body
-    assert name in body and "hlog で開く" in body
+    assert name in body and "KARADA で開く" in body
     assert "<script>alert" not in body and "%3Cscript" not in body.lower()
 
 

@@ -55,7 +55,7 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細（フェーズの振り返りはフェーズの画面）で読める。
+INSTRUCTIONS = f"""レポート（KARADA）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（KARADA）のホームとレポートの詳細（フェーズの振り返りはフェーズの画面）で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
@@ -184,7 +184,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
             description=("kind が phase のときだけ：振り返るフェーズの phase_id（list_phases の値）。期間は省けば、"
                          "サーバーがフェーズの開始日〜続いた最後の日にする。ほかの種類では省く"))] = None,
     ) -> dict:
-        """まとめ（レポート）を保存し、スマホのアプリ（hlog）で読めるようにする。
+        """まとめ（レポート）を保存し、スマホのアプリ（KARADA）で読めるようにする。
 
         「今日のまとめを作って」「今週のまとめを作って」「月のふり返りをレポートにして」と頼まれたときに呼ぶ。
         先に period_overview で期間の材料を読み、それにもとづいて書く（くわしくは get_workout、today_status、weekly_training_review、
@@ -227,7 +227,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
                 phase_id=phase_id)
             saved = await service.save(sub, report)
         where = "フェーズの画面" if kind == "phase" else "ホームの「最新のレポート」"
-        return {"report": _summary(saved), "message": f"保存しました。アプリ（hlog）の{where}に出ます（同期のあと）。"}
+        return {"report": _summary(saved), "message": f"保存しました。アプリ（KARADA）の{where}に出ます（同期のあと）。"}
 
     @mcp.tool(annotations=READ)
     async def list_reports(

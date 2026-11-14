@@ -1,4 +1,4 @@
-# 開発用のアプリ hlog (dev)（eas.json の development）の Android のビルド。
+# 開発用のアプリ KARADA (dev)（eas.json の development）の Android のビルド。
 # 標準のビルド（eas/build を展開した手順）に、expo-dev-client を入れる手順と、Gradle のメモリを抑える手順を足しただけ。
 #
 # expo-dev-client を package.json に入れない理由：入れると自動リンクのネイティブの依存が増え、
@@ -6,7 +6,7 @@
 # さらに prebuild が expo-dev-client の config plugin を自動で当てるので、preview の APK の中身も変わる。
 # そこで、このビルドの中でだけ入れる（docs/dev-client.md）
 build:
-  name: hlog (dev) の開発ビルド（Android）
+  name: KARADA (dev) の開発ビルド（Android）
   steps:
     - eas/checkout
     - eas/use_npm_token

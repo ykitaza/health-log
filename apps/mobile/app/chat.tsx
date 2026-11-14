@@ -25,7 +25,7 @@ export default function ChatScreen() {
     <Screen>
       <Header title="チャットとの連携" onBack={() => router.back()} />
       <T variant="bodyM" color={colors.sub}>
-        Claude・ChatGPT に hlog をコネクタとしてつなぐと、写真から食事を記録したり、まとめ（レポート）を作ったりできます。
+        Claude・ChatGPT に KARADA をコネクタとしてつなぐと、写真から食事を記録したり、まとめ（レポート）を作ったりできます。
       </T>
 
       <SectionTitle title="コネクタのつなぎ方" />

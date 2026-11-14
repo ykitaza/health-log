@@ -168,7 +168,7 @@ export default function PhaseNewScreen() {
   );
 
   return (
-    <PhaseFrame sys={`HLOG // PHASE SETUP · ${STEP_EN[step - 1]}`} onBack={back} right={later} footer={footer} testID="phase-new">
+    <PhaseFrame sys={`KARADA // PHASE SETUP · ${STEP_EN[step - 1]}`} onBack={back} right={later} footer={footer} testID="phase-new">
       <T size={11.5} color={hud.muted}>{`${step}／${STEPS}`}</T>
       <T bold size={18} color={hud.ink} accessibilityRole="header">フェーズを始める</T>
       <StepBars step={step} total={STEPS} />

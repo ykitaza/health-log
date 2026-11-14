@@ -248,7 +248,7 @@ test('ホーム：自動の同期が続けて失敗したときだけ知らせ�
   await expect(homeAlert(page)).toHaveCount(0);
   await expect(homeFuel(page)).not.toHaveAttribute('aria-label', /160kcal/);
 
-  // ChatGPT に切り替えて MCP で記録し、hlog に戻る
+  // ChatGPT に切り替えて MCP で記録し、KARADA に戻る
   await setVisible(page, false);
   const meal = 'cccccccc-0000-4000-8000-000000000001';
   const at = '2026-11-08T01:30:00.000Z';

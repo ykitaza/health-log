@@ -37,7 +37,6 @@ main { max-width: 560px; margin-inline: auto; padding: var(--space-l) var(--spac
 .brand { display: flex; align-items: center; gap: var(--space-m); min-height: 64px; margin-bottom: var(--space-s); }
 .brand svg { width: 40px; height: 40px; border-radius: var(--radius-s); flex: none; }
 .logo { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; }
-.logo .o { color: var(--accent); }
 .brand-sub { margin: 0; font-size: 12px; line-height: 16px; color: var(--sub); }
 h1 { margin: var(--space-s) 0 var(--space-l); font-size: 22px; line-height: 28px; font-weight: 700; }
 h2 { margin: var(--space-l) 0 var(--space-s); font-size: 14px; line-height: 20px; font-weight: 700; color: var(--accent); }
@@ -109,7 +108,7 @@ CONTENT_SECURITY_POLICY = "; ".join([
 
 # アプリのアイコン（apps/mobile/assets/icon-src/icon.svg の写し）。飾りなので読み上げない
 ICON = """<svg viewBox="0 0 1024 1024" aria-hidden="true" focusable="false"><rect width="1024" height="1024" fill="#0E1013"/>\
-<g transform="translate(512 512) translate(-570 -512)"><path d="M330 250 V774 M330 520 Q330 420 450 420 Q570 420 570 520 V774" \
+<g transform="translate(512 512) translate(-570 -512)"><path d="M330 250 V774 M570 250 L350 515 L570 774" \
 fill="none" stroke="#5BE49B" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>\
 <path d="M640 610 H672 L712 512 L762 708 L800 610 H836" fill="none" stroke="#5BE49B" stroke-width="40" \
 stroke-linecap="round" stroke-linejoin="round"/></g></svg>"""
@@ -125,14 +124,14 @@ def _page(title: str, body: str) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{html.escape(title)} - hlog</title>
+<title>{html.escape(title)} - KARADA</title>
 <style>{STYLE}</style>
 </head>
 <body>
 <main>
 <header class="brand">
 {ICON}
-<div><p class="logo" aria-label="hlog">hl<span class="o">o</span>g</p><p class="brand-sub">アカウント連携</p></div>
+<div><p class="logo" aria-label="KARADA">KARADA</p><p class="brand-sub">アカウント連携</p></div>
 </header>
 {body}
 </main>
@@ -200,7 +199,7 @@ def render_privacy_page() -> str:    return _page("プライバシーポリシ�
 <p>このポリシーを変えるときは、このページで知らせます。</p>""")
 
 
-# アプリ（hlog）の Android のパッケージ名と、独自の URL（apps/mobile/app.json の android.package と scheme）
+# アプリ（KARADA）の Android のパッケージ名と、独自の URL（apps/mobile/app.json の android.package と scheme）
 APP_PACKAGE = "com.ykitaza.torelog"
 APP_SCHEME = "torelog"
 
@@ -209,13 +208,13 @@ def render_open_app_page(target: str, title: str) -> str:
     """チャット（ChatGPT・Claude）の返事のリンクから、アプリへ戻るための案内（/open/...）。
 
     チャットのアプリの中のブラウザは torelog:// を開けないので、https のこのページを経由し、
-    押したときに Android へ「hlog を開いて」と頼む（intent://。人が押したときだけ通ることが多いので、自動では飛ばさない）。
+    押したときに Android へ「KARADA を開いて」と頼む（intent://。人が押したときだけ通ることが多いので、自動では飛ばさない）。
     target は呼ぶ側で決まった値（画面の名前と日付）だけにしたもの。記録は読まない
     """
     href = f"intent://{target}#Intent;scheme={APP_SCHEME};package={APP_PACKAGE};end"
-    return _page(title, f"""<h1>hlog に戻る</h1>
-<section class="card"><p class="body-m">{html.escape(title)}を、hlog のアプリで開きます。</p></section>
-<div class="actions"><a class="button allow" href="{html.escape(href)}">hlog で開く</a></div>
+    return _page(title, f"""<h1>KARADA に戻る</h1>
+<section class="card"><p class="body-m">{html.escape(title)}を、KARADA のアプリで開きます。</p></section>
+<div class="actions"><a class="button allow" href="{html.escape(href)}">KARADA で開く</a></div>
 <p class="note">押しても開かないときは、このページを Chrome で開いてから押してください。</p>""")
 
 

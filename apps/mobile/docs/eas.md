@@ -1,6 +1,6 @@
 # Pixel への配信（EAS）
 
-hlog を、Expo の EAS（Expo Application Services）で APK にして、自分の Pixel に入れます。Play ストアには出しません。
+KARADA を、Expo の EAS（Expo Application Services）で APK にして、自分の Pixel に入れます。Play ストアには出しません。
 
 - **EAS Build**：APK を Expo のサーバーで作る。ネイティブの部分（ライブラリ、Expo の SDK）を変えたときに作り直す
 - **EAS Update**：JS と画像だけを、入っている APK に配信する。main に入った変更は、GitHub Actions が自動で配信する
@@ -17,7 +17,7 @@ hlog を、Expo の EAS（Expo Application Services）で APK にして、自分
 | `app.json` | `updates`：`checkAutomatically` は `ON_LOAD`、`fallbackToCacheTimeout` は `0` | 起動のたびに新しい JS を確かめ、取ってきたものは次の起動で使う（どちらも既定の値。起動を待たせない） |
 | `app.json` | `extra.eas.projectId`、`updates.url` | まだ書いていない。手順3で、Expo の CLI が書き足す |
 | `eas.json` | `preview` | APK・内部配信。チャンネルは `preview`。普段使うもの |
-| `eas.json` | `development` | 開発用のアプリ hlog (dev)。PC の Metro につなぐ開発ビルド・内部配信（[dev-client.md](dev-client.md)） |
+| `eas.json` | `development` | 開発用のアプリ KARADA (dev)。PC の Metro につなぐ開発ビルド・内部配信（[dev-client.md](dev-client.md)） |
 | `eas.json` | `cli.version`：`>= 27.5.0` | 確かめた EAS CLI の版より古いものでは動かさない |
 | `eas.json` | `cli.appVersionSource`：`remote` | `versionCode` を Expo のサーバーで数え、`preview` のビルドのたびに1つ上げる（`autoIncrement`）。公式が勧める方法 |
 | `.github/workflows/eas-update.yml` | JS の配信 | main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` に配信する |
@@ -146,7 +146,7 @@ Expo のダッシュボードの [Access tokens](https://expo.dev/settings/acces
 
 ### 開発ビルド（第2段階）
 
-`development` のプロファイルは、開発用のアプリ hlog (dev)（`com.ykitaza.torelog.dev`）を作ります。preview の hlog と並べて入ります。
+`development` のプロファイルは、開発用のアプリ KARADA (dev)（`com.ykitaza.torelog.dev`）を作ります。preview の KARADA と並べて入ります。
 作り方と使い方は [dev-client.md](dev-client.md) にあります。`npx expo install expo-dev-client` はしません（`package.json` に入れると、入っている APK に配信が届かなくなるため）。
 
 ## 費用

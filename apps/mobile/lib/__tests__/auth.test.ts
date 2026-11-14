@@ -355,7 +355,7 @@ describe('ログインの戻りのリンク（+native-intent）', () => {
     expect(redirectSystemPath({ path: 'torelog://signout', initial: true })).toBe('/');
   });
 
-  test('チャットの返事の「hlog に戻る」（torelog://meals?date=… など）は、その画面の道にする', () => {
+  test('チャットの返事の「KARADA に戻る」（torelog://meals?date=… など）は、その画面の道にする', () => {
     expect(redirectSystemPath({ path: 'torelog://meals?date=2026-11-12', initial: false })).toBe('/meals?date=2026-11-12');
     expect(redirectSystemPath({ path: 'torelog://training?date=2026-11-12', initial: true })).toBe('/training?date=2026-11-12');
     expect(redirectSystemPath({ path: 'torelog://reports', initial: false })).toBe('/reports');
@@ -368,7 +368,7 @@ describe('ログインの戻りのリンク（+native-intent）', () => {
     expect(redirectSystemPath({ path: 'torelog://injuries/abc', initial: false })).toBe('torelog://injuries/abc');
   });
 
-  test('開発用の hlog (dev) の scheme（torelog-dev://）も同じに扱う', () => {
+  test('開発用の KARADA (dev) の scheme（torelog-dev://）も同じに扱う', () => {
     expect(redirectSystemPath({ path: 'torelog-dev://callback?code=c&state=s', initial: false })).toBeNull();
     expect(redirectSystemPath({ path: 'torelog-dev://callback?code=c&state=s', initial: true })).toBe('/account');
     expect(redirectSystemPath({ path: 'torelog-dev://signout', initial: false })).toBeNull();

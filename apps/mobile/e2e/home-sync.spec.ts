@@ -31,7 +31,7 @@ async function signInAndSync(page: Page) {
   await button(page, '戻る').click();
 }
 
-/** ほかのアプリ（ChatGPT など）に切り替えて、hlog に戻る（web では画面の見え方の変化が AppState になる） */
+/** ほかのアプリ（ChatGPT など）に切り替えて、KARADA に戻る（web では画面の見え方の変化が AppState になる） */
 async function leaveAndReturn(page: Page) {
   for (const state of ['hidden', 'visible']) {
     await page.evaluate((s) => {

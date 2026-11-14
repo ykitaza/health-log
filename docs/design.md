@@ -1,7 +1,7 @@
 # 全体の設計
 
 食事記録そのもの（ドメイン、ツール、目標の計算）の設計は [meals-design.md](meals-design.md)、ログインからツールの呼び出しまでの流れは [シーケンス図](sequence.md) にあります。
-スマホアプリ（hlog）とサーバーの同期は [sync-design.md](sync-design.md)、アプリ用の API の仕様は [api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
+スマホアプリ（KARADA）とサーバーの同期は [sync-design.md](sync-design.md)、アプリ用の API の仕様は [api/app-api.yaml](api/app-api.yaml)（OpenAPI）にあります。
 
 ## 背景
 
@@ -9,7 +9,7 @@
 ただ、そのために食事記録のアプリを新しく入れるのは気が進まず、有料のものも多くあります。
 普段から使っている Claude や ChatGPT なら、写真から料理と量を推定できます。
 そこで、推定は AI に任せ、記録と集計だけをサーバーが受け持つ形にしました。サーバーは AI を呼ばないので、AI の利用料はかかりません。かかるのは Lambda・DynamoDB・API Gateway の従量課金だけです。
-その後、筋トレと体組成をスマホでも記録したくなり、アプリ（hlog）を足しました。
+その後、筋トレと体組成をスマホでも記録したくなり、アプリ（KARADA）を足しました。
 
 もう1つの目的は、MCP の認可（OAuth 2.1、CIMD、PKCE、リフレッシュトークン）を理解することです。
 ログイン画面は Cognito に任せ、その前に認可API を置いています。
@@ -61,7 +61,7 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 
 - 本人確認 → 認可：`services/authorization/infrastructure/cognito_login.py`（腐敗防止層、Authlib）が IDトークンを `Subject` に変えます
 - 認可 → MCP の入口：受け渡すのはアクセストークン（JWT）だけです。MCP の入口（`services/mcp/connector/access_token_verifier.py`）は、認可API の iss と JWKS を手で設定して信じます
-- 本人確認 → アプリ用の API：アプリは認可API を通さず、Cognito のアクセストークンをそのまま使います（下の「スマホアプリ（hlog）のログイン」）
+- 本人確認 → アプリ用の API：アプリは認可API を通さず、Cognito のアクセストークンをそのまま使います（下の「スマホアプリ（KARADA）のログイン」）
 - scope はリソースサーバーごとに持ちます（MCP サーバーは `meals:read`・`meals:write`・`training:read`・`training:write`、アプリ用の API は `torelog-api/meals.read` など）
 - MCP は各コンテキストを外に出す通信の形式なので、ツールは各コンテキストの `presentation/` に置き、1つのサーバーへの組み立ては `services/mcp/` で行います（下の「MCP サーバーの組み立て」）
 
@@ -132,7 +132,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
 | `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
 | `services/composition/` | 組み立ての場所（`services/mcp` と `services/app_api`）が共有するもの。同期で扱う種類の登録（`create_registry`） |
-| `apps/mobile/` | 筋トレのアプリ（hlog、Expo）。今は端末の SQLite だけで動く（下の「筋トレのアプリとの関係」、[apps/mobile/README.md](../apps/mobile/README.md)） |
+| `apps/mobile/` | 筋トレのアプリ（KARADA、Expo）。今は端末の SQLite だけで動く（下の「筋トレのアプリとの関係」、[apps/mobile/README.md](../apps/mobile/README.md)） |
 | `testdata/training/` | 筋トレの計算の、入力と期待する結果（サーバーとアプリで共有） |
 | `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
 | `tools/inspector/` | MCP Inspector 用の CIMD の文書（PC で MCP サーバーを試すとき） |
@@ -291,7 +291,7 @@ Cognito から消したパスキーは、端末に残っていても、もうロ
 - サイトにパスキーが複数あるときは、作った日時で、Cognito から消したものと同じものを選びます
 - iCloud キーチェーンなど、ほかの場所に作ったパスキーは、そちらのパスワードの管理の画面で消します
 
-## スマホアプリ（hlog）のログイン
+## スマホアプリ（KARADA）のログイン
 
 アプリは Cognito のマネージドログインに、OIDC（認可コード＋PKCE）でつなぎます。MCP の認可API は通しません。
 同じ Cognito のユーザーなので、アクセストークンの `sub` は MCP と同じです（認可API は Cognito の ID トークンの `sub` を、そのまま自分のアクセストークンの `sub` にしています。`services/authorization/infrastructure/cognito_login.py`）。
@@ -339,7 +339,7 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 
 ## 筋トレのアプリとの関係
 
-筋トレのアプリ（hlog、`apps/mobile/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。アプリでログインすると、同期でつながります。
+筋トレのアプリ（KARADA、`apps/mobile/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。アプリでログインすると、同期でつながります。
 
 | 段階 | アプリ | サーバー |
 |---|---|---|
@@ -347,7 +347,7 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 | 第2段階 | Cognito にパスキーでログインし、変更の記録を送り合って同期する（筋トレ・体組成・設定は入った）。食事の記録と目標も扱う | 変わらない（同じ API と同じテーブルの `SYNC#` の項目） |
 
 - 記録の置き場所は、アプリから送られた分も MCP から書いた分も、食事のテーブル（`MealsTable`）の同期の項目（`SYNC#…`）です。どちらの変更も同じ「変更の記録」を通るので、同期でもう一方に届きます（[sync-design.md](sync-design.md)）
-- 同じ人かどうかは、Cognito の `sub` で決まります（上の「スマホアプリ（hlog）のログイン」）
+- 同じ人かどうかは、Cognito の `sub` で決まります（上の「スマホアプリ（KARADA）のログイン」）
 - 計算（総負荷量、推定1RM、自己ベスト、体組成）は、アプリの `apps/mobile/lib/` と筋トレのドメインで同じ式にし、`testdata/training/*.json` で両方を確かめます
 - 初期の部位と種目は、アプリの `apps/mobile/db/seed.ts` と同じ固定の ID です（上の「MCP サーバーの組み立て」）
 - アプリの表の列（ID、作成・更新の時刻、論理削除）は、同期の対象の項目と同じにしています（`apps/mobile/db/migrations.ts`）

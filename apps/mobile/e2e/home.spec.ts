@@ -12,10 +12,10 @@ const cell = (page: Page, date: string) => visible(page, `log-${date}`);
 
 test('記録がないときのホーム（まっさらなデータから始まる）', async ({ page }) => {
   await openApp(page);
-  // 見出しの行：アカウントの写真・「HLOG // NOV 2026」・設定の歯車
+  // 見出しの行：アカウントの写真・「KARADA // NOV 2026」・設定の歯車
   const header = visible(page, 'home-header');
   await expect(button(header, 'アカウント。押すとアカウントの画面')).toBeVisible();
-  await expect(header.getByRole('heading', { name: '2026年11月' })).toHaveText('HLOG // NOV 2026');
+  await expect(header.getByRole('heading', { name: '2026年11月' })).toHaveText('KARADA // NOV 2026');
   await expect(button(header, '設定')).toBeVisible();
   // ヒーロー：はじめは LATEST。記録がなければ数字は「—」
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');

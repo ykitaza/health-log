@@ -60,7 +60,7 @@ REQUIRED_SCOPES = [meal_tools.READ_SCOPE, meal_tools.WRITE_SCOPE]
 SUPPORTED_SCOPES = REQUIRED_SCOPES + [training_tools.READ_SCOPE, training_tools.WRITE_SCOPE]
 
 INSTRUCTIONS = f"""食事と筋トレを記録するサーバー。食事のツールと筋トレのツールがある。
-結果の last_app_sync_at は、スマホのアプリ（hlog）から最後に同期で受け付けた時刻（日本時間）。null ならまだアプリから同期していない。
+結果の last_app_sync_at は、スマホのアプリ（KARADA）から最後に同期で受け付けた時刻（日本時間）。null ならまだアプリから同期していない。
 アプリで記録した分は、同期するまでここに見えない。記録が足りないように見えるとき（とくに last_app_sync_at より後にアプリで記録したと言われたとき）は、
 アプリを開いて同期してもらうよう伝える。
 
@@ -156,7 +156,7 @@ def create_server(
 ) -> MCPServer:
     mcp = MCPServer(
         name="study-meals",  # 今のコネクタと同じ名前のまま
-        title="食事と筋トレの記録",
+        title="KARADA",
         instructions=INSTRUCTIONS,
         icons=server_icons(resource_url.removesuffix("/mcp")),
         token_verifier=token_verifier,

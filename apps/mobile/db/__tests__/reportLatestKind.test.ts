@@ -74,7 +74,7 @@ describe('listWithoutBody（本文を読まない一覧）', () => {
   });
 });
 
-describe('forLink（チャットの「hlog で見る」：reports?date=…&kind=… で開くレポート）', () => {
+describe('forLink（チャットの「KARADA で見る」：reports?date=…&kind=… で開くレポート）', () => {
   const MONTH = 'bbbbbbbb-0000-4000-8000-000000000005';
   const WEEK2 = 'bbbbbbbb-0000-4000-8000-000000000006';
 

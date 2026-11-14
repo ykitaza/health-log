@@ -1,11 +1,12 @@
 /**
- * 下に引っぱって同期するときの印（hlog のマーク：h と心拍の線）の動きの値。Reanimated を読み込まずに jest で確かめる
+ * 下に引っぱって同期するときの印（KARADA のマーク：K と心拍の線）の動きの値。Reanimated を読み込まずに jest で確かめる
  * （lib/__tests__/pull-mark.test.ts）。関数は worklet で、components/PullMark.tsx の useAnimatedStyle・useAnimatedProps から呼ぶ。
  * 形はアプリのアイコン（assets/icon-src/icon.svg）と同じ path。座標もアイコンのまま（viewBox で切り出す）
  */
 import { duration } from '@/theme/motion';
 
-export const MARK_H_PATH = 'M330 250 V774 M330 520 Q330 420 450 420 Q570 420 570 520 V774';
+/** K の線（名前は前のマークの h のまま） */
+export const MARK_H_PATH = 'M330 250 V774 M570 250 L350 515 L570 774';
 export const MARK_PULSE_PATH = 'M640 610 H672 L712 512 L762 708 L800 610 H836';
 export const MARK_H_WIDTH = 92;
 export const MARK_PULSE_WIDTH = 40;
