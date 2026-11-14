@@ -1,6 +1,5 @@
 // 今週の目標と、週・日の達成（ホーム・レポートの画面が使う）。どれも純粋な関数で、DB は読まない
 // （読むのは db/repositories/achievements.ts、画面からは hooks/data.ts の useWeeklyAchievement・useDailyAchievement）
-import { mondayOf } from './body';
 import { addDays, DateKey, weekStart } from './date';
 import { LONG_SLEEP_MIN } from './health';
 import type { DaySummary, DayType } from './meals';
@@ -21,9 +20,9 @@ export type WeeklyGoals = {
   sleepDays: number;
 };
 
-/** その日を含む週（月曜始まり、月〜日）。月曜は lib/body.ts の mondayOf */
+/** その日を含む週（月曜始まり、月〜日）。月曜は lib/date.ts の weekStart */
 export function weekOf(date: DateKey): { start: DateKey; end: DateKey } {
-  const start = mondayOf(date);
+  const start = weekStart(date);
   return { start, end: addDays(start, 6) };
 }
 

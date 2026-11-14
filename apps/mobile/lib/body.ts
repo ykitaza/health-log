@@ -1,4 +1,4 @@
-import { addDays, addMonths, DateKey, daysBetween, weekday } from './date';
+import { addDays, addMonths, DateKey, daysBetween, weekStart } from './date';
 
 /** BMI ＝ 体重 ÷ 身長(m)² */
 export function bmi(weightKg: number | null, heightCm: number | null): number | null {
@@ -155,14 +155,9 @@ export function averageBetween(points: { date: DateKey; value: number }[], from:
   return inRange.length === 0 ? null : inRange.reduce((n, p) => n + p.value, 0) / inRange.length;
 }
 
-/** その日を含む週（月曜始まり）の月曜 */
-export function mondayOf(date: DateKey): DateKey {
-  return addDays(date, -((weekday(date) + 6) % 7));
-}
-
 /** その日を含む週（月曜〜日曜）の、記録のある日の平均（からだの今日の「週の平均」） */
 export function weekAverage(points: { date: DateKey; value: number }[], date: DateKey): number | null {
-  const monday = mondayOf(date);
+  const monday = weekStart(date);
   return averageBetween(points, monday, addDays(monday, 6));
 }
 

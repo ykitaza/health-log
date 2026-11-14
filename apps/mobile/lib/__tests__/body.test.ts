@@ -1,5 +1,5 @@
 import {
-  averageBetween, bmi, fatMass, goalProgress, leanMass, metricValue, mondayOf, movingAverage, previousWeight, weekAverage, weeklyPace,
+  averageBetween, bmi, fatMass, goalProgress, leanMass, metricValue, movingAverage, previousWeight, weekAverage, weeklyPace,
 } from '../body';
 
 test('体組成の計算（68.4kg・16.2%・身長170cm）', () => {
@@ -67,9 +67,6 @@ describe('期間の平均と週の平均（月曜始まり）', () => {
     expect(averageBetween(pts, '2026-11-05', '2026-11-07')).toBeNull();
   });
   test('月曜〜日曜の週。その日より後の日も、同じ週なら入る', () => {
-    expect(mondayOf('2026-11-08')).toBe('2026-11-02');
-    expect(mondayOf('2026-11-02')).toBe('2026-11-02');
-    expect(mondayOf('2026-11-01')).toBe('2026-10-26');
     expect(weekAverage(pts, '2026-11-08')).toBeCloseTo(68, 5);
     expect(weekAverage(pts, '2026-11-03')).toBeCloseTo(68, 5);
     expect(weekAverage(pts, '2026-11-01')).toBe(70);
