@@ -1,20 +1,23 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useChatChooser } from '@/components/ChatSheet';
 import { Mono, ReviewDraft, ReviewSheet, ScanFrame, StatusBadge } from '@/components/injuries';
 import { LoadError } from '@/components/LoadError';
+import { RehabStartSheet } from '@/components/phase/parts';
 import { INJURY_AMBER, MuscleFigure } from '@/components/MuscleFigure';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, ConfirmDialog, Header, IconButton } from '@/components/ui';
 import type { InjuryReview } from '@/db/repositories/injuries';
+import { PhaseError } from '@/db/repositories/phases';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { formatMonthDay, formatShortDate } from '@/lib/date';
 import { injuryNumbers, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/lib/injuries';
 import { markPoint } from '@/lib/muscleFigure';
+import { currentPhase, pauses, phaseLabel, phaseWeek } from '@/lib/phases';
 import { colors, radius, space, toneColors } from '@/theme';
 
 /** 振り返りの結果の色（記号と文字も添える） */
@@ -27,19 +30,22 @@ const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
 /**
  * ケガの1件（Figma「ケガ 2. 1件の詳細」）。どこで（種目・場面）・何が起きた・原因（自分の分析）・次はこう直す（緑の枠）・
  * やってみた結果（縦の年表。✓直せた △まだ ！痛んだ）。下に「振り返りを足す」と「直せたにする」（直せたものは「直している途中に戻す」）。
- * 振り返りのシートからは「AI で書く」でチャット（add_injury_review）にも頼める。振り返りで「直せた」を選んだら、ケガを直せたにするかを聞く（自動では閉じない）。右上に「編集」と「消す」（振り返りも一緒に消える）
+ * 振り返りのシートからは「AI で書く」でチャット（add_injury_review）にも頼める。振り返りで「直せた」を選んだら、ケガを直せたにするかを聞く（自動では閉じない）。右上に「編集」と「消す」（振り返りも一緒に消える）。
+ * 直している途中で療養中でなければ「このケガで療養に入る」（確かめのシートのあと療養を始め、フェーズの画面へ。Figma「スタディ：フェーズ」の療養 1・2）
  */
 export default function InjuryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const today = useToday();
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [injury, reviews, all] = await Promise.all([r.injuries.get(id), r.injuries.reviews(id), r.injuries.list()]);
-    return { injury, reviews, number: injuryNumbers(all).get(id) ?? '' };
+    const [injury, reviews, all, phases] = await Promise.all([r.injuries.get(id), r.injuries.reviews(id), r.injuries.list(), r.phases.list()]);
+    return { injury, reviews, number: injuryNumbers(all).get(id) ?? '', phases };
   }, id);
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [askFixed, setAskFixed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [rehabOpen, setRehabOpen] = useState(false);
+  const [rehabError, setRehabError] = useState<string | null>(null);
   const { busy, run } = useBusy();
   const chat = useChatChooser();
 
@@ -84,6 +90,23 @@ export default function InjuryScreen() {
     setDraftError(null);
     setDraft({ date: today, result: 'not_yet', note: '', withExercise: injury.exerciseId != null });
   };
+  // 療養に入る入口：直している途中のケガで、療養中でないとき。実施中の通常のフェーズがあれば止める
+  const { current: now } = currentPhase(data.phases, today);
+  const canRehab = fixing && now?.kind !== 'rehab';
+  const pausedNormal = now?.kind === 'normal' ? { label: phaseLabel(now), week: phaseWeek(now, pauses(now, data.phases, today), today) } : null;
+  const startRehab = (name: string) => run(async () => {
+    setRehabError(null);
+    try {
+      await repos.phases.startRehab({ name, startDate: today, snapshot: null });
+    } catch (e) {
+      if (e instanceof PhaseError) { setRehabError(e.message); return; }
+      throw e;
+    }
+    setRehabOpen(false);
+    // push なのでこの画面は残る（戻ってきたときに押せるよう、busy は残さない）
+    router.push('/phase');
+    await reload();
+  });
   const overline = ['ケガ', [injury.exerciseName ? `${injury.exerciseName}で` : '', formatMonthDay(injury.occurredOn)].join('')].join(' ・ ');
 
   return (
@@ -162,6 +185,25 @@ export default function InjuryScreen() {
           <View testID="injury-log">{data.reviews.map((r, i) => <LogItem key={r.id} review={r} last={i === data.reviews.length - 1} />)}</View>
         )}
       </Block>
+
+      {canRehab && (
+        <Pressable
+          accessibilityRole="button" accessibilityLabel={`このケガで療養に入る。${pausedNormal ? `${pausedNormal.label}を止めて、回復を優先します` : '療養の日数を数えます'}`}
+          onPress={() => { setRehabError(null); setRehabOpen(true); }} testID="injury-rehab"
+          style={({ pressed }) => [s.rehab, pressed && { opacity: 0.7 }]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <T variant="titleS">このケガで療養に入る</T>
+            <T variant="bodyS" color={colors.sub}>{pausedNormal ? `${pausedNormal.label}を止めて、回復を優先します` : '療養の日数を数えます'}</T>
+          </View>
+          <T variant="titleM" color={colors.sub}>›</T>
+        </Pressable>
+      )}
+
+      <RehabStartSheet
+        visible={rehabOpen} onClose={() => setRehabOpen(false)} title={`${label}のケガで療養に入る`} paused={pausedNormal}
+        defaultName={label} busy={busy} error={rehabError} onStart={startRehab}
+      />
 
       <ReviewSheet
         draft={draft}
@@ -253,4 +295,8 @@ const s = StyleSheet.create({
   logDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, marginTop: 4 },
   logLine: { flex: 1, width: 1, backgroundColor: colors.outline, marginTop: 2 },
   result: { borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 },
+  rehab: {
+    flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, marginTop: space.m, paddingHorizontal: space.l, paddingVertical: space.m,
+    borderRadius: radius.l, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.card,
+  },
 });

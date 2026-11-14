@@ -4,11 +4,12 @@ import { View } from 'react-native';
 import { LoadError } from '@/components/LoadError';
 import { Sheet } from '@/components/motion';
 import { MealFields } from '@/components/phase/MealFields';
-import { ActionRow, HudButton, HudChip, NumberField, PhaseFrame, Tag, TextField } from '@/components/phase/parts';
+import { ActionRow, HudButton, HudChip, NumberField, PhaseFrame, RehabStartSheet, SheetBody, Tag } from '@/components/phase/parts';
 import { WeightChart } from '@/components/phase/WeightChart';
-import { hud, HudFonts, Micro, Mono, Panel, PanelHead } from '@/components/report/hud';
+import { hud, Micro, Mono, Panel, PanelHead } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { ConfirmDialog } from '@/components/ui';
+import type { Injury, InjuryReview } from '@/db/repositories/injuries';
 import { PhaseError } from '@/db/repositories/phases';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
@@ -16,16 +17,17 @@ import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatMonthDay } from '@/lib/date';
 import { loadGrowthData } from '@/lib/growthData';
 import { DIRECTION_EN } from '@/lib/homeHero';
+import { RESULTS, siteLabel } from '@/lib/injuries';
 import {
   currentPhase, PACE_LABELS, Phase, PHASE_LIMITS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
   successMetrics, Weight,
 } from '@/lib/phases';
+import { readyToEndRehab, rehabInjuries, RehabWatch, rehabWatch } from '@/lib/phaseReview';
 import {
   endMeasuresFrom, MealDraft, mealDraftFromPhase, measuresFrom, metricNote, midDate, midWeek, offPaceStreak, orderMetrics, paceSentence, parseMealDraft,
   PhaseMeasures, planSlopePerWeek, projectedKg, recentSlopePerWeek, snapshotOf, STREAK_TITLES, SUCCESS_RULE, weightChart,
 } from '@/lib/phaseView';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
-import { colors } from '@/theme';
 
 type Dialog = 'extend' | 'target' | 'rehab' | 'meals' | 'end' | 'abort' | 'endRehab' | null;
 
@@ -37,16 +39,22 @@ const signed = (n: number, digits = 1) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}
  * 実施中：体重のグラフ、ペースの判定と理由、成功の指標、このあと（中間の見直し・食事の目標）、操作（延長・目標を変える・療養に入る・
  * 早めに終える・中断する）。2 週続けてペースが崩れたら直し方の提案、中間の週には中間の見直しを上に出す。
  * 療養中：療養の日数、止めているフェーズ、療養を終える（再開する／振り返って次へ）。
- * フェーズがなければ設定（/phase/new）へ移す。早めに終えたあとの振り返りの画面は次の版なので、終えたらホームへ戻す
+ * 療養中のケガ（lib/phaseReview.ts の rehabInjuries）がすべて直せたになったら「療養を終えますか」を上に出す。
+ * 早めに終える・期間が終わって終える・療養を終えて「振り返って次へ」は、振り返りの画面（/phase/review/[id]）へ移す。
+ * フェーズがなければ設定（/phase/new）へ移す
  */
 export default function PhaseScreen() {
   const today = useToday();
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [phases, growth] = await Promise.all([r.phases.list(), loadGrowthData(r, today)]);
-    return { phases, growth };
+    const [phases, growth, injuries] = await Promise.all([r.phases.list(), loadGrowthData(r, today), r.injuries.list()]);
+    // 療養中なら、対象のケガとその振り返り（療養中に見るもの）
+    const rehab = currentPhase(phases, today).current;
+    const targets: Injury[] = rehab?.kind === 'rehab' ? rehabInjuries(injuries, rehab, today) : [];
+    const reviews: InjuryReview[] = (await Promise.all(targets.map((i) => r.injuries.reviews(i.id)))).flat();
+    return { phases, growth, injuries, targets, reviews };
   }, today);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [dismissed, setDismissed] = useState<{ streak?: boolean; mid?: boolean }>({});
+  const [dismissed, setDismissed] = useState<{ streak?: boolean; mid?: boolean; ready?: boolean }>({});
   const [opError, setOpError] = useState<string | null>(null);
   const { busy, run } = useBusy();
 
@@ -68,8 +76,8 @@ export default function PhaseScreen() {
 
   if (error) return <PhaseFrame sys="HLOG // PHASE" onBack={close}><LoadError onRetry={reload} /></PhaseFrame>;
 
-  /** 操作を実行して読み直す。断られたら理由を出す。leave があれば、そのあとでホームへ */
-  const act = (task: () => Promise<void>, leave = false) => run(async (stayBusy) => {
+  /** 操作を実行して読み直す。断られたら理由を出す。leave が true ならそのあとでホームへ、文字ならその画面へ（読み直さない） */
+  const act = (task: () => Promise<void>, leave: boolean | string = false) => run(async (stayBusy) => {
     setOpError(null);
     try {
       await task();
@@ -78,6 +86,7 @@ export default function PhaseScreen() {
       throw e;
     }
     setDialog(null);
+    if (typeof leave === 'string') { stayBusy(); router.replace(leave as `/phase/review/${string}`); return; }
     if (leave) { stayBusy(); home(); return; }
     await reload();
   });
@@ -91,15 +100,29 @@ export default function PhaseScreen() {
   if (current.kind === 'rehab') {
     const progress = phaseProgress(current, phases, weights, today);
     const pp = paused ? phaseProgress(paused, phases, weights, today) : null;
+    const ready = readyToEndRehab(data!.injuries, current, today) && !dismissed.ready;
+    const watch = rehabWatch(data!.growth.days, data!.reviews, current, today);
+    const names = data!.targets.map((i) => siteLabel(i.site, i.side)).join('・');
     return (
       <PhaseFrame sys={`HLOG // REHAB · DAY ${two(progress.rehabDays)}`} onBack={close} testID="phase-progress">
         <Heading en={`REHAB · DAY ${two(progress.rehabDays)}`} sub={`${formatMonthDay(current.startDate)}から ・ ${progress.rehabDays}日目`} title={phaseLabel(current)} />
+        {ready && (
+          <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-rehab-ready">
+            <PanelHead en="REHAB // ALL FIXED" title={`${names}が「直せた」になりました`} />
+            <T size={13} color={hud.note}>療養を終えますか？ 続けてもかまいません。</T>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <HudButton label="療養を終える" onPress={() => { setOpError(null); setDialog('endRehab'); }} style={{ flex: 1 }} testID="phase-rehab-ready-end" />
+              <HudButton variant="outline" label="まだ続ける" onPress={() => setDismissed({ ...dismissed, ready: true })} style={{ flex: 1 }} testID="phase-rehab-ready-keep" />
+            </View>
+          </Panel>
+        )}
         <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-rehab">
           <PanelHead en="REHAB // CLOCK STOPPED" title="療養中" right={`${progress.rehabDays}日目`} />
           <T size={13} color={hud.note} style={{ lineHeight: 20 }}>
-            療養中は時計を止め、進み具合とペースは判定しません。見るのは睡眠・たんぱく質・ケガの振り返りです。体の状態の判断は、本人や専門家に任せます。
+            療養中は時計を止め、進み具合とペースは判定しません。見るのは睡眠・食事・ケガの振り返りです。体の状態の判断は、本人や専門家に任せます。
           </T>
         </Panel>
+        <WatchPanel watch={watch} />
         {paused && pp ? (
           <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 6 }} testID="phase-paused">
             <PanelHead en={`${DIRECTION_EN[paused.direction!]} // PAUSED`} title={`止めているフェーズ：${phaseLabel(paused)}`} right={`${two(pp.week)}/${two(pp.weeksTotal ?? pp.week)}W`} />
@@ -116,10 +139,14 @@ export default function PhaseScreen() {
           <SheetBody title="療養を終える" error={opError}>
             {paused ? (
               <>
-                <T size={13} color={hud.note} style={{ lineHeight: 20 }}>{`${phaseLabel(paused)}をどうしますか。`}</T>
-                <HudButton label={`再開する（${phaseLabel(paused)}を続ける）`} busy={busy} onPress={() => act(() => repos.phases.endRehab(current.id, { resume: true }))} testID="phase-resume" />
-                <HudButton variant="outline" label="振り返って次へ（フェーズも終える）" busy={busy} onPress={() => act(() => repos.phases.endRehab(current.id, { resume: false }), true)} testID="phase-rehab-finish" />
-                <T size={11.5} color={hud.muted}>振り返りの画面は次の版で作ります。今は終えてホームに戻ります。</T>
+                <T size={13} color={hud.note} style={{ lineHeight: 20 }}>{`療養を終えて、${phaseLabel(paused)}をどうしますか。`}</T>
+                <T size={12} color={hud.muted} style={{ lineHeight: 18 }}>
+                  {`再開：${pp ? `${pp.week}週目から。` : ''}終わりの日は ${pp?.effectiveEnd ? formatMonthDay(pp.effectiveEnd) : '—'}。はじめの2週はペースを判定しません。`}
+                </T>
+                <HudButton label={`${phaseLabel(paused)}を再開する`} busy={busy} onPress={() => act(() => repos.phases.endRehab(current.id, { resume: true }))} testID="phase-resume" />
+                <T size={12} color={hud.muted} style={{ lineHeight: 18 }}>{`振り返って次へ：${phaseLabel(paused)}を${pp ? `${pp.week}週目で` : ''}終え、振り返りの画面へ進みます。`}</T>
+                <HudButton variant="outline" label="振り返って次へ" busy={busy}
+                  onPress={() => act(() => repos.phases.endRehab(current.id, { resume: false }), `/phase/review/${paused.id}`)} testID="phase-rehab-finish" />
               </>
             ) : (
               <HudButton label="療養を終える" busy={busy} onPress={() => act(() => repos.phases.endRehab(current.id, { resume: false }), true)} testID="phase-rehab-finish" />
@@ -144,7 +171,7 @@ type Repos = ReturnType<typeof useRepos>;
 function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
   phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; now: PhaseMeasures; unit: WeightUnit; today: DateKey;
   dialog: Dialog; setDialog: (d: Dialog) => void; dismissed: { streak?: boolean; mid?: boolean }; setDismissed: (d: { streak?: boolean; mid?: boolean }) => void;
-  act: (task: () => Promise<void>, leave?: boolean) => void; busy: boolean; opError: string | null; onBack: () => void; repos: Repos;
+  act: (task: () => Promise<void>, leave?: boolean | string) => void; busy: boolean; opError: string | null; onBack: () => void; repos: Repos;
 }) {
   const dir = phase.direction!;
   const progress: PhaseProgress = phaseProgress(phase, phases, weights, today);
@@ -161,11 +188,24 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
   const { metrics } = successMetrics(phase, now);
   const weekAvg = pace.weekAvgKg ?? (measures.weightBasis === 'week' ? measures.weightKg : null);
   const end = progress.effectiveEnd;
+  // 期間が終わっても、本人が終えるまでは実施中のまま（自動では終えない）
+  const expired = end != null && today > end;
 
   return (
     <PhaseFrame sys={`HLOG // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} onBack={onBack} testID="phase-progress">
       <Heading en={`${DIRECTION_EN[dir]} · W${two(progress.week)}/${two(total)}`}
         sub={`${formatMonthDay(phase.startDate)}〜${end ? formatMonthDay(end) : ''} ・ ${progress.week}／${total}週目`} title={phaseLabel(phase)} />
+
+      {expired && (
+        <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-expired">
+          <PanelHead en="PHASE // COMPLETE" title="期間が終わりました" right={`${formatMonthDay(end!)}まで`} />
+          <T size={13} color={hud.note} style={{ lineHeight: 20 }}>終えて振り返るか、続けるなら延長します。</T>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <HudButton label="終えて振り返る" busy={busy} onPress={() => act(() => repos.phases.end(phase.id), `/phase/review/${phase.id}`)} style={{ flex: 1 }} testID="phase-expired-review" />
+            <HudButton variant="outline" label="延長する" onPress={() => setDialog('extend')} style={{ flex: 1 }} />
+          </View>
+        </Panel>
+      )}
 
       {streak && streak !== 'on_track' && !dismissed.streak && (
         <Panel border={hud.green} style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-streak">
@@ -257,7 +297,7 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
         <ActionRow title="延長する" sub={`終わりを後ろにずらす（今は ${end ? formatMonthDay(end) : '—'}）`} onPress={() => setDialog('extend')} testID="phase-extend" />
         <ActionRow title="目標を変える" sub="変えた日から予定の線を引き直す。前の線は薄く残る" onPress={() => setDialog('target')} testID="phase-target-change" />
         <ActionRow title="療養に入る" sub="ケガや体調不良で。時計を止める" onPress={() => setDialog('rehab')} testID="phase-rehab-start" />
-        <ActionRow title="早めに終える" sub="今日で終える（振り返りの画面は次の版）" onPress={() => setDialog('end')} testID="phase-end" />
+        <ActionRow title={expired ? '終えて振り返る' : '早めに終える'} sub="今日で終え、振り返りの画面へ" onPress={() => setDialog('end')} testID="phase-end" />
         <ActionRow title="中断する" sub="振り返らずに様子見に戻す" onPress={() => setDialog('abort')} danger last testID="phase-abort" />
       </Section>
 
@@ -267,11 +307,12 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
         onSave={(t) => act(() => repos.phases.changeTarget(phase.id, t, weekAvg))} />
       <MealSheet visible={dialog === 'meals'} onClose={() => setDialog(null)} targets={phase.mealTargets} weightKg={measures.weightKg} busy={busy} error={opError}
         onSave={(t) => act(() => repos.phases.setMealTargets(phase.id, t))} />
-      <RehabSheet visible={dialog === 'rehab'} onClose={() => setDialog(null)} label={phaseLabel(phase)} busy={busy} error={opError}
+      <RehabStartSheet visible={dialog === 'rehab'} onClose={() => setDialog(null)} title="療養に入る" paused={{ label: phaseLabel(phase), week: progress.week }}
+        busy={busy} error={opError}
         onStart={(name) => act(() => repos.phases.startRehab({ name, startDate: today, snapshot: snapshotOf(measures) }).then(() => undefined))} />
       <ConfirmDialog visible={dialog === 'end'} title="フェーズを終えますか？" danger={false} busy={busy}
-        body={`${phaseLabel(phase)}を今日で終えます。振り返りの画面は次の版で作ります。終えたらホームに戻り、次のフェーズを始められます。`}
-        confirmLabel="終える" onCancel={() => setDialog(null)} onConfirm={() => act(() => repos.phases.end(phase.id), true)} />
+        body={`${phaseLabel(phase)}を今日で終えます。終えたら振り返りの画面に進み、次のフェーズを始められます。`}
+        confirmLabel="終える" onCancel={() => setDialog(null)} onConfirm={() => act(() => repos.phases.end(phase.id), `/phase/review/${phase.id}`)} />
       <ConfirmDialog visible={dialog === 'abort'} title="フェーズを中断しますか？" busy={busy}
         body="振り返らずに様子見に戻します。体重などの記録は消えません。" confirmLabel="中断する"
         onCancel={() => setDialog(null)} onConfirm={() => act(() => repos.phases.abort(phase.id), true)} />
@@ -315,19 +356,6 @@ function MidRow({ label, value }: { label: string; value: string }) {
       <T bold size={12.5} color={hud.green} style={{ width: 52 }}>{label}</T>
       <T size={13} color={hud.ink} style={{ flex: 1, lineHeight: 19 }}>{value}</T>
     </View>
-  );
-}
-
-/** シートの中身（hud の色で） */
-function SheetBody({ title, error, children }: { title: string; error: string | null; children: ReactNode }) {
-  return (
-    <HudFonts>
-      <View style={{ backgroundColor: hud.panel, padding: 16, gap: 12, borderTopWidth: 1, borderColor: hud.line }}>
-        <T bold size={16} color={hud.ink} accessibilityRole="header">{title}</T>
-        {children}
-        {error && <T size={13} color={colors.danger} accessibilityRole="alert">{error}</T>}
-      </View>
-    </HudFonts>
   );
 }
 
@@ -401,19 +429,34 @@ function MealSheet({ visible, onClose, targets, weightKg, busy, error, onSave }:
   );
 }
 
-function RehabSheet({ visible, onClose, label, busy, error, onStart }: {
-  visible: boolean; onClose: () => void; label: string; busy: boolean; error: string | null; onStart: (name: string) => void;
-}) {
-  const [name, setName] = useState('');
+const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
+
+/** 療養中に見るもの（Figma の療養 3）：睡眠の平均・食事の目標に届いた日・ケガの振り返り。数字は記録から出せるものだけ */
+function WatchPanel({ watch }: { watch: RehabWatch }) {
+  const latest = watch.latestReview;
   return (
-    <Sheet visible={visible} onClose={onClose}>
-      <SheetBody title="療養に入る" error={error}>
-        <T size={13} color={hud.note} style={{ lineHeight: 20 }}>
-          {`今日から療養に入り、${label}の時計を止めます。終わりは療養の日数だけ後ろにずれ、療養中と戻ってから2週間はペースを判定しません。`}
-        </T>
-        <TextField label="名前（なくてもよい。例：風邪）" value={name} onChange={setName} maxLength={PHASE_LIMITS.name} testID="phase-rehab-name" />
-        <HudButton label="療養に入る" busy={busy} onPress={() => onStart(name)} testID="phase-rehab-save" />
-      </SheetBody>
-    </Sheet>
+    <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 2 }} testID="phase-rehab-watch">
+      <PanelHead en="REHAB // WATCH" title="療養中に見るもの" />
+      <WatchRow title="睡眠（平均）" sub={`療養に入ってから・${watch.sleepDays}日分`} value={watch.sleepAvgMin == null ? '—' : hm(watch.sleepAvgMin)} unit="時間" />
+      <WatchRow title="食事の目標に届いた日" sub="カロリーとたんぱく質" value={String(watch.mealReached)} unit={`／${watch.mealDays}日`} />
+      <WatchRow title="ケガの振り返り" sub={latest ? `最新：${latest.date.slice(5).replace('-', '/')} ${RESULTS[latest.result].mark}${RESULTS[latest.result].label}` : 'まだありません'}
+        value={String(watch.reviews)} unit="回" last />
+    </Panel>
+  );
+}
+
+function WatchRow({ title, sub, value, unit, last }: { title: string; sub: string; value: string; unit: string; last?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: last ? 0 : 1, borderBottomColor: hud.rowLine }}
+      accessible accessibilityLabel={`${title}。${value}${unit}。${sub}`}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <T bold size={13} color={hud.label}>{title}</T>
+        <T size={11} color={hud.muted}>{sub}</T>
+      </View>
+      <T>
+        <Mono size={18} color={hud.white}>{value}</Mono>
+        <Mono size={10} color={hud.muted}>{` ${unit}`}</Mono>
+      </T>
+    </View>
   );
 }

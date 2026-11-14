@@ -128,7 +128,10 @@ export default function ReportScreen() {
   // 開いたレポートが 'other'（分析レポート）・'phase'（フェーズの振り返り。フェーズの画面で見せる）のときは出さず、
   // 最新の日・週・月のまとめに替える（この画面は日・週・月のタブだけ）
   const openedRaw = data?.report ?? null;
-  const opened = openedRaw && !isPeriodReportKind(openedRaw.kind) ? (data?.latest ?? null) : openedRaw;
+  // フェーズの振り返り（phase_id があるもの）は、フェーズの振り返りの画面へ移す（戻るでこの画面に戻らないよう置き換える）
+  const phaseId = openedRaw?.kind === 'phase' ? openedRaw.phaseId : null;
+  useEffect(() => { if (phaseId) router.replace(`/phase/review/${phaseId}`); }, [phaseId]);
+  const opened = phaseId ? null : openedRaw && !isPeriodReportKind(openedRaw.kind) ? (data?.latest ?? null) : openedRaw;
   const report: Report | null = data == null ? null : pickedKind ? data.latestByKind[pickedKind] : opened;
   // 次の一歩のチェック（日次＝明日の一歩、週次＝来週の焦点。月次は見るだけ。既存の next_steps_done の仕組み：components/WeeklyTodo の useTodoChecks）
   const { done, toggle } = useTodoChecks(report?.id, report?.nextStepsDone ?? []);
@@ -141,6 +144,7 @@ export default function ReportScreen() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   if (error) return <Frame sys={null} onBack={back}><LoadError onRetry={reload} /></Frame>;
   if (data == null) return <Frame sys={null} onBack={back}>{null}</Frame>;
+  if (phaseId) return <Frame sys={null} onBack={back}>{null}</Frame>;
   if (opened == null) {
     return (
       <Frame sys={null} onBack={back}>
