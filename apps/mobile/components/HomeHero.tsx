@@ -45,7 +45,7 @@ export type HeroData = {
   phase: HeroPhase;
   ring: PhaseRing | null;
   pages: HeroPage[];
-  recovery: { list: PartRecovery[]; levels: Record<string, number>; corners: RecoveryCorners };
+  recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[]; corners: RecoveryCorners };
   injury: { fixing: Injury[]; numbers: Map<string, string>; corners: InjuryCorners };
   growth: GrowthCorners;
 };
@@ -345,21 +345,22 @@ type BodyPageProps = { width: number; height: number; band: { top: number; botto
 function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const c = data.recovery.corners;
   const rec = c.recovering;
+  const nextIdle = c.nextIdle != null ? `、空いて${c.nextIdle}日` : '';
   const spoken = [
-    `回復。回復済み ${c.ready}部位（${c.total}部位のうち）`,
-    c.next ? `次の部位 ${c.next}` : '',
+    `回復。鍛えられる ${c.ready}部位（${c.total}部位のうち）`,
+    c.next ? `次の部位 ${c.next}${nextIdle}` : '',
     rec ? `回復中 ${rec.name} あと${rec.remaining}日${rec.more > 0 ? `、ほか${rec.more}部位` : ''}` : '回復中の部位はありません',
     c.injuries > 0 ? `直している途中のケガ ${c.injuries}件` : '',
   ].filter(Boolean).join('。');
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <HeroBody kind="recovery" width={width} height={height} band={band} list={data.recovery.list} levels={data.recovery.levels}
+      <HeroBody kind="recovery" width={width} height={height} band={band} list={data.recovery.list} levels={data.recovery.levels} idle={data.recovery.idle}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
       <CornerButton at="tl" label={`${spoken}。回復マップを開く`} testID="hero-recovery" onPress={openRecoveryMap}>
         <Corner align="left" label="READY //" value={String(c.ready)} sub={`/ ${c.total} PARTS`} />
       </CornerButton>
-      <CornerButton at="tr" label={`次の部位 ${c.next ?? 'なし'}。回復マップを開く`} testID="hero-recovery-next" onPress={openRecoveryMap}>
-        <Corner align="right" label="NEXT //" value={c.next ?? '—'} sub={c.next ? 'RECOVERED' : undefined} />
+      <CornerButton at="tr" label={`次の部位 ${c.next ? `${c.next}${nextIdle}` : 'なし'}。回復マップを開く`} testID="hero-recovery-next" onPress={openRecoveryMap}>
+        <Corner align="right" label="NEXT //" value={c.next ?? '—'} sub={!c.next ? undefined : c.nextIdle != null ? `IDLE ${c.nextIdle}D` : 'RECOVERED'} />
       </CornerButton>
       <CornerButton at="bl" label={`${rec ? `回復中 ${rec.name} あと${rec.remaining}日` : '回復中の部位はありません'}。回復マップを開く`} testID="hero-recovery-recovering" onPress={openRecoveryMap}>
         <Corner align="left" label="RECOVERING" value={rec?.name ?? '—'} valueColor={rec ? recoveryColor(rec.level) : colors.text}
@@ -389,7 +390,7 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const since = c.since;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <HeroBody kind="injury" width={width} height={height} band={band} list={data.recovery.list} levels={{}}
+      <HeroBody kind="injury" width={width} height={height} band={band} list={data.recovery.list} levels={{}} idle={[]}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
       <CornerButton at="tl" label={spoken} testID="hero-injury" onPress={openInjuries}>
         <Corner align="left" label="INJURY //" labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub="ACTIVE" />

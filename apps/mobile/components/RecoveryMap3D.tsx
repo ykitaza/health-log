@@ -6,6 +6,8 @@ import type { Injury } from '@/db/repositories/injuries';
 export type RecoveryMap3DProps = {
   /** 部品ごとの回復の光の明るさ（0〜1） */
   levels: Record<string, number>;
+  /** 空いている部品（空いている・まだの部位。灰色。lib/recoveryMap.ts の idleMeshes） */
+  idle: string[];
   /** 直している途中のケガ（控えめな印） */
   injuries: Injury[];
   /** 選んでいる部品（押した部位の部品） */

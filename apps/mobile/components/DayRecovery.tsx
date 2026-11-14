@@ -21,8 +21,8 @@ import { Anchor, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCall
 import { siteLabel } from '@/lib/injuries';
 import { markPoint, MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels, REST_GREEN,
-  suggestRecovered,
+  fixingOn, IDLE_GRAY, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
+  recoveryShortText, recoveryStatusText, REST_GREEN, restColor, suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
 import { colors, space } from '@/theme';
@@ -120,6 +120,7 @@ export function PartChips({ date, pickParts, picked, note, testID }: {
 const LEGEND = [
   { color: REST_GREEN, label: '回復済み' },
   { color: LOAD_ORANGE, label: '回復中' },
+  { color: IDLE_GRAY, label: '空いている・まだ' },
   { color: INJURY_RED, label: 'ケガ' },
 ];
 
@@ -140,8 +141,8 @@ const CALLOUT_H = 48;
 const CALLOUT_GAP = space.xs;
 const CALLOUTS_PER_SIDE = 4;
 
-/** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済み・まだは緑（からだのタブと同じ） */
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level) : REST_GREEN);
+/** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色（からだのタブと同じ） */
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level) : restColor(p));
 
 /**
  * 記録のない日のヒーロー：その日の時点の体（3D は前回の部位と回復、2D は回復マップ）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
@@ -162,6 +163,8 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const hurt = (p: PartRecovery) => (hurtOf.get(p.name)?.length ?? 0) > 0;
   const trained = list.some((p) => p.last != null);
   const suggest = trained ? suggestRecovered(list, hurt) : null;
+  // すすめる部位の補足：回復済みは「5日前・回復済み」、空いているは「空いて12日」（日数が重ならないように）
+  const suggestText = !suggest ? [] : suggest.idle ? [recoveryStatusText(suggest)] : [relativeDays(suggest.last!, date), '回復済み'];
   const suggestId = suggest ? pickParts.find((b) => b.name.trim() === suggest.name)?.id : undefined;
   // 札は回復中とケガの部位（からだのタブの 3D の札と同じ）
   const marked = list.filter((p) => p.level > 0 || hurt(p));
@@ -191,15 +194,18 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const mark = point ? toScreen(point.view, point.point) : null;
   // 3D：回復中の部品の明るさ。前回の部位のうち、回復中でない部品があればミントで光る（凡例に出す）
   const levels = useMemo(() => recoveryLevels(list), [list]);
+  const idle = useMemo(() => idleMeshes(list), [list]);
   const prevParts = previous?.parts ?? [];
   const mint = body3D.on && Object.keys(dayBodyGlow(prevParts, levels).levels).some((m) => !(levels[m] > 0));
   const legend = mint ? [LEGEND[0], { color: TRAINED_GLOW, label: '前回' }, ...LEGEND.slice(1)] : LEGEND;
   const onPick = useCallback((mesh: string | null) => setPicked(pickMesh(mesh, pickParts)), [setPicked, pickParts]);
 
   const recovering = list.filter((p) => p.level > 0);
+  const idleParts = list.filter((p) => p.idle);
   const spoken = trained ? [
-    `回復マップ。緑は回復済み、${mint ? 'ミントは前回の部位、' : ''}暖色は回復中、赤はケガ`,
+    `回復マップ。緑は回復済み、${mint ? 'ミントは前回の部位、' : ''}暖色は回復中、灰色は空いている・まだ、赤はケガ`,
     recovering.length > 0 ? `回復中の部位、${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '回復中の部位はありません',
+    idleParts.length > 0 ? `空いている部位、${idleParts.map((p) => `${p.name} ${recoveryStatusText(p)}`).join('、')}` : '',
     injuries.length > 0 ? `直している途中のケガ、${injuries.map((i) => siteLabel(i.site, i.side)).join('、')}` : '',
   ].filter(Boolean).join('。') : '体の図';
   const note = (name: string) => {
@@ -228,7 +234,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
       <View accessible accessibilityLabel={spoken} testID={testID}>
         {body3D.on ? (
           <DayBodyBox
-            height={STAGE_H} entries={previous?.entries ?? []} parts={prevParts} recovery={levels} injuries={injuries}
+            height={STAGE_H} entries={previous?.entries ?? []} parts={prevParts} recovery={levels} idle={idle} injuries={injuries}
             onPick={pickParts.length > 0 ? onPick : undefined} onFail={body3D.fail} style={{ marginHorizontal: -space.s }}
           />
         ) : (
@@ -273,12 +279,12 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
         <View style={s.suggest} testID={`${testID}-suggest`}>
           <View
             style={s.suggestText} accessible
-            accessibilityLabel={`${date === today ? '今日は' : 'この日は'} ${suggest.name} はどう？ ${relativeDays(suggest.last!, date)}、回復済み`}
+            accessibilityLabel={`${date === today ? '今日は' : 'この日は'} ${suggest.name} はどう？ ${suggestText.join('、')}`}
           >
             <T variant="titleS">{date === today ? '今日は' : 'この日は'}</T>
             <PartBadge name={suggest.name} />
             <T variant="titleS">はどう？</T>
-            <T variant="bodyS" color={colors.sub}>{`${relativeDays(suggest.last!, date)}・回復済み`}</T>
+            <T variant="bodyS" color={colors.sub}>{suggestText.join('・')}</T>
           </View>
           {suggestId && (
             <Button
@@ -329,7 +335,7 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
     <View style={box} testID="recovery-callout" {...hide}>
       <T variant="labelM" numberOfLines={1} align={align}>{part.name}</T>
       <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level) : colors.sub} numberOfLines={1} align={align}>
-        {part.remaining != null ? `あと${part.remaining}日` : part.last ? '回復済み' : 'まだ'}
+        {recoveryShortText(part)}
       </T>
       {lead && (
         <T size={11} style={{ lineHeight: 16 }} color={INJURY_RED} numberOfLines={1} align={align}>{`▲ ${siteLabel(lead.site, lead.side)}`}</T>

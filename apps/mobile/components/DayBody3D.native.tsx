@@ -9,7 +9,7 @@ import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
 import { dayBodyCallouts, dayBodyGlow, TRAINED_GLOW } from '@/lib/dayBody';
-import { INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
+import { IDLE_GRAY, INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
 import { colors } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
@@ -20,8 +20,9 @@ const PER_SIDE = 3;
 const GAP = 4;
 const NO_RECOVERY: Record<string, number> = {};
 const NO_INJURIES: Injury[] = [];
+const NO_IDLE: string[] = [];
 
-function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, injuries = NO_INJURIES, onPick, onPressEntry, shield }: Omit<DayBody3DProps, 'fallback'>) {
+function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, idle = NO_IDLE, injuries = NO_INJURIES, onPick, onPressEntry, shield }: Omit<DayBody3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const layout = useMemo(() => dayBodyCallouts(
@@ -44,8 +45,9 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, in
     scene.configure({
       marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
       baseColor: REST_GREEN, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k) : TRAINED_GLOW), injuryColor: INJURY_RED,
+      idle, idleColor: IDLE_GRAY,
     });
-  }, [scene, reduced, layout, glow, marks, tips]);
+  }, [scene, reduced, layout, glow, idle, marks, tips]);
   const tags = (
     <>
       {layout.placed.map((p) => (

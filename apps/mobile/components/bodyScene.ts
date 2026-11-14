@@ -157,6 +157,9 @@ export class BodyScene {
   private quiet = false;
   /** 土台の色（部品のふだんの光・皮膚・台・走査の輪）。ケガの画面は緑 */
   private base = GREEN.clone();
+  /** 空いている部品（回復マップ：空いている・まだの部位）と、その色。ふだんの光の強さのまま、色だけを変える */
+  private idleParts = new Set<string>();
+  private idleTint = GREEN.clone();
   /** 明るさ k の色（mesh は部品の名前。部品ごとに色を変えるとき）。渡さなければ緑のまま強さだけを変える */
   private levelColor: ((k: number, mesh: string) => string) | null = null;
   /** ケガの印の色（回復マップの控えめな印と、にじみ）。ケガの画面は琥珀色 */
@@ -263,12 +266,13 @@ export class BodyScene {
 
   /**
    * 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき）。
-   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）も渡す
+   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）、空いている部品とその色（idle・idleColor）も渡す
    */
   configure(o: {
     marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
     levels?: Record<string, number>; quietMarks?: boolean;
     baseColor?: string; levelColor?: (k: number, mesh: string) => string; injuryColor?: string;
+    idle?: string[]; idleColor?: string;
   }) {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
@@ -276,6 +280,8 @@ export class BodyScene {
     this.shared.uScanAmp.value = this.quiet ? QUIET_SCAN : 1;
     this.base.set(o.baseColor ?? GREEN);
     this.levelColor = o.levelColor ?? null;
+    this.idleParts = new Set(o.idle ?? []);
+    this.idleTint.set(o.idleColor ?? GREEN);
     this.injury.set(o.injuryColor ?? AMBER);
     this.tint();
     this.tipMarks = o.tipMarks;
@@ -300,7 +306,7 @@ export class BodyScene {
   }
 
   /**
-   * 光らせ方：ふだんの光 → 回復の光（明るさの表）→ ケガの印。
+   * 光らせ方：ふだんの光（空いている部品は空いている色）→ 回復の光（明るさの表）→ ケガの印。
    * ケガの印は、直している途中（琥珀色で脈打つ）が、直せた（控えめな緑）より強い。にじみは直している途中の付け根ごと。
    * 控えめにするとき（回復マップ）は、部品の色は変えず、小さなにじみだけを脈打たせる
    */
@@ -312,7 +318,7 @@ export class BodyScene {
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
-    for (const m of this.pickables) set(m, this.base, 0.13, 1.2, 0);
+    for (const m of this.pickables) set(m, this.idleParts.has(m.name) ? this.idleTint : this.base, 0.13, 1.2, 0);
     lit.clear();
     for (const [p, v] of Object.entries(this.levels)) {
       const k = Math.min(1, Math.max(0, v));

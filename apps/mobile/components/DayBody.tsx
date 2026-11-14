@@ -24,7 +24,7 @@ export type DayBodyProps = {
   band?: { top: number; bottom: number };
   /** 3D を描けないときに出すもの（省くと、この部品の 2D の図） */
   fallback?: ReactNode;
-} & Pick<DayBody3DProps, 'recovery' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
+} & Pick<DayBody3DProps, 'recovery' | 'idle' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
 export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, ...rest }: DayBodyProps) {

@@ -1,5 +1,5 @@
 // からだのタブの回復マップの体の図（3D）。ケガの画面と同じ場面（components/bodyScene.ts）に、部品ごとの回復の光の明るさを渡す。
-// 色は3つ：回復済み・まだは緑（ケガの画面のふだんと同じ）、回復中は暖色（明るさが高いほど橙）、直している途中のケガは赤で脈打つ。
+// 色は、回復済みは緑（ケガの画面のふだんと同じ）、回復中は暖色（明るさが高いほど橙）、直している途中のケガは赤で脈打つ。空いている・まだは灰色。
 // 回復中とケガのある部位には、引き出し線つきの札（注釈）を付ける。札は体が正面を向いたときの位置で止め、線の先だけが部位を追う
 // （ケガの画面と同じ）。左右になぞると回り、押すと部位を選ぶ
 import { useEffect, useMemo, useState } from 'react';
@@ -7,7 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import { anchorFor, facingOf, layoutCallouts, partsFor } from '@/lib/bodyModel';
-import { INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
+import { IDLE_GRAY, INJURY_RED, recoveryColor, REST_GREEN } from '@/lib/recoveryMap';
 import { space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
@@ -22,7 +22,7 @@ const CALLOUT_W = 92;
 const CALLOUT_H = 52;
 const PER_SIDE = 3;
 
-function Stage({ levels, injuries, selected, onPick, callouts }: Omit<RecoveryMap3DProps, 'fallback'>) {
+function Stage({ levels, idle, injuries, selected, onPick, callouts }: Omit<RecoveryMap3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const [scene] = useState(() => new BodyScene());
@@ -44,9 +44,9 @@ function Stage({ levels, injuries, selected, onPick, callouts }: Omit<RecoveryMa
     });
     scene.configure({
       marks, reduced, tipMarks, onPick, onTips: (v) => tips.set(v), levels, quietMarks: true,
-      baseColor: REST_GREEN, levelColor: recoveryColor, injuryColor: INJURY_RED,
+      baseColor: REST_GREEN, levelColor: recoveryColor, injuryColor: INJURY_RED, idle, idleColor: IDLE_GRAY,
     });
-  }, [scene, marks, reduced, onPick, levels, places, byId, tips]);
+  }, [scene, marks, reduced, onPick, levels, idle, places, byId, tips]);
   const selKey = selected.join(',');
   // 選んだ部品の名前が同じなら選び直さない
   // eslint-disable-next-line react-hooks/exhaustive-deps

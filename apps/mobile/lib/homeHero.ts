@@ -196,11 +196,13 @@ export function nextHeroPage(page: HeroPage, pages: HeroPage[], direction: 'prev
 // ---- RECOVERY の四隅 ----
 
 export type RecoveryCorners = {
-  /** 回復済み（回復中でない）部位の数と全体 */
+  /** 鍛えられる（回復中でない：回復済み・空いている・まだ）部位の数と全体 */
   ready: number;
   total: number;
   /** 次の部位（今日のおすすめ）。なければ null */
   next: string | null;
+  /** 次の部位が空いているとき、最後に鍛えてからの日数（ほかは null） */
+  nextIdle: number | null;
   /** 回復中の部位（残りがいちばん長いもの）と、ほかに回復中の数 */
   recovering: { name: string; remaining: number; level: number; more: number } | null;
   /** 直している途中のケガの数 */
@@ -209,9 +211,10 @@ export type RecoveryCorners = {
 
 export function recoveryCorners(list: PartRecovery[], next: string | null, injuries: number): RecoveryCorners {
   const rec = list.filter((p) => p.level > 0 && p.remaining != null);
+  const n = list.find((p) => p.name === next);
   const top = rec.reduce<PartRecovery | null>((a, b) => (a == null || b.remaining! > a.remaining! || (b.remaining === a.remaining && b.level > a.level) ? b : a), null);
   return {
-    ready: list.length - rec.length, total: list.length, next,
+    ready: list.length - rec.length, total: list.length, next, nextIdle: n?.idle ? n.days : null,
     recovering: top ? { name: top.name, remaining: top.remaining!, level: top.level, more: rec.length - 1 } : null,
     injuries,
   };
