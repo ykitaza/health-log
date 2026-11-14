@@ -27,6 +27,10 @@ async function signInAndSync(page: Page) {
   await page.getByTestId('settings-account').click();
   await button(page, 'パスキーでログイン').click();
   await expect(page.getByTestId('sync-pending').filter({ visible: true })).toHaveText('0件');
+  // 同期が終わるまで待つ。「0件」は同期の前から 0件で、ホームの表示も当てはめの途中（COMMIT の前）から読めるので、終わった印にならない。
+  // 最後に同期した時刻は、当てはめを書き終えたあとに入る。web はログインをメモリーにだけ置くので、終わる前に読み込み直すと、
+  // 当てはめの途中が捨てられ、同期し直しもしない
+  await expect(page.getByTestId('sync-last').filter({ visible: true })).toHaveText(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
   await button(page, '戻る').click();
   await button(page, '戻る').click();
 }
