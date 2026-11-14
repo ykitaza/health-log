@@ -74,7 +74,6 @@ export function useScrollTarget(ref: RefObject<ViewInstance | null>, request: nu
   const watch = useContext(ScrollWatchContext);
   const reduced = useReducedMotion();
   const pending = useRef<{ start: number; until: number | null; drags: number } | null>(null);
-  const handled = useRef<number | null>(null);
   const align = useCallback(() => {
     const p = pending.current;
     if (!p || !watch?.scrollTo) return;
@@ -93,9 +92,8 @@ export function useScrollTarget(ref: RefObject<ViewInstance | null>, request: nu
   useLayoutEffect(() => { latest.current = align; });
   useEffect(() => {
     // 頼まれなくなったら（ほかのグラフへ来た・画面を離れた）、合わせ直すのをやめる
+    // request が変わったときだけ呼ばれる（同じ所へもう一度来たときは、呼ぶ側が新しい値にする）
     if (request == null) { pending.current = null; return; }
-    if (handled.current === request) return;
-    handled.current = request;
     pending.current = { start: performance.now(), until: null, drags: watch?.drags ?? 0 };
     requestAnimationFrame(() => latest.current());
     const id = setInterval(() => {

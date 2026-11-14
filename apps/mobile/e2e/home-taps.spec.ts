@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, tab, TODAY } from './helpers';
+import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, swipe, tab, TODAY } from './helpers';
 
 // ホームの押せるもの（#219）：見た目が押せるものは押せる。グラフを見せたら、行き先にもそのグラフがある。
 // - 計器の段：BIG3 は推移の BIG3、LOAD は推移の総負荷量を日ごと（今週と先週の日ごとの棒）、PARTS は推移の部位のバランスを同じ 28日で
@@ -57,6 +57,17 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     await visible(page, 'day-body-tag').filter({ hasText: 'ショルダープレス' }).click();
     await expectTrainingDay(page, '11月8日（日）');
     await expect(visible(page, 'entry-card-4')).toBeInViewport({ ratio: 0.9 });
+  });
+
+  await test.step('札や四隅からの横のなぞりは、押したことにならず、ヒーローのページの切り替え（押すのは短いタップだけ）', async () => {
+    await backHome(page);
+    for (const from of [visible(page, 'day-body-tag').filter({ hasText: 'スクワット' }), visible(page, 'home-latest-ex')]) {
+      await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
+      await swipe(from, 'next');
+      await expect(visible(page, 'hero-page-recovery')).toHaveAttribute('aria-selected', 'true');
+      await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
+      await visible(page, 'hero-page-latest').click();
+    }
   });
 
   await test.step('LATEST の四隅：日付・種目の数・合計負荷量はその日の記録', async () => {

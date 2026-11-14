@@ -81,7 +81,8 @@ export function TrainingTrend({ onOpenDay, focus, onRangeChosen }: {
   const balanceRange: BalanceView = target === 'parts' ? '28d' : pickedBalance ?? data?.balanceRange ?? '2w';
   const chooseBalance = (k: BalanceRange) => {
     setPickedBalance(k);
-    onRangeChosen?.();
+    // 28日を外す（総負荷量の「日」で来たときは、そちらはそのまま）
+    if (target === 'parts') onRangeChosen?.();
     repos.settings.setBalanceRange(k).catch(() => {});
   };
   const unit = data?.settings.weightUnit ?? 'kg';
@@ -274,7 +275,8 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
   const range: VolumeRange = target === 'load' ? 'day' : pickedRange;
   const chooseRange = (k: VolumeRange) => {
     setRange(k);
-    onRangeChosen?.();
+    // 「日」を外す（部位のバランスの 28日で来たときは、そちらはそのまま）
+    if (target === 'load') onRangeChosen?.();
     repos.settings.setVolumeRange(k).catch(() => {});
   };
   const scrollTo = (t: TrendTarget) => (target === t ? scrollRequest : null);

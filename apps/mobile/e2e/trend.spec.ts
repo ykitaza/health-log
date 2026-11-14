@@ -251,4 +251,14 @@ test('記録があるときの推移', async ({ page }) => {
     await expect(trendDay(page, '2026-11-05')).toContainText('80.0 kg × 6 回');
     await expect(trendDay(page, '2026-11-05')).toContainText('総負荷量1,120 kg');
   });
+
+  await test.step('ホームの LATEST の PR // 0（今日のベンチ 85×5 は自己ベストでない）：推移の「すべて」の種目ごとの自己ベスト', async () => {
+    await goTab(page, 'ホーム');
+    const pr = page.getByTestId('home-latest-pr').filter({ visible: true });
+    await expect(pr).toHaveAccessibleName('自己ベスト 0。種目ごとの自己ベストを開く');
+    await pr.click();
+    await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(button(page, 'すべて')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('trend-best').filter({ visible: true })).toBeInViewport({ ratio: 0.9 });
+  });
 });
