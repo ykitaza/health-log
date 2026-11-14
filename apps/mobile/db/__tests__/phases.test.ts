@@ -108,6 +108,39 @@ describe('フェーズ', () => {
     expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
   });
 
+  test('直す・計画を変えると、食事の目標を計画から計算し直し、計画と同じ update で送る（維持のカロリーがなければ今のまま）', async () => {
+    const d = await device();
+    const maintenance = { bmr: 1655.2, tdeeRest: 2565.56, bodyWeightKg: 70 };
+    // 11/8 に 72.4kg から 80kg を 16 週
+    const id = await d.r.phases.start({ ...INPUT, startDate: '2026-11-08' });
+    await d.engine.run();
+    // 維持のカロリーがない：食事の目標は送らない（変わらない）
+    await d.r.phases.correct(id, { startDate: '2026-11-08', weeks: 8, targetWeightKg: 75, snapshot: null });
+    expect(outbox(d)[0][2]).not.toHaveProperty('meal_targets');
+    await d.engine.run();
+    // 直す：72.4 → 76kg を 8 週 → 1 日 +462.86kcal（休み 3028.4 → 3030、筋トレ 3310）
+    await d.r.phases.correct(id, { startDate: '2026-11-08', weeks: 8, targetWeightKg: 76, snapshot: null, maintenance });
+    const fueled = { training_day: { kcal: 3310, protein_g: 140 }, rest_day: { kcal: 3030, protein_g: 140 } };
+    expect(outbox(d)).toEqual([['phase', 'update', {
+      start_date: '2026-11-08', end_date: '2027-01-02', target_weight_kg: 76, snapshot: INPUT.snapshot, meal_targets: fueled,
+      target_history: [{ date: '2026-11-08', target_weight_kg: 76, end_date: '2027-01-02', weight_kg: 72.4 }],
+    }]]);
+    await d.engine.run();
+    // 本人が直しても、計画を変えたら置き換わる（目標を 72.4 にした増量は差 0 で、維持のカロリー）
+    await d.r.phases.setMealTargets(id, INPUT.mealTargets);
+    await d.r.phases.changePlan(id, { weeks: 8, targetWeightKg: 72.4, weekAvgKg: 72.4, maintenance });
+    expect((await d.r.phases.get(id))!.mealTargets).toEqual({ training_day: { kcal: 2850, protein_g: 140 }, rest_day: { kcal: 2570, protein_g: 140 } });
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+  });
+
+  test('療養に入るとき、食事の目標を渡せば持つ（維持のカロリー）', async () => {
+    const d = await device();
+    const targets = { training_day: { kcal: 2850, protein_g: 140 }, rest_day: { kcal: 2570, protein_g: 140 } };
+    const id = await d.r.phases.startRehab({ name: '', startDate: '2026-11-08', snapshot: null, mealTargets: targets });
+    expect((await d.r.phases.get(id))!.mealTargets).toEqual(targets);
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+  });
+
   test('開始日の範囲：今日より後・前のフェーズと重なる日は断る（始めるときも直すときも）。終えた日からは始められる', async () => {
     const d = await device();
     const old = await d.r.phases.start({ ...INPUT, startDate: '2026-10-01', weeks: 6 });

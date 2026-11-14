@@ -23,7 +23,8 @@ export type PhaseInput = {
   snapshot: PhaseSnapshot | null;
 };
 
-export type RehabInput = { name: string; startDate: string; snapshot: PhaseSnapshot | null };
+/** mealTargets は維持のカロリー（lib/phaseMeals.ts の phaseMealTargets。療養は減らさない）。出せなければ null */
+export type RehabInput = { name: string; startDate: string; snapshot: PhaseSnapshot | null; mealTargets?: PhaseMealTargets | null };
 
 type Row = {
   id: string; kind: string; direction: string | null; name: string | null; start_date: string; end_date: string | null;
@@ -144,12 +145,18 @@ export function phaseRepository(db: Db, deps: Deps) {
       [status, on, nowIso(), p.id]);
   }
 
-  /** 計画の項目（開始日・終了日・目標・履歴・開始時の記録）を 1 回の UPDATE で書く（同期の 1 つの変更にする。db/syncSpec.ts の together） */
+  /**
+   * 計画の項目（開始日・終了日・目標・履歴・開始時の記録）と、計算し直した食事の目標を 1 回の UPDATE で書く
+   * （同期の 1 つの変更にする。db/syncSpec.ts の together）
+   */
   async function writePlan(id: string, f: PlanFields) {
+    const error = mealTargetsError(f.mealTargets);
+    if (error) throw new PhaseError(error);
     await db.runAsync(
-      `UPDATE phases SET start_date = ?, end_date = ?, target_weight_kg = ?, target_history = ?, snapshot = ?, updated_at = ?
+      `UPDATE phases SET start_date = ?, end_date = ?, target_weight_kg = ?, target_history = ?, snapshot = ?, meal_targets = ?, updated_at = ?
        WHERE id = ? AND deleted_at IS NULL AND status = 'active'`,
-      [f.startDate, f.endDate, f.targetWeightKg, JSON.stringify(f.targetHistory), f.snapshot ? JSON.stringify(f.snapshot) : null, nowIso(), id],
+      [f.startDate, f.endDate, f.targetWeightKg, JSON.stringify(f.targetHistory), f.snapshot ? JSON.stringify(f.snapshot) : null,
+        f.mealTargets ? JSON.stringify(f.mealTargets) : null, nowIso(), id],
     );
   }
 
@@ -194,7 +201,7 @@ export function phaseRepository(db: Db, deps: Deps) {
      */
     async startRehab(input: RehabInput): Promise<string> {
       if (!isDay(input.startDate)) throw new PhaseError('開始日を選んでください');
-      const error = nameError(input.name);
+      const error = nameError(input.name) ?? mealTargetsError(input.mealTargets ?? null);
       if (error) throw new PhaseError(error);
       const phases = await list();
       if (phases.some((p) => p.kind === 'rehab' && p.status === 'active')) throw new PhaseError('療養はもう始めています');
@@ -202,7 +209,8 @@ export function phaseRepository(db: Db, deps: Deps) {
       const normal = phases.find((p) => p.kind === 'normal' && p.status === 'active' && p.startDate <= input.startDate) ?? null;
       return insert({
         kind: 'rehab', direction: null, name: input.name.trim(), start_date: input.startDate, end_date: null, target_weight_kg: null,
-        meal_targets: null, snapshot: input.snapshot ? JSON.stringify(cleanSnapshot(input.snapshot)) : null, status: 'active',
+        meal_targets: input.mealTargets ? JSON.stringify(input.mealTargets) : null,
+        snapshot: input.snapshot ? JSON.stringify(cleanSnapshot(input.snapshot)) : null, status: 'active',
         paused_phase_id: normal?.id ?? null, target_history: '[]', ended_on: null,
       });
     },
@@ -223,7 +231,8 @@ export function phaseRepository(db: Db, deps: Deps) {
 
     /**
      * 直す（入れ間違い・始め忘れ）：開始日・期間・目標体重を、最初からこの計画だったことにして書き直す。予定の線は開始日から1本に引き直し
-     * （今までの「計画を変える」の線は消える）、開始日を変えたら開始時の記録も input.snapshot（新しい開始日までの記録から出したもの）にする
+     * （今までの「計画を変える」の線は消える）、開始日を変えたら開始時の記録も input.snapshot（新しい開始日までの記録から出したもの）にする。
+     * input.maintenance があれば、食事の目標も新しい計画から計算し直す（lib/phaseEdit.ts の correctFields）
      */
     async correct(id: string, input: CorrectInput): Promise<void> {
       const p = await mustGet(id, 'normal');
@@ -233,12 +242,16 @@ export function phaseRepository(db: Db, deps: Deps) {
       await writePlan(id, correctFields(p, { ...input, snapshot: cleanSnapshot(input.snapshot) }));
     },
 
-    /** 計画を変える：目標体重と期間（全体の週数。延ばす・縮める）を変え、今日から線を引き直す（前の線は薄く残る） */
+    /**
+     * 計画を変える：目標体重と期間（全体の週数。延ばす・縮める）を変え、今日から線を引き直す（前の線は薄く残る）。
+     * input.maintenance があれば、食事の目標も新しい線から計算し直す（lib/phaseEdit.ts の changeFields）
+     */
     async changePlan(id: string, input: ChangeInput): Promise<void> {
       const p = await mustGet(id, 'normal');
-      const error = changeError(p, await list(), today(), input) ?? (input.weekAvgKg == null ? null : targetWeightError(input.weekAvgKg));
+      const phases = await list();
+      const error = changeError(p, phases, today(), input) ?? (input.weekAvgKg == null ? null : targetWeightError(input.weekAvgKg));
       if (error) throw new PhaseError(error);
-      const fields = changeFields(p, input, today());
+      const fields = changeFields(p, input, today(), phases);
       if (!fields) throw new PhaseError(`計画の変更は${PHASE_LIMITS.targetHistory}回までです`);
       await writePlan(id, fields);
     },

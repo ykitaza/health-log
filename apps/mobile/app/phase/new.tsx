@@ -16,22 +16,29 @@ import { BIG3_LABELS } from '@/lib/exercises';
 import { GrowthData, loadGrowthData } from '@/lib/growthData';
 import { NutritionGoal, TARGET_WEIGHT } from '@/lib/meals';
 import { currentPhase, DIRECTION_LABELS, endDateFor, Phase, PHASE_DIRECTIONS, PHASE_LIMITS, PhaseDirection, PhaseMealTargets, phaseLabel } from '@/lib/phases';
+import type { Maintenance, Missing } from '@/lib/autoGoal';
 import { earliestStart, minWeeksFor, startError } from '@/lib/phaseEdit';
+import { loadMaintenance, missingNote, phaseMealTargets } from '@/lib/phaseMeals';
 import { cutJustBefore } from '@/lib/phaseReview';
 import {
-  autoName, big3Sum, DEFAULT_WEEKS, DIRECTION_CHOICES, DIRECTIONS, initialTarget, MealDraft, mealDraftFromGoal, measuresFrom, parseMealDraft,
+  autoName, big3Sum, DEFAULT_WEEKS, DIRECTION_CHOICES, DIRECTIONS, initialTarget, MealDraft, mealDraftFromGoal, mealDraftFromPhase, measuresFrom,
+  parseMealDraft,
   PhaseMeasures, plannedWeeklyKg, snapshotOf, targetAgainstDirection, WEEK_OPTIONS,
 } from '@/lib/phaseView';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
 import { colors } from '@/theme';
 
-type Ctx = { unit: WeightUnit; goalKg: number | null; goal: NutritionGoal | null; growth: GrowthData; phases: Phase[]; cut: Phase | null };
+type Ctx = {
+  unit: WeightUnit; goalKg: number | null; goal: NutritionGoal | null; growth: GrowthData; phases: Phase[]; cut: Phase | null;
+  maintenance: Maintenance | null; missing: Missing[];
+};
 const STEPS = 4;
 const STEP_EN = ['01/04 DIRECTION', '02/04 GOAL', '03/04 FUEL', '04/04 BASELINE'];
 
 /**
  * フェーズを始める（オンボーディング。Figma「スタディ：フェーズ」のセクション 2）。
- * 向き → 開始日・目標体重と週数（名前は任意）→ 食事の目標（今の目標を取り込んで直す。スキップできる）→ 開始時の記録の確認 → 始める。
+ * 向き → 開始日・目標体重と週数（名前は任意）→ 食事の目標（計画から自動で計算して入れる。直せる・スキップできる。計算できなければ
+ * 今の食事の目標を取り込む）→ 開始時の記録の確認 → 始める。
  * 開始日は今日（初期値）か過去の日（始め忘れ。「先週の日曜から増量していた」）。前のフェーズと重なる日・今日より後は選べない。
  * 過去の日にしたら、開始時の記録・今の体重・終了日・予定のペースは、その日までの記録とその日からの週数で出す。
  * 自動では始めない（本人が「この内容で始める」を押したときだけ）。「あとで」で何も保存せずに閉じ、様子見のまま戻る。
@@ -55,6 +62,8 @@ export default function PhaseNewScreen() {
   const [name, setName] = useState('');
   const [meal, setMeal] = useState<MealDraft>({ training: '', rest: '', protein: '' });
   const [mealSkipped, setMealSkipped] = useState(false);
+  /** 食事の目標の欄に、計画から計算した値を入れたか */
+  const [mealAuto, setMealAuto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   /** 維持を挟む案：出しているか、もう答えたか（「このまま増量へ」を選んだら、この画面ではもう出さない） */
@@ -64,10 +73,12 @@ export default function PhaseNewScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [phases, goal, growth] = await Promise.all([repos.phases.list(), repos.meals.getGoal(), loadGrowthData(repos, today)]);
+      const [phases, goal, growth, energy] = await Promise.all([
+        repos.phases.list(), repos.meals.getGoal(), loadGrowthData(repos, today), loadMaintenance(repos, today),
+      ]);
       if (!alive) return;
       if (currentPhase(phases, today).current) { router.replace('/phase'); return; }
-      setCtx({ unit: growth.weightUnit, goalKg: growth.goalWeightKg, goal, growth, phases, cut: cutJustBefore(phases, today) });
+      setCtx({ unit: growth.weightUnit, goalKg: growth.goalWeightKg, goal, growth, phases, cut: cutJustBefore(phases, today), ...energy });
       setMeal(mealDraftFromGoal(goal));
     })();
     return () => { alive = false; };
@@ -150,6 +161,13 @@ export default function PhaseNewScreen() {
       }
       const problem = startError(ctx?.phases ?? [], today, { startDate, weeks: weeksNum ?? 0, targetWeightKg: targetKg });
       if (problem) { setError(problem); return; }
+      // 食事の目標は、ステップ 3 に入るたびに今の計画から計算し直して入れる（計画を変えて戻ってきたら、その計画の値になる）
+      if (ctx?.maintenance && direction && weeksNum != null) {
+        setMeal(mealDraftFromPhase(phaseMealTargets(ctx.maintenance, {
+          kind: 'normal', direction, fromKg: nowKg, targetKg, days: weeksNum * 7,
+        })));
+        setMealAuto(true);
+      }
     }
     if (step === 3) {
       if ('error' in meals) { setError(meals.error); return; }
@@ -251,13 +269,17 @@ export default function PhaseNewScreen() {
       {step === 3 && direction && (
         <View style={{ gap: 10 }}>
           <PhaseTitle en="FUEL // MEAL TARGETS" title="食事の目標"
-            note={ctx?.goal ? '今の食事の目標を取り込みました。直してからフェーズに持たせます。' : '食事の目標はまだありません。入れておくと、進捗の詳細に出ます。'} />
+            note={mealAuto
+              ? '計画（開始時の体重・目標体重・期間）と体のデータから計算しました。直してから始められます。'
+              : ctx?.goal ? '今の食事の目標を取り込みました。直してからフェーズに持たせます。' : '食事の目標はまだありません。入れておくと、進捗の詳細に出ます。'} />
           <Panel style={{ paddingHorizontal: 12, paddingVertical: 2 }}>
             <StatusRow en="POLICY" ja="方針" value={`${DIRECTION_LABELS[direction]}（向きと同じ）`} last wide />
           </Panel>
           <MealFields draft={meal} onChange={setMeal} weightKg={nowKg} />
-          <T size={12} color={hud.muted} style={{ lineHeight: 18 }}>
-            自動の計算はしません。数字はあとで進捗の詳細から直せます。毎日の食事の記録の目標（食事の目標の画面）は変わりません。
+          <T size={12} color={hud.muted} style={{ lineHeight: 18 }} testID="phase-meal-note">
+            {`${mealAuto
+              ? '維持のカロリーに、目標体重までの差（1kg ＝ 7,200kcal を期間の日数で割る）を足し、筋トレの日は +280kcal。たんぱく質は体重 × 2.0g。'
+              : ctx ? missingNote(ctx.missing) : ''}計画を変える・直すと、計算し直した値に置き換わります。毎日の食事の記録の目標（食事の目標の画面）は変わりません。`}
           </T>
         </View>
       )}

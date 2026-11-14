@@ -138,19 +138,31 @@ export function calcGoal(i: GoalInput): GoalCalc | null {
   const tdeeTraining = tdeeRest + TRAINING_KCAL;
   const { policy, weeklyKg } = policyFor(bodyWeightKg, i.targetWeightKg);
   const dailyDelta = (weeklyKg * KCAL_PER_KG) / 7;
-  const proteinG = Math.round(bodyWeightKg * PROTEIN_PER_KG);
+  const { proteinG, training, rest, floored } = dayTargets({ bmr, tdeeRest, bodyWeightKg }, dailyDelta);
+  return { bmr, bmrMethod: method, tdeeRest, tdeeTraining, policy, weeklyKg, dailyDelta, floored, bodyWeightKg, proteinG, training, rest };
+}
+
+/** 維持のカロリー（1日の消費）と、その計算に使った基礎代謝・体重（0.1kg に丸めた値） */
+export type Maintenance = { bmr: number; tdeeRest: number; bodyWeightKg: number };
+
+/**
+ * 筋トレの日・休みの日の目標：維持のカロリー＋1日あたりの差（筋トレの日は TRAINING_KCAL も足す）。10kcal に丸め、下限は BMR。
+ * たんぱく質は体重 × PROTEIN_PER_KG、脂質はカロリーの FAT_RATIO、炭水化物は残り（calcGoal とフェーズの食事の目標が使う）
+ */
+export function dayTargets(m: Maintenance, dailyDelta: number): { proteinG: number; training: DailyTarget; rest: DailyTarget; floored: boolean } {
+  const proteinG = Math.round(m.bodyWeightKg * PROTEIN_PER_KG);
   let floored = false;
   const target = (tdee: number): DailyTarget => {
     const raw = tdee + dailyDelta;
-    if (raw < bmr) floored = true;
-    const kcal = Math.max(round10(raw), ceil10(bmr));
+    if (raw < m.bmr) floored = true;
+    const kcal = Math.max(round10(raw), ceil10(m.bmr));
     const fat_g = Math.round((kcal * FAT_RATIO) / 9);
     const carbs_g = Math.round(Math.max(kcal - proteinG * 4 - fat_g * 9, 0) / 4);
     return { kcal, fat_g, carbs_g };
   };
-  const training = target(tdeeTraining);
-  const rest = target(tdeeRest);
-  return { bmr, bmrMethod: method, tdeeRest, tdeeTraining, policy, weeklyKg, dailyDelta, floored, bodyWeightKg, proteinG, training, rest };
+  const training = target(m.tdeeRest + TRAINING_KCAL);
+  const rest = target(m.tdeeRest);
+  return { proteinG, training, rest, floored };
 }
 
 /** 計算に足りない入力（画面で先に入れてもらう） */

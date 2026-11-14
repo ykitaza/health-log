@@ -95,7 +95,7 @@ describe('直す（訂正）：最初からこの計画だったことにする'
     const snapshot = { weight_kg: 72, body_fat_pct: 18, big3: null, growth_score: 50 };
     const f = correctFields(p, { startDate: '2026-11-01', weeks: 16, targetWeightKg: 80, snapshot });
     expect(f).toEqual({
-      startDate: '2026-11-01', endDate: '2027-02-20', targetWeightKg: 80, snapshot,
+      startDate: '2026-11-01', endDate: '2027-02-20', targetWeightKg: 80, snapshot, mealTargets: null,
       targetHistory: [{ date: '2026-11-01', target_weight_kg: 80, end_date: '2027-02-20', weight_kg: 72 }],
     });
     // 新しい開始日に予定の線は開始時の体重から始まる
