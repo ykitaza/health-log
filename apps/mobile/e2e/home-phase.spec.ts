@@ -1,7 +1,7 @@
 import { BrowserContext, expect, Page, test } from '@playwright/test';
 import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
 import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, openApp, openSettings, swipe } from './helpers';
+import { button, goTab, openApp, openSettings, swipe, tab } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 4 ページ、BIG3 の Δ PHASE、LOG のフェーズの週。
@@ -143,6 +143,17 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(visible(page, 'phase-pace-status')).toHaveText('順調');
   await button(page, '戻る').click();
   await expect(line).toBeVisible();
+
+  // GROWTH の四隅（#219）：PACE は進み具合、WEIGHT は体重の推移
+  await expect(visible(page, 'hero-growth-pace')).toHaveAccessibleName('ペース 順調。フェーズの進み具合を開く');
+  await visible(page, 'hero-growth-pace').click();
+  await expect(page.getByRole('heading', { name: '増量 16週' }).filter({ visible: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(visible(page, 'hero-growth-weight')).toHaveAccessibleName('体重 週平均 76.3kg、目標 80.0kg。体重の推移を開く');
+  await visible(page, 'hero-growth-weight').click();
+  await expect(page.getByRole('heading', { name: '体重の推移' }).filter({ visible: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(line).toBeVisible();
 });
 
 test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（四隅と札）。輪の下は止めたフェーズ。ページは 4 つ', async ({ page, context }) => {
@@ -168,8 +179,36 @@ test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（�
   // BIG3 と LOG は止めたフェーズのまま
   await expect(visible(page, 'home-big3')).toContainText('Δ PHASE +16.0');
   await expect(visible(page, 'home-log')).toContainText('LOG // W3-W6');
+  // RECOVERY の四隅（#219）：NEXT・RECOVERING は回復マップ（からだのタブ）、INJURY はケガの一覧
+  const injuryPane = page.getByRole('tab', { name: 'ケガ', exact: true }).filter({ visible: true });
+  await visible(page, 'hero-recovery-next').click();
+  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
+  await goTab(page, 'ホーム');
+  await visible(page, 'hero-recovery-recovering').click();
+  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
+  await goTab(page, 'ホーム');
+  await expect(visible(page, 'hero-recovery-injury')).toHaveAccessibleName('直している途中のケガ 1件。ケガの一覧を開く');
+  await visible(page, 'hero-recovery-injury').click();
+  await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
+  await goTab(page, 'ホーム');
   // INJURY の左上を押すとケガの一覧
   await swipe(hero, 'next');
   await injuryCorner.click();
-  await expect(page.getByRole('tab', { name: 'ケガ', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
+  // ケガの札と FIX は、そのケガの画面。SINCE は療養中なので進み具合。ALERT はケガの一覧
+  const detail = button(page, 'このケガの記録を消す');
+  await goTab(page, 'ホーム');
+  await expect(visible(page, 'hero-injury-tag')).toHaveAccessibleName('INJ-01 右肩の関節、直している途中。このケガを開く');
+  await visible(page, 'hero-injury-tag').click();
+  await expect(detail).toBeVisible();
+  await button(page, '戻る').click();
+  await visible(page, 'hero-injury-fix').click();
+  await expect(detail).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(visible(page, 'hero-injury-since')).toHaveAccessibleName('11月6日（金）から 3日目。フェーズの進み具合を開く');
+  await visible(page, 'hero-injury-since').click();
+  await expect(page.getByRole('heading', { name: /療養/ }).filter({ visible: true }).first()).toBeVisible();
+  await button(page, '戻る').click();
+  await visible(page, 'hero-injury-alert').click();
+  await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
 });

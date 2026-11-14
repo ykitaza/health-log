@@ -1,16 +1,15 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { DateSwitcher, DayPickerSheet, NotTodayRow, SwipeArea, usePageSlide } from '@/components/DayPicker';
 import { InjuryListContent, useInjuryAddSheet } from '@/components/injuries';
 import { Screen } from '@/components/Screen';
-import { TrainingTrend } from '@/components/TrainingTrend';
+import { parseTrendFocus, TrainingTrend, TrendFocus } from '@/components/TrainingTrend';
 import { Fab, IconButton, PrimaryTabs, TabHeader } from '@/components/ui';
 import { WorkoutDayContent, WorkoutFooter } from '@/components/WorkoutDay';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
-import { BalanceRange, parseBalanceRange } from '@/lib/partBalance';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { size, space } from '@/theme';
 
@@ -23,28 +22,35 @@ const paneOf = (v: string | undefined): Pane | null =>
 /**
  * 筋トレのタブ。上の切り替え（M3 の primary tabs）で「記録」と「推移」（グラフ）と「ケガ」（ケガの記録の一覧。右下に「ケガを記録」。押すと AI で記録か自分で入力かを選ぶ）を分ける。
  * 記録は、上の日付の切り替え（前の日・次の日、日付を押すと「日を選ぶ」のシート、左右のスワイプ）で選んだ日のトレーニングを見て直す。
- * 未来の日へは進めない。ほかの画面から date を渡して開くと、その日の記録になる（/workout?date= もここへ移る）。右上に RM計算機の入口。
- * 推移を balance を付けて開くと（ホームの部位のバランスから）、部位のバランスをその期間で見せる。覚えた期間は書き換えず、
- * 筋トレのタブを離れるか、上の切り替えで移るか、期間を選ぶまで
+ * 未来の日へは進めない。ほかの画面から date を渡して開くと、その日の記録になる（/workout?date= もここへ移る）。entry も渡すと、その種目のカードまでスクロールする
+ * （ホームの種目の札から）。右上に RM計算機の入口。
+ * 推移を focus（big3・load・parts・best）か exercise を付けて開くと（ホームのパネルと LATEST の PR から）、そのグラフ・種目を見せてスクロールする。
+ * 総負荷量の日・部位のバランスの 28日 は、覚えた期間を書き換えず、筋トレのタブを離れるか、上の切り替えで移るか、期間を選ぶまで（TrainingTrend）
  */
 export default function TrainingScreen() {
-  const params = useLocalSearchParams<{ view?: string; date?: string; balance?: string }>();
+  const params = useLocalSearchParams<{ view?: string; date?: string; entry?: string; focus?: string; exercise?: string }>();
   const [view, setView] = useState<Pane>(paneOf(params.view) ?? 'record');
   const [date, setDate] = useState(todayKey);
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
   const today = useToday((next, prev) => setDate((d) => (d === prev ? next : d)));
   const [picking, setPicking] = useState(false);
-  // 部位のバランスの、覚えた期間の代わりにいま見せる期間（ホームから来たときだけ）
-  const [trendBalance, setTrendBalance] = useState<BalanceRange | null>(null);
-  useFocusEffect(useCallback(() => () => setTrendBalance(null), []));
+  // 推移で見せるグラフ・種目（ホームから来たときだけ）。記録で見せる種目のカード（ホームの種目の札から）。n は来るたびに変える（同じ所へもう一度スクロールする）
+  const [trendFocus, setTrendFocus] = useState<TrendFocus | null>(null);
+  const [entryFocus, setEntryFocus] = useState<{ entry: string; n: number } | null>(null);
+  useFocusEffect(useCallback(() => () => { setTrendFocus(null); setEntryFocus(null); }, []));
   // ほかの画面から「記録」「推移」や日を指定して開いたとき。受け取ったら消す（次に同じ日を渡されたときも動くように）
+  const focusCount = useRef(0);
   useEffect(() => {
+    // 受け取った引数を消したあと（すべて undefined）にも呼ばれる。そのときは見せるものを変えない
+    if (!params.view && !params.date && !params.entry && !params.focus && !params.exercise) return;
     const p = paneOf(params.view);
     const asked = params.date && params.date <= todayKey() ? params.date : null;
     if (asked) { setDate(asked); setView('record'); } else if (p) setView(p);
-    if (!asked && p === 'trend') setTrendBalance(params.balance ? parseBalanceRange(params.balance) : null);
-    if (params.view || params.date || params.balance) router.setParams({ view: undefined, date: undefined, balance: undefined });
-  }, [params.view, params.date, params.balance]);
+    const n = ++focusCount.current;
+    setEntryFocus(asked && params.entry ? { entry: params.entry, n } : null);
+    setTrendFocus(!asked && p === 'trend' ? parseTrendFocus(params.focus, params.exercise, n) : null);
+    router.setParams({ view: undefined, date: undefined, entry: undefined, focus: undefined, exercise: undefined });
+  }, [params.view, params.date, params.entry, params.focus, params.exercise]);
   // 日を変えるときは、向きに合わせて中身を横へすべらせる（スワイプ・前後のボタン・日を選ぶ・今日に戻る）
   const slide = usePageSlide();
   // 前の日・次の日。未来の日へは進めない。すべり終わる前に続けて動かしても数を落とさないよう、最新の日から計算する
@@ -66,7 +72,7 @@ export default function TrainingScreen() {
         <PrimaryTabs<Pane>
           options={[{ key: 'record', label: '記録', icon: 'dumbbell' }, { key: 'trend', label: '推移', icon: 'chart' }, { key: 'injury', label: 'ケガ', icon: 'alert' }]}
           value={view}
-          onChange={(v) => { setTrendBalance(null); setView(v); }}
+          onChange={(v) => { setTrendFocus(null); setEntryFocus(null); setView(v); }}
         />
         {view === 'record' ? (
           <SwipeArea
@@ -80,11 +86,11 @@ export default function TrainingScreen() {
             )}
           >
             {date !== today && <NotTodayRow onToday={() => goTo(today)} />}
-            <WorkoutDayContent date={date} />
+            <WorkoutDayContent date={date} focus={entryFocus} />
           </SwipeArea>
         ) : view === 'trend' ? (
           <View style={{ marginTop: 8 }}>
-            <TrainingTrend onOpenDay={openDay} balanceOverride={trendBalance} onBalanceChosen={() => setTrendBalance(null)} />
+            <TrainingTrend onOpenDay={openDay} focus={trendFocus} onRangeChosen={() => setTrendFocus(null)} />
           </View>
         ) : (
           <InjuryListContent />

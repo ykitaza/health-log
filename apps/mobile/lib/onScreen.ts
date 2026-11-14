@@ -34,6 +34,12 @@ export type ScrollWatch = {
   scrolled(offset: number): void;
   /** 見えている範囲を測った（高さ 0 は、隠れていて測れないので変えない。中身を測り直させる） */
   measured(viewport: Viewport): void;
+  /** 指でスクロールし始めた回数（ほかの画面から来て、ある所までスクロールする途中で、指で動かしたらやめるため） */
+  drags: number;
+  /** 指でスクロールし始めた（drags を数える） */
+  dragged(): void;
+  /** スクロールの位置を変える（Screen が入れる。ほかの画面から来たときに、カードまでスクロールする） */
+  scrollTo?: (y: number, animated: boolean) => void;
 };
 
 export function createScrollWatch(): ScrollWatch {
@@ -41,8 +47,10 @@ export function createScrollWatch(): ScrollWatch {
   return {
     offset: 0,
     viewport: null,
+    drags: 0,
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
     notify(remeasure) { for (const fn of listeners) fn(remeasure); },
+    dragged() { this.drags += 1; },
     scrolled(offset) { this.offset = offset; this.notify(false); },
     measured(viewport) { if (viewport.height > 0) this.viewport = viewport; this.notify(true); },
   };

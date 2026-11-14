@@ -6,13 +6,13 @@ import { mealGoalReached, personalBestEvents, PersonalBestEvent } from './growth
 import { average } from './health';
 import { thisWeekVolume } from './home';
 import { DaySummary, DayType, pfcRatio } from './meals';
-import { BALANCE_PARTS, BalancePart, balanceAxisOf, partBalanceBetween } from './partBalance';
+import { BALANCE_PARTS, BalancePart, balanceAxisOf, COMPARE_DAYS, partBalanceCompare } from './partBalance';
 import { big3Totals, PhaseSnapshot } from './phases';
 import type { PartRecovery } from './recoveryMap';
 import { big3Trend, daysInMonth, focusByDate, setVolume, trainingDates, TrainingSetRow, volumeBetween } from './training';
 
-/** PARTS の期間（日）。今の 28 日と、その前の 28 日を比べる */
-export const PARTS_DAYS = 28;
+/** PARTS の期間（日）。今の 28 日と、その前の 28 日を比べる（推移の部位のバランスの 28日 と同じ lib/partBalance.ts） */
+export const PARTS_DAYS = COMPARE_DAYS;
 /** BIG3 の差の基準（日前） */
 export const BIG3_DELTA_DAYS = 28;
 /** BIG3 の線の幅（週） */
@@ -305,10 +305,7 @@ export type PartsRadar = {
 };
 
 export function partsRadar(rows: TrainingSetRow[], partName: (bodyPartId: string) => string, today: DateKey): PartsRadar {
-  const cur = partBalanceBetween(rows, partName, addDays(today, -(PARTS_DAYS - 1)), today);
-  const prev = partBalanceBetween(rows, partName, addDays(today, -(PARTS_DAYS * 2 - 1)), addDays(today, -PARTS_DAYS));
-  const max = Math.max(...cur.sets, ...prev.sets);
-  const ratio = (n: number) => (max > 0 ? Math.sqrt(n) / Math.sqrt(max) : 0);
+  const { cur, prev } = partBalanceCompare(rows, partName, today);
   let low: BalancePart | null = null;
   if (cur.total > 0) {
     let i = 0;
@@ -316,7 +313,7 @@ export function partsRadar(rows: TrainingSetRow[], partName: (bodyPartId: string
     low = BALANCE_PARTS[i];
   }
   return {
-    sets: cur.sets, prevSets: prev.sets, ratios: cur.sets.map(ratio), prevRatios: prev.sets.map(ratio),
+    sets: cur.sets, prevSets: prev.sets, ratios: cur.ratios, prevRatios: prev.ratios,
     trend: cur.sets.map((n, i) => (n > prev.sets[i] ? 'up' : n < prev.sets[i] ? 'down' : 'flat')),
     low, total: cur.total,
   };

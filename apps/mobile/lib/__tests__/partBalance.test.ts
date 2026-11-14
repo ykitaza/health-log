@@ -1,6 +1,6 @@
 import {
   axisAngle, BALANCE_PARTS, BALANCE_RANGES, balanceAxisOf, balanceRangeFrom, parseBalanceRange, partBalance, partBalanceAnchored,
-  partBalanceBetween, partBalanceForRange, partBalancePeriodLabel, partBalanceRangeLabel,
+  partBalanceBetween, partBalanceCompare, partBalanceForRange, partBalancePeriodLabel, partBalanceRangeLabel,
 } from '../partBalance';
 import type { TrainingSetRow } from '../training';
 
@@ -127,6 +127,35 @@ describe('筋トレの推移の部位のバランス（期間：2週・3か月�
     expect(partBalanceRangeLabel('all', old.balance, old.recent)).toBe('部位のバランス、これまでのセット数。胸 1、肩 0、背中 0、腕 0、脚 0、腹 0。直近2週は 記録なし');
     const empty = partBalanceForRange([row('2026-09-01', 'chest')], nameOf, '2w', '2026-11-12');
     expect(partBalanceRangeLabel('2w', empty.balance, empty.recent)).toBe('部位のバランス、直近2週のセット数。この期間の記録はありません');
+  });
+});
+
+describe('28日（ホームの PARTS と、そこから来た推移）', () => {
+  // 今日 11/12：直近28日は 10/16〜、前の28日は 9/18〜10/15
+  const data = [
+    ...rows('2026-11-12', 'chest', 4),
+    row('2026-10-16', 'back'), // 直近28日の最初の日
+    row('2026-10-15', 'legs'), // 前の28日の最後の日
+    ...rows('2026-09-18', 'chest', 16), // 前の28日の最初の日
+    row('2026-09-17', 'abs'), // どちらの外
+  ];
+
+  test('今の 28 日と前の 28 日。頂点の長さは 2 つの期間で同じ最大（前の胸 16）にそろえる', () => {
+    const { cur, prev } = partBalanceCompare(data, nameOf, '2026-11-12');
+    expect(cur.sets).toEqual([4, 0, 1, 0, 0, 0]);
+    expect(prev.sets).toEqual([16, 0, 0, 0, 1, 0]);
+    expect(prev.ratios[0]).toBe(1);
+    expect(cur.ratios[0]).toBeCloseTo(0.5);
+    expect(cur.ratios[2]).toBeCloseTo(0.25);
+  });
+
+  test('推移の 28d：直近28日に前の28日を重ね、読み上げは「前の28日は」', () => {
+    const r = partBalanceForRange(data, nameOf, '28d', '2026-11-12');
+    expect(r.balance.sets).toEqual([4, 0, 1, 0, 0, 0]);
+    expect(r.recent?.sets).toEqual([16, 0, 0, 0, 1, 0]);
+    expect(partBalanceRangeLabel('28d', r.balance, r.recent)).toBe(
+      '部位のバランス、直近28日のセット数。胸 4、肩 0、背中 1、腕 0、脚 0、腹 0。前の28日は 胸 16、肩 0、背中 0、腕 0、脚 1、腹 0',
+    );
   });
 });
 

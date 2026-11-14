@@ -83,8 +83,32 @@ export type BalanceRange = '2w' | '3m' | 'all';
 export const BALANCE_RANGES: { key: BalanceRange; label: string }[] = [
   { key: '2w', label: '2週' }, { key: '3m', label: '3か月' }, { key: 'all', label: 'これまで' },
 ];
+/**
+ * 推移で見せる期間。覚える期間（BalanceRange）に、ホームの PARTS から来たときだけの 28d（直近28日と、点線で前の28日。ホームのレーダーと同じ期間）を足したもの。
+ * 28d は切り替えに出さず、覚えない
+ */
+export type BalanceView = BalanceRange | '28d';
 /** 読み上げの期間の名前 */
-const RANGE_SPOKEN: Record<BalanceRange, string> = { '2w': '直近2週', '3m': '直近3か月', all: 'これまで' };
+const RANGE_SPOKEN: Record<BalanceView, string> = { '2w': '直近2週', '3m': '直近3か月', all: 'これまで', '28d': '直近28日' };
+/** 重ねる点線の期間の名前（これまでは直近2週、28d は前の28日） */
+export const recentLabel = (range: BalanceView) => (range === '28d' ? '前の28日' : '直近2週');
+
+/** ホームの PARTS（と、そこから来た推移の 28d）の期間：今の 28 日と、その前の 28 日を比べる */
+export const COMPARE_DAYS = 28;
+
+/**
+ * 今の 28 日（今日を含む）と、その前の 28 日の部位のバランス。頂点の長さ（ratios）は、2 つの期間で同じ最大にそろえる
+ * （ホームのレーダーと同じ。どちらの期間が多いかが形の大きさで分かる）
+ */
+export function partBalanceCompare(
+  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, today: DateKey,
+): { cur: PartBalance; prev: PartBalance } {
+  const cur = partBalanceBetween(rows, partName, addDays(today, -(COMPARE_DAYS - 1)), today);
+  const prev = partBalanceBetween(rows, partName, addDays(today, -(COMPARE_DAYS * 2 - 1)), addDays(today, -COMPARE_DAYS));
+  const max = Math.max(...cur.sets, ...prev.sets);
+  const ratio = (n: number) => (max > 0 ? Math.sqrt(n) / Math.sqrt(max) : 0);
+  return { cur: { ...cur, ratios: cur.sets.map(ratio) }, prev: { ...prev, ratios: prev.sets.map(ratio) } };
+}
 
 /** 覚えていた値を期間に。知らない値・覚えていないときは 2週（ホームと同じ） */
 export function parseBalanceRange(v: string | null): BalanceRange {
@@ -98,22 +122,26 @@ export function balanceRangeFrom(range: BalanceRange, today: DateKey): DateKey |
   return null;
 }
 
-/** その期間の部位のバランス。これまでのときは、重ねる直近2週も */
+/** その期間の部位のバランス。これまでのときは、重ねる直近2週も。28d は直近28日と、重ねる前の28日 */
 export function partBalanceForRange(
-  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, range: BalanceRange, today: DateKey,
+  rows: TrainingSetRow[], partName: (bodyPartId: string) => string, range: BalanceView, today: DateKey,
 ): { balance: PartBalance; recent: PartBalance | null } {
+  if (range === '28d') {
+    const { cur, prev } = partBalanceCompare(rows, partName, today);
+    return { balance: cur, recent: prev };
+  }
   return {
     balance: partBalanceBetween(rows, partName, balanceRangeFrom(range, today), today),
     recent: range === 'all' ? partBalance(rows, partName, today) : null,
   };
 }
 
-/** 推移の読み上げ：「部位のバランス、これまでのセット数。胸 180、…。直近2週は 胸 18、…」。その期間に記録がなければそのことを */
-export function partBalanceRangeLabel(range: BalanceRange, b: PartBalance, recent: PartBalance | null): string {
+/** 推移の読み上げ：「部位のバランス、これまでのセット数。胸 180、…。直近2週は 胸 18、…」（28d は「前の28日は」）。その期間に記録がなければそのことを */
+export function partBalanceRangeLabel(range: BalanceView, b: PartBalance, recent: PartBalance | null): string {
   const list = (x: PartBalance) => BALANCE_PARTS.map((p, i) => `${p} ${x.sets[i]}`).join('、');
   const head = `部位のバランス、${RANGE_SPOKEN[range]}のセット数。`;
   if (b.total === 0) return `${head}この期間の記録はありません`;
-  return head + list(b) + (recent ? `。直近2週は ${recent.total === 0 ? '記録なし' : list(recent)}` : '');
+  return head + list(b) + (recent ? `。${recentLabel(range)}は ${recent.total === 0 ? '記録なし' : list(recent)}` : '');
 }
 
 /** i 番目の軸の向き（ラジアン）。胸が左上（−120°）で、60° ずつ時計回り */

@@ -14,7 +14,7 @@ import type { HeroBody3DProps } from './HeroBody3D';
 
 const PER_SIDE = 2;
 
-function Stage({ width, height, band, injuries, numbers, rotate }: Omit<HeroBody3DProps, 'fallback'>) {
+function Stage({ width, height, band, injuries, numbers, rotate, shield, onPressInjury }: Omit<HeroBody3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const marks = useMemo<Mark[]>(() => injuries.flatMap((i) => {
@@ -50,12 +50,14 @@ function Stage({ width, height, band, injuries, numbers, rotate }: Omit<HeroBody
           return <Leader key={p.id} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={INJURY_RED} />;
         })}
       </Svg>
-      {places.map((p) => (
-        <HeroInjuryTag key={p.id} injury={injuries.find((i) => i.id === p.id)!} number={numbers.get(p.id) ?? ''} align={p.side === 'left' ? 'right' : 'left'}
-          style={{ position: 'absolute', [p.side]: 0, top: p.top, width: HERO_TAG_W }} />
-      ))}
       {/* なぞると回る面（体の列だけ。四隅の押せるものはこの上に重ねる） */}
       <View style={{ position: 'absolute', top: 0, bottom: 0, left: rotate.left, width: rotate.width }} {...scene.pan.panHandlers} />
+      {shield}
+      {/* 札は列の外の面（shield）の上に出して押せるようにする */}
+      {places.map((p) => (
+        <HeroInjuryTag key={p.id} injury={injuries.find((i) => i.id === p.id)!} number={numbers.get(p.id) ?? ''} align={p.side === 'left' ? 'right' : 'left'}
+          style={{ position: 'absolute', [p.side]: 0, top: p.top, width: HERO_TAG_W }} onPress={() => onPressInjury(p.id)} />
+      ))}
     </View>
   );
 }

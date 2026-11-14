@@ -21,7 +21,7 @@ const GAP = 4;
 const NO_RECOVERY: Record<string, number> = {};
 const NO_INJURIES: Injury[] = [];
 
-function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, injuries = NO_INJURIES, onPick }: Omit<DayBody3DProps, 'fallback'>) {
+function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, injuries = NO_INJURIES, onPick, onPressEntry, shield }: Omit<DayBody3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const layout = useMemo(() => dayBodyCallouts(
@@ -46,6 +46,17 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, in
       baseColor: REST_GREEN, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k) : TRAINED_GLOW), injuryColor: INJURY_RED,
     });
   }, [scene, reduced, layout, glow, marks, tips]);
+  const tags = (
+    <>
+      {layout.placed.map((p) => (
+        <DayBodyTag key={p.key} e={byKey.get(p.key)!} align={p.side === 'left' ? 'right' : 'left'}
+          style={{ position: 'absolute', [p.side]: 0, top: p.top, width: DAY_TAG_W }} onPress={onPressEntry && (() => onPressEntry(p.key))} />
+      ))}
+      {layout.moreTop != null && (
+        <MoreTag nos={layout.more} style={{ position: 'absolute', right: 0, top: layout.moreTop }} onPress={onPressEntry && (() => onPressEntry(null))} />
+      )}
+    </>
+  );
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <BodyCanvas scene={scene} />
@@ -55,13 +66,12 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, in
           return <Leader key={p.key} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={colors.accent} />;
         })}
       </Svg>
-      {layout.placed.map((p) => (
-        <DayBodyTag key={p.key} e={byKey.get(p.key)!} align={p.side === 'left' ? 'right' : 'left'}
-          style={{ position: 'absolute', [p.side]: 0, top: p.top, width: DAY_TAG_W }} />
-      ))}
-      {layout.moreTop != null && <MoreTag nos={layout.more} style={{ position: 'absolute', right: 0, top: layout.moreTop }} />}
+      {!onPressEntry && tags}
       {/* なぞると回る面（図の上いっぱい。四隅の押せるものはこの上に重ねる） */}
       <View style={StyleSheet.absoluteFill} {...scene.pan.panHandlers} />
+      {shield}
+      {/* 押せる札（ホームの LATEST）は、回す面と shield の上に出す。札は体の列の外なので、札から回し始めることはない */}
+      {onPressEntry && tags}
     </View>
   );
 }

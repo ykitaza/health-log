@@ -81,6 +81,17 @@ describe('スクロールの知らせと、入った・出たの追跡', () => {
     expect(watch.offset).toBe(50);
   });
 
+  test('指でスクロールし始めた回数を数える（ほかの画面から来てスクロールする途中で、指で動かしたらやめる）。知らせはしない', () => {
+    const watch = createScrollWatch();
+    const got: boolean[] = [];
+    watch.subscribe((remeasure) => got.push(remeasure));
+    expect(watch.drags).toBe(0);
+    watch.dragged();
+    watch.dragged();
+    expect(watch.drags).toBe(2);
+    expect(got).toEqual([]);
+  });
+
   test('測れなかった（位置が分からない）ときは、見えているに戻す', () => {
     const watch = createScrollWatch();
     const changes: boolean[] = [];
