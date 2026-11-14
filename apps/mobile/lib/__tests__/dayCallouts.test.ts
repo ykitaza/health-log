@@ -152,3 +152,22 @@ describe('partsAt・MUSCLE_PARTS（図の筋肉を押して部位を選ぶ）', 
     expect(partsAt('back', { x: 98, y: 5 })).toEqual([]);
   });
 });
+
+describe('札の点を渡す（ケガの印の点。#205）', () => {
+  test('anchor を渡すとその点に付け、図の向きで札の側を決める。null は線なし、渡さなければ部位の点', () => {
+    const low = { ...partAnchor('背中')!, point: { x: 40, y: 95 } };
+    const shoulderBack = { ...partAnchor('肩')!, view: 'back' as const, point: { x: 70, y: 45 } };
+    const out = layoutCallouts([
+      { key: 'b', no: 1, part: '背中', anchor: low },
+      { key: 's', no: 2, part: '肩', anchor: shoulderBack },
+      { key: 'c', no: 3, part: '胸', anchor: null },
+      { key: 'l', no: 4, part: '脚' },
+    ], OPT);
+    const all = [...out.left, ...out.right].filter((c): c is Extract<PlacedCallout, { kind: 'entry' }> => c.kind === 'entry');
+    const of = (k: string) => all.find((c) => c.key === k)!;
+    expect(of('b').anchor).toEqual(low);
+    expect(out.right.map((c) => (c.kind === 'entry' ? c.key : '')).sort()).toEqual(['b', 's']);
+    expect(of('c').anchor).toBeNull();
+    expect(of('l').anchor).toEqual(partAnchor('脚'));
+  });
+});

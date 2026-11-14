@@ -2,12 +2,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { Injury } from '@/db/repositories/injuries';
 import { SEED_BODY_PARTS } from '@/db/seed';
-import { ALL_PARTS, layoutCallouts, projectFront } from '@/lib/bodyModel';
+import { ALL_PARTS, anchorFor, boxOf, jointAnchor, layoutCallouts, projectFront } from '@/lib/bodyModel';
 import { muscleFigureFor } from '@/lib/muscleFigure';
 import { contrastRatio } from '@/lib/contrast';
 import {
-  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
-  recoveryAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryStatusText,
+  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
+  recoveryAnchor, recoveryCalloutAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryStatusText,
   remainingDays, REST_FILL, REST_GREEN, suggestRecovered,
 } from '@/lib/recoveryMap';
 import { colors, toneColors } from '@/theme';
@@ -183,6 +183,45 @@ describe('回復マップのケガ', () => {
     expect(injuriesForPart(legs, list)).toEqual([]);
     expect(injuriesForPart(shoulder, list).map((i) => i.id)).toEqual(['bench']);
     expect(injuriesForPart(back, list).map((i) => i.id)).toEqual(['squat']);
+  });
+});
+
+describe('ケガのある部位の札の付け根（#205）', () => {
+  const [back, shoulder, chest] = partRecoveries([], name, ['背中', '肩', '胸'], '2026-11-13');
+
+  test('腰の筋肉のケガがある背中は、赤く光る腰の起立筋の囲みのまん中（背中の代表点でない）。後ろの面', () => {
+    const hurt = injuriesForPart(back, [injury({ id: 'lb', site: 'lower_back', side: 'right' })]);
+    const at = recoveryCalloutAnchor('背中', hurt)!;
+    const [lo, hi] = boxOf('erector_low_r')!;
+    expect(at.facing).toBe('back');
+    expect(at.anchor[0]).toBeCloseTo((lo[0] + hi[0]) / 2);
+    expect(at.anchor[1]).toBeCloseTo((lo[1] + hi[1]) / 2);
+    expect(at.anchor[2]).toBeCloseTo(lo[2]);
+    expect(at.anchor).toEqual(anchorFor('lower_back', 'right'));
+    // 背中の代表点（僧帽筋〜起立筋のまん中）より下
+    expect(at.anchor[1]).toBeLessThan(recoveryAnchor('背中')!.anchor[1] - 0.1);
+  });
+
+  test('関節のケガ（右肩の関節）は関節の点', () => {
+    const hurt = injuriesForPart(shoulder, [injury({ id: 'sj', site: 'shoulder_joint', side: 'right' })]);
+    expect(recoveryCalloutAnchor('肩', hurt)).toEqual({ anchor: jointAnchor('shoulder_joint', 'right'), facing: 'front' });
+  });
+
+  test('ケガが複数なら直している途中のものを優先、なければ先頭', () => {
+    const neck = injury({ id: 'neck', site: 'neck', side: null, status: 'fixed', fixedOn: '2026-11-20' });
+    const waist = injury({ id: 'waist', site: 'waist', side: null });
+    const lats = injury({ id: 'lats', site: 'lats', side: 'left', status: 'fixed', fixedOn: '2026-11-20' });
+    expect(leadInjury([neck, waist])!.id).toBe('waist');
+    expect(recoveryCalloutAnchor('背中', [neck, waist])!.anchor).toEqual(jointAnchor('waist', null));
+    expect(leadInjury([lats, neck])!.id).toBe('lats');
+    expect(recoveryCalloutAnchor('背中', [lats, neck])!.anchor).toEqual(anchorFor('lats', 'left'));
+    expect(leadInjury([])).toBeNull();
+  });
+
+  test('ケガのない部位と知らない部位は今のまま', () => {
+    expect(recoveryCalloutAnchor('胸', injuriesForPart(chest, []))).toEqual(recoveryAnchor('胸'));
+    expect(recoveryCalloutAnchor('背中', [])).toEqual(recoveryAnchor('背中'));
+    expect(recoveryCalloutAnchor('握力', [injury({ site: 'chest' })])).toBeNull();
   });
 });
 

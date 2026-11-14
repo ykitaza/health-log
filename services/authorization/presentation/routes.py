@@ -57,7 +57,7 @@ def rejected(description: str, error: Exception) -> Response:
 
 
 def create_blueprint(
-    server: AuthorizationServer, clients: CimdClientDirectory, store: Store, login: LoginGateway,
+    server: AuthorizationServer, clients: CimdClientDirectory, store: Store, login: LoginGateway, muse_metadata: dict,
 ) -> Blueprint:
     bp = Blueprint("authorization", __name__)
 
@@ -187,6 +187,13 @@ def create_blueprint(
     @bp.get("/.well-known/jwks.json")
     def jwks():
         return jsonify(server.jwks())
+
+    @bp.get("/clients/muse.json")
+    def muse_client():
+        """Muse の CIMD の文書（client_id はこの URL）。決まった1つの文書だけを返す。"""
+        response = jsonify(muse_metadata)
+        response.headers["Cache-Control"] = "public, max-age=3600"
+        return response
 
     @bp.get("/open/<target>")
     def open_app(target: str):

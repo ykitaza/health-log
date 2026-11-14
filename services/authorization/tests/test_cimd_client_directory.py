@@ -117,3 +117,16 @@ def test_fetches_only_allowed_hosts_when_restricted():
 def test_does_not_restrict_hosts_by_default():
     # PC で動かすとき（allowed_hosts を渡さない）は、ホストを絞らない
     assert directory().find(CLIENT_ID).client_id == CLIENT_ID
+
+
+def test_uses_hosted_document_without_fetching_and_still_checks_it():
+    # 認可API が自分で公開している文書（Muse）は取りに行かない。中身は取りに行った文書と同じように確かめる
+    fetched = []
+    hosted = "https://authz.example/clients/muse.json"
+    doc = {**DOC, "client_id": hosted}
+    directory = CimdClientDirectory(http_get=fetched.append, allowed_hosts=frozenset({"claude.ai"}),
+                                    hosted={hosted: doc})
+    assert directory.find(hosted).redirect_uris == ("https://client.example/callback",)
+    with pytest.raises(ClientRejected):
+        CimdClientDirectory(http_get=fetched.append, hosted={hosted: {**doc, "client_id": CLIENT_ID}}).find(hosted)
+    assert fetched == []

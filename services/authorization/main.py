@@ -17,9 +17,26 @@ from presentation.routes import LoginGateway, create_blueprint
 
 # MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）
 MCP_SCOPES = ("meals:read", "meals:write", "training:read", "training:write")
-# Lambda で CIMD の文書を取りに行ってよいホスト。使うクライアントは Claude（claude.ai と Claude Code）と ChatGPT だけなので、
-# ほかのホストには取りに行かない（知らないクライアントを断り、外への通信を絞る）。PC で動かすときは絞らない（MCP Inspector など）
+# Lambda で CIMD の文書を取りに行ってよいホスト。使うクライアントは Claude（claude.ai と Claude Code）と ChatGPT、
+# それと下の Muse（文書は自分で公開し、取りに行かない）だけなので、ほかのホストには取りに行かない
+# （知らないクライアントを断り、外への通信を絞る）。PC で動かすときは絞らない（MCP Inspector など）
 CIMD_ALLOWED_HOSTS = frozenset({"claude.ai", "chatgpt.com"})
+# Muse（Meta のアシスタント）は CIMD の文書を自分で公開していないので、認可API が代わりに公開する（#211）。
+# client_id はこの文書の URL。返すのはこの決まった1つだけで、パスからファイルを読むことはしない
+MUSE_CLIENT_PATH = "/clients/muse.json"
+MUSE_REDIRECT_URI = "https://agent.meta.ai/api/hatch/oauth/callback"
+
+
+def muse_client_metadata(issuer: str) -> dict:
+    return {
+        "client_id": f"{issuer}{MUSE_CLIENT_PATH}",
+        "client_name": "Muse",
+        "redirect_uris": [MUSE_REDIRECT_URI],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",  # シークレットを持たない（PKCE で確かめる）
+        "scope": " ".join(MCP_SCOPES),
+    }
 
 
 def create_app(
@@ -60,7 +77,9 @@ def create_app(
             client_secret=settings.cognito_client_secret,
             redirect_uri=f"{settings.issuer}/cognito/callback",
         )
+    muse = muse_client_metadata(settings.issuer)
     if clients is None:
-        clients = CimdClientDirectory(allow_loopback_http=local, allowed_hosts=None if local else CIMD_ALLOWED_HOSTS)
-    app.register_blueprint(create_blueprint(server, clients, store, login))
+        clients = CimdClientDirectory(allow_loopback_http=local, allowed_hosts=None if local else CIMD_ALLOWED_HOSTS,
+                                      hosted={muse["client_id"]: muse})
+    app.register_blueprint(create_blueprint(server, clients, store, login, muse))
     return app
