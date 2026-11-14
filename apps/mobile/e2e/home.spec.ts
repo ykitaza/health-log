@@ -116,7 +116,7 @@ test('BIG3：28 日前との差と 16 週の線。押すと筋トレの推移', 
   await recordOn(page, '2026-10-01', ['ベンチプレス', 'スクワット', 'デッドリフト'].map((exercise) => ({ exercise, sets: [{ weight: '100', reps: '5' }] })));
   await moveToDate(page, TODAY);
   await expect(visible(page, 'home-big3')).toContainText('350.0KG');
-  await expect(visible(page, 'home-big3')).toContainText('Δ 28D +0.0');
+  await expect(visible(page, 'home-big3')).toContainText('Δ 28D ±0');
   // 今日：スクワット 110×5（128.33）→ 合計 361.7、28 日前より +11.7
   await recordToday(page, [{ exercise: 'スクワット', sets: [{ weight: '110', reps: '5' }] }]);
   await expect(visible(page, 'home-big3')).toContainText('361.7KG');
