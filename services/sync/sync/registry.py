@@ -99,6 +99,15 @@ class Registry:
             return Rejection("invalid_fields", "update には変えた項目を1つ以上入れてください")
         return values
 
+    def check_change(self, entity_type: str, entity_id: str, op: str, fields: object) -> dict | Rejection:
+        """create・update の項目を、形（check_fields）と組み合わせの決まり（EntitySpec.check）の順に確かめる。
+        アプリから届いた変更（parse_change）も、MCP が書く変更（各コンテキストのリポジトリ）も、ここを通す。"""
+        values = self.check_fields(entity_type, op, fields)
+        if isinstance(values, Rejection):
+            return values
+        rejection = self.specs[entity_type].check(entity_id, values)
+        return values if rejection is None else rejection
+
     def parse_change(self, raw: dict, allowed_types: set[str], device_id: str | None) -> Change | Rejection:
         """アプリから届いた変更を確かめる。change_id は呼ぶ側が確かめておく。"""
         unknown = set(raw) - CHANGE_KEYS
@@ -141,10 +150,8 @@ class Registry:
             if spec.app_fields is not None and isinstance(fields, dict) and (extra := set(fields) - set(spec.app_fields)):
                 return Rejection("op_not_allowed", f"{entity_type} はアプリから {', '.join(sorted(extra))} を書けません"
                                  f"（{'・'.join(spec.app_fields)} だけ）")
-            fields = self.check_fields(entity_type, op, fields)
+            fields = self.check_change(entity_type, entity_id, op, fields)
             if isinstance(fields, Rejection):
                 return fields
-            if (rejection := spec.check(entity_id, fields)) is not None:
-                return rejection
         return Change(raw["change_id"].lower(), entity_type, entity_id, parent_id, op, fields, changed_at, origin,
                       device_id, parent_type=spec.parent_type)

@@ -103,10 +103,7 @@ class SyncReportRepository:
 
     def _add(self, owner: str, report: Report) -> Report:
         fields = report_fields(report)
-        registry = self.engine.registry
-        result = registry.check_fields(ENTITY, "create", fields)
-        if not isinstance(result, Rejection):
-            result = registry.specs[ENTITY].check(report.id, result)
+        result = self.engine.registry.check_change(ENTITY, report.id, "create", fields)
         if isinstance(result, Rejection):
             details = "、".join(f"{e['field']}：{e['message']}" for e in result.errors)
             raise ReportError(f"保存できない値です（{result.message}{'：' + details if details else ''}）")
