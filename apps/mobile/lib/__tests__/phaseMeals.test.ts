@@ -44,6 +44,10 @@ describe('フェーズの食事の目標：維持のカロリー＋(目標 − �
     expect(kcal(phaseMealTargets(M, plan({ fromKg: null })))).toEqual([3030, 2750, 140, 140]);
   });
 
+  test('kcal は保存できる上限（20,000）で止める（残り 1 日で +2.5kg のような計画でも、保存を断らない）', () => {
+    expect(kcal(phaseMealTargets(M, plan({ days: 1 })))).toEqual([20000, 20000, 140, 140]);
+  });
+
   test('下限は基礎代謝（下回る日は基礎代謝を 10kcal に切り上げた値）', () => {
     const low: Maintenance = { bmr: 1801, tdeeRest: 2000, bodyWeightKg: 70 };
     expect(kcal(phaseMealTargets(low, plan({ direction: 'cut', targetKg: 60, days: 28 })))).toEqual([1810, 1810, 140, 140]);

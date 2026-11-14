@@ -11,6 +11,7 @@ import {
   missingInputs, Sex,
 } from './autoGoal';
 import type { DateKey } from './date';
+import { KCAL_MAX } from './meals';
 import type { PhaseDirection, PhaseKind, PhaseMealTargets } from './phases';
 
 /** 計画のうち、食事の目標に使うもの。fromKg は線の始まりの体重、days は線の日数（始まりの日から終わりの日まで） */
@@ -31,10 +32,14 @@ export function phaseDailyDelta(m: Maintenance, p: PhaseMealPlan): number {
   return p.direction === 'bulk' ? Math.max(0, raw) : Math.min(0, raw);
 }
 
-/** 計画から出した食事の目標 */
+/**
+ * 計画から出した食事の目標。kcal は保存できる上限（KCAL_MAX）で止める
+ * （終わり間際に目標を大きく変えると差が大きくなりすぎ、計画の保存ごと断られるため）
+ */
 export function phaseMealTargets(m: Maintenance, p: PhaseMealPlan): PhaseMealTargets {
   const { proteinG, training, rest } = dayTargets(m, phaseDailyDelta(m, p));
-  return { training_day: { kcal: training.kcal, protein_g: proteinG }, rest_day: { kcal: rest.kcal, protein_g: proteinG } };
+  const cap = (kcal: number) => Math.min(kcal, KCAL_MAX);
+  return { training_day: { kcal: cap(training.kcal), protein_g: proteinG }, rest_day: { kcal: cap(rest.kcal), protein_g: proteinG } };
 }
 
 /** 療養の食事の目標：維持のカロリー（減らさない）。維持のカロリーが出せなければ null */
