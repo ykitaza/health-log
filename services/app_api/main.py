@@ -7,9 +7,9 @@ Lambda Web Adapter は通さず、API Gateway のイベントを直接受け取�
 
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
 
 from composition.body_data import SyncedBodyData
+from composition.clock import today
 from composition.registry import create_registry
 from meals.application.goals import GoalService
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
@@ -21,13 +21,6 @@ from sync.store import DynamoDBSyncStore
 from training.main import create_queries
 
 logging.getLogger().setLevel(logging.INFO)
-
-JST = timezone(timedelta(hours=9))
-
-
-def today() -> date:
-    """「今日」は日本時間で決める（Lambda の時計は UTC のため。MCP の services/mcp/main.py と同じ）。"""
-    return datetime.now(JST).date()
 
 
 def create_api(engine: SyncEngine, app_client_id: str, today=today) -> SyncHttpApi:

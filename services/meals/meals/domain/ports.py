@@ -54,7 +54,7 @@ class WeightRepository(Protocol):
     """体重の記録（目標体重までの進み具合に使う）。
 
     体重は筋トレのコンテキストの体組成（body_record）に一本化していて、食事は保存しない。
-    実装は組み立ての場所（services/mcp/main.py の BodyRecordWeights）が、筋トレのユースケースにつなぐ。
+    実装は組み立ての場所（services/composition/composition/adapters.py の BodyRecordWeights）が、筋トレのユースケースにつなぐ。
     """
 
     async def save(self, record: WeightRecord) -> None:

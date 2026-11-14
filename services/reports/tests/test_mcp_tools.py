@@ -327,7 +327,7 @@ PHASE_REVIEW = {
 
 
 class FakePhases:
-    """フェーズの期間（main.py の TrainingPhasePeriods の代わり）。"""
+    """フェーズの期間（composition/adapters.py の TrainingPhasePeriods の代わり）。"""
 
     def __init__(self):
         self.periods = {PHASE_ID: {"kind": "normal", "start_date": "2026-07-01", "end_date": "2026-10-20"},
