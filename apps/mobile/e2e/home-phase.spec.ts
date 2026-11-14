@@ -5,7 +5,7 @@ import { button, openApp, openSettings, swipe } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
 // ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 4 ページ、BIG3 の Δ PHASE、LOG のフェーズの週。
-// フェーズを作る画面はまだないので、フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる。計算は jest（lib/__tests__/homeHero.test.ts）。
+// フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
 // web では 3D の体を描かないので、RECOVERY・INJURY は 2D の図になる。今日は 2026-11-08（日）
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
@@ -110,7 +110,6 @@ test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。�
   await expect(visible(page, 'home-log')).toContainText('LOG // W1-W4');
 
   await line.click();
-  await expect(visible(page, 'phase-new')).toContainText('準備中');
   await expect(page.getByRole('heading', { name: 'フェーズを始める' }).filter({ visible: true })).toBeVisible();
   await button(page, '戻る').click();
   await expect(line).toBeVisible();
@@ -140,7 +139,8 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(page.getByTestId('hero-ring-plan')).toHaveCount(1);
 
   await line.click();
-  await expect(visible(page, 'phase-progress')).toContainText('準備中');
+  await expect(page.getByRole('heading', { name: '増量 16週' }).filter({ visible: true })).toBeVisible();
+  await expect(visible(page, 'phase-pace-status')).toHaveText('順調');
   await button(page, '戻る').click();
   await expect(line).toBeVisible();
 });

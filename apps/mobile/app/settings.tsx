@@ -12,17 +12,27 @@ import { Badge, Card, Chip, Header, ListRow, Segmented, SectionTitle } from '@/c
 import { useAuth } from '@/hooks/auth';
 import { useFocusData } from '@/hooks/data';
 import { useProfile } from '@/hooks/profile';
+import { useToday } from '@/hooks/today';
 import { versionLines } from '@/lib/appVersion';
 import { workoutCsv } from '@/lib/csv';
 import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_TRAINING_OPTIONS } from '@/lib/goals';
 import { WEEKLY_GOALS_SECTION } from '@/lib/home';
+import { HeroPhase, heroPhase } from '@/lib/homeHero';
+import { phaseLabel } from '@/lib/phases';
 import { accountTitle } from '@/lib/profile';
-import { WeightUnit } from '@/lib/units';
+import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
 
 export default function SettingsScreen() {
   const { data: settings, error, reload, repos } = useFocusData((r) => r.settings.get());
   const { status: authStatus } = useAuth();
+  const today = useToday();
+  // フェーズの行（いちばん上）：今のフェーズ・療養と、様子見のときの目標体重
+  const { data: phaseNow } = useFocusData(async (r) => {
+    const [phases, daily] = await Promise.all([r.phases.list(), r.body.listDaily()]);
+    const weights = daily.flatMap((d) => (d.weightKg != null ? [{ date: d.date, kg: d.weightKg }] : []));
+    return heroPhase(phases, weights, today);
+  }, today);
   const profile = useProfile();
   const [exportError, setExportError] = useState<string | null>(null);
   // レポートの今週の目標（週のまとめの「目標を変える」、レポートのタブの今週の目標）から開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
@@ -58,6 +68,18 @@ export default function SettingsScreen() {
   return (
     <Screen scrollRef={scrollRef}>
       <Header title="設定" onBack={() => router.back()} />
+
+      <SectionTitle title="フェーズ" />
+      <Card style={{ padding: 0 }}>
+        <ListRow
+          first
+          title="フェーズ"
+          subtitle={phaseSubtitle(phaseNow ?? null, settings?.goalWeightKg ?? null, unit)}
+          right={phaseNow?.kind === 'none' ? <T variant="labelL" color={colors.accent}>始める</T> : undefined}
+          onPress={() => router.push(phaseNow == null || phaseNow.kind === 'none' ? '/phase/new' : '/phase')}
+          testID="settings-phase"
+        />
+      </Card>
 
       <SectionTitle title="アカウント" />
       <Card style={{ padding: 0 }}>
@@ -143,6 +165,14 @@ export default function SettingsScreen() {
       <AppVersion />
     </Screen>
   );
+}
+
+/** フェーズの行の補足：様子見中（目標体重）、実施中（名前と何週目）、療養中（何日目） */
+function phaseSubtitle(h: HeroPhase | null, goalKg: number | null, unit: WeightUnit): string {
+  if (h == null) return '';
+  if (h.kind === 'none') return goalKg == null ? '様子見中' : `様子見中（目標体重 ${fmt1(kgToUnit(goalKg, unit))} ${unit}）`;
+  if (h.kind === 'rehab') return `療養 ${h.rehabDays}日目${h.paused ? `・${phaseLabel(h.paused.phase)}は停止中` : ''}`;
+  return `${phaseLabel(h.phase)}・${h.progress.week}／${h.progress.weeksTotal ?? h.progress.week}週目`;
 }
 
 /** 選択肢のチップ（セット数の初期値と同じ形）。読み上げは「休憩のタイマー、90秒」のように、何の選択肢かを足す */
