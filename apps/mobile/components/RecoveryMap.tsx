@@ -11,7 +11,7 @@ import { siteOfPart } from '@/lib/bodyModel';
 import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
 import {
-  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, partEnglish, partOfMesh, PartRecovery, partRecoveries,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, partEnglish, partOfMesh, PartRecovery, partRecoveries,
   recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
@@ -38,14 +38,6 @@ const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.lev
 
 /** 選んだもの：筋トレの部位か、どの部位にもあたらない部品（部位の名前を付け替えたときなど） */
 type Selection = { part: string } | { mesh: string } | null;
-
-/** 凡例：緑＝回復済み、暖色＝回復中、灰色＝空いている・まだ、赤＝ケガ（色の四角と文字。色だけにしない。ホームの LATEST も同じ） */
-export const LEGEND = [
-  { color: recoveryPalette.rest, label: '回復済み' },
-  { color: LOAD_ORANGE, label: '回復中' },
-  { color: recoveryPalette.idle, label: '空いている・まだ' },
-  { color: INJURY_RED, label: 'ケガ' },
-];
 
 /**
  * 回復マップのカード（からだのタブのいちばん上。開いてすぐ見えるヒーロービュー）。見る日（からだのタブで選んだ日）までの記録で数える。
@@ -108,19 +100,11 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
 
   return (
     <ScanFrame strong style={{ marginTop: space.l, paddingHorizontal: space.l, paddingTop: space.m, paddingBottom: space.s }} testID="recovery-map">
-      {/* 見出しと凡例（2行）でまとめて読む。出典のリンクは図の下（まとめて読む枠の外） */}
+      {/* 見出しをまとめて読む。出典のリンクは図の下（まとめて読む枠の外） */}
       <View accessible accessibilityLabel={spoken} style={{ gap: space.xs }}>
         <View style={s.head}>
           <Mono color={colors.accent}>RECOVERY MAP // LIVE</Mono>
           {injuries.length > 0 && <Mono color={INJURY_RED}>{`▲ ${injuries.length} ALERT`}</Mono>}
-        </View>
-        <View style={s.legend} testID="recovery-legend">
-          {LEGEND.map((l) => (
-            <View key={l.label} style={s.legendItem}>
-              <View style={[s.swatch, { backgroundColor: l.color }]} />
-              <T variant="bodyS" color={colors.sub}>{l.label}</T>
-            </View>
-          ))}
         </View>
       </View>
       {RecoveryMap3D
@@ -211,9 +195,6 @@ function meshLabel(mesh: string): string {
 const s = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   figures: { paddingTop: space.m, paddingBottom: space.s },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.m, rowGap: space.xs },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  swatch: { width: 10, height: 10, borderRadius: 2 },
   readout: { marginTop: space.s, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   row: {
     minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: 6, paddingHorizontal: space.xs,

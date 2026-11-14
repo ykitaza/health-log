@@ -30,7 +30,6 @@ import { Brackets } from './homeHud';
 import { GrowthPage } from './home';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
-import { LEGEND as RECOVERY_LEGEND } from './RecoveryMap';
 import { T } from './Text';
 
 export type HeroLatest = {
@@ -169,21 +168,6 @@ export function HomeHero({ today, unit, latest, ready, data }: {
           </View>
         )}
       </View>
-      {/* LATEST の体の色の凡例（色だけにしない）。押すと回復マップ（からだのタブ） */}
-      {page === 'latest' && recovery && (
-        <PressableScale
-          accessibilityRole="button" accessibilityLabel="体の色は回復の状態。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復マップを開く"
-          scaleTo={0.97} onPress={openRecoveryMap} style={s.legend} testID="hero-legend"
-        >
-          {RECOVERY_LEGEND.map((l) => (
-            <View key={l.label} style={s.legendItem}>
-              <View style={[s.swatch, { backgroundColor: l.color }]} />
-              <T size={11} color={colors.sub}>{l.label}</T>
-            </View>
-          ))}
-          <Mono size={11} color={colors.accent}>MAP ›</Mono>
-        </PressableScale>
-      )}
       {(page === 'latest' || page === 'injury') && DayBodyAttribution && <DayBodyAttribution />}
     </View>
   );
@@ -304,7 +288,6 @@ const openTrainingDay = (date: DateKey, entry?: string | null) =>
   router.navigate({ pathname: '/training', params: entry ? { view: 'record', date, entry } : { view: 'record', date } });
 const openInjuries = () => router.navigate({ pathname: '/training', params: { view: 'injury' } });
 const openInjury = (id: string) => router.push(`/injuries/${id}`);
-const openRecoveryMap = () => router.navigate('/body');
 
 /** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
 const NO_PARTS: string[] = [];
@@ -443,7 +426,4 @@ const s = StyleSheet.create({
   pageTab: { minHeight: size.touch, minWidth: 28, alignItems: 'center', justifyContent: 'center' },
   pageDash: { height: 3, borderRadius: 2 },
   pageLabel: { marginLeft: space.s },
-  legend: { minHeight: size.touch, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: space.m, rowGap: space.xs },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  swatch: { width: 10, height: 10, borderRadius: 2 },
 });

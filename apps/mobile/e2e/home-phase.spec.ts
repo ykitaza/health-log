@@ -104,8 +104,6 @@ test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。�
   await expect(visible(page, 'hero-page-injury')).toHaveCount(0);
   await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
   await expect(visible(page, 'hero-pages')).toContainText('01/02 LATEST');
-  // 記録がないので、体を回復の色で塗らず、凡例も出さない
-  await expect(page.getByTestId('hero-legend')).toHaveCount(0);
 
   // 縦に大きく動かしたときはページを変えない
   await swipe(visible(page, 'hero-swipe'), 'next', 200);
@@ -197,19 +195,15 @@ test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（�
   await expect(hero).toContainText('SINCE11/6DAY 03');
   await expect(hero).toContainText('ALERT0REVIEW');
   await expect(visible(page, 'hero-injury-tag')).toContainText('INJ-01 ▲右肩の関節● 直し中');
-  // LATEST へ戻ると、体は回復の色（回復中の胸は読み上げにも）。凡例を押すと回復マップ（からだのタブ）
+  // LATEST へ戻ると、体は回復の色（回復中の胸は読み上げにも）
   await swipe(hero, 'prev');
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
   await expect(visible(page, 'home-latest')).toHaveAccessibleName(/。回復中 胸 あと\d日。その日の記録を開く$/);
-  const legend = visible(page, 'hero-legend');
-  await expect(legend).toHaveAccessibleName('体の色は回復の状態。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復マップを開く');
+  await expect(page.getByTestId('hero-legend')).toHaveCount(0);
   // BIG3 と LOG は止めたフェーズのまま
   await expect(visible(page, 'home-big3')).toContainText('Δ PHASE +16.0');
   await expect(visible(page, 'home-log')).toContainText('LOG // W3-W6');
   const injuryPane = page.getByRole('tab', { name: 'ケガ', exact: true }).filter({ visible: true });
-  await legend.click();
-  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
-  await goTab(page, 'ホーム');
   // INJURY の左上を押すとケガの一覧
   await swipe(hero, 'next');
   await injuryCorner.click();
