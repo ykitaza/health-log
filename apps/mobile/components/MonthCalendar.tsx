@@ -21,6 +21,8 @@ type Props = {
   onPressDay?: (key: DateKey) => void;
   /** これより後の日は押せない（薄く出す）。未来の日を選ばせないため */
   maxDate?: DateKey;
+  /** これより前の日は押せない（薄く出す）。フェーズの開始日を、前のフェーズと重ねないため */
+  minDate?: DateKey | null;
   cell?: number;
   /** 週の行どうしの間 */
   rowGap?: number;
@@ -32,7 +34,7 @@ type Props = {
 };
 
 /** 英語の月のカレンダー（日曜始まり） */
-export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', dotted, selected, onPressDay, maxDate, cell = 36, rowGap = 6, divider = false, accessibilityLabel, testID }: Props) {
+export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', dotted, selected, onPressDay, maxDate, minDate, cell = 36, rowGap = 6, divider = false, accessibilityLabel, testID }: Props) {
   const rows = monthMatrix(year, month);
   const filled = selected === undefined ? today : selected;
   // 選んだ日の緑の丸は、選び直すと中から広がる。初めて出すときは広げない（skipEntering）
@@ -52,7 +54,7 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
               const isFilled = d.key === filled && d.inMonth;
               const isMarked = marked.has(d.key) && d.inMonth;
               const isToday = d.key === today && d.inMonth;
-              const isAfterMax = maxDate != null && d.key > maxDate;
+              const isAfterMax = (maxDate != null && d.key > maxDate) || (minDate != null && d.key < minDate);
               const isDotted = (dotted?.has(d.key) ?? false) && d.inMonth;
               const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
               return (

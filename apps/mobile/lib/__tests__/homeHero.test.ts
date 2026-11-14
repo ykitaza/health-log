@@ -1,6 +1,6 @@
 import {
   growthCorners, heroPages, heroPhase, initialHeroPage, injuryCorners, keepHeroPage, nextHeroPage, phaseLine, phaseRing, recoveryCorners,
-  REVIEW_DUE_DAYS, ringFooter, ringGap, ringSegment, weekAverageKg,
+  REVIEW_DUE_DAYS, ringFooter, ringSegment, weekAverageKg,
 } from '../homeHero';
 import { big3Gauge, logGrid, logWeekLabels, logWeekRange } from '../homeHud';
 import type { Phase } from '../phases';
@@ -64,9 +64,9 @@ describe('フェーズの 1 行と輪の下', () => {
 });
 
 describe('輪', () => {
-  test('増量：外の輪は 16 週で今は 6 週目。内の輪は体重の進み、白い線は今日の予定', () => {
+  test('増量：外の輪は 16 の目盛りで、16 週の 6 週目は 6 つ目（週と同じ）。内の輪は体重の進み、白い線は今日の予定', () => {
     const r = phaseRing(heroPhase([phase()], WEIGHTS, TODAY), WEIGHTS, TODAY)!;
-    expect(r).toMatchObject({ weeks: 16, current: 6, paused: false, metric: 'weight' });
+    expect(r).toMatchObject({ ticks: { done: 5, current: 5 }, paused: false, metric: 'weight' });
     // (76.25 - 74) / (80 - 74)
     expect(r.inner).toBeCloseTo(0.375, 3);
     // 予定は 74 → 80 を 111 日で。今日は 41 日目
@@ -94,12 +94,13 @@ describe('輪', () => {
   });
   test('療養中は止めたフェーズの週を出す（止まった色）', () => {
     const r = phaseRing(heroPhase([phase(), rehab()], WEIGHTS, TODAY), WEIGHTS, TODAY)!;
-    expect(r).toMatchObject({ weeks: 16, current: 6, paused: true });
+    expect(r).toMatchObject({ ticks: { done: 5, current: 5 }, paused: true });
   });
-  test('区切りの間は週が多いほど狭く、弧が裏返らない', () => {
-    expect(ringGap(16)).toBe(0.05);
-    const step = (2 * Math.PI) / 104;
-    expect(ringGap(104)).toBeLessThan(step / 2);
+  test('8 週のフェーズは 1 週で 2 つ進む（4 週目は 7・8 つ目のうち、前半は 7 つ目）。24 週は 1 つが 10.5 日', () => {
+    const eight = phase({ startDate: '2026-10-18', endDate: '2026-12-12' }); // 11/8 は 22 日目（4 週目の 2 日目）
+    expect(phaseRing(heroPhase([eight], WEIGHTS, TODAY), WEIGHTS, TODAY)!.ticks).toEqual({ done: 6, current: 6 });
+    const long = phase({ startDate: '2026-09-28', endDate: '2027-03-14' }); // 24 週。41 日目 → 41 / 10.5
+    expect(phaseRing(heroPhase([long], WEIGHTS, TODAY), WEIGHTS, TODAY)!.ticks).toEqual({ done: 3, current: 3 });
   });
   test('7 日の体重の平均', () => {
     expect(weekAverageKg([{ date: '2026-11-01', kg: 70 }, ...WEIGHTS], TODAY)).toBeCloseTo(76.25, 5);

@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { LoadError } from '@/components/LoadError';
 import { Sheet } from '@/components/motion';
 import { MealFields } from '@/components/phase/MealFields';
-import { ActionRow, HudButton, HudChip, NumberField, PhaseFrame, RehabStartSheet, SheetBody, Tag } from '@/components/phase/parts';
+import {
+  ActionRow, DateField, HudButton, ModeTabs, NumberField, PhaseFrame, RehabStartSheet, SheetBody, Tag, TextButton, TickBar, WeeksStepper,
+} from '@/components/phase/parts';
 import { WeightChart } from '@/components/phase/WeightChart';
-import { hud, Micro, Mono, Panel, PanelHead } from '@/components/report/hud';
+import { hud, Micro, Mono, Panel, PanelHead, StatusRow } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { ConfirmDialog } from '@/components/ui';
 import type { Injury, InjuryReview } from '@/db/repositories/injuries';
@@ -14,12 +16,13 @@ import { PhaseError } from '@/db/repositories/phases';
 import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
-import { addDays, DateKey, formatMonthDay } from '@/lib/date';
-import { loadGrowthData } from '@/lib/growthData';
+import { DateKey, daysBetween, formatJpDate, formatMonthDay, formatShortDate } from '@/lib/date';
+import { GrowthData, loadGrowthData } from '@/lib/growthData';
 import { DIRECTION_EN } from '@/lib/homeHero';
 import { RESULTS, siteLabel } from '@/lib/injuries';
+import { ChangeInput, changeError, CorrectInput, correctError, editRange, effectiveEndFor, planChanges } from '@/lib/phaseEdit';
 import {
-  currentPhase, PACE_LABELS, Phase, PHASE_LIMITS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
+  currentPhase, PACE_LABELS, Phase, PHASE_LIMITS, PHASE_TICKS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
   successMetrics, Weight,
 } from '@/lib/phases';
 import { readyToEndRehab, rehabInjuries, RehabWatch, rehabWatch } from '@/lib/phaseReview';
@@ -28,16 +31,21 @@ import {
   PhaseMeasures, planSlopePerWeek, projectedKg, recentSlopePerWeek, snapshotOf, STREAK_TITLES, SUCCESS_RULE, weightChart,
 } from '@/lib/phaseView';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
+import { colors } from '@/theme';
 
-type Dialog = 'extend' | 'target' | 'rehab' | 'meals' | 'end' | 'abort' | 'endRehab' | null;
+type Dialog = 'change' | 'correct' | 'rehab' | 'meals' | 'end' | 'abort' | 'endRehab' | null;
 
 const two = (n: number) => String(n).padStart(2, '0');
 const signed = (n: number, digits = 1) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${Math.abs(n).toFixed(digits)}`;
 
 /**
  * フェーズの進捗の詳細（Figma「スタディ：フェーズ」のセクション 3）。ホームのフェーズの 1 行と設定の「フェーズ」から開く。
- * 実施中：体重のグラフ、ペースの判定と理由、成功の指標、このあと（中間の見直し・食事の目標）、操作（延長・目標を変える・療養に入る・
- * 早めに終える・中断する）。2 週続けてペースが崩れたら直し方の提案、中間の週には中間の見直しを上に出す。
+ * 実施中は、上から「見る → 気づく → 変える → 終える」の順：
+ * - いまどこ（何週目・残りの日数・16 の目盛り・ペースの判定と理由）。目盛りはホームの輪と同じ数え方（期間に比例）
+ * - 気づくこと（期間が終わった・2 週続けてペースが崩れた・中間の見直し）
+ * - 体重のグラフ、成功の指標
+ * - 計画（開始日・期間・目標体重と、編集の入口。「今日から計画を変える」と「開始日・最初の計画を直す」を分ける。PlanSheet）、食事の目標
+ * - 操作（療養に入る・早めに終える・中断する）
  * 療養中：療養の日数、止めているフェーズ、療養を終える（再開する／振り返って次へ）。
  * 療養中のケガ（lib/phaseReview.ts の rehabInjuries）がすべて直せたになったら「療養を終えますか」を上に出す。
  * 早めに終える・期間が終わって終える・療養を終えて「振り返って次へ」は、振り返りの画面（/phase/review/[id]）へ移す。
@@ -126,6 +134,7 @@ export default function PhaseScreen() {
         {paused && pp ? (
           <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 6 }} testID="phase-paused">
             <PanelHead en={`${DIRECTION_EN[paused.direction!]} // PAUSED`} title={`止めているフェーズ：${phaseLabel(paused)}`} right={`${two(pp.week)}/${two(pp.weeksTotal ?? pp.week)}W`} />
+            <TickBar ticks={pp.ticks} paused testID="phase-paused-ticks" accessibilityLabel={`止めているフェーズの進み具合。16の目盛りのうち${pp.ticks?.done ?? 0}つが過ぎた`} />
             <T size={12.5} color={hud.muted} style={{ lineHeight: 19 }}>
               {`${pp.week}週目で止めています。終わりは療養の日数（${pp.rehabDays}日）だけ後ろにずれ、今は ${pp.effectiveEnd ? formatMonthDay(pp.effectiveEnd) : '—'} です。目標体重 ${paused.targetWeightKg == null ? '—' : kg(paused.targetWeightKg)}。`}
             </T>
@@ -159,7 +168,7 @@ export default function PhaseScreen() {
 
   return (
     <NormalPhase
-      phase={current} phases={phases} weights={weights} measures={measures} now={now!} unit={unit} today={today}
+      phase={current} phases={phases} weights={weights} measures={measures} now={now!} growth={data!.growth} unit={unit} today={today}
       dialog={dialog} setDialog={(d) => { setOpError(null); setDialog(d); }} dismissed={dismissed} setDismissed={setDismissed}
       act={act} busy={busy} opError={opError} onBack={close} repos={repos}
     />
@@ -168,8 +177,8 @@ export default function PhaseScreen() {
 
 type Repos = ReturnType<typeof useRepos>;
 
-function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
-  phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; now: PhaseMeasures; unit: WeightUnit; today: DateKey;
+function NormalPhase({ phase, phases, weights, measures, now, growth, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
+  phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; now: PhaseMeasures; growth: GrowthData; unit: WeightUnit; today: DateKey;
   dialog: Dialog; setDialog: (d: Dialog) => void; dismissed: { streak?: boolean; mid?: boolean }; setDismissed: (d: { streak?: boolean; mid?: boolean }) => void;
   act: (task: () => Promise<void>, leave?: boolean | string) => void; busy: boolean; opError: string | null; onBack: () => void; repos: Repos;
 }) {
@@ -190,19 +199,52 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
   const end = progress.effectiveEnd;
   // 期間が終わっても、本人が終えるまでは実施中のまま（自動では終えない）
   const expired = end != null && today > end;
+  const changes = planChanges(phase);
+  const remaining = progress.remainingDays;
 
   return (
     <PhaseFrame sys={`KARADA // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} onBack={onBack} testID="phase-progress">
       <Heading en={`${DIRECTION_EN[dir]} · W${two(progress.week)}/${two(total)}`}
-        sub={`${formatMonthDay(phase.startDate)}〜${end ? formatMonthDay(end) : ''} ・ ${progress.week}／${total}週目`} title={phaseLabel(phase)} />
+        sub={`${formatMonthDay(phase.startDate)}〜${end ? formatMonthDay(end) : ''}`} title={phaseLabel(phase)} />
+
+      <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 10 }} testID="phase-now">
+        <PanelHead en="NOW // WHERE + PACE" title="いまどこ"
+          rightNode={<Tag testID="phase-pace-status">{pace.status ? PACE_LABELS[pace.status] : '判定なし'}</Tag>} />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}
+          accessible accessibilityLabel={`${total}週のうち${progress.week}週目。${expired ? '期間は終わりました' : `残り${remaining ?? 0}日`}`}>
+          <T>
+            <Mono size={30} color={hud.white}>{`W${two(progress.week)}`}</Mono>
+            <Mono size={13} color={hud.muted}>{` / ${two(total)}`}</Mono>
+          </T>
+          <T style={{ textAlign: 'right' }} testID="phase-remaining">
+            <Mono size={11} color={hud.muted}>{expired ? 'COMPLETE ' : 'LEFT '}</Mono>
+            <Mono size={20} color={hud.white}>{expired ? '0' : String(remaining ?? '—')}</Mono>
+            <Mono size={11} color={hud.muted}>{' 日'}</Mono>
+          </T>
+        </View>
+        <TickBar ticks={progress.ticks} testID="phase-ticks"
+          accessibilityLabel={`進み具合。16の目盛りのうち${progress.ticks?.done ?? 0}つが過ぎた（1つは${tickSpan(total)}）`} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Micro>{`START ${phase.startDate.slice(5).replace('-', '/')}`}</Micro>
+          <Micro>{`1 TICK = ${tickSpan(total)}`}</Micro>
+          <Micro>{`END ${end ? end.slice(5).replace('-', '/') : '—'}`}</Micro>
+        </View>
+        <T size={14} color={hud.insight} style={{ lineHeight: 22 }} testID="phase-pace-reason">
+          {paceSentence(pace, recoveryUntil(phase, phases, today), kg, formatMonthDay)}
+        </T>
+        <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
+          <Micro>{`3W ${perWeek(recentSlopePerWeek(chart))}`}</Micro>
+          <Micro>{`PLAN ${perWeek(planSlopePerWeek(chart))}`}</Micro>
+        </View>
+      </Panel>
 
       {expired && (
         <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-expired">
           <PanelHead en="PHASE // COMPLETE" title="期間が終わりました" right={`${formatMonthDay(end!)}まで`} />
-          <T size={13} color={hud.note} style={{ lineHeight: 20 }}>終えて振り返るか、続けるなら延長します。</T>
+          <T size={13} color={hud.note} style={{ lineHeight: 20 }}>終えて振り返るか、続けるなら期間を延ばします。</T>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <HudButton label="終えて振り返る" busy={busy} onPress={() => act(() => repos.phases.end(phase.id), `/phase/review/${phase.id}`)} style={{ flex: 1 }} testID="phase-expired-review" />
-            <HudButton variant="outline" label="延長する" onPress={() => setDialog('extend')} style={{ flex: 1 }} />
+            <HudButton variant="outline" label="期間を延ばす" onPress={() => setDialog('change')} style={{ flex: 1 }} />
           </View>
         </Panel>
       )}
@@ -212,8 +254,7 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
           <PanelHead en="PACE // 2 WEEKS OFF" title={STREAK_TITLES[streak]} />
           {projection != null && <T size={12.5} color={hud.muted}>{`このままだと ${total}週目の見込みは ${kg(projection)} です。どれかを選べます。`}</T>}
           <ActionRow title="食事の目標を見直す" sub={mealSummary(phase.mealTargets)} onPress={() => setDialog('meals')} />
-          <ActionRow title="延長する" sub={end ? `今の終わりは ${formatMonthDay(end)}` : undefined} onPress={() => setDialog('extend')} />
-          <ActionRow title="目標を変える" sub={phase.targetWeightKg == null ? undefined : `今の目標 ${kg(phase.targetWeightKg)}`} onPress={() => setDialog('target')} />
+          <ActionRow title="計画を変える" sub={`目標体重・期間を今日から変える（今は ${phase.targetWeightKg == null ? '—' : kg(phase.targetWeightKg)}・${total}週）`} onPress={() => setDialog('change')} />
           <ActionRow title="このまま続ける" onPress={() => setDismissed({ ...dismissed, streak: true })} last testID="phase-streak-keep" />
         </Panel>
       )}
@@ -231,7 +272,7 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
           <MidRow label="見込み" value={projection == null ? '出せません（体重の週が足りない）' : `${total}週目に ${kg(projection)}`} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <HudButton label="このまま続ける" onPress={() => setDismissed({ ...dismissed, mid: true })} style={{ flex: 1 }} testID="phase-mid-keep" />
-            <HudButton variant="outline" label="目標や期間を直す" onPress={() => setDialog('target')} style={{ flex: 1 }} />
+            <HudButton variant="outline" label="計画を変える" onPress={() => setDialog('change')} style={{ flex: 1 }} />
           </View>
         </Panel>
       )}
@@ -246,18 +287,6 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
           )} />
         <WeightChart chart={chart} unit={unit}
           accessibilityLabel={`体重の週平均のグラフ。${chart.points.length}週分の点。目標 ${phase.targetWeightKg == null ? 'なし' : kg(phase.targetWeightKg)}`} />
-      </Panel>
-
-      <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-pace">
-        <PanelHead en="PACE" title="ペース" rightNode={<Mono size={11} color={hud.muted}>{`W${two(progress.week)}`}</Mono>} />
-        <View style={{ flexDirection: 'row' }}><Tag testID="phase-pace-status">{pace.status ? PACE_LABELS[pace.status] : '判定なし'}</Tag></View>
-        <T size={14} color={hud.insight} style={{ lineHeight: 22 }} testID="phase-pace-reason">
-          {paceSentence(pace, recoveryUntil(phase, phases, today), kg, formatMonthDay)}
-        </T>
-        <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
-          <Micro>{`3W ${perWeek(recentSlopePerWeek(chart))}`}</Micro>
-          <Micro>{`PLAN ${perWeek(planSlopePerWeek(chart))}`}</Micro>
-        </View>
       </Panel>
 
       <Panel style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 4 }} testID="phase-success">
@@ -286,25 +315,34 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
         })}
       </Panel>
 
-      <Section en="NEXT" title="このあと">
-        {mid != null && progress.week < mid && (
-          <ActionRow title="中間の見直し" sub={`${mid}週目（${formatMonthDay(midDate(phase, phases, today, mid))}〜）に、ここに出ます`} right={`あと${mid - progress.week}週`} />
-        )}
+      <Section en="PLAN" title="計画">
+        <View testID="phase-plan">
+          <StatusRow en="START" ja="開始日" value={formatJpDate(phase.startDate)} wide />
+          <StatusRow en="PERIOD" ja="期間" value={`${total}週・〜${end ? formatMonthDay(end) : '—'}`} wide />
+          <StatusRow en="GOAL" ja="目標体重" value={phase.targetWeightKg == null ? '—' : kg(phase.targetWeightKg)} wide />
+          {changes > 0 && <StatusRow en="CHANGES" ja="計画を変えた回数" value={`${changes}回`} wide />}
+          {mid != null && progress.week < mid && (
+            <StatusRow en="MID" ja="中間の見直し" value={`${mid}週目（${formatMonthDay(midDate(phase, phases, today, mid))}〜）`} wide />
+          )}
+        </View>
+        <ActionRow title="計画を変える（今日から）" sub="目標体重を変える・期間を延ばす・縮める。今日から予定の線を引き直し、前の線は薄く残る"
+          onPress={() => setDialog('change')} testID="phase-plan-change" />
+        <ActionRow title="開始日・最初の計画を直す" sub="入れ間違い・始め忘れ。最初からこの計画だったことにして、開始日から線を引き直す"
+          onPress={() => setDialog('correct')} testID="phase-plan-correct" />
         <ActionRow title="食事の目標" sub={mealSummary(phase.mealTargets)} onPress={() => setDialog('meals')} last testID="phase-meals" />
       </Section>
 
       <Section en="ACTIONS" title="操作">
-        <ActionRow title="延長する" sub={`終わりを後ろにずらす（今は ${end ? formatMonthDay(end) : '—'}）`} onPress={() => setDialog('extend')} testID="phase-extend" />
-        <ActionRow title="目標を変える" sub="変えた日から予定の線を引き直す。前の線は薄く残る" onPress={() => setDialog('target')} testID="phase-target-change" />
         <ActionRow title="療養に入る" sub="ケガや体調不良で。時計を止める" onPress={() => setDialog('rehab')} testID="phase-rehab-start" />
         <ActionRow title={expired ? '終えて振り返る' : '早めに終える'} sub="今日で終え、振り返りの画面へ" onPress={() => setDialog('end')} testID="phase-end" />
         <ActionRow title="中断する" sub="振り返らずに様子見に戻す" onPress={() => setDialog('abort')} danger last testID="phase-abort" />
       </Section>
 
-      <ExtendSheet visible={dialog === 'extend'} onClose={() => setDialog(null)} phase={phase} progress={progress} busy={busy} error={opError}
-        onExtend={(w) => act(() => repos.phases.extend(phase.id, w))} />
-      <TargetSheet visible={dialog === 'target'} onClose={() => setDialog(null)} phase={phase} progress={progress} unit={unit} weekAvg={weekAvg} busy={busy} error={opError}
-        onSave={(t) => act(() => repos.phases.changeTarget(phase.id, t, weekAvg))} />
+      <PlanSheet visible={dialog === 'change' || dialog === 'correct'} mode={dialog === 'correct' ? 'correct' : 'change'}
+        onMode={(m) => setDialog(m)} onClose={() => setDialog(null)}
+        phase={phase} phases={phases} today={today} unit={unit} weekAvg={weekAvg} growth={growth} busy={busy} error={opError}
+        onChange={(input) => act(() => repos.phases.changePlan(phase.id, input))}
+        onCorrect={(input) => act(() => repos.phases.correct(phase.id, input))} />
       <MealSheet visible={dialog === 'meals'} onClose={() => setDialog(null)} targets={phase.mealTargets} weightKg={measures.weightKg} busy={busy} error={opError}
         onSave={(t) => act(() => repos.phases.setMealTargets(phase.id, t))} />
       <RehabStartSheet visible={dialog === 'rehab'} onClose={() => setDialog(null)} title="療養に入る" paused={{ label: phaseLabel(phase), week: progress.week }}
@@ -318,6 +356,14 @@ function NormalPhase({ phase, phases, weights, measures, now, unit, today, dialo
         onCancel={() => setDialog(null)} onConfirm={() => act(() => repos.phases.abort(phase.id), true)} />
     </PhaseFrame>
   );
+}
+
+/** 目盛り 1 つの長さ（16 週なら「1W」、8 週なら「3.5D」、24 週なら「1.5W」） */
+function tickSpan(weeks: number): string {
+  const days = (weeks * 7) / PHASE_TICKS;
+  if (Number.isInteger(days / 7)) return `${days / 7}W`;
+  if (days > 7) return `${trimNumber(Math.round((days / 7) * 10) / 10)}W`;
+  return `${trimNumber(Math.round(days * 10) / 10)}D`;
 }
 
 function metricTitle(key: string): string {
@@ -359,49 +405,104 @@ function MidRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const EXTEND_OPTIONS = [2, 4, 8];
+type PlanMode = 'change' | 'correct';
 
-function ExtendSheet({ visible, onClose, phase, progress, busy, error, onExtend }: {
-  visible: boolean; onClose: () => void; phase: Phase; progress: PhaseProgress; busy: boolean; error: string | null; onExtend: (weeks: number) => void;
+/**
+ * 計画の編集のシート。上で「今日から計画を変える」（変更）と「開始日・最初の計画を直す」（訂正）を選ぶ。予定の線の扱いが違う：
+ * - 変更：目標体重と期間（全体の週数。延ばす・縮める）。今日から線を引き直し、前の線は薄く残る
+ * - 訂正：開始日・期間・目標体重。最初からこの計画だったことにして、開始日から 1 本の線に引き直す。開始日を変えたら開始時の記録も
+ *   新しい開始日までの記録から出し直す（今の snapshotOf と同じ出し方）
+ * 範囲は lib/phaseEdit.ts（開始日は今日まで・前のフェーズと重ねない、終わりは今日より前にしない、期間は 1〜104 週）。開くたびに今の計画から始める
+ */
+function PlanSheet({ visible, mode, onMode, onClose, phase, phases, today, unit, weekAvg, growth, busy, error, onChange, onCorrect }: {
+  visible: boolean; mode: PlanMode; onMode: (m: PlanMode) => void; onClose: () => void; phase: Phase; phases: Phase[]; today: DateKey; unit: WeightUnit;
+  weekAvg: number | null; growth: GrowthData; busy: boolean; error: string | null;
+  onChange: (input: ChangeInput) => void; onCorrect: (input: CorrectInput) => void;
 }) {
-  const [weeks, setWeeks] = useState(4);
-  const total = progress.weeksTotal ?? 0;
-  const ok = total + weeks <= PHASE_LIMITS.weeks;
+  const weeksNow = phase.endDate ? Math.ceil((daysBetween(phase.startDate, phase.endDate) + 1) / 7) : 1;
+  const targetText = phase.targetWeightKg == null ? '' : trimNumber(Math.round(kgToUnit(phase.targetWeightKg, unit) * 10) / 10);
+  const range = editRange(phase, phases, today);
+  // 期間が終わったあとに開いたときは、今日までを収める週数から（今の週数のままでは保存できないため）
+  const weeksInitial = Math.max(weeksNow, range.minWeeks);
+  const [start, setStart] = useState(phase.startDate);
+  const [weeks, setWeeks] = useState(String(weeksInitial));
+  const [target, setTarget] = useState(targetText);
+  // 開くたび・訂正と変更を切り替えるたびに、今の計画から始める（前に開いたときの入力や、保存した前の値を残さない）
+  useEffect(() => {
+    if (!visible) return;
+    setStart(phase.startDate); setWeeks(String(weeksInitial)); setTarget(targetText);
+  }, [visible, mode, phase.startDate, weeksInitial, targetText]);
+
+  const correct = mode === 'correct';
+  const startDate = correct ? start : phase.startDate;
+  const minWeeks = correct ? range.minWeeksFrom(startDate) : range.minWeeks;
+  const n = parseNumber(target);
+  // 目標の欄を触っていなければ、今の目標をそのまま使う（表示の丸めや lb への換算で、期間だけの変更が目標の変更にならないように）
+  const targetKg = target === targetText ? phase.targetWeightKg : n == null ? null : Math.round(unitToKg(n, unit) * 100) / 100;
+  const w = Number(weeks);
+  const weeksNum = weeks.trim() !== '' && Number.isInteger(w) ? w : null;
+  const moved = startDate !== phase.startDate;
+  const snapshot = useMemo(() => (moved ? snapshotOf(measuresFrom(growth, startDate)) : phase.snapshot), [moved, growth, startDate, phase.snapshot]);
+  const changed = moved || weeksNum !== weeksNow || (targetKg != null && Math.abs(targetKg - (phase.targetWeightKg ?? 0)) >= 0.005);
+
+  let problem: string | null = null;
+  if (targetKg == null) problem = '目標体重を入れてください';
+  else if (weeksNum == null) problem = '期間を週の数で入れてください';
+  else if (correct) problem = correctError(phase, phases, today, { startDate, weeks: weeksNum, targetWeightKg: targetKg, snapshot });
+  else problem = changeError(phase, phases, today, { weeks: weeksNum, targetWeightKg: targetKg, weekAvgKg: weekAvg });
+
+  const endNow = effectiveEndFor(phase, phases, today, phase.startDate, weeksNow);
+  const endNext = weeksNum != null && weeksNum >= 1 && weeksNum <= PHASE_LIMITS.weeks ? effectiveEndFor(phase, phases, today, startDate, weeksNum) : null;
+  const fmtW = (kg: number) => `${fmt1(kgToUnit(kg, unit))} ${unit}`;
+  const changes = planChanges(phase);
+  const lineFrom = correct
+    ? (snapshot?.weight_kg == null ? null : snapshot.weight_kg)
+    : (targetKg != null && phase.targetWeightKg != null && Math.abs(targetKg - phase.targetWeightKg) >= 0.005 ? weekAvg : null);
+  const save = () => {
+    if (problem || targetKg == null || weeksNum == null) return;
+    if (correct) onCorrect({ startDate, weeks: weeksNum, targetWeightKg: targetKg, snapshot });
+    else onChange({ weeks: weeksNum, targetWeightKg: targetKg, weekAvgKg: weekAvg });
+  };
+
   return (
     <Sheet visible={visible} onClose={onClose}>
-      <SheetBody title="延長する" error={error ?? (ok ? null : `期間は${PHASE_LIMITS.weeks}週までです`)}>
-        <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 6 }}>
-          {EXTEND_OPTIONS.map((n) => <HudChip key={n} label={`+${n}週`} selected={weeks === n} onPress={() => setWeeks(n)} accessibilityLabel={`${n}週 延長`} />)}
-        </View>
-        <T size={13} color={hud.note}>
-          {`${phaseLabel(phase)}：${total}週 → ${total + weeks}週。終わり ${progress.effectiveEnd ? formatMonthDay(progress.effectiveEnd) : '—'} → ${progress.effectiveEnd ? formatMonthDay(addDays(progress.effectiveEnd, weeks * 7)) : '—'}。予定の線は今日から引き直します。`}
-        </T>
-        <HudButton label="延長する" busy={busy} disabled={!ok} onPress={() => onExtend(weeks)} testID="phase-extend-save" />
-      </SheetBody>
-    </Sheet>
-  );
-}
-
-function TargetSheet({ visible, onClose, phase, progress, unit, weekAvg, busy, error, onSave }: {
-  visible: boolean; onClose: () => void; phase: Phase; progress: PhaseProgress; unit: WeightUnit; weekAvg: number | null; busy: boolean;
-  error: string | null; onSave: (kg: number) => void;
-}) {
-  const initial = phase.targetWeightKg == null ? '' : trimNumber(Math.round(kgToUnit(phase.targetWeightKg, unit) * 10) / 10);
-  const [text, setText] = useState(initial);
-  const n = parseNumber(text);
-  const targetKg = n == null ? null : Math.round(unitToKg(n, unit) * 100) / 100;
-  const weeksLeft = progress.remainingDays == null ? null : Math.max(1, progress.remainingDays / 7);
-  const per = targetKg != null && weekAvg != null && weeksLeft != null ? (targetKg - weekAvg) / weeksLeft : null;
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <SheetBody title="目標を変える" error={error}>
-        <NumberField label="目標体重" unit={unit} value={text} onChange={setText} testID="phase-target-input" />
-        <T size={13} color={hud.note} style={{ lineHeight: 20 }}>
-          {`今日から、${weekAvg == null ? '前の予定の線の今日の値' : `今の週平均 ${fmt1(kgToUnit(weekAvg, unit))} ${unit}`}から新しい目標へ線を引き直します。前の線は薄く残ります。` +
-            (per == null ? '' : `予定のペースは 週 ${signed(kgToUnit(per, unit), 2)} ${unit}。`)}
-        </T>
-        <HudButton label="目標を変える" busy={busy} disabled={targetKg == null} onPress={() => targetKg != null && onSave(targetKg)} testID="phase-target-save" />
-      </SheetBody>
+      <ScrollView keyboardShouldPersistTaps="handled" style={{ backgroundColor: hud.panel }} testID="phase-plan-sheet">
+        <SheetBody title="計画を編集" error={error}>
+          <ModeTabs<PlanMode> value={mode} onChange={onMode} options={[
+            { key: 'change', title: '今日から計画を変える', sub: '途中で目標や期間を変える' },
+            { key: 'correct', title: '開始日・最初の計画を直す', sub: '入れ間違い・始め忘れ' },
+          ]} />
+          <T size={12.5} color={hud.note} style={{ lineHeight: 19 }}>
+            {correct
+              ? '最初からこの計画だったことにして、開始日から予定の線を 1 本に引き直します。開始日を変えると、開始時の記録（体重・体脂肪率・BIG3）もその日までの記録から出し直します。'
+              : '今日から新しい予定の線を引きます。今日までの線は薄く残ります。期間は開始日からの全体の週数です（延ばす・縮める）。'}
+          </T>
+          {correct && (
+            <DateField label="開始日（今日まで。前のフェーズと重ねない）" value={start} onChange={setStart} min={range.minStart} max={today} testID="phase-edit-start" />
+          )}
+          <WeeksStepper value={weeks} onChange={setWeeks} min={minWeeks} max={PHASE_LIMITS.weeks} testID="phase-edit-weeks" />
+          <NumberField label="目標体重" unit={unit} value={target} onChange={setTarget} testID="phase-edit-target" />
+          <Panel bg={hud.panel2} border={hud.line2} cut={6} style={{ paddingHorizontal: 12, paddingVertical: 2 }} testID="phase-edit-preview">
+            {correct && moved && <StatusRow en="START" ja="開始日" value={`${formatShortDate(phase.startDate)} → ${formatShortDate(startDate)}`} wide />}
+            <StatusRow en="END" ja="終わり" value={endNext == null ? '—' : endNext === endNow ? formatMonthDay(endNow) : `${formatShortDate(endNow)} → ${formatShortDate(endNext)}`} wide />
+            {correct && moved && (
+              <StatusRow en="BASELINE" ja="開始時の体重" value={snapshot?.weight_kg == null ? 'なし（線は引けません）' : `${fmtW(snapshot.weight_kg)}`} wide />
+            )}
+            <StatusRow en="LINE" ja="予定の線" last wide value={
+              correct
+                ? `${formatShortDate(startDate)}から${lineFrom == null ? '' : ` ${fmtW(lineFrom)} →`} ${targetKg == null ? '—' : fmtW(targetKg)}`
+                : `今日から${lineFrom == null ? '' : ` ${fmtW(lineFrom)} →`} ${targetKg == null ? '—' : fmtW(targetKg)}`} />
+          </Panel>
+          {correct && changes > 0 && (
+            <T size={12} color={hud.label} style={{ lineHeight: 18 }} testID="phase-edit-warning">
+              {`今までに計画を変えた ${changes} 回分の線は消え、最初からこの計画だったことになります。`}
+            </T>
+          )}
+          {problem && changed && <T size={12.5} color={colors.danger} accessibilityRole="alert" testID="phase-edit-problem">{problem}</T>}
+          <HudButton label={correct ? 'この内容に直す' : '今日から変える'} busy={busy} disabled={!changed || problem != null} onPress={save} testID="phase-edit-save" />
+          <TextButton label="やめる" onPress={onClose} />
+        </SheetBody>
+      </ScrollView>
     </Sheet>
   );
 }

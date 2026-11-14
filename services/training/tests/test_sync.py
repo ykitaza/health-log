@@ -292,6 +292,16 @@ def test_フェーズ_アプリから受け付ける範囲():
     assert isinstance(parse({"kind": "rehab", "start_date": "2026-11-20", "status": "active"}), Change)  # 要るのは3つだけ
     assert isinstance(parse({"status": "ended", "ended_on": "2026-12-01"}, "update"), Change)
     assert isinstance(parse({"target_weight_kg": 78.5, "end_date": "2027-03-01"}, "update"), Change)
+    # アプリの「開始日・最初の計画を直す」：開始日・終了日・目標・履歴（開始日からの1本）・開始時の記録を1つの update で送る
+    corrected = {"start_date": "2026-10-26", "end_date": "2027-01-17", "target_weight_kg": 79,
+                 "target_history": [{"date": "2026-10-26", "target_weight_kg": 79, "end_date": "2027-01-17", "weight_kg": 71.8}],
+                 "snapshot": {"weight_kg": 71.8, "body_fat_pct": None, "big3": None, "growth_score": 40}}
+    assert isinstance(parse(corrected, "update"), Change)
+    # 「今日から計画を変える」で期間を縮める（組で送る開始日と開始時の記録は変わらない値のまま入る）
+    assert isinstance(parse({"start_date": "2026-11-02", "end_date": "2026-12-27", "target_weight_kg": 80, "snapshot": PHASE["snapshot"],
+                             "target_history": [*PHASE["target_history"], {"date": "2026-11-08", "target_weight_kg": 80,
+                                                                           "end_date": "2026-12-27", "weight_kg": None}]}, "update"), Change)
+    assert isinstance(parse({**corrected, "end_date": "2026-10-25"}, "update"), Rejection)  # 終了日が開始日より前
     assert isinstance(parse({**PHASE, "name": "あ" * 40, "meal_targets": None, "snapshot": None}), Change)
     for bad in ({"kind": "bulk"}, {"direction": "up"}, {"status": "paused"}, {"name": "あ" * 41},
                 {"direction": None}, {"end_date": None}, {"target_weight_kg": None}, {"target_weight_kg": 20},

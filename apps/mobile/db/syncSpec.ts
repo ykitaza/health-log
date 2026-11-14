@@ -228,7 +228,7 @@ export const INJURY_ENTITIES: EntitySpec[] = [
  * 止めた通常のフェーズ（paused_phase_id）は、外部キーにも refs にもしない（同じ表を指すので、届く順で当てはめを止めないため。
  * 読む側が、ない ID を無視する）。状態と終えた日、目標と終了日と履歴は、片方だけ変えても組で update に入れる
  */
-export const PHASE_ENTITIES: EntitySpec[] = [
+export const PHASE_ENTITIES_V15: EntitySpec[] = [
   {
     type: 'phase', table: 'phases',
     columns: {
@@ -239,6 +239,15 @@ export const PHASE_ENTITIES: EntitySpec[] = [
     together: [['status', 'ended_on'], ['target_weight_kg', 'end_date', 'target_history']],
   },
 ];
+
+/**
+ * フェーズの今の形（版17）。開始日を直せるようにしたので、計画の組に開始日と開始時の記録を足した
+ * （開始日・終了日・目標・履歴・開始時の記録は、どれか1つが変わっても5つを組で update に入れる。項目ごとの後勝ちで、
+ * ほかの端末の古い計画と混ざらないように）
+ */
+export const PHASE_ENTITIES: EntitySpec[] = PHASE_ENTITIES_V15.map((s) => ({
+  ...s, together: [['status', 'ended_on'], ['start_date', 'end_date', 'target_weight_kg', 'target_history', 'snapshot']],
+}));
 
 export const ENTITIES: EntitySpec[] = [
   ...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES, ...INJURY_ENTITIES, ...PHASE_ENTITIES,

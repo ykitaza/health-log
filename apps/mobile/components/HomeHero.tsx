@@ -13,9 +13,10 @@ import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/l
 import { tonnes } from '@/lib/format';
 import {
   GrowthCorners, HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
-  phaseLine, PhaseRoute, RecoveryCorners, ringFooter, ringGap, ringSegment,
+  phaseLine, PhaseRoute, RecoveryCorners, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
+import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, PartRecovery, recoveryColor } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
@@ -53,6 +54,8 @@ export type HeroData = {
 const CORNER_H = 76;
 /** 外の輪の太さ、内の輪の太さ */
 const RING_W = 8;
+/** 外の輪の目盛りどうしの間（ラジアン） */
+const RING_GAP = 0.05;
 const INNER_W = 4;
 
 /** ヒーローの高さ：幅に合わせ、300〜380 */
@@ -172,14 +175,14 @@ const arcPath = (cx: number, cy: number, rr: number, a0: number, a1: number) => 
 };
 
 /**
- * 外の輪：フェーズの週の区切り（過ぎた週はミント、今の週は濃いミント、これからは灰色。療養で止めているあいだは過ぎた週も灰色）と目盛り。
- * フェーズがなければ灰色の枠だけ（16 の区切り）。inner（GROWTH）なら内の輪（主な指標の進み）と白い線（予定の位置）も描く
+ * 外の輪：フェーズの進み具合の 16 の目盛り（期間に比例して進む。8 週なら 1 週で 2 つ。過ぎた目盛りはミント、今の目盛りは濃いミント、
+ * これからは灰色。療養で止めているあいだは過ぎた目盛りも灰色）と、外側の細かい刻み。
+ * フェーズがなければ灰色の枠だけ。inner（GROWTH）なら内の輪（主な指標の進み）と白い線（予定の位置）も描く
  */
 function Ring({ width, height, r, ring, inner }: { width: number; height: number; r: number; ring: PhaseRing | null; inner: boolean }) {
   const cx = width / 2, cy = height / 2;
-  const weeks = ring?.weeks ?? 16;
-  const step = (2 * Math.PI) / weeks;
-  const gap = ringGap(weeks);
+  const step = (2 * Math.PI) / PHASE_TICKS;
+  const gap = RING_GAP;
   const color = (i: number) => {
     const k = ringSegment(ring, i);
     if (k === 'todo') return hudColors.ring;
@@ -192,7 +195,7 @@ function Ring({ width, height, r, ring, inner }: { width: number; height: number
   const at = (k: number) => top + k * 2 * Math.PI;
   return (
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none" testID="hero-ring">
-      {Array.from({ length: weeks }, (_, i) => (
+      {Array.from({ length: PHASE_TICKS }, (_, i) => (
         <Path key={i} d={arcPath(cx, cy, r - RING_W / 2, top + i * step + gap, top + (i + 1) * step - gap)} stroke={color(i)} strokeWidth={RING_W} fill="none" />
       ))}
       {Array.from({ length: 48 }, (_, i) => {

@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, REPORT_ENTITIES, REPORT_ENTITIES_V12, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, PHASE_ENTITIES_V15, REPORT_ENTITIES, REPORT_ENTITIES_V12, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V10, TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -465,7 +465,7 @@ CREATE TABLE phases (
 );
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
-      for (const spec of PHASE_ENTITIES) await db.execAsync(triggerSql(spec));
+      for (const spec of PHASE_ENTITIES_V15) await db.execAsync(triggerSql(spec));
     },
   },
   {
@@ -484,6 +484,15 @@ DELETE FROM sync_seen WHERE entity_type = 'report';
 DELETE FROM sync_held WHERE entity_type = 'report';
 `);
       for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // フェーズの開始日を直せるようにした。開始日・終了日・目標・履歴・開始時の記録を組で送るよう、フェーズのトリガーを作り直す。
+    // 列は変わらないので、受け取りの位置は消さない
+    version: 17,
+    up: async (db) => {
+      await db.execAsync('DROP TRIGGER sync_phases_insert; DROP TRIGGER sync_phases_update;');
+      for (const spec of PHASE_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];
