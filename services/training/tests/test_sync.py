@@ -9,7 +9,10 @@ from sync.engine import SyncEngine
 from sync.model import Change
 from sync.registry import Registry, Rejection
 from sync.store import InMemorySyncStore
-from training.domain.model import TraineeId
+from training.domain.errors import TrainingError
+from training.domain.injury import Injury
+from training.domain.model import TraineeId, WorkoutEntry, WorkoutSet
+from training.infrastructure.sync_repository import SyncTrainingRepository
 from training.main import create_queries, register_sync_entities
 
 REGISTRY = Registry()
@@ -332,3 +335,41 @@ def test_フェーズ_読む_療養は向きと目標を捨て_今のフェー�
     assert [pp.phase.id for pp in listed] == ["r1", "p1"]
     listed, _, _ = asyncio.run(queries.phase_progresses(USER, "2026-11-22", start="2026-10-31"))
     assert [pp.phase.id for pp in listed] == ["r1", "p1", "old"]
+
+
+# --- MCP から書く変更も、アプリから届く変更と同じ決まり（sync_entities.py）で確かめる ---
+
+
+def _bench_entry(*sets):
+    return WorkoutEntry("e9", "2026-11-08", "bench", 0, tuple(sets))
+
+
+def test_MCP_の書き込み_アプリの範囲の外のセットは断り_何も書かない(engine):
+    seed(engine)
+    head = engine.head(USER)
+    repo = SyncTrainingRepository(engine)
+    ok, too_far = WorkoutSet("s8", 0, 80.0, 5), WorkoutSet("s9", 1001, 80.0, 5)  # set_index は 1000 まで
+    with pytest.raises(TrainingError, match="記録できない値です.*set_index"):
+        asyncio.run(repo.save_entries(TraineeId(USER), [_bench_entry(ok, too_far)], [], []))
+    assert engine.head(USER) == head  # 合わない変更があれば、合う変更も書かない
+    with pytest.raises(TrainingError, match="weight_kg"):
+        asyncio.run(repo.save_entries(TraineeId(USER), [_bench_entry(WorkoutSet("s8", 0, 501.0, 5))], [], []))
+    assert engine.head(USER) == head
+
+
+def test_MCP_の書き込み_項目の組み合わせの決まりも確かめる(engine):
+    head = engine.head(USER)
+    repo = SyncTrainingRepository(engine)
+    sided_abs = Injury("i9", "2026-11-08", "abs", "left", None, "", "", "", "", "fixing", None)  # 腹筋に左右はない
+    with pytest.raises(TrainingError, match="記録できない値です.*side"):
+        asyncio.run(repo.save_injury(TraineeId(USER), sided_abs))
+    assert engine.head(USER) == head
+
+
+def test_MCP_の書き込み_合う変更は今までどおり書く_消すのは確かめない(engine):
+    seed(engine)
+    repo = SyncTrainingRepository(engine)
+    asyncio.run(repo.save_entries(TraineeId(USER), [_bench_entry(WorkoutSet("s8", 1000, 500.0, 10000))], [], []))
+    asyncio.run(repo.save_entries(TraineeId(USER), [], ["s8"], []))
+    states = {d.own.entity_id: d.own for d in engine.docs_of_type(USER, "workout_set")}
+    assert states["s8"].deleted and states["s8"].values["set_index"] == 1000

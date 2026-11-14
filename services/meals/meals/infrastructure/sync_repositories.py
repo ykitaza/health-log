@@ -175,10 +175,7 @@ class _SyncRepository:
         """アプリから届く変更と同じ決まりで確かめる。合わなければ何も書かずに断る（理由は Claude に見せる）。"""
         if change.op not in ("create", "update"):
             return
-        registry = self.engine.registry
-        result = registry.check_fields(change.entity_type, change.op, change.fields)
-        if not isinstance(result, Rejection):
-            result = registry.specs[change.entity_type].check(change.entity_id, result)
+        result = self.engine.registry.check_change(change.entity_type, change.entity_id, change.op, change.fields)
         if isinstance(result, Rejection):
             details = "、".join(f"{e['field']}：{e['message']}" for e in result.errors)
             raise MealError(f"記録できない値です（{details or result.message}）")

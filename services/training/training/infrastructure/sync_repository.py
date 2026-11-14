@@ -6,6 +6,7 @@
 初期の部位と種目（training.domain.catalog）は、同期にまだ届いていなくても、あるものとして読む（アプリと同じ ID）。
 書くときは今の状態と比べ、違う項目だけを update にする（新しいものは create）。アプリが同時に別の項目を変えていても、
 項目ごとに当てはめるので、両方が残る。
+書く前に、アプリから届く変更と同じ決まり（sync_entities.py）で確かめる（食事・レポートのリポジトリと同じ）。
 """
 
 from __future__ import annotations
@@ -18,8 +19,10 @@ import anyio
 
 from sync.engine import SyncEngine
 from sync.model import Change, EntityState
+from sync.registry import Rejection
 from training.domain import bodyweight
 from training.domain.catalog import SEED_BODY_PARTS, SEED_EXERCISES, Catalog
+from training.domain.errors import TrainingError
 from training.domain.injury import SITES, Injury, InjuryReview
 from training.domain.phase import Phase, TargetChange
 from training.domain.model import (
@@ -240,8 +243,19 @@ class SyncTrainingRepository:
         return {k: d.own for k, d in self.engine.docs(user, keys).items() if d.own is not None}
 
     def _write(self, user: str, changes: list[Change]) -> None:
+        for change in changes:
+            self._check(change)
         if changes:
             self.engine.append(user, changes)
+
+    def _check(self, change: Change) -> None:
+        """アプリから届く変更と同じ決まりで確かめる。合わなければ何も書かずに断る（理由は Claude に見せる）。"""
+        if change.op not in ("create", "update"):
+            return
+        result = self.engine.registry.check_change(change.entity_type, change.entity_id, change.op, change.fields)
+        if isinstance(result, Rejection):
+            details = "、".join(f"{e['field']}：{e['message']}" for e in result.errors)
+            raise TrainingError(f"記録できない値です（{details or result.message}）")
 
     def _save_entries(self, user: str, entries: list[WorkoutEntry], deleted_set_ids: list[str],
                       deleted_entries: list[WorkoutEntry]) -> None:
