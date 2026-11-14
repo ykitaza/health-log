@@ -30,8 +30,8 @@ export function partAnchor(part: string): Anchor | null {
   return { view: spec.view, muscle, point };
 }
 
-/** 札にする種目（no は種目のカードの番号。1 から） */
-export type CalloutInput = { key: string; no: number; part: string };
+/** 札にする種目（no は種目のカードの番号。1 から）。anchor を渡すと、部位の点（partAnchor）の代わりにその点に付ける */
+export type CalloutInput = { key: string; no: number; part: string; anchor?: Anchor | null };
 
 /** 置いた札。entry は種目の札（anchor が null なら線を引かない）、more は出せなかった種目をまとめた「+N」 */
 export type PlacedCallout =
@@ -61,7 +61,7 @@ export type CalloutOptions = {
  * 段の高さは、図の高さと札の数の多いほう
  */
 export function layoutCallouts(items: CalloutInput[], o: CalloutOptions): CalloutLayout {
-  const withAnchor = items.map((it) => ({ ...it, anchor: partAnchor(it.part) }));
+  const withAnchor = items.map((it) => ({ ...it, anchor: it.anchor !== undefined ? it.anchor : partAnchor(it.part) }));
   const sides = {
     left: withAnchor.filter((it) => it.anchor?.view !== 'back'),
     right: withAnchor.filter((it) => it.anchor?.view === 'back'),

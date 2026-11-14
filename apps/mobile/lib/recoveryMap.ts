@@ -3,7 +3,7 @@
 import type { Injury } from '@/db/repositories/injuries';
 import { colors } from '@/theme';
 import { addDays, DateKey, daysBetween } from './date';
-import { boxOf, partsFor, Vec3 } from './bodyModel';
+import { anchorFor, boxOf, facingOf, partsFor, Vec3 } from './bodyModel';
 import { isSiteCode, SiteCode } from './injuries';
 import type { Muscle } from './muscleFigure';
 import { BALANCE_DAYS } from './partBalance';
@@ -295,4 +295,22 @@ export function recoveryAnchor(part: string): { anchor: Vec3; facing: 'front' | 
   const lo = [0, 1, 2].map((i) => Math.min(...boxes.map((b) => b[0][i])));
   const hi = [0, 1, 2].map((i) => Math.max(...boxes.map((b) => b[1][i])));
   return { anchor: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, a.facing === 'front' ? hi[2] : lo[2]], facing: a.facing };
+}
+
+/** 部位の札に載せるケガ（部位にかかわるケガのうち、直している途中のものを先に。なければ先頭）。ケガがなければ null */
+export function leadInjury(hurt: Injury[]): Injury | null {
+  return hurt.find((i) => i.status === 'fixing') ?? hurt[0] ?? null;
+}
+
+/**
+ * 部位の札の付け根と向き。ケガが載る部位（hurt はその部位にかかわるケガ。injuriesForPart）は、載せるケガ（leadInjury）の印の位置：
+ * 赤く光る部品の囲みのまん中、関節は関節の点（lib/bodyModel.ts の anchorFor と facingOf。3D の印・にじみと同じ決め方）。
+ * 部位の代表点（recoveryAnchor）のままだと、背中の札が腰のケガでなく背中のまん中に付いてずれる（2026-11-14 #205）。
+ * ケガのない部位は recoveryAnchor のまま。知らない部位は null
+ */
+export function recoveryCalloutAnchor(part: string, hurt: Injury[]): { anchor: Vec3; facing: 'front' | 'back' } | null {
+  const base = recoveryAnchor(part);
+  const lead = leadInjury(hurt);
+  const at = base && lead ? anchorFor(lead.site, lead.side) : null;
+  return at && lead ? { anchor: at, facing: facingOf(lead.site, lead.side) } : base;
 }
