@@ -39,20 +39,8 @@ from training.domain.model import (
     WorkoutEntry,
     WorkoutSet,
 )
+from training.infrastructure.sync_entities import REQUIRED
 
-REQUIRED = {
-    "body_part": {"name", "sort_order", "hidden"},
-    "exercise": {"body_part_id", "name", "record_type", "sort_order", "hidden"},
-    "workout_entry": {"date", "exercise_id", "sort_order"},
-    "workout_set": {"entry_id", "set_index", "reps"},
-    "body_record": {"date", "measured_at", "source"},
-    "sleep_session": {"date", "start_at", "end_at", "asleep_min", "awake_min", "source"},
-    "heart_rate_day": {"date", "samples"},
-    "step_day": {"date", "steps"},
-    "injury": {"occurred_on", "site", "status"},
-    "injury_review": {"injury_id", "date", "result"},
-    "phase": {"kind", "start_date", "status"},
-}
 _MISSING = object()
 
 
@@ -78,7 +66,7 @@ class SyncTrainingRepository:
 
     def _alive(self, user: str, entity_type: str) -> list[EntityState]:
         states = [d.own for d in self.engine.docs_of_type(user, entity_type) if d.own is not None]
-        return [s for s in states if not s.deleted and REQUIRED[entity_type] <= s.values.keys()]
+        return [s for s in states if not s.deleted and set(REQUIRED[entity_type]) <= s.values.keys()]
 
     async def _run(self, fn, *args):
         return await anyio.to_thread.run_sync(partial(fn, *args))
@@ -101,7 +89,7 @@ class SyncTrainingRepository:
             merged[entity_id] = {**merged.get(entity_id, {}), **state.values}
             if state.deleted:
                 merged.pop(entity_id)
-        return [(i, v) for i, v in merged.items() if REQUIRED[entity_type] <= v.keys()]
+        return [(i, v) for i, v in merged.items() if set(REQUIRED[entity_type]) <= v.keys()]
 
     def _catalog(self, user: str) -> Catalog:
         parts = [BodyPart(i, v["name"], v["sort_order"], v["hidden"])
@@ -151,7 +139,7 @@ class SyncTrainingRepository:
             if exercise is None or "body_part_id" not in exercise:
                 continue  # 種目がまだ届いていない（アプリの JOIN でも出ない）
             ratio = bodyweight.ratio_of(_exercise(entry.exercise_id, exercise)) \
-                if REQUIRED["exercise"] <= exercise.keys() else None
+                if set(REQUIRED["exercise"]) <= exercise.keys() else None
             rows += [SetRow(entry.date, entry.exercise_id, exercise["body_part_id"], s.weight_kg, s.reps, ratio)
                      for s in entry.sets]
         return rows
