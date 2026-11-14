@@ -15,7 +15,13 @@ export function tonnes(volumeKg: number, unit: WeightUnit = 'kg'): string {
   return (kgToUnit(volumeKg, unit) / 1000).toFixed(2);
 }
 
-/** 増減を符号つきの小数1桁で（+1.6、−0.8。マイナスは全角の「−」） */
+/** 小数1桁で表示したときに 0.0 になる値か（-0 や -0.04 も含む）。「±0」の判定と、色・矢印を「変わらず」にする判定に使う */
+export function isFlat(n: number): boolean {
+  return Math.round(Math.abs(n) * 10) === 0;
+}
+
+/** 増減を符号つきの小数1桁で（+1.6、−0.8、±0。マイナスは全角の「−」。小数1桁で 0 になる値は ±0） */
 export function formatSigned(n: number): string {
-  return `${n >= 0 ? '+' : '−'}${fmt1(Math.abs(n))}`;
+  if (isFlat(n)) return '±0';
+  return `${n > 0 ? '+' : '−'}${fmt1(Math.abs(n))}`;
 }

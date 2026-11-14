@@ -249,7 +249,7 @@ describe('体組成の目標体重と体重の推移（body.spec.ts から）', 
     expect(o.recent.map((p) => p.date)).toEqual(['2026-10-25', TODAY]);
     expect(formatSigned(o.monthChange!)).toBe('−1.6');
     expect(weightOverview([day(0, 68.4)], null, TODAY).monthChange).toBeNull();
-    expect(formatSigned(0)).toBe('+0.0');
+    expect(formatSigned(0)).toBe('±0');
   });
 });
 

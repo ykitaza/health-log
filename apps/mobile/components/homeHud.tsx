@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polyline, Text as SvgText, TSpan } from 'react-native-svg';
 import { DateKey, formatJpDate, WEEKDAY_EN, weekday } from '@/lib/date';
 import { BIG3_LABELS } from '@/lib/exercises';
-import { tonnes, formatSigned } from '@/lib/format';
+import { tonnes, formatSigned, isFlat } from '@/lib/format';
 import { formatHM } from '@/lib/health';
 import {
   Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, logWeekRange, PartState, PartsRadar, SleepGauge,
@@ -76,7 +76,7 @@ function Big({ value, format, unit, testID }: { value: number | null; format: (v
   );
 }
 
-const trendColor = (n: number) => (n > 0 ? colors.accent : n < 0 ? colors.danger : colors.sub);
+const trendColor = (n: number) => (isFlat(n) ? colors.sub : n > 0 ? colors.accent : colors.danger);
 const big3Short = { bench: 'B', squat: 'S', deadlift: 'D' } as const;
 
 /** 行き先の画面（筋トレの推移・睡眠の推移・食事のタブ）にも同じ計器を置く。そのときは link を false にして押せなくし、testID をほかにする（ほかのタブも DOM に残るため） */
