@@ -39,7 +39,7 @@ test('360 の幅：背中・脚・胸の日のあと、今日が空なら回復�
   await expect(visible(page.getByTestId('no-workout'))).toContainText('まだ記録がありません');
   const hero = visible(page.getByTestId('recovery-hero'));
   // 胸・肩（11-06、回復 2日）は回復中、脚（11-04、3日）と背中（11-02）は回復済み → いちばん前の背中
-  await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、胸 あと1日、肩 あと1日');
+  await expect(hero).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復中の部位、胸 あと1日、肩 あと1日');
   const suggest = visible(page.getByTestId('recovery-hero-suggest'));
   const text = suggest.getByLabel('今日は 背中 はどう？ 6日前、回復済み', { exact: true });
   await expect(text).toHaveText('今日は背中はどう？6日前・回復済み');
@@ -95,7 +95,7 @@ test('背中・脚・胸以外の日（肩）：ホームのおすすめは出�
   // 筋トレの記録のタブ：肩は回復中（2日前、あと1日）で、ほかは一度もないので、すすめは出さない
   await goTab(page, '筋トレ');
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
-  await expect(visible(page.getByTestId('recovery-hero'))).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、赤はケガ。回復中の部位、肩 あと1日');
+  await expect(visible(page.getByTestId('recovery-hero'))).toHaveAttribute('aria-label', '回復マップ。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復中の部位、肩 あと1日');
   await expect(page.getByTestId('recovery-hero-suggest')).toHaveCount(0);
   await button(page, '前の日').click();
   await button(page, '前の日').click();

@@ -118,6 +118,7 @@ describe('3D の体の場面', () => {
       marks: [...marks, mark('b', 'biceps', 'left', false)], reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {},
       levels: { pec_r: 1, pec_l: 1, quad_l: 0.5, nope: 1 }, quietMarks: true,
       baseColor: '#0000FF', levelColor: (k) => (k >= 1 ? '#FF8000' : '#FFFF00'), injuryColor: '#FF0000',
+      idle: ['calf_r', 'pec_l'], idleColor: '#808080',
     });
     scene.select(['biceps_r', 'biceps_l', 'skin']);
     scene.setModel(await loadBody());
@@ -130,6 +131,9 @@ describe('3D の体の場面', () => {
     expect(hexOf('quad_l')).toBe('ffff00');
     expect(u('quad_l').uBase.value).toBeCloseTo(0.34);
     expect(u('quad_l').uRim.value).toBeCloseTo(1.8);
+    // 空いている部品はふだんの強さのまま空いている色。回復の光があればそちらが先（左胸）
+    expect([hexOf('calf_r'), u('calf_r').uBase.value, u('calf_r').uRim.value]).toEqual(['808080', 0.13, 1.2]);
+    expect(hexOf('calf_l')).toBe('0000ff');
     // 直している途中の右胸はケガの赤で脈打つ。直せたケガ（左の二頭筋）は印を付けない
     expect([hexOf('pec_r'), u('pec_r').uBase.value, u('pec_r').uRim.value, u('pec_r').uPulse.value]).toEqual(['ff0000', 0.45, 1.9, 0.5]);
     // 走査の帯は控えめ（ケガの画面は 1）
@@ -159,6 +163,8 @@ describe('3D の体の場面', () => {
     // 明るさの表を外すと、ふだんの光に戻る
     scene.configure({ marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} });
     expect([u('pec_r').uBase.value, u('pec_r').uRim.value]).toEqual([0.13, 1.2]);
+    // 空いている部品も外すと緑に戻る（土台の色を渡さなければ緑）
+    expect(hexOf('calf_r')).toBe(hexOf('quad_r'));
   });
 
   test('透視の写し（#212）：光っている部品にだけ付き、部品の裏がカメラを向いたときだけ出る。光らなくなったら外す', async () => {

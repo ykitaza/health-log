@@ -6,9 +6,9 @@ import { ALL_PARTS, anchorFor, boxOf, jointAnchor, layoutCallouts, projectFront 
 import { muscleFigureFor } from '@/lib/muscleFigure';
 import { contrastRatio } from '@/lib/contrast';
 import {
-  DEFAULT_RECOVERY_DAYS, fixingOn, INJURY_RED, injuriesForPart, leadInjury, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
-  recoveryAnchor, recoveryCalloutAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryStatusText,
-  remainingDays, REST_FILL, REST_GREEN, suggestRecovered,
+  DEFAULT_RECOVERY_DAYS, fixingOn, IDLE_AFTER_DAYS, IDLE_FILL, IDLE_GRAY, idleMeshes, INJURY_RED, injuriesForPart, isIdle, leadInjury, LOAD_ORANGE, LOAD_YELLOW, muscleFills, partOfMesh, PartRecovery, partRecoveries,
+  recoveryAnchor, recoveryCalloutAnchor, recoveryColor, recoveryDaysFor, recoveryLevel, recoveryLevels, recoveryMeshesFor, recoveryMusclesFor, recoveryShortText,
+  recoveryStatusText, remainingDays, restColor, REST_FILL, REST_GREEN, suggestRecovered,
 } from '@/lib/recoveryMap';
 import { colors, toneColors } from '@/theme';
 import type { TrainingSetRow } from '@/lib/training';
@@ -76,9 +76,37 @@ describe('部位ごとの回復の日数と明るさ', () => {
   test('回復の残りと状態の文字：回復中は「回復中 あと N日」、R+1 日目から「回復済み」、一度もなければ「まだ」', () => {
     expect([0, 1, 2, 3].map((d) => remainingDays(d, 2))).toEqual([3, 2, 1, null]);
     expect(remainingDays(null, 2)).toBeNull();
-    expect(recoveryStatusText({ last: '2026-11-12', remaining: 1 })).toBe('回復中 あと1日');
-    expect(recoveryStatusText({ last: '2026-11-01', remaining: null })).toBe('回復済み');
-    expect(recoveryStatusText({ last: null, remaining: null })).toBe('まだ');
+    expect(recoveryStatusText({ last: '2026-11-12', days: 1, remaining: 1, idle: false })).toBe('回復中 あと1日');
+    expect(recoveryStatusText({ last: '2026-11-01', days: 3, remaining: null, idle: false })).toBe('回復済み');
+    expect(recoveryStatusText({ last: '2026-11-01', days: 12, remaining: null, idle: true })).toBe('空いて12日');
+    expect(recoveryStatusText({ last: null, days: null, remaining: null, idle: false })).toBe('まだ');
+    // 札の短い形
+    expect(recoveryShortText({ last: '2026-11-12', days: 1, remaining: 1, idle: false })).toBe('あと1日');
+    expect(recoveryShortText({ last: '2026-11-01', days: 3, remaining: null, idle: false })).toBe('回復済み');
+    expect(recoveryShortText({ last: '2026-11-01', days: 12, remaining: null, idle: true })).toBe('空いて12日');
+    expect(recoveryShortText({ last: null, days: null, remaining: null, idle: false })).toBe('まだ');
+  });
+
+  test('回復済みの期限：回復済みになった日（R+1 日目）を 0 日目として 7 日目（R+8 日目）までが回復済み、8 日目（R+9 日目）から空いている', () => {
+    expect(IDLE_AFTER_DAYS).toBe(7);
+    // 腹筋（R=1）は 2〜9 日目が回復済み、10 日目から。胸（R=2）は 3〜10、11 から。背中（R=3）は 4〜11、12 から
+    for (const [R, first] of [[1, 10], [2, 11], [3, 12]]) {
+      expect(isIdle(R + 1, R)).toBe(false);
+      expect(isIdle(first - 1, R)).toBe(false);
+      expect(isIdle(first, R)).toBe(true);
+      expect(remainingDays(first - 1, R)).toBeNull();
+    }
+    expect(isIdle(null, 2)).toBe(false);
+    expect(isIdle(0, 2)).toBe(false);
+    expect(isIdle(90, 2)).toBe(true);
+    // 部位ごと：胸は 10 日前まで回復済み、11 日前から空いている。一度もない肩は空いているでなく「まだ」
+    const at = (d: string) => partRecoveries([row(d, 'c')], name, ['胸', '肩'], '2026-11-13');
+    expect(at('2026-11-03')[0]).toMatchObject({ days: 10, remaining: null, idle: false, level: 0 });
+    const [chest, shoulder] = at('2026-11-02');
+    expect(chest).toMatchObject({ days: 11, remaining: null, idle: true, level: 0 });
+    expect(recoveryStatusText(chest)).toBe('空いて11日');
+    expect(shoulder).toMatchObject({ last: null, idle: false });
+    expect(recoveryStatusText(shoulder)).toBe('まだ');
   });
 
   test('部位ごとの最後の日・日数・回復・2週間のセット数。その日より後は見ない。主な部位でなくても1セットで数える', () => {
@@ -227,6 +255,13 @@ describe('ケガのある部位の札の付け根（#205）', () => {
 
 describe('すすめる部位（suggestRecovered）', () => {
   const none = () => false;
+  test('空いている部位もすすめる（いちばん長く空いている部位）', () => {
+    // 11-13 の時点：背中は 10-01（空いている）、脚は 11-09（回復済み）
+    const list = partRecoveries([row('2026-10-01', 'b'), row('2026-11-09', 'l')], name, ['背中', '脚'], '2026-11-13');
+    expect(list[0].idle).toBe(true);
+    expect(suggestRecovered(list, none)?.name).toBe('背中');
+  });
+
   test('回復済みのうち、最後に鍛えた日がいちばん古い部位。回復中・一度もない部位はすすめない', () => {
     // 11-13 の時点：胸は 11-12（回復中）、背中は 11-08（5日前・回復済み）、脚は 11-09（回復済み）、肩は一度もない
     const list = partRecoveries([row('2026-11-12', 'c'), row('2026-11-08', 'b'), row('2026-11-09', 'l')], name, ['胸', '背中', '脚', '肩'], '2026-11-13');
@@ -251,7 +286,7 @@ describe('すすめる部位（suggestRecovered）', () => {
   });
 });
 
-describe('回復マップの色（3つ：緑・暖色・赤）', () => {
+describe('回復マップの色（緑・暖色・赤の3つと、灰色）', () => {
   const hsl = (c: string) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
     const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
@@ -296,15 +331,40 @@ describe('回復マップの色（3つ：緑・暖色・赤）', () => {
     expect(recoveryMusclesFor('肩')).toEqual(['deltoid']);
     const fills = muscleFills(partRecoveries([row('2026-11-13', 'tri'), row('2026-11-13', 'l')], name, ['上腕三頭筋', '上腕二頭筋', '脚'], '2026-11-13'));
     expect([fills.triceps, fills.hamstrings, fills.calves]).toEqual([LOAD_ORANGE, LOAD_ORANGE, LOAD_ORANGE]);
-    expect(fills.biceps).toBe(REST_FILL);
+    // 二頭筋（まだ）は灰色
+    expect(fills.biceps).toBe(IDLE_FILL);
   });
 
-  test('2D の図：回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（2D の図の対応で）', () => {
-    const list = partRecoveries([row('2026-11-13', 'c'), row('2026-10-01', 'l')], name, ['胸', '脚', '背中'], '2026-11-13');
+  test('2D の図：回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの色、空いている・まだの筋肉は灰色（2D の図の対応で）', () => {
+    // 胸は今日（回復中）、脚は 11-09（回復済み）、肩は 10-01（空いている）、背中は一度もない
+    const list = partRecoveries([row('2026-11-13', 'c'), row('2026-11-09', 'l'), row('2026-10-01', 's')], name, ['胸', '脚', '肩', '背中'], '2026-11-13');
     const fills = muscleFills(list);
     expect(fills.pecs).toBe(LOAD_ORANGE);
     expect(fills.quads).toBe(REST_FILL);
-    expect(fills.lats).toBe(REST_FILL);
+    expect(fills.deltoid).toBe(IDLE_FILL);
+    expect(fills.lats).toBe(IDLE_FILL);
+    // どの部位にもない筋肉は今までどおり控えめな緑
+    expect(fills.biceps).toBe(REST_FILL);
     expect(REST_FILL).toBe(colors.accentMuted);
+    expect(IDLE_FILL).not.toBe(REST_FILL);
+  });
+
+  test('いくつかの部位にある筋肉・部品（前腕）：回復中 → 回復済み → 空いている・まだの順に先', () => {
+    // 二頭筋は 11-10（回復済み）、三頭筋は 10-01（空いている）
+    const list = partRecoveries([row('2026-11-10', 'bi'), row('2026-10-01', 'tri')], name, ['上腕二頭筋', '上腕三頭筋'], '2026-11-13');
+    const fills = muscleFills(list);
+    expect([fills.forearm, fills.biceps, fills.triceps]).toEqual([REST_FILL, REST_FILL, IDLE_FILL]);
+    // 3D：前腕は回復済みの二頭筋にもあるので灰色にしない
+    expect(idleMeshes(list).sort()).toEqual(['triceps_l', 'triceps_r']);
+    // 一度もない部位の部品も灰色
+    expect(idleMeshes(partRecoveries([row('2026-11-13', 'c')], name, ['胸', '腹筋'], '2026-11-13'))).toEqual(['abs', 'oblique_r', 'oblique_l']);
+  });
+
+  test('空いている・まだの色は色相のない灰色（色相は増やさない）。回復済みの緑と別', () => {
+    expect(hsl(IDLE_GRAY).s).toBeLessThan(0.15);
+    expect(hsl(IDLE_FILL).s).toBeLessThan(0.15);
+    expect(restColor({ last: '2026-11-10', idle: false })).toBe(REST_GREEN);
+    expect(restColor({ last: '2026-10-01', idle: true })).toBe(IDLE_GRAY);
+    expect(restColor({ last: null, idle: false })).toBe(IDLE_GRAY);
   });
 });

@@ -1,6 +1,6 @@
 // ホームのヒーローの RECOVERY・INJURY の体：web と 3D が描けないときは 2D の図（前と後ろ）。
-// RECOVERY は回復の色（回復済みは緑、回復中は暖色、ケガは赤。からだのタブの回復マップと同じ lib/recoveryMap.ts）。3D はその日の体（DayBody）の
-// recovery・injuries をそのまま使う（記録の画面の記録のない日と同じ光らせ方）。
+// RECOVERY は回復の色（回復済みは緑、回復中は暖色、空いている・まだは灰色、ケガは赤。からだのタブの回復マップと同じ lib/recoveryMap.ts）。3D はその日の体（DayBody）の
+// recovery・idle・injuries をそのまま使う（記録の画面の記録のない日と同じ光らせ方）。
 // INJURY は直している途中のケガの赤の印と札（INJ-01 ▲・部位・直し中。押すとそのケガ）。札と引き出し線は DayBody にないので、3D は HeroBody3D.native.tsx。
 // shield（体の列の外の横スワイプをページの切り替えに回す面）は、体と札のあいだに重ねる
 import { ReactNode } from 'react';
@@ -27,6 +27,8 @@ type Props = {
   list: PartRecovery[];
   /** 部品ごとの回復の明るさ（3D） */
   levels: Record<string, number>;
+  /** 空いている部品（3D の灰色） */
+  idle: string[];
   /** 直している途中のケガ */
   injuries: Injury[];
   numbers: Map<string, string>;
@@ -38,10 +40,10 @@ type Props = {
   onPressInjury: (id: string) => void;
 };
 
-export function HeroBody({ kind, width, height, band, list, levels, injuries, numbers, rotate, shield, onPressInjury }: Props) {
+export function HeroBody({ kind, width, height, band, list, levels, idle, injuries, numbers, rotate, shield, onPressInjury }: Props) {
   const fallback = <Figure2D kind={kind} width={width} band={band} list={list} injuries={injuries} numbers={numbers} shield={shield} onPressInjury={onPressInjury} />;
   if (kind === 'recovery') {
-    return <DayBody width={width} height={height} entries={NO_ENTRIES} parts={NO_PARTS} band={band} recovery={levels} injuries={injuries} fallback={fallback} shield={shield} />;
+    return <DayBody width={width} height={height} entries={NO_ENTRIES} parts={NO_PARTS} band={band} recovery={levels} idle={idle} injuries={injuries} fallback={fallback} shield={shield} />;
   }
   if (!HeroBody3D) return fallback;
   return <HeroBody3D width={width} height={height} band={band} injuries={injuries} numbers={numbers} rotate={rotate} fallback={fallback} shield={shield} onPressInjury={onPressInjury} />;

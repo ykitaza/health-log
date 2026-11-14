@@ -33,7 +33,7 @@ import {
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { injuryNumbers } from '@/lib/injuries';
 import { effectiveGoalWeight } from '@/lib/phases';
-import { fixingOn, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
+import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
 
@@ -126,7 +126,7 @@ export default function HomeScreen() {
       phase,
       ring: phaseRing(phase, weights, today),
       pages: heroPages(fixing.length > 0),
-      recovery: { list, levels: recoveryLevels(list), corners: recoveryCorners(list, todaySuggestion(data.partDays, today).suggest?.name ?? null, fixing.length) },
+      recovery: { list, levels: recoveryLevels(list), idle: idleMeshes(list), corners: recoveryCorners(list, todaySuggestion(data.partDays, today).suggest?.name ?? null, fixing.length) },
       injury: { fixing, numbers: injuryNumbers(data.injuries), corners: injuryCorners(fixing, rehab, today) },
       growth: growthCorners(phase, weekAverageKg(weights, today), effectiveGoalWeight(data.phases, data.settings.goalWeightKg ?? null, today).kg),
     };

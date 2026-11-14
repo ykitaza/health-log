@@ -1,7 +1,7 @@
 // からだのタブの「回復マップ」：筋トレの部位ごとの最後に鍛えた日と、部位ごとの回復の日数から、3D の体（assets/models/body.glb）の
 // 部品の光の強さと色を決める。three.js は読まない（テストで確かめられるように）
 import type { Injury } from '@/db/repositories/injuries';
-import { colors } from '@/theme';
+import { colors, figureColors } from '@/theme';
 import { addDays, DateKey, daysBetween } from './date';
 import { anchorFor, boxOf, facingOf, partsFor, Vec3 } from './bodyModel';
 import { isSiteCode, SiteCode } from './injuries';
@@ -26,6 +26,14 @@ export function recoveryDaysFor(part: string): number {
   return RECOVERY_DAYS_BY_PART[part.trim()] ?? DEFAULT_RECOVERY_DAYS;
 }
 
+/**
+ * 回復済みの期限（日）。回復済みになった日（R+1 日目）を 0 日目として、この日数を過ぎたら「空いている」（2026-11-15 ユーザーの要望：
+ * 3か月前に鍛えたきりの部位も回復済みと出て、しばらく鍛えていないことが分からない）。
+ * 回復の日数 R と同じ数え方で、回復済みになった日から 7 日目（鍛えた日から R+8 日目）までが回復済み、8 日目（R+9 日目）から空いている。
+ * 例：胸（R=2）は 3〜10 日目が回復済み、11 日目から空いている
+ */
+export const IDLE_AFTER_DAYS = 7;
+
 /** 部位の英字の名前（一覧と注釈の札。計器の読み出しのように Mono で出す） */
 const PART_EN: Record<string, string> = {
   胸: 'CHEST', 背中: 'BACK', 肩: 'SHOULDERS', 脚: 'LEGS', 上腕二頭筋: 'BICEPS', 上腕三頭筋: 'TRICEPS', 腕: 'ARMS', 腹筋: 'ABS', 腹: 'ABS',
@@ -33,18 +41,26 @@ const PART_EN: Record<string, string> = {
 export const partEnglish = (part: string) => PART_EN[part.trim()] ?? 'PART';
 
 // ---- 回復マップの色（ケガの画面の BODY MAP は変えない）----
-// 3色だけにする（2026-11-13 ユーザーの要望：緑・青・橙・赤の4色はちらついて見える）。
-// 回復済み・まだ（明るさ 0）はアプリのアクセントの緑（ケガの画面のふだんと同じ）、回復中は明るさが高いほど暖色（黄 → 橙）、ケガは赤。
+// 色相は3つだけにする（2026-11-13 ユーザーの要望：緑・青・橙・赤の4色はちらついて見える）。
+// 回復済み（明るさ 0）はアプリのアクセントの緑（ケガの画面のふだんと同じ）、回復中は明るさが高いほど暖色（黄 → 橙）、ケガは赤。
+// 空いている・まだ（一度も鍛えていない）は、色相のない控えめな灰色（2026-11-15。色相は増やさない）。
 // 色は HSL の色相を回して混ぜる（RGB でまっすぐ混ぜると、緑と黄・黄と橙の間がくすむ）。回復中の明るさは最小でも 0.25（背中の最後の日）
 // なので、0.25 を黄、0.75 からを橙にし、鍛えた日と次の日が橙、最後の日が黄に寄るようにする
 
-/** 回復済み・まだ（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
+/** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
 export const REST_GREEN = colors.accent;
 /**
- * 回復済み・まだ（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
+ * 回復済み（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
  * （3D の緑は弱い縁の光なので、見た目の強さがそろう）
  */
 export const REST_FILL = colors.accentMuted;
+/**
+ * 空いている・まだ（3D の部品の光、凡例、一覧の印）。入力欄の枠と同じ灰色。
+ * まだ（一度も鍛えていない）も、いちばん長く空いている部位として同じ灰色にする（緑だと回復済みと見分けられない）。見分けは文字（「まだ」と「空いて N日」）
+ */
+export const IDLE_GRAY = colors.outline;
+/** 空いている・まだ（2D の図の塗り）。色を付けない筋肉と同じ灰色 */
+export const IDLE_FILL = figureColors.muscle;
 /** 回復中（鍛えた日・次の日） */
 export const LOAD_ORANGE = '#FF8A3D';
 /** 回復中（最後の日のあたり） */
@@ -132,11 +148,30 @@ export function remainingDays(days: number | null, recoveryDays: number): number
   return left > 0 ? left : null;
 }
 
-/** 状態の文字：「回復中 あと1日」「回復済み」「まだ」（一度も鍛えていない） */
-export function recoveryStatusText(p: Pick<PartRecovery, 'last' | 'remaining'>): string {
-  if (p.last == null) return 'まだ';
-  return p.remaining != null ? `回復中 あと${p.remaining}日` : '回復済み';
+/**
+ * 空いているか：回復済みになった日（R+1 日目）から IDLE_AFTER_DAYS 日を過ぎた（鍛えた日から R+9 日目から）。
+ * 一度も鍛えていない（まだ）・回復中・回復済みは false
+ */
+export function isIdle(days: number | null, recoveryDays: number): boolean {
+  return days != null && days - (recoveryDays + 1) > IDLE_AFTER_DAYS;
 }
+
+type StatusOf = Pick<PartRecovery, 'last' | 'days' | 'remaining' | 'idle'>;
+
+/** 状態の文字：「回復中 あと1日」「回復済み」「空いて10日」（最後に鍛えてからの日数）「まだ」（一度も鍛えていない） */
+export function recoveryStatusText(p: StatusOf): string {
+  if (p.last == null) return 'まだ';
+  if (p.remaining != null) return `回復中 あと${p.remaining}日`;
+  return p.idle ? `空いて${p.days}日` : '回復済み';
+}
+
+/** 札の短い状態の文字：「あと1日」「回復済み」「空いて10日」「まだ」 */
+export function recoveryShortText(p: StatusOf): string {
+  return p.last != null && p.remaining != null ? `あと${p.remaining}日` : recoveryStatusText(p);
+}
+
+/** 回復中でない部位の色：回復済みは緑、空いている・まだは灰色 */
+export const restColor = (p: Pick<PartRecovery, 'last' | 'idle'>) => (p.last != null && !p.idle ? REST_GREEN : IDLE_GRAY);
 
 export type PartRecovery = {
   /** 部位の名前 */
@@ -151,6 +186,8 @@ export type PartRecovery = {
   recoveryDays: number;
   /** 回復済みになるまでの日数（回復中だけ） */
   remaining: number | null;
+  /** 空いている（回復済みの期限を過ぎた。isIdle） */
+  idle: boolean;
   /** 光の明るさ（0〜1。回復中だけ 0 より大きい） */
   level: number;
   /** 光らせる部品 */
@@ -179,7 +216,7 @@ export function partRecoveries(rows: TrainingSetRow[], partName: (bodyPartId: st
     const l = last.get(name) ?? null;
     const days = l == null ? null : daysBetween(l, date);
     const r = recoveryDaysFor(name);
-    return [{ name, last: l, days, sets: sets.get(name) ?? 0, recoveryDays: r, remaining: remainingDays(days, r), level: recoveryLevel(days, r), meshes }];
+    return [{ name, last: l, days, sets: sets.get(name) ?? 0, recoveryDays: r, remaining: remainingDays(days, r), idle: isIdle(days, r), level: recoveryLevel(days, r), meshes }];
   });
 }
 
@@ -188,6 +225,14 @@ export function recoveryLevels(list: PartRecovery[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of list) for (const m of p.meshes) out[m] = Math.max(out[m] ?? 0, p.level);
   return out;
+}
+
+/**
+ * 空いている・まだの部位だけにある部品（3D で灰色にする）。いくつかの部位にある部品（前腕）は、回復中・回復済みの部位にもあれば外す
+ */
+export function idleMeshes(list: PartRecovery[]): string[] {
+  const fresh = new Set(list.filter((p) => p.last != null && !p.idle).flatMap((p) => p.meshes));
+  return [...new Set(list.filter((p) => p.last == null || p.idle).flatMap((p) => p.meshes))].filter((m) => !fresh.has(m));
 }
 
 /** GLB の部品の名前の頭 → 2D の図の筋肉（三角筋の前・中・後ろは、図では1つの三角筋） */
@@ -204,12 +249,21 @@ export function recoveryMusclesFor(part: string): Muscle[] {
 
 /**
  * 2D の図の筋肉ごとの塗り（記録の画面のヒーロー、からだのタブの web と 3D を描けないとき）。部位の筋肉は 3D の部品と同じ範囲（recoveryMusclesFor）。
- * 回復済み・まだの筋肉は控えめな緑、回復中の筋肉は明るさの色（いくつかの部位にある筋肉は明るいほう）
+ * 回復済みの筋肉は控えめな緑、回復中の筋肉は明るさの色、空いている・まだの筋肉は灰色。いくつかの部位にある筋肉は、回復中（明るいほう）→ 回復済み
+ * → 空いている・まだの順に先。どの部位にもない筋肉は控えめな緑（今までどおり）
  */
 export function muscleFills(list: PartRecovery[]): Record<Muscle, string> {
   const level: Partial<Record<Muscle, number>> = {};
-  for (const p of list) for (const m of recoveryMusclesFor(p.name)) level[m] = Math.max(level[m] ?? 0, p.level);
-  return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, (level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : REST_FILL])) as Record<Muscle, string>;
+  const fresh = new Set<Muscle>();
+  const idle = new Set<Muscle>();
+  for (const p of list) {
+    for (const m of recoveryMusclesFor(p.name)) {
+      level[m] = Math.max(level[m] ?? 0, p.level);
+      (p.last != null && !p.idle ? fresh : idle).add(m);
+    }
+  }
+  const fill = (m: Muscle) => ((level[m] ?? 0) > 0 ? recoveryColor(level[m]!) : idle.has(m) && !fresh.has(m) ? IDLE_FILL : REST_FILL);
+  return Object.fromEntries(MUSCLE_NAMES.map((m) => [m, fill(m)])) as Record<Muscle, string>;
 }
 
 const MUSCLE_NAMES: Muscle[] = [
@@ -259,7 +313,7 @@ export function injuriesForPart(p: PartRecovery, injuries: Injury[]): Injury[] {
 }
 
 /**
- * 今日すすめる部位：回復済み（回復の日数を過ぎた）で、最後に鍛えた日がいちばん古い部位。同じなら並びの先。
+ * 今日すすめる部位：回復済み・空いている（回復の日数を過ぎた）で、最後に鍛えた日がいちばん古い部位。同じなら並びの先。
  * 一度も鍛えていない部位と、直している途中のケガがある部位はすすめない。なければ null
  */
 export function suggestRecovered(list: PartRecovery[], hurt: (p: PartRecovery) => boolean): PartRecovery | null {

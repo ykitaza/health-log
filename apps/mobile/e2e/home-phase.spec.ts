@@ -100,12 +100,12 @@ test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。�
   await expect(visible(page, 'hero-page-injury')).toHaveCount(0);
   await expect(visible(page, 'hero-pages')).toContainText('01/03 LATEST');
 
-  // 左へスワイプで RECOVERY（記録がないので回復済み 0／全体、回復中なし）
+  // 左へスワイプで RECOVERY（記録がないので鍛えられる 全体／全体、回復中なし）
   await swipe(visible(page, 'hero-swipe'), 'next');
   await expect(visible(page, 'hero-page-recovery')).toHaveAttribute('aria-selected', 'true');
   await expect(visible(page, 'hero-pages')).toContainText('02/03 RECOVERY');
   await expect(page.getByTestId('home-latest')).toHaveCount(0);
-  await expect(visible(page, 'hero-recovery')).toHaveAccessibleName(/^回復。回復済み \d+部位（\d+部位のうち）。回復中の部位はありません。回復マップを開く$/);
+  await expect(visible(page, 'hero-recovery')).toHaveAccessibleName(/^回復。鍛えられる \d+部位（\d+部位のうち）。回復中の部位はありません。回復マップを開く$/);
   await expect(visible(page, 'hero-recovery-2d')).toBeVisible();
   // 縦に大きく動かしたときはページを変えない
   await swipe(visible(page, 'hero-swipe'), 'next', 200);
