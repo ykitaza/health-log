@@ -1,6 +1,7 @@
 // フェーズの設定（app/phase/new.tsx）と進捗の詳細（app/phase/index.tsx）の計算。画面から切り離し、jest で確かめる。
 // フェーズの決まり（何週目・ペース・止まった日・予定の線・成功の指標）は lib/phases.ts のまま使い、ここで数え方を作り直さない
 import { addDays, DateKey, daysBetween } from './date';
+import type { Big3Role } from './exercises';
 import { average } from './health';
 import { big3Gauge } from './homeHud';
 import type { GrowthData } from './growthData';
@@ -11,6 +12,7 @@ import {
   Phase, PhaseDirection, phaseDay, PhaseMealTargets, phasePace, PhaseSnapshot, planPolylines, Span,
   SuccessMetric, SuccessNow, Weight,
 } from './phases';
+import { estimated1RM, TrainingSetRow } from './training';
 import { parseNumber } from './units';
 
 // ---- 今の記録（開始時の記録と、成功の指標の「今」） ----
@@ -46,6 +48,56 @@ export function measuresFrom(g: GrowthData, today: DateKey): PhaseMeasures {
     weightKg: weight.v, weightBasis: weight.basis, bodyFatPct: fat.v, big3,
     growthScore: recorded ? growthScore(g.days, today, g.weeklyTrainingGoal).total : null,
   };
+}
+
+/** 終わりの時点の BIG3 を見る日数（最後の日を含めて 28 日。サーバーの training.domain.measures の BIG3_END_DAYS と同じ） */
+export const BIG3_END_DAYS = 28;
+
+/**
+ * 役ごとの、since〜day（両端を含む。since が null なら day まで全部）の最高の推定1RM（0.1kg に丸める。.5 は上げる）。
+ * 範囲に記録がない役は null、どの役にもなければ null。サーバーの measures.big3_best と同じ（testdata/training/measures.json）
+ */
+export function big3Best(
+  rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, day: DateKey, since: DateKey | null = null,
+): PhaseSnapshot['big3'] {
+  const roles = ['bench', 'squat', 'deadlift'] as const;
+  const out = { bench: null, squat: null, deadlift: null } as { bench: number | null; squat: number | null; deadlift: number | null };
+  for (const role of roles) {
+    const id = assignments[role];
+    if (!id) continue;
+    let best = 0;
+    for (const r of rows) {
+      if (r.exerciseId !== id || r.date > day || (since != null && r.date < since)) continue;
+      best = Math.max(best, estimated1RM(r.weightKg, r.reps));
+    }
+    out[role] = best > 0 ? Math.round(best * 10) / 10 : null;
+  }
+  return roles.some((r) => out[r] != null) ? out : null;
+}
+
+/** 終わりの時点の BIG3 を見る最初の日：最後の日から 28 日（最後の日を含む）。フェーズの開始日より前にはしない（サーバーの big3_end_since と同じ） */
+export function big3EndSince(startDate: DateKey, last: DateKey): DateKey {
+  const from = addDays(last, -(BIG3_END_DAYS - 1));
+  return from < startDate ? startDate : from;
+}
+
+/**
+ * 終わりの時点の記録（振り返りの after と、進捗の詳細の成功の指標の「今」）。体重・体脂肪率・成長スコアは開始時と同じ出し方（last までの 7 日）。
+ * BIG3 はフェーズの最後の 28 日の最高の推定1RM（開始時の「その日までの最高」と同じにすると、減量で下がっても前の最高が残り「BIG3 を保つ」から外れないため）。
+ * 28 日に記録がない役は null（比べない）。止まっていた日（療養）も日数に数える
+ */
+export function endMeasuresFrom(g: GrowthData, startDate: DateKey, last: DateKey): PhaseMeasures {
+  return { ...measuresFrom(g, last), big3: big3Best(g.sets, g.big3, last, big3EndSince(startDate, last)) };
+}
+
+/**
+ * フェーズが続いた最後の日（振り返りの after を出す日）。終えたものは終えた日の前の日、実施中なら asOf（実際の終わりを過ぎても実施中なら asOf）。
+ * asOf より後・開始日より前にはしない（サーバーの phase_reviews の last＝max(開始日, min(end_of, as_of)) と同じ）
+ */
+export function phaseLastDay(p: Phase, asOf: DateKey): DateKey {
+  const end = p.status !== 'active' ? (p.endedOn ? addDays(p.endedOn, -1) : p.startDate) : asOf;
+  const last = end < asOf ? end : asOf;
+  return last < p.startDate ? p.startDate : last;
 }
 
 /** 開始時の記録にする（範囲の確かめは db/repositories/phases.ts の cleanSnapshot） */

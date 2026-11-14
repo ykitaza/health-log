@@ -5,6 +5,7 @@ import * as path from 'path';
 import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, weeklyPace } from '../body';
 import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bodyweight';
 import { big3Assignments, Big3Role } from '../exercises';
+import { big3Best, big3EndSince } from '../phaseView';
 import type { RecordType } from '../sets';
 import {
   bestSet, estimated1RM, exerciseDailySeries, personalBests, rmTable, setVolume, topSet,
@@ -160,5 +161,14 @@ describe('big3.json：BIG3 の役と種目の対応（割り当てがなけれ�
     expect(big3Assignments(exercises.map((e) => ({
       id: e.id, name: e.name, hidden: e.hidden ?? false, recordType: e.record_type ?? 'weight_reps', big3: e.big3 ?? null,
     })))).toEqual(expected);
+  });
+});
+
+describe('measures.json（振り返りの BIG3）', () => {
+  const data = load('measures.json');
+  const rows: TrainingSetRow[] = data.rows.map(toRow);
+  test.each(data.cases as { name: string; start_date: string | null; day: string; expected: unknown }[])('$name', (c) => {
+    const since = c.start_date == null ? null : big3EndSince(c.start_date, c.day);
+    expect(big3Best(rows, data.assignments, c.day, since)).toEqual(c.expected);
   });
 });

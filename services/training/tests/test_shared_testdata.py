@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from training.application.queries import phase_progress
-from training.domain import big3, body, bodyweight, phase
+from training.domain import big3, body, bodyweight, measures, phase
 from training.domain import calculations as c
 from training.domain.model import BodyRecord, Exercise, RecordType, SetRow
 
@@ -125,3 +125,11 @@ def test_フェーズの計算(group):
     for c in group["current"]:
         current, paused = phase.current(phases, c["as_of"])
         assert (current and current.id, paused and paused.id) == (c["current"], c["paused"]), c["as_of"]
+
+
+@pytest.mark.parametrize("case", load("measures.json")["cases"], ids=lambda c: c["name"])
+def test_振り返りの_BIG3(case):
+    data = load("measures.json")
+    rows = [SetRow(**r) for r in data["rows"]]
+    since = None if case["start_date"] is None else measures.big3_end_since(case["start_date"], case["day"])
+    assert measures.big3_best(rows, data["assignments"], case["day"], since) == case["expected"]

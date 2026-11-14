@@ -1,12 +1,13 @@
 // フェーズの設定（app/phase/new.tsx）と進捗の詳細（app/phase/index.tsx）の見た目の部品。
 // 構成は Figma「スタディ：フェーズ」のセクション 2・3、見た目はレポート詳細（components/report/hud.tsx）の文法：
 // 近黒の地とパネル、1px の枠、角の切り欠き、等幅の英字のラベル、色はミント 1 色とモノクロ（中断だけ赤）
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleProp, useWindowDimensions, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PHASE_LIMITS } from '@/lib/phases';
 import { colors } from '@/theme';
 import { Input } from '../Input';
-import { PressableScale } from '../motion';
+import { PressableScale, Sheet } from '../motion';
 import { hud, HudFonts, Micro, Mono, NotchChip, Panel, useMono } from '../report/hud';
 import { T } from '../Text';
 import { IconButton } from '../ui';
@@ -188,5 +189,63 @@ export function Tag({ children, testID }: { children: string; testID?: string })
     <View testID={testID} style={{ borderWidth: 1, borderColor: hud.green, paddingHorizontal: 8, paddingVertical: 2 }}>
       <T bold size={12} color={hud.green}>{children}</T>
     </View>
+  );
+}
+
+/** シートの中身（hud の色で）。題・中身・断られたときの理由 */
+export function SheetBody({ title, error, children }: { title: string; error: string | null; children: ReactNode }) {
+  return (
+    <HudFonts>
+      <View style={{ backgroundColor: hud.panel, padding: 16, gap: 12, borderTopWidth: 1, borderColor: hud.line }}>
+        <T bold size={16} color={hud.ink} accessibilityRole="header">{title}</T>
+        {children}
+        {error && <T size={13} color={colors.danger} accessibilityRole="alert">{error}</T>}
+      </View>
+    </HudFonts>
+  );
+}
+
+/** 左に緑の小さな見出し、右に文（確かめのシートの「止まる」「出さない」など） */
+export function NoteRow({ label, children }: { label: string; children: string }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 12 }}>
+      <T bold size={12.5} color={hud.green} style={{ width: 64 }}>{label}</T>
+      <T size={13} color={hud.ink} style={{ flex: 1, lineHeight: 20 }}>{children}</T>
+    </View>
+  );
+}
+
+/**
+ * 療養に入るときの確かめ（Figma「スタディ：フェーズ」の療養 2）。進捗の詳細の「療養に入る」と、ケガの詳細の「このケガで療養に入る」が使う。
+ * 止まるもの（フェーズと終わりの日）・出さないもの（ペースの判定）・見るものを出し、名前（なくてもよい）を入れて始める。食事や治療の助言は書かない
+ */
+export function RehabStartSheet({ visible, onClose, title, paused, defaultName = '', busy, error, onStart }: {
+  visible: boolean; onClose: () => void; title: string;
+  /** 止めるフェーズ（なければ null）：名前と今の週 */
+  paused: { label: string; week: number } | null;
+  defaultName?: string; busy: boolean; error: string | null; onStart: (name: string) => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  useEffect(() => { if (visible) setName(defaultName); }, [visible, defaultName]);
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <SheetBody title={title} error={error}>
+        <View style={{ gap: 10 }} testID="rehab-start-notes">
+          <NoteRow label="止まる">
+            {paused
+              ? `${paused.label}（${paused.week}週目）。時計を止め、療養の日数だけ終わりの日を後ろにずらします。`
+              : '実施中のフェーズはないので、止めるものはありません。療養の日数を数えます。'}
+          </NoteRow>
+          <NoteRow label="出さない">療養中と、戻ってから2週間は、体重のペースを判定しません。ホームの輪の週も進めません。</NoteRow>
+          <NoteRow label="見るもの">睡眠・食事・ケガの振り返り</NoteRow>
+        </View>
+        <T size={11.5} color={hud.muted} style={{ lineHeight: 17 }}>
+          終えるのは自分で決めます。直している途中のケガがすべて「直せた」になったら、終えるかを聞きます。
+        </T>
+        <TextField label="名前（なくてもよい。例：風邪）" value={name} onChange={setName} maxLength={PHASE_LIMITS.name} testID="phase-rehab-name" />
+        <HudButton label="療養に入る" busy={busy} onPress={() => onStart(name)} testID="phase-rehab-save" />
+        <TextButton label="やめる" onPress={onClose} />
+      </SheetBody>
+    </Sheet>
   );
 }

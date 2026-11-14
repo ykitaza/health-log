@@ -1,0 +1,40 @@
+{
+  "description": "フェーズの振り返りの BIG3（推定1RM の役ごとの最高。0.1kg に丸める）。開始時の記録（snapshot）はその日までの全部から（start_date が null）、終わりの時点の値はフェーズの最後の28日（最後の日を含めて28日。フェーズの開始日より前は含めない）から。範囲に記録がない役は null、どの役にもなければ全体が null。アプリ（lib/phaseView.ts の big3Best・big3EndSince）とサーバー（training.domain.measures の big3_best・big3_end_since）で確かめる",
+  "assignments": { "bench": "bench", "squat": "squat" },
+  "rows": [
+    { "date": "2026-08-01", "exercise_id": "squat", "body_part_id": "legs", "weight_kg": 150, "reps": 1 },
+    { "date": "2026-09-01", "exercise_id": "bench", "body_part_id": "chest", "weight_kg": 100, "reps": 5 },
+    { "date": "2026-09-10", "exercise_id": "bench", "body_part_id": "chest", "weight_kg": 100, "reps": 1 },
+    { "date": "2026-10-01", "exercise_id": "squat", "body_part_id": "legs", "weight_kg": 120, "reps": 5 },
+    { "date": "2026-10-20", "exercise_id": "bench", "body_part_id": "chest", "weight_kg": 90, "reps": 3 },
+    { "date": "2026-10-25", "exercise_id": "other", "body_part_id": "chest", "weight_kg": 200, "reps": 1 },
+    { "date": "2026-11-05", "exercise_id": "bench", "body_part_id": "chest", "weight_kg": 140, "reps": 1 }
+  ],
+  "cases": [
+    {
+      "name": "開始時の記録：その日までの全部の最高（11/5 はあとの日なので入れない）",
+      "start_date": null, "day": "2026-10-31",
+      "expected": { "bench": 116.7, "squat": 150.0, "deadlift": null }
+    },
+    {
+      "name": "減量の終わり：最後の28日（10/4〜10/31）。前の最高（116.7・150）が残らず、下がったのが分かる。スクワットは28日に記録がないので null",
+      "start_date": "2026-09-01", "day": "2026-10-31",
+      "expected": { "bench": 99.0, "squat": null, "deadlift": null }
+    },
+    {
+      "name": "28日の始めの日（10/1）は含める",
+      "start_date": "2026-09-01", "day": "2026-10-28",
+      "expected": { "bench": 99.0, "squat": 140.0, "deadlift": null }
+    },
+    {
+      "name": "フェーズが28日より短いときは、開始日（9/25）より前を含めない",
+      "start_date": "2026-09-25", "day": "2026-10-10",
+      "expected": { "bench": null, "squat": 140.0, "deadlift": null }
+    },
+    {
+      "name": "範囲にどの役の記録もなければ null（ほかの種目は数えない）",
+      "start_date": "2026-10-21", "day": "2026-10-31",
+      "expected": null
+    }
+  ]
+}

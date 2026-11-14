@@ -1,6 +1,6 @@
 """ある日の時点の記録（フェーズの振り返りの終わりの値）。アプリの lib/phaseView.ts の measuresFrom と同じ決まり。"""
 
-from training.domain.measures import Measure, big3_best, week_or_latest
+from training.domain.measures import Measure, big3_best, big3_end_since, week_or_latest
 from training.domain.model import SetRow
 
 
@@ -20,3 +20,15 @@ def test_BIG3_はその日までの最高の推定1RM_どの役にも記録が�
     assert big3_best(rows, roles, "2026-09-30") == {"bench": 116.7, "squat": None, "deadlift": None}
     assert big3_best(rows, roles, "2026-08-31") is None
     assert big3_best(rows, {}, "2026-09-30") is None
+
+
+def test_終わりの_BIG3_は最後の28日だけ_開始日より前は含めない():
+    rows = [SetRow("2026-09-01", "bench", "chest", 100, 5), SetRow("2026-10-20", "bench", "chest", 90, 3)]
+    roles = {"bench": "bench"}
+    # 減量で 116.7 → 99.0 に下がったのが、終わりの値に出る（その日までの最高だと 116.7 のまま）
+    assert big3_best(rows, roles, "2026-10-31", big3_end_since("2026-09-01", "2026-10-31")) == {
+        "bench": 99.0, "squat": None, "deadlift": None}
+    assert big3_best(rows, roles, "2026-10-31") == {"bench": 116.7, "squat": None, "deadlift": None}
+    assert big3_end_since("2026-09-01", "2026-10-31") == "2026-10-04"  # 最後の日を含めて28日
+    assert big3_end_since("2026-10-15", "2026-10-31") == "2026-10-15"  # フェーズが短ければ開始日から
+    assert big3_best(rows, roles, "2026-10-19", big3_end_since("2026-10-01", "2026-10-19")) is None  # 28日に記録がない

@@ -19,6 +19,7 @@ import { REST_TIMER_OPTIONS, WEEKLY_MEAL_OPTIONS, WEEKLY_SLEEP_OPTIONS, WEEKLY_T
 import { WEEKLY_GOALS_SECTION } from '@/lib/home';
 import { HeroPhase, heroPhase } from '@/lib/homeHero';
 import { phaseLabel } from '@/lib/phases';
+import { endedPhases } from '@/lib/phaseReview';
 import { accountTitle } from '@/lib/profile';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, space } from '@/theme';
@@ -27,12 +28,13 @@ export default function SettingsScreen() {
   const { data: settings, error, reload, repos } = useFocusData((r) => r.settings.get());
   const { status: authStatus } = useAuth();
   const today = useToday();
-  // フェーズの行（いちばん上）：今のフェーズ・療養と、様子見のときの目標体重
-  const { data: phaseNow } = useFocusData(async (r) => {
+  // フェーズの行（いちばん上）：今のフェーズ・療養と、様子見のときの目標体重。終えたフェーズがあれば「これまでのフェーズ」
+  const { data: phaseData } = useFocusData(async (r) => {
     const [phases, daily] = await Promise.all([r.phases.list(), r.body.listDaily()]);
     const weights = daily.flatMap((d) => (d.weightKg != null ? [{ date: d.date, kg: d.weightKg }] : []));
-    return heroPhase(phases, weights, today);
+    return { hero: heroPhase(phases, weights, today), ended: endedPhases(phases).length };
   }, today);
+  const phaseNow = phaseData?.hero;
   const profile = useProfile();
   const [exportError, setExportError] = useState<string | null>(null);
   // レポートの今週の目標（週のまとめの「目標を変える」、レポートのタブの今週の目標）から開いたとき（section=weekly-goals）は、今週の目標の欄までスクロールする（開いたときの1回だけ）
@@ -79,6 +81,9 @@ export default function SettingsScreen() {
           onPress={() => router.push(phaseNow == null || phaseNow.kind === 'none' ? '/phase/new' : '/phase')}
           testID="settings-phase"
         />
+        {phaseData != null && phaseData.ended > 0 && (
+          <ListRow title="これまでのフェーズ" subtitle={`終えたフェーズ ${phaseData.ended}件の振り返り`} onPress={() => router.push('/phase/history')} testID="settings-phase-history" />
+        )}
       </Card>
 
       <SectionTitle title="アカウント" />

@@ -337,7 +337,8 @@ def test_フェーズの振り返りの材料が_list_phases_に入り_振り返
                                                       "weight_kg": kg, "body_fat_pct": fat, "source": "manual"})
 
     async def body(client):
-        for day, kg in [("2026-09-20", 100), ("2026-10-10", 120)]:  # 2回目はフェーズのあと（入れない）
+        # 1回目はフェーズの最後の28日（8/29〜9/25）より前（終わりの値に入れない）、3回目はフェーズのあと（入れない）
+        for day, kg in [("2026-08-05", 130), ("2026-09-20", 100), ("2026-10-10", 120)]:
             data(await client.call_tool("record_workout", {"day": day, "exercises": [
                 {"exercise": "ベンチプレス", "sets": [{"weight_kg": kg, "reps": 1}]}]}))
         listed = data(await client.call_tool("list_phases", {}))

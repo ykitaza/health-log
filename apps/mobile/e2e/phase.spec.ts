@@ -116,7 +116,7 @@ test('始める → ホームの 1 行 → 詳細 → 延長 → 目標を変え
   });
 });
 
-test('療養に入る → ホームは REHAB → 療養を終えて再開する。早めに終えるとホームへ', async ({ page }) => {
+test('療養に入る → ホームは REHAB → 療養を終えて再開する。早めに終えると振り返りへ', async ({ page }) => {
   await openApp(page);
   await weighToday(page, '76');
   await startBulk(page);
@@ -139,7 +139,10 @@ test('療養に入る → ホームは REHAB → 療養を終えて再開する�
 
   await visible(page, 'phase-end').click();
   await button(page, '終える').click();
-  await expect(phaseLine(page)).toHaveText('NO PHASE · + START');
+  // 振り返りの画面へ（くわしくは phase-review.spec.ts）。戻るとホームの 1 行はその振り返りへの入口
+  await expect(page.getByRole('heading', { name: 'フェーズの振り返り' }).filter({ visible: true })).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(phaseLine(page)).toHaveText('BULK DONE · REVIEW');
 });
 
 test('「あとで」は確かめてから閉じ、何も始めない。設定のいちばん上にフェーズの行', async ({ page }) => {

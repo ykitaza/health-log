@@ -5,15 +5,17 @@ import { addDays, DateKey, daysBetween } from './date';
 import { average } from './health';
 import { RESULTS, siteLabel } from './injuries';
 import {
-  currentPhase, DIRECTION_LABELS, PACE_LABELS, PaceStatus, pauses, Phase, PhaseDirection, phaseDay, phaseProgress, PhaseProgress, planLines,
+  currentPhase, DIRECTION_LABELS, PACE_LABELS, PaceStatus, pauses, Phase, PhaseDirection, phaseDay, phaseLabel, phaseProgress, PhaseProgress, planLines,
   Weight,
 } from './phases';
+import { lastEnded } from './phaseReview';
 import type { PartRecovery } from './recoveryMap';
 
 // ---- フェーズの状態 ----
 
 export type HeroPhase =
-  | { kind: 'none' }
+  /** フェーズがない。last は、いちばん新しい通常のフェーズを終えたまま次が未設定のときの、そのフェーズ（振り返りへの入口） */
+  | { kind: 'none'; last?: Phase }
   /** 通常のフェーズを実施中 */
   | { kind: 'active'; phase: Phase; progress: PhaseProgress; elapsed: number }
   /** 療養中。paused は療養で止めた通常のフェーズ（なければ null） */
@@ -32,7 +34,10 @@ const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 /** 今日の時点のフェーズ（lib/phases.ts の currentPhase と phaseProgress） */
 export function heroPhase(phases: Phase[], weights: Weight[], today: DateKey): HeroPhase {
   const { current, paused } = currentPhase(phases, today);
-  if (!current) return { kind: 'none' };
+  if (!current) {
+    const last = lastEnded(phases.filter((p) => p.startDate <= today));
+    return last ? { kind: 'none', last } : { kind: 'none' };
+  }
   if (current.kind === 'rehab') {
     return {
       kind: 'rehab', rehab: current, rehabDays: phaseProgress(current, phases, weights, today).rehabDays,
@@ -62,13 +67,21 @@ export const NO_PACE = 'NO DATA';
 const two = (n: number) => String(n).padStart(2, '0');
 
 /** フェーズの 1 行を押したときに開く画面 */
-export type PhaseRoute = '/phase' | '/phase/new';
+export type PhaseRoute = '/phase' | '/phase/new' | `/phase/review/${string}`;
 
 /**
  * 輪の上の 1 行（等幅）と読み上げと、押したときに開く画面。
- * 実施中「BULK 06/16 · ON TRACK」、療養中「REHAB DAY 03 · BULK PAUSED」（止めたフェーズがなければ「REHAB DAY 03」）、未設定「NO PHASE · + START」
+ * 実施中「BULK 06/16 · ON TRACK」、療養中「REHAB DAY 03 · BULK PAUSED」（止めたフェーズがなければ「REHAB DAY 03」）、未設定「NO PHASE · + START」。
+ * フェーズを終えて次が未設定なら「CUT DONE · REVIEW」（その振り返りへ。振り返りの画面から次のフェーズを始められる）
  */
 export function phaseLine(h: HeroPhase): { text: string; spoken: string; route: PhaseRoute } {
+  if (h.kind === 'none' && h.last) {
+    return {
+      text: `${DIRECTION_EN[h.last.direction!]} DONE · REVIEW`,
+      spoken: `${phaseLabel(h.last)}を終えました。次のフェーズは未設定。振り返りを開く`,
+      route: `/phase/review/${h.last.id}`,
+    };
+  }
   if (h.kind === 'none') return { text: 'NO PHASE · + START', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' };
   if (h.kind === 'rehab') {
     const p = h.paused?.phase;

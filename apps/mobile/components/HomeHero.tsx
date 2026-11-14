@@ -388,7 +388,7 @@ function GrowthCornersView({ c, unit, route }: { c: GrowthCorners; unit: WeightU
   ].filter(Boolean).join('。');
   return (
     <>
-      <PressableScale accessibilityRole="button" accessibilityLabel={`${spoken}。${route === '/phase' ? 'フェーズの進み具合を開く' : 'フェーズを始める'}`}
+      <PressableScale accessibilityRole="button" accessibilityLabel={`${spoken}。${route === '/phase' ? 'フェーズの進み具合を開く' : route === '/phase/new' ? 'フェーズを始める' : 'フェーズの振り返りを開く'}`}
         scaleTo={0.97} style={[s.corner, { left: 0, top: 0 }]} testID="hero-growth" onPress={() => router.push(route)}>
         <Corner align="left" label="PHASE //" value={c.phase?.value ?? '—'} sub={c.phase?.sub ?? 'NO PHASE'} />
       </PressableScale>

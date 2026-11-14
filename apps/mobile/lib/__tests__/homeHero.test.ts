@@ -47,13 +47,19 @@ describe('フェーズの 1 行と輪の下', () => {
     expect(ringFooter(alone)).toBeNull();
     expect(phaseRing(alone, WEIGHTS, TODAY)).toBeNull();
   });
-  test('未設定：NO PHASE · + START。押すとフェーズの設定。終えたフェーズ・これから始まるフェーズは未設定', () => {
-    for (const list of [[], [phase({ status: 'ended', endedOn: '2026-11-01' })], [phase({ startDate: '2026-11-09' })]]) {
+  test('未設定：NO PHASE · + START。押すとフェーズの設定。中断したフェーズ・これから始まるフェーズは未設定', () => {
+    for (const list of [[], [phase({ status: 'aborted', endedOn: '2026-11-01' })], [phase({ startDate: '2026-11-09' })]]) {
       const h = heroPhase(list, WEIGHTS, TODAY);
       expect(phaseLine(h)).toEqual({ text: 'NO PHASE · + START', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' });
       expect(ringFooter(h)).toBeNull();
       expect(phaseRing(h, WEIGHTS, TODAY)).toBeNull();
     }
+  });
+  test('フェーズを終えて次が未設定：BULK DONE · REVIEW。押すとその振り返り', () => {
+    const h = heroPhase([phase({ status: 'ended', endedOn: '2026-11-01' })], WEIGHTS, TODAY);
+    expect(phaseLine(h)).toEqual({ text: 'BULK DONE · REVIEW', spoken: '増量 16週を終えました。次のフェーズは未設定。振り返りを開く', route: '/phase/review/p1' });
+    expect(ringFooter(h)).toBeNull();
+    expect(phaseRing(h, WEIGHTS, TODAY)).toBeNull();
   });
 });
 
