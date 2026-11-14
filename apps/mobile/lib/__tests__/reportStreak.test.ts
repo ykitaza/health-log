@@ -5,7 +5,7 @@ import type { Report } from '../reports';
 const rep = (id: string, date: string, done: number[], kind: Report['kind'] = 'daily', steps = ['一歩']): Report => ({
   id, title: '日のまとめ', body: '', kind,
   periodStart: date, periodEnd: date, tone: 'steady', headline: '',
-  highlights: [], nextSteps: steps, nextStepsDone: done, links: [], review: null,
+  highlights: [], nextSteps: steps, nextStepsDone: done, links: [], review: null, phaseId: null,
   createdAt: `${date}T13:00:00.000Z`,
 });
 

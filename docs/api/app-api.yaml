@@ -1080,8 +1080,9 @@ components:
           - daily
           - weekly
           - monthly
+          - phase
           - other
-          description: daily（日のまとめ。period_start と period_end が同じ日）・weekly（週のまとめ）・monthly（月のまとめ）・other（その他）
+          description: daily（日のまとめ。period_start と period_end が同じ日）・weekly（週のまとめ）・monthly（月のまとめ）・phase（フェーズの振り返り。phase_id と期間が要る）・other（その他。いまは保存できない）
         period_start:
           type:
           - string
@@ -1092,7 +1093,7 @@ components:
           - string
           - 'null'
           format: date
-          description: period_start と同じか後の日（366日以内）
+          description: period_start と同じか後の日（366日以内。kind が phase なら1,096日以内）
         overall_tone:
           $ref: '#/components/schemas/ReportTone'
           description: 全体の調子。前の形のレポートにはない（アプリは steady として見せる）
@@ -1231,6 +1232,14 @@ components:
               - meals_goal
               - null
               description: 見直す目標。meals_goal ならアプリが食事の目標を開くボタンを出す。なければ null
+        phase_id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: どのフェーズの振り返りか（kind が phase のときだけ。PhaseFields の ID）。ほかの種類は持たない
       description: レポート（Claude・ChatGPT が MCP の save_report で書いたまとめ）。書くのは MCP だけで、アプリから受け付けるのは delete と、next_steps_done だけの update（create・restore、ほかの項目の update は op_not_allowed）。項目を JSON にした大きさは 150,000 バイトまで
     EntityType:
       type: string
