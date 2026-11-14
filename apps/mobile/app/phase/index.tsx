@@ -20,7 +20,11 @@ import { DateKey, daysBetween, formatJpDate, formatMonthDay, formatShortDate } f
 import { GrowthData, loadGrowthData } from '@/lib/growthData';
 import { DIRECTION_EN } from '@/lib/homeHero';
 import { RESULTS, siteLabel } from '@/lib/injuries';
-import { ChangeInput, changeError, CorrectInput, correctError, editRange, effectiveEndFor, planChanges } from '@/lib/phaseEdit';
+import type { Maintenance, Missing } from '@/lib/autoGoal';
+import {
+  ChangeInput, changeError, changeFields, CorrectInput, correctError, correctFields, editRange, effectiveEndFor, planChanges,
+} from '@/lib/phaseEdit';
+import { loadMaintenance, missingNote, rehabMealTargets } from '@/lib/phaseMeals';
 import {
   currentPhase, PACE_LABELS, Phase, PHASE_LIMITS, PHASE_TICKS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
   successMetrics, Weight,
@@ -54,12 +58,14 @@ const signed = (n: number, digits = 1) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}
 export default function PhaseScreen() {
   const today = useToday();
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [phases, growth, injuries] = await Promise.all([r.phases.list(), loadGrowthData(r, today), r.injuries.list()]);
+    const [phases, growth, injuries, energy] = await Promise.all([
+      r.phases.list(), loadGrowthData(r, today), r.injuries.list(), loadMaintenance(r, today),
+    ]);
     // 療養中なら、対象のケガとその振り返り（療養中に見るもの）
     const rehab = currentPhase(phases, today).current;
     const targets: Injury[] = rehab?.kind === 'rehab' ? rehabInjuries(injuries, rehab, today) : [];
     const reviews: InjuryReview[] = (await Promise.all(targets.map((i) => r.injuries.reviews(i.id)))).flat();
-    return { phases, growth, injuries, targets, reviews };
+    return { phases, growth, injuries, targets, reviews, energy };
   }, today);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dismissed, setDismissed] = useState<{ streak?: boolean; mid?: boolean; ready?: boolean }>({});
@@ -170,17 +176,18 @@ export default function PhaseScreen() {
     <NormalPhase
       phase={current} phases={phases} weights={weights} measures={measures} now={now!} growth={data!.growth} unit={unit} today={today}
       dialog={dialog} setDialog={(d) => { setOpError(null); setDialog(d); }} dismissed={dismissed} setDismissed={setDismissed}
-      act={act} busy={busy} opError={opError} onBack={close} repos={repos}
+      act={act} busy={busy} opError={opError} onBack={close} repos={repos} energy={data!.energy}
     />
   );
 }
 
 type Repos = ReturnType<typeof useRepos>;
 
-function NormalPhase({ phase, phases, weights, measures, now, growth, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos }: {
+function NormalPhase({ phase, phases, weights, measures, now, growth, unit, today, dialog, setDialog, dismissed, setDismissed, act, busy, opError, onBack, repos, energy }: {
   phase: Phase; phases: Phase[]; weights: Weight[]; measures: PhaseMeasures; now: PhaseMeasures; growth: GrowthData; unit: WeightUnit; today: DateKey;
   dialog: Dialog; setDialog: (d: Dialog) => void; dismissed: { streak?: boolean; mid?: boolean }; setDismissed: (d: { streak?: boolean; mid?: boolean }) => void;
   act: (task: () => Promise<void>, leave?: boolean | string) => void; busy: boolean; opError: string | null; onBack: () => void; repos: Repos;
+  energy: { maintenance: Maintenance | null; missing: Missing[] };
 }) {
   const dir = phase.direction!;
   const progress: PhaseProgress = phaseProgress(phase, phases, weights, today);
@@ -340,14 +347,16 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
 
       <PlanSheet visible={dialog === 'change' || dialog === 'correct'} mode={dialog === 'correct' ? 'correct' : 'change'}
         onMode={(m) => setDialog(m)} onClose={() => setDialog(null)}
-        phase={phase} phases={phases} today={today} unit={unit} weekAvg={weekAvg} growth={growth} busy={busy} error={opError}
+        phase={phase} phases={phases} today={today} unit={unit} weekAvg={weekAvg} growth={growth} energy={energy} busy={busy} error={opError}
         onChange={(input) => act(() => repos.phases.changePlan(phase.id, input))}
         onCorrect={(input) => act(() => repos.phases.correct(phase.id, input))} />
       <MealSheet visible={dialog === 'meals'} onClose={() => setDialog(null)} targets={phase.mealTargets} weightKg={measures.weightKg} busy={busy} error={opError}
         onSave={(t) => act(() => repos.phases.setMealTargets(phase.id, t))} />
       <RehabStartSheet visible={dialog === 'rehab'} onClose={() => setDialog(null)} title="療養に入る" paused={{ label: phaseLabel(phase), week: progress.week }}
         busy={busy} error={opError}
-        onStart={(name) => act(() => repos.phases.startRehab({ name, startDate: today, snapshot: snapshotOf(measures) }).then(() => undefined))} />
+        onStart={(name) => act(() => repos.phases.startRehab({
+          name, startDate: today, snapshot: snapshotOf(measures), mealTargets: rehabMealTargets(energy.maintenance),
+        }).then(() => undefined))} />
       <ConfirmDialog visible={dialog === 'end'} title="フェーズを終えますか？" danger={false} busy={busy}
         body={`${phaseLabel(phase)}を今日で終えます。終えたら振り返りの画面に進み、次のフェーズを始められます。`}
         confirmLabel="終える" onCancel={() => setDialog(null)} onConfirm={() => act(() => repos.phases.end(phase.id), `/phase/review/${phase.id}`)} />
@@ -414,9 +423,9 @@ type PlanMode = 'change' | 'correct';
  *   新しい開始日までの記録から出し直す（今の snapshotOf と同じ出し方）
  * 範囲は lib/phaseEdit.ts（開始日は今日まで・前のフェーズと重ねない、終わりは今日より前にしない、期間は 1〜104 週）。開くたびに今の計画から始める
  */
-function PlanSheet({ visible, mode, onMode, onClose, phase, phases, today, unit, weekAvg, growth, busy, error, onChange, onCorrect }: {
+function PlanSheet({ visible, mode, onMode, onClose, phase, phases, today, unit, weekAvg, growth, energy, busy, error, onChange, onCorrect }: {
   visible: boolean; mode: PlanMode; onMode: (m: PlanMode) => void; onClose: () => void; phase: Phase; phases: Phase[]; today: DateKey; unit: WeightUnit;
-  weekAvg: number | null; growth: GrowthData; busy: boolean; error: string | null;
+  weekAvg: number | null; growth: GrowthData; energy: { maintenance: Maintenance | null; missing: Missing[] }; busy: boolean; error: string | null;
   onChange: (input: ChangeInput) => void; onCorrect: (input: CorrectInput) => void;
 }) {
   const weeksNow = phase.endDate ? Math.ceil((daysBetween(phase.startDate, phase.endDate) + 1) / 7) : 1;
@@ -458,10 +467,16 @@ function PlanSheet({ visible, mode, onMode, onClose, phase, phases, today, unit,
   const lineFrom = correct
     ? (snapshot?.weight_kg == null ? null : snapshot.weight_kg)
     : (targetKg != null && phase.targetWeightKg != null && Math.abs(targetKg - phase.targetWeightKg) >= 0.005 ? weekAvg : null);
+  const { maintenance } = energy;
+  // 保存したら置き換わる食事の目標（書き込みと同じ関数で出す。計算できなければ null で、今の目標のまま）
+  const meals = problem || targetKg == null || weeksNum == null || !maintenance ? null
+    : correct
+      ? correctFields(phase, { startDate, weeks: weeksNum, targetWeightKg: targetKg, snapshot, maintenance }).mealTargets
+      : changeFields(phase, { weeks: weeksNum, targetWeightKg: targetKg, weekAvgKg: weekAvg, maintenance }, today, phases)?.mealTargets ?? null;
   const save = () => {
     if (problem || targetKg == null || weeksNum == null) return;
-    if (correct) onCorrect({ startDate, weeks: weeksNum, targetWeightKg: targetKg, snapshot });
-    else onChange({ weeks: weeksNum, targetWeightKg: targetKg, weekAvgKg: weekAvg });
+    if (correct) onCorrect({ startDate, weeks: weeksNum, targetWeightKg: targetKg, snapshot, maintenance });
+    else onChange({ weeks: weeksNum, targetWeightKg: targetKg, weekAvgKg: weekAvg, maintenance });
   };
 
   return (
@@ -493,6 +508,11 @@ function PlanSheet({ visible, mode, onMode, onClose, phase, phases, today, unit,
                 ? `${formatShortDate(startDate)}から${lineFrom == null ? '' : ` ${fmtW(lineFrom)} →`} ${targetKg == null ? '—' : fmtW(targetKg)}`
                 : `今日から${lineFrom == null ? '' : ` ${fmtW(lineFrom)} →`} ${targetKg == null ? '—' : fmtW(targetKg)}`} />
           </Panel>
+          <T size={12} color={hud.muted} style={{ lineHeight: 18 }} testID="phase-edit-meals">
+            {maintenance
+              ? `食事の目標は、新しい計画から計算し直した値に置き換わります${meals ? `：${mealSummary(meals)}` : ''}。直した値も置き換わります（あとで「食事の目標」から直せます）。`
+              : `${missingNote(energy.missing)}食事の目標は今のままです。`}
+          </T>
           {correct && changes > 0 && (
             <T size={12} color={hud.label} style={{ lineHeight: 18 }} testID="phase-edit-warning">
               {`今までに計画を変えた ${changes} 回分の線は消え、最初からこの計画だったことになります。`}
@@ -523,7 +543,7 @@ function MealSheet({ visible, onClose, targets, weightKg, busy, error, onSave }:
     <Sheet visible={visible} onClose={onClose}>
       <SheetBody title="食事の目標" error={local ?? error}>
         <MealFields draft={draft} onChange={setDraft} weightKg={weightKg} />
-        <T size={11.5} color={hud.muted}>フェーズに持たせる目標です。毎日の食事の記録の目標（食事の目標の画面）は変わりません。</T>
+        <T size={11.5} color={hud.muted}>フェーズに持たせる目標です。計画を変える・直すと、計画から計算し直した値に置き換わります。毎日の食事の記録の目標（食事の目標の画面）は変わりません。</T>
         <HudButton label="保存" busy={busy} onPress={save} testID="phase-meals-save" />
       </SheetBody>
     </Sheet>

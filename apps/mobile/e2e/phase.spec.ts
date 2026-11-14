@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, enterBody, goTab, moveToDate, openApp, openBody, openSettings, settle, TODAY } from './helpers';
+import { button, enterBody, goTab, moveToDate, openAccountFromSettings, openApp, openBody, openSettings, settle, TODAY } from './helpers';
 
 // フェーズの設定（オンボーディング）と進捗の詳細。計算（今の記録・週の点・ペースの文・崩れ・中間・成功の指標）は jest
 // （lib/__tests__/phaseView.test.ts）、計画の編集の決まりと目盛りは lib/__tests__/phaseEdit.test.ts。ここでは画面の流れ：
@@ -198,6 +198,42 @@ const shot = async (page: Page, name: string, top = false) => {
   }
   await page.screenshot({ path: `${process.env.SHOT_DIR}/phase-edit-${name}.png`, fullPage: false });
 };
+
+test('食事の目標は計画から自動で計算して入り、計画を変えると計算し直す（活動の量があるとき）', async ({ page }) => {
+  // 76.0kg・体脂肪率 18.2%・よく動く：基礎代謝 370 + 21.6 × 62.168 = 1712.83、維持 × 1.55 = 2654.89
+  await openApp(page, TODAY);
+  await weighToday(page, '76');
+  await openAccountFromSettings(page);
+  await button(page, 'よく動く').click();
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+
+  await test.step('始める：76 → 80kg を 16 週 → 1 日 +257kcal。休み 2910・筋トレ 3190 kcal、たんぱく質 152 g', async () => {
+    await button(page, 'フェーズは未設定。フェーズを始める').click();
+    await settle(visible(page, 'phase-direction-bulk'));
+    await visible(page, 'phase-direction-bulk').click();
+    await button(page, '次へ').click();
+    await visible(page, 'phase-target').fill('80');
+    await button(page, '次へ').click();
+    await expect(visible(page, 'phase-meal-training')).toHaveValue('3190');
+    await expect(visible(page, 'phase-meal-rest')).toHaveValue('2910');
+    await expect(visible(page, 'phase-meal-protein')).toHaveValue('152');
+    await expect(visible(page, 'phase-meal-note')).toContainText('1kg ＝ 7,200kcal');
+    await button(page, '次へ').click();
+    await button(page, 'この内容で始める').click();
+    await settle(phaseLine(page));
+    await phaseLine(page).click();
+    await expect(visible(page, 'phase-meals')).toContainText('筋トレの日 3,190・休みの日 2,910 kcal・たんぱく質 152 g');
+  });
+
+  await test.step('計画を変える：目標を 82kg に → 1 日 +386kcal。シートに置き換わる値が出て、保存すると置き換わる', async () => {
+    await visible(page, 'phase-plan-change').click();
+    await visible(page, 'phase-edit-target').fill('82');
+    await expect(visible(page, 'phase-edit-meals')).toContainText('筋トレの日 3,320・休みの日 3,040 kcal・たんぱく質 152 g');
+    await visible(page, 'phase-edit-save').click();
+    await expect(visible(page, 'phase-meals')).toContainText('筋トレの日 3,320・休みの日 3,040 kcal・たんぱく質 152 g');
+  });
+});
 
 test('始め忘れ：過去の開始日で始める → 開始日・期間・目標を直す（目盛りは期間に比例）', async ({ page }) => {
   // 11/1（日）に体重を測っていたが、フェーズを始め忘れた。1 週あとの今日（11/8）に、11/1 から始めたことにする

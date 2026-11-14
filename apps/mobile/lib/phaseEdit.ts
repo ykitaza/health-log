@@ -9,14 +9,19 @@
 //
 // 入力の範囲：開始日は今日より後にしない・ほかの通常のフェーズと重ねない。実際の終わり（止まった日だけ後ろにずれた終わり）は
 // 今日より前にしない（終わったフェーズは「終える」で扱う）。期間は 1〜104 週。目標体重は 20〜300kg
+//
+// 食事の目標は、直す・計画を変えるたびに、新しい計画から計算し直して置き換える（lib/phaseMeals.ts。本人が直した値も置き換える）。
+// 維持のカロリーが出せない（maintenance がない）ときは、今の食事の目標のまま
+import type { Maintenance } from './autoGoal';
 import { DateKey, daysBetween } from './date';
 import { TARGET_WEIGHT } from './meals';
+import { phaseMealTargets } from './phaseMeals';
 import {
-  effectiveEnd, endDateFor, pauses, pausedDays, Phase, PHASE_LIMITS, PhaseSnapshot, TargetChange,
+  effectiveEnd, endDateFor, pauses, pausedDays, Phase, PHASE_LIMITS, phaseDay, PhaseMealTargets, PhaseSnapshot, planValue, TargetChange,
 } from './phases';
 
 /** 書き換える項目（1 回の UPDATE で、同期の 1 つの変更として送る） */
-export type PlanFields = Pick<Phase, 'startDate' | 'endDate' | 'targetWeightKg' | 'targetHistory' | 'snapshot'>;
+export type PlanFields = Pick<Phase, 'startDate' | 'endDate' | 'targetWeightKg' | 'targetHistory' | 'snapshot' | 'mealTargets'>;
 
 /**
  * ほかの通常のフェーズと重ならない、いちばん早い開始日（なければ null）。終えた・中断したフェーズは [開始日, 終えた日) を使っていたので、
@@ -69,6 +74,8 @@ export type CorrectInput = {
   targetWeightKg: number;
   /** 新しい開始日までの記録から出した開始時の記録（開始日を変えたときだけ使う。変えないときは今の記録のまま） */
   snapshot: PhaseSnapshot | null;
+  /** 維持のカロリー（食事の目標を計算し直す。なければ今の食事の目標のまま） */
+  maintenance?: Maintenance | null;
 };
 
 /** 直したあとのフェーズ（止まった日を数え直すため、確かめにも使う） */
@@ -90,10 +97,18 @@ export function correctError(p: Phase, phases: Phase[], today: DateKey, input: C
     ?? targetWeightError(input.targetWeightKg);
 }
 
-/** 直す：開始日から 1 本の線に引き直す。開始日を変えたら開始時の記録も入れ替える */
+/**
+ * 直す：開始日から 1 本の線に引き直す。開始日を変えたら開始時の記録も入れ替える。
+ * 食事の目標は、開始時の体重から目標体重まで、全体の週数（× 7 日）で計算し直す
+ */
 export function correctFields(p: Phase, input: CorrectInput): PlanFields {
   const { startDate, endDate, targetWeightKg, targetHistory, snapshot } = corrected(p, input);
-  return { startDate, endDate, targetWeightKg, targetHistory, snapshot };
+  const mealTargets = input.maintenance
+    ? phaseMealTargets(input.maintenance, {
+      kind: p.kind, direction: p.direction, fromKg: snapshot?.weight_kg ?? null, targetKg: targetWeightKg, days: input.weeks * 7,
+    })
+    : p.mealTargets;
+  return { startDate, endDate, targetWeightKg, targetHistory, snapshot, mealTargets };
 }
 
 export type ChangeInput = {
@@ -102,6 +117,8 @@ export type ChangeInput = {
   targetWeightKg: number;
   /** 今の週平均（目標を変えたとき、新しい線をここから引く。なければ前の線の今日の値から） */
   weekAvgKg: number | null;
+  /** 維持のカロリー（食事の目標を計算し直す。なければ今の食事の目標のまま） */
+  maintenance?: Maintenance | null;
 };
 
 /** 計画を変えるときの確かめ。断る理由か null */
@@ -114,9 +131,10 @@ export function changeError(p: Phase, phases: Phase[], today: DateKey, input: Ch
 /**
  * 計画を変える：今日（開始日より前なら開始日）から線を引き直す。同じ日にもう一度変えたら、その日の1件を置き換える。
  * 線の始まりの体重は、目標を変えたら今の週平均、期間だけなら前の線の今日の値（線が途切れないように）。
- * 履歴のない前の版の行は、最初の線を先に入れる（前の線を薄く残すため）。履歴が上限を超えるなら null
+ * 履歴のない前の版の行は、最初の線を先に入れる（前の線を薄く残すため）。履歴が上限を超えるなら null。
+ * 食事の目標は、新しい線（今日の線の値から目標体重まで、残りの日数）で計算し直す（changeMealTargets）。phases は止まった日を数えるため
  */
-export function changeFields(p: Phase, input: ChangeInput, today: DateKey): PlanFields | null {
+export function changeFields(p: Phase, input: ChangeInput, today: DateKey, phases: Phase[] = []): PlanFields | null {
   const day = today < p.startDate ? p.startDate : today;
   const endDate = endDateFor(p.startDate, input.weeks);
   const replaced = p.targetHistory.find((c) => c.date === day);
@@ -129,7 +147,22 @@ export function changeFields(p: Phase, input: ChangeInput, today: DateKey): Plan
   }
   history.push({ date: day, target_weight_kg: input.targetWeightKg, end_date: endDate, weight_kg: weightKg });
   if (history.length > PHASE_LIMITS.targetHistory) return null;
-  return { startDate: p.startDate, endDate, targetWeightKg: input.targetWeightKg, targetHistory: history, snapshot: p.snapshot };
+  const next: Phase = { ...p, endDate, targetWeightKg: input.targetWeightKg, targetHistory: history };
+  const mealTargets = input.maintenance ? changeMealTargets(next, phases, day, input.weekAvgKg, input.maintenance) : p.mealTargets;
+  return { startDate: p.startDate, endDate, targetWeightKg: input.targetWeightKg, targetHistory: history, snapshot: p.snapshot, mealTargets };
+}
+
+/**
+ * 計画を変えたあとの食事の目標：線の始まり（day）の予定の体重から目標体重まで、残りの日数（全体の日数 − フェーズの時計の day。
+ * 止まった日は数えない）で。予定の体重がなければ（開始時の体重がない）今の週平均から、それもなければ決まった速さ
+ */
+function changeMealTargets(next: Phase, phases: Phase[], day: DateKey, weekAvgKg: number | null, m: Maintenance): PhaseMealTargets {
+  const spans = pauses(next, phases, day);
+  const total = daysBetween(next.startDate, next.endDate!) + 1;
+  return phaseMealTargets(m, {
+    kind: next.kind, direction: next.direction, fromKg: planValue(next, spans, day) ?? weekAvgKg, targetKg: next.targetWeightKg,
+    days: total - phaseDay(next, spans, day),
+  });
 }
 
 /** 「計画を変える」の回数（最初の線のあとに引き直した線の数）。直すと消えるので、画面で知らせる */

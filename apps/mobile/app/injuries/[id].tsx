@@ -17,6 +17,7 @@ import { useToday } from '@/hooks/today';
 import { formatMonthDay, formatShortDate } from '@/lib/date';
 import { injuryNumbers, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/lib/injuries';
 import { markPoint } from '@/lib/muscleFigure';
+import { loadMaintenance, rehabMealTargets } from '@/lib/phaseMeals';
 import { currentPhase, pauses, phaseLabel, phaseWeek } from '@/lib/phases';
 import { colors, radius, space, toneColors } from '@/theme';
 
@@ -97,7 +98,8 @@ export default function InjuryScreen() {
   const startRehab = (name: string) => run(async () => {
     setRehabError(null);
     try {
-      await repos.phases.startRehab({ name, startDate: today, snapshot: null });
+      const { maintenance } = await loadMaintenance(repos, today);
+      await repos.phases.startRehab({ name, startDate: today, snapshot: null, mealTargets: rehabMealTargets(maintenance) });
     } catch (e) {
       if (e instanceof PhaseError) { setRehabError(e.message); return; }
       throw e;
