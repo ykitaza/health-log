@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { useFocusData, useGrowthData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
 import { big3Assignments, completeBig3 } from '@/lib/exercises';
-import { formatSigned } from '@/lib/format';
+import { formatSigned, isFlat } from '@/lib/format';
 import { goalProgress } from '@/lib/goalBar';
 import { growthScoreAsOf } from '@/lib/growth';
 import { big3Total, bodyChange } from '@/lib/reports';
@@ -14,7 +14,7 @@ import { fmt1, kgToUnit } from '@/lib/units';
 import { T } from '../Text';
 import { GoalTrack, hud, kgLabel, Micro, Mono, NotchChip, Panel, Spark } from './hud';
 
-const arrow = (n: number) => (n > 0 ? '↑' : n < 0 ? '↓' : '→');
+const arrow = (n: number) => (isFlat(n) ? '→' : n > 0 ? '↑' : '↓');
 
 /**
  * 成長スコア：asOf（月のまとめでは期間の終わり＝月末。月の途中なら今日）で終わる7日のスコアと、先週との差。
@@ -33,7 +33,7 @@ export function GrowthScoreBlock({ asOf }: { asOf: DateKey }) {
         <Micro green>Growth Score</Micro>
         <T bold size={13} color={hud.label}>成長スコア</T>
         {d != null
-          ? <Mono size={15} color={d < 0 ? hud.muted : hud.green}>{`${arrow(d)} ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}`}</Mono>
+          ? <Mono size={15} color={d <= 0 ? hud.muted : hud.green}>{`${arrow(d)} ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}`}</Mono>
           : null}
         <T size={11} color={hud.muted} style={{ lineHeight: 16 }}>{d == null ? '直近7日のスコア。先週と比べる記録はまだありません' : '直近7日のスコア・先週より'}</T>
       </View>
@@ -157,7 +157,7 @@ export function Big3Block({ start, end }: { start: DateKey; end: DateKey }) {
       {spark.length >= 2 && <View style={{ marginTop: 6 }}><Spark values={spark} height={38} strokeWidth={1.6} /></View>}
       {since != null && (
         <View style={{ marginTop: 8 }}>
-          <Mono size={13} color={since < 0 ? hud.muted : hud.green} style={{ fontWeight: '700' }}>{`${arrow(since)} ${formatSigned(since)} ${unit.toUpperCase()}`}</Mono>
+          <Mono size={13} color={isFlat(since) || since < 0 ? hud.muted : hud.green} style={{ fontWeight: '700' }}>{`${arrow(since)} ${formatSigned(since)} ${unit.toUpperCase()}`}</Mono>
           <T size={11} color={hud.muted} style={{ marginTop: 2 }}>期間の初めより</T>
         </View>
       )}

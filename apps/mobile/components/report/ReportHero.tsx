@@ -11,7 +11,7 @@ import { View } from 'react-native';
 import { useFocusData } from '@/hooks/data';
 import { weekAverage, weeklyPace } from '@/lib/body';
 import { addDays, DateKey, formatMonthDay, todayKey } from '@/lib/date';
-import { formatSigned } from '@/lib/format';
+import { formatSigned, isFlat } from '@/lib/format';
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { goalProgress } from '@/lib/goalBar';
 import { bodyChange, formatPeriod, Report, TONE_LABELS, Tone } from '@/lib/reports';
@@ -128,7 +128,7 @@ function DailyHeroBody({ date }: { date: DateKey }) {
         <View style={{ flex: 1, minWidth: 0, gap: 8, alignItems: 'flex-start' }}>
           {delta != null && (
             <View style={{ borderWidth: 1, borderColor: hud.line, backgroundColor: hud.panel2, paddingHorizontal: 8, paddingVertical: 5 }} accessible accessibilityLabel={`前日より ${formatSigned(delta)} ${unit}`}>
-              <Mono size={15} color={delta >= 0 ? hud.green : hud.muted}>{`${delta > 0 ? '↑' : delta < 0 ? '↓' : '→'} ${formatSigned(delta)}`}</Mono>
+              <Mono size={15} color={delta > 0 && !isFlat(delta) ? hud.green : hud.muted}>{`${isFlat(delta) ? '→' : delta > 0 ? '↑' : '↓'} ${formatSigned(delta)}`}</Mono>
               <T size={10} color={hud.muted}>前日より</T>
             </View>
           )}

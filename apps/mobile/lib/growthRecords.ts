@@ -3,6 +3,7 @@
 import { DateKey, daysBetween, formatMonthDay } from './date';
 import { BIG3_LABELS, BIG3_ROLES, Big3Role } from './exercises';
 import { GrowthScore, longestTrainingStreak, PersonalBestEvent, personalBestEvents, ScoreDetail, WeekScore } from './growth';
+import { formatSigned } from './format';
 import { formatMinutes } from './health';
 import { BALANCE_PARTS, PartBalance } from './partBalance';
 import { big3Series, bestIn, setVolume, trainingDates, TrainingSetRow, vehicleRatio } from './training';
@@ -122,10 +123,9 @@ export function bodyChange(points: { date: DateKey; value: number }[], today: Da
   return { from, to, diff: to.value - from.value };
 }
 
-/** 差の文字（「−3.6」「+0.4」「±0」。0.05 未満は ±0）。良し悪しの色は付けない */
+/** 差の文字（「−3.6」「+0.4」「±0」。小数1桁で 0 になる値は ±0）。良し悪しの色は付けない */
 export function signedText(v: number): string {
-  if (Math.abs(v) < 0.05) return '±0';
-  return v > 0 ? `+${fmt1(v)}` : `−${fmt1(-v)}`;
+  return formatSigned(v);
 }
 
 /**
