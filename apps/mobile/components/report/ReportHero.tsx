@@ -20,7 +20,7 @@ import { T } from '../Text';
 import { dotDate, dotMonthDay, GoalTrack, hud, kgLabel, pace2, Micro, Mono, NotchChip, OutlineTag, Panel, Ring, Spark } from './hud';
 
 const TONE_EN: Record<Tone, string> = { good: 'GOOD', steady: 'STEADY', caution: 'CAUTION' };
-const KIND_EN = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY', other: 'OTHER' } as const;
+const KIND_EN = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY', phase: 'PHASE', other: 'OTHER' } as const;
 
 type Scope = { type: 'day'; date: DateKey } | { type: 'week'; date: DateKey } | { type: 'month'; start: DateKey; end: DateKey } | null;
 

@@ -16,6 +16,14 @@ describe('レポートを読む', () => {
     expect(parseReport(row({ overall_tone: null, kind: 'yearly', headline: null }))).toMatchObject({ tone: 'steady', kind: 'other', headline: '' });
   });
 
+  test('フェーズの振り返り（phase）は phase_id を読む。ほかの種類は phaseId を持たない。名前は題', () => {
+    const phase = parseReport(row({ kind: 'phase', phase_id: 'p1', title: '増量の振り返り', period_start: '2026-07-01', period_end: '2026-10-20' }));
+    expect(phase).toMatchObject({ kind: 'phase', phaseId: 'p1' });
+    expect(reportShortName(phase, '2026-11-09')).toBe('増量の振り返り');
+    expect(parseReport(row({ kind: 'weekly', phase_id: 'p1' })).phaseId).toBeNull();
+    expect(parseReport(row({ kind: 'phase' })).phaseId).toBeNull();
+  });
+
   test('日のまとめ（daily）を読み、名前と次の一歩の見出しを出す', () => {
     const r = parseReport(row({ kind: 'daily', period_start: '2026-11-09', period_end: '2026-11-09' }));
     expect(r.kind).toBe('daily');
@@ -127,12 +135,12 @@ describe('並べる日付と並び', () => {
   });
 
   test('種類のラベル', () => {
-    expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' });
+    expect(KIND_LABELS).toEqual({ daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', phase: 'フェーズの振り返り', other: 'その他' });
   });
 
   test('カードの種類の四角は1文字（色ではなく文字で分ける。種類ごとに違う文字）', () => {
-    expect(KIND_SHORT).toEqual({ daily: '日', weekly: '週', monthly: '月', other: '他' });
-    expect(new Set(Object.values(KIND_SHORT)).size).toBe(4);
+    expect(KIND_SHORT).toEqual({ daily: '日', weekly: '週', monthly: '月', phase: '期', other: '他' });
+    expect(new Set(Object.values(KIND_SHORT)).size).toBe(5);
   });
 });
 

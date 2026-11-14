@@ -320,6 +320,53 @@ def test_期間の材料に_フェーズの向き_何週目_目標_ペースが�
     assert listed["paused"]["target_history"][0]["weight_kg"] == 70.0 and listed["paused"]["snapshot"]["body_fat_pct"] == 20.0
 
 
+def test_フェーズの振り返りの材料が_list_phases_に入り_振り返りは_phase_として保存できる(server):
+    engine = server["engine"]
+    app_change(engine, "phase", "p2", {
+        **PHASE, "direction": "bulk", "start_date": "2026-08-01", "end_date": "2026-09-25", "target_weight_kg": 73.0,
+        "status": "ended", "ended_on": "2026-09-26",
+        "snapshot": {"weight_kg": 70.0, "body_fat_pct": 16.0, "big3": {"bench": 80, "squat": None, "deadlift": None},
+                     "growth_score": 40},
+        "target_history": [{"date": "2026-08-01", "target_weight_kg": 72.0, "end_date": "2026-09-25", "weight_kg": 70.0},
+                           {"date": "2026-09-01", "target_weight_kg": 73.0, "end_date": "2026-09-25", "weight_kg": 71.0}]})
+    app_change(engine, "phase", "r2", {"kind": "rehab", "start_date": "2026-08-10", "status": "ended",
+                                       "ended_on": "2026-08-15", "paused_phase_id": "p2", "name": ""})
+    for day, kg, fat in [("2026-09-10", None, 18.0), ("2026-09-20", 72.0, None), ("2026-09-24", 72.4, None),
+                         ("2026-10-10", 75.0, 20.0)]:  # 最後はフェーズのあと（入れない）
+        app_change(engine, "body_record", f"b{day}", {"date": day, "measured_at": f"{day}T07:00:00+09:00",
+                                                      "weight_kg": kg, "body_fat_pct": fat, "source": "manual"})
+
+    async def body(client):
+        for day, kg in [("2026-09-20", 100), ("2026-10-10", 120)]:  # 2回目はフェーズのあと（入れない）
+            data(await client.call_tool("record_workout", {"day": day, "exercises": [
+                {"exercise": "ベンチプレス", "sets": [{"weight_kg": kg, "reps": 1}]}]}))
+        listed = data(await client.call_tool("list_phases", {}))
+        saved = data(await client.call_tool("save_report", {
+            "title": "増量 8週の振り返り", "overall_tone": "good", "headline": "体重も BIG3 も伸び、目標にほぼ届いた",
+            "kind": "phase", "phase_id": "p2", "next_steps": ["維持の4週は、たんぱく質を今の量のまま"]}))
+        rehab = await client.call_tool("save_report", {
+            "title": "療養", "overall_tone": "steady", "headline": "x", "kind": "phase", "phase_id": "r2"})
+        return listed, saved, rehab
+
+    listed, saved, rehab = run(server, ALL_SCOPES, body)
+    phases = {p["phase_id"]: p for p in listed["phases"]}
+    review = phases["p2"]["review_material"]
+    assert (review["period_start"], review["period_end"], review["finished"]) == ("2026-08-01", "2026-09-25", True)
+    assert review["rehab_spans"] == [{"start": "2026-08-10", "end": "2026-08-14"}] and phases["p2"]["rehab_days"] == 5
+    assert review["start"] == {"weight_kg": 70.0, "body_fat_pct": 16.0, "growth_score": 40,
+                               "big3": {"bench": 80, "squat": None, "deadlift": None, "total": 80}}
+    end = review["end"]
+    assert (end["weight_kg"], end["weight_basis"], end["body_fat_pct"], end["body_fat_basis"]) == (72.2, "week", 18.0, "latest")
+    assert end["big3"] == {"bench": 100, "squat": None, "deadlift": None, "total": 100} and end["growth_score"] is None
+    assert review["big3_compared"] == {"roles": ["bench"], "start": 80, "end": 100}
+    assert [c["target_weight_kg"] for c in phases["p2"]["target_history"]] == [72.0, 73.0]
+    assert "review_material" not in phases["r2"]  # 療養は振り返りの対象にしない
+    report = saved["report"]
+    assert (report["kind"], report["phase_id"], report["period_start"], report["period_end"]) == (
+        "phase", "p2", "2026-08-01", "2026-09-25")
+    assert rehab.is_error and "療養" in rehab.content[0].text
+
+
 def test_期間の材料は_あとで終えたフェーズも_その期間には実施中として読む(server):
     engine = server["engine"]
     app_change(engine, "setting", "goal_weight_kg", {"value": "80"})

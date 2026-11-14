@@ -188,10 +188,16 @@ export const REPORT_ENTITIES_V7: EntitySpec[] = [
 export const REPORT_ENTITIES_V9: EntitySpec[] = REPORT_ENTITIES_V7.map((s) => ({ ...s, columns: { ...s.columns, links: 'json', review: 'json' } }));
 
 /**
- * レポートの今の形。版12で、済んだ次の一歩の番号（next_steps_done。JSON の文字列。チェックしていなければ NULL）を足した。
+ * 版12の形。済んだ次の一歩の番号（next_steps_done。JSON の文字列。チェックしていなければ NULL）を足した。
  * アプリが書くのはこの項目だけ（ホームの「今週やること」とレポートの中身のチェック）
  */
-export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V9.map((s) => ({ ...s, columns: { ...s.columns, next_steps_done: 'json' } }));
+export const REPORT_ENTITIES_V12: EntitySpec[] = REPORT_ENTITIES_V9.map((s) => ({ ...s, columns: { ...s.columns, next_steps_done: 'json' } }));
+
+/**
+ * レポートの今の形。版16で、どのフェーズの振り返りか（phase_id。kind が phase のときだけ。ほかは NULL）を足した。
+ * MCP の save_report だけが書く（アプリは書かない）
+ */
+export const REPORT_ENTITIES: EntitySpec[] = REPORT_ENTITIES_V12.map((s) => ({ ...s, columns: { ...s.columns, phase_id: 'text' } }));
 
 /**
  * ケガの記録と振り返り（版13）。サーバーの services/training/training/infrastructure/sync_entities.py の InjuryFields・InjuryReviewFields と

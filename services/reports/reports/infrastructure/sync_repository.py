@@ -49,6 +49,8 @@ def report_fields(r: Report) -> dict:
                             "basis": link.basis} for link in r.links]
     if r.review is not None:
         fields["review"] = {"text": r.review.text, "target": r.review.target.value if r.review.target else None}
+    if r.phase_id is not None:
+        fields["phase_id"] = r.phase_id
     return fields
 
 
@@ -82,7 +84,7 @@ def report_from_state(state: EntityState) -> Report | None:
             Tone(v["overall_tone"]) if v.get("overall_tone") else None,
             v.get("headline") or "", highlights, next_steps, state.created_at, links,
             Review(review["text"], ReviewTarget(review["target"]) if review.get("target") else None) if review else None,
-            done)
+            done, v.get("phase_id"))
     except (ReportError, ValueError, KeyError, TypeError) as e:
         logger.warning("読めない report を飛ばしました（id=%s）: %s", state.entity_id, e)
         return None

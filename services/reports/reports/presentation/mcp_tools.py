@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
@@ -31,6 +31,7 @@ from reports.domain.report import (
     MAX_METRIC_VALUE,
     MAX_NEXT_STEP_TEXT,
     MAX_NEXT_STEPS,
+    MAX_PHASE_ID,
     MAX_REPORTS,
     MAX_REVIEW_TEXT,
     MAX_TITLE,
@@ -49,7 +50,7 @@ from reports.domain.report import (
 READ_SCOPE, WRITE_SCOPE = "training:read", "training:write"
 JST = timezone(timedelta(hours=9))
 
-INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細で読める。
+INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（hlog）のホームとレポートの詳細（フェーズの振り返りはフェーズの画面）で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
@@ -57,15 +58,18 @@ INSTRUCTIONS = f"""レポート（hlog）：記録を読んで書いたまとめ
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
 tone の良し悪しは、本人がアプリで宣言したフェーズ（period_overview の phase）の向きで決める。増量（bulk）なら体重が増えたのが good、減量（cut）なら減ったのが good（たんぱく質を保ち BIG3 が落ちていなければなおよい）、維持（maintain）なら体重がほぼ変わらず BIG3 や記録が伸びたのが good。ペース（pace.status）が on_track なら順調、fast・slow・over・under は予定からずれている（判定しないとき status は null で、遅れと書かない）。フェーズがなければ今までどおり目標体重（goals.goal_weight_kg）に近づいたかで決める。
 療養中（phase.current.kind が rehab、または rehab_in_period）は、体重や体の目標で tone を決めず、筋トレができていない・総負荷量が減ったことを caution にしない。見るのは睡眠・たんぱく質（食事が足りているか）・ケガの振り返りで、療養中に kcal を大きく減らすことを good にしない。診断や治療の助言はしない。
-保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える。1人{MAX_REPORTS}件まで。"""
+フェーズの振り返り（「フェーズの振り返りを作って」）は、period_overview ではなく list_phases を読む（フェーズは31日より長いため）。対象のフェーズの review_material（開始時 start と終わりの時点 end の体重の週平均・体脂肪率・BIG3、療養で止まった期間 rehab_spans）と target_history（目標の変更の履歴）を材料にし、save_report の kind を phase、phase_id をそのフェーズの phase_id、期間を review_material の period_start〜period_end にして保存する。
+振り返りに書くこと：達成の度合い（届いた・ほぼ届いた・届かなかった。成功の指標は向きごと：増量は体重↑＋BIG3↑、減量は体重↓＋BIG3 を保つ（−3% 以内）、維持は体重がほぼ不変（±1kg）＋BIG3↑＋成長スコア↑。ウエストは使わない。体脂肪率は参考で判定に使わない）、うまくいったこと・課題、申し送り（次のフェーズへ。next_steps）、次のフェーズの提案。before／after の数字はアプリが出すので、文章で並べ直さない。療養の期間（rehab_spans）は振り返りの対象から除き、その間に筋トレできなかったことを課題にしない。数字は list_phases などのツールが返した値だけを使い、診断や治療の助言はしない。
+次のフェーズの提案：増量・減量のあとは維持 4 週をすすめる。減量の直後に増量を考えているなら、間に維持を挟む案を出す（強制しない。決めるのは本人で、始めるのはアプリ）。
+保存したら、アプリのホームの「最新のレポート」に出ることを一言伝える（フェーズの振り返りは「最新のレポート」には出ず、アプリのフェーズの画面で読める）。1人{MAX_REPORTS}件まで。"""
 
 READ = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
 
 ToneName = Literal["good", "steady", "caution"]
-KindName = Literal["daily", "weekly", "monthly", "other"]  # 一覧の絞り込み用。other は前に保存したものを探すために残す
-SaveKindName = Literal["daily", "weekly", "monthly"]  # 保存できる種類はこの3つだけ（kind は必須）
+KindName = Literal["daily", "weekly", "monthly", "phase", "other"]  # 一覧の絞り込み用。other は前に保存したものを探すために残す
+SaveKindName = Literal["daily", "weekly", "monthly", "phase"]  # 保存できる種類はこの4つだけ（kind は必須）
 Number = Annotated[float, Field(ge=-MAX_METRIC_VALUE, le=MAX_METRIC_VALUE)]
 
 
@@ -112,8 +116,34 @@ class ReviewInput(BaseModel):
         None, description="見直す目標。食事の目標（kcal・PFC・目標体重）なら meals_goal（アプリが食事の目標を開くボタンを出す）。ほかは省く")
 
 
-def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
-    """レポートのツールを mcp に登録する。"""
+class PhasePeriods(Protocol):
+    """フェーズの振り返りの期間。実装は services/mcp/main.py（筋トレのフェーズを読む。レポートは筋トレを import しない）。"""
+
+    async def phase_period(self, subject: str, phase_id: str) -> dict | None:
+        """{"kind": normal・rehab, "start_date", "end_date"（続いた最後の日。実施中なら今日）}。ないフェーズは None。"""
+        ...
+
+
+async def _phase_period(phases: PhasePeriods | None, sub: str, phase_id: str | None,
+                        start: date | None, end: date | None) -> tuple[date | None, date | None]:
+    """フェーズの振り返りの期間を、フェーズの開始日〜続いた最後の日に決める。省いたら入れ、違えば断る（どの値にすればよいかを返す）。"""
+    if phases is None or not phase_id:
+        return start, end  # 決まりの確かめ（phase_id がない）は Report に任せる
+    found = await phases.phase_period(sub, phase_id)
+    if found is None:
+        raise ToolError(f"フェーズ {phase_id} は見つかりません。list_phases の phase_id を使ってください（アプリで作ったフェーズは同期のあとに見える）")
+    if found["kind"] != "normal":
+        raise ToolError("療養（rehab）は振り返りの対象にしません。増量・減量・維持のフェーズの phase_id を使ってください")
+    want = (date.fromisoformat(found["start_date"]), date.fromisoformat(found["end_date"]))
+    if (start, end) == (None, None):
+        return want
+    if (start, end) != want:
+        raise ToolError(f"フェーズの振り返りの期間は、フェーズの開始日〜続いた最後の日（period_start={want[0]}、period_end={want[1]}）にしてください。省けばこの期間で保存します")
+    return start, end
+
+
+def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhasePeriods | None = None) -> None:
+    """レポートのツールを mcp に登録する。phases を渡すと、フェーズの振り返りの phase_id と期間を確かめる。"""
 
     def subject(scope: str) -> str:
         """検証済みのアクセストークンに scope があれば本人（sub）を返す。なければ断る。"""
@@ -133,7 +163,9 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
                          "フェーズの向きで決める（減量期は体重が減ったのが good。療養中は体の目標で判定せず、"
                          "筋トレできていないことを caution にしない）"))],
         headline: Annotated[str, Field(max_length=MAX_HEADLINE, description="ひと言の要約（40字ほど）。例：脚の日が増え、たんぱく質も目標どおり")],
-        kind: Annotated[SaveKindName, Field(description="種類（必須）：daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）。この3つ以外は保存できない")],
+        kind: Annotated[SaveKindName, Field(description=(
+            "種類（必須）：daily（日のまとめ。period_start と period_end を同じ日に）、weekly（週のまとめ）、monthly（月のまとめ）、"
+            "phase（フェーズの振り返り。phase_id が要る）。この4つ以外は保存できない"))],
         highlights: Annotated[list[HighlightInput], Field(
             max_length=MAX_HIGHLIGHTS, description=f"分野ごとの要点（{MAX_HIGHLIGHTS}件まで）。数字があれば metric に入れる")] = [],
         next_steps: Annotated[list[Annotated[str, Field(min_length=1, max_length=MAX_NEXT_STEP_TEXT)]], Field(
@@ -148,6 +180,10 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
             "表・リンク・画像・HTML はアプリでは文字のまま出る）"))] = "",
         period_start: Annotated[date | None, Field(description="対象の期間の初日（YYYY-MM-DD）。期間がなければ省く")] = None,
         period_end: Annotated[date | None, Field(description="対象の期間の最後の日（YYYY-MM-DD。両端を含む）")] = None,
+        phase_id: Annotated[str | None, Field(
+            min_length=1, max_length=MAX_PHASE_ID, pattern=r"^[A-Za-z0-9_-]+$",
+            description=("kind が phase のときだけ：振り返るフェーズの phase_id（list_phases の値）。期間は省けば、"
+                         "サーバーがフェーズの開始日〜続いた最後の日にする。ほかの種類では省く"))] = None,
     ) -> dict:
         """まとめ（レポート）を保存し、スマホのアプリ（hlog）で読めるようにする。
 
@@ -164,13 +200,22 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
           ケガは period_overview の injuries（reviewed・fixing）を見て、直し方を守れたかを振り返りに書く（highlights の分野には入れない）
         - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）、
           今月の課題に相当する一歩を3つまで
+        - フェーズの振り返り（phase。phase_id は list_phases の値、期間は省いてよい）：材料は period_overview ではなく list_phases の
+          そのフェーズの review_material（開始時 start と終わり end の体重の週平均・体脂肪率・BIG3、療養の期間 rehab_spans）と target_history。
+          headline に達成の度合い（届いた・ほぼ届いた・届かなかった）、highlights にうまくいったこと・課題、next_steps に申し送り
+          （次のフェーズへ。3つまで）、body に次のフェーズの提案を書く。成功の指標は向きごと（増量：体重↑＋BIG3↑、減量：体重↓＋
+          BIG3 を保つ（−3% 以内）、維持：体重がほぼ不変（±1kg）＋BIG3↑＋成長スコア↑）。ウエストは使わず、体脂肪率は参考で判定に使わない。
+          before／after の数字はアプリが出すので、文章で並べ直さない。療養の期間は振り返りの対象から除く。
+          次のフェーズは、増量・減量のあとは維持 4 週をすすめ、減量の直後に増量なら間に維持を挟む案を出す（強制しない）
         tone は数字で決める（目標に近づいた・増えたなら good、変わらないなら steady、離れた・少ないなら caution）。責める言い方はしない。
         目標の向きはフェーズ（period_overview の phase）で決める：減量（cut）なら体重が減ったのが good、増量（bulk）なら増えたのが good、
         維持（maintain）なら体重がほぼ変わらないのが good。療養中（phase.current.kind が rehab）は体の目標で判定せず、
         筋トレができていないことを caution にしない（見るのは睡眠・たんぱく質・ケガの振り返り。診断や治療の助言はしない）。
-        保存は1回の依頼につき1回。同じ種類・期間でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える。
+        保存は1回の依頼につき1回。同じ種類・期間（フェーズの振り返りは同じ phase_id）でもう一度保存すると、前のレポートは置き換わる（重複にはならない）。保存したら、アプリのホームに出ることを一言伝える（フェーズの振り返りはホームの「最新のレポート」には出ず、アプリのフェーズの画面で読める）。
         """
         sub = subject(WRITE_SCOPE)
+        if kind == "phase":
+            period_start, period_end = await _phase_period(phases, sub, phase_id, period_start, period_end)
         with report_errors():
             report = Report(
                 "", title, body, Kind(kind), period_start, period_end, Tone(overall_tone), headline,
@@ -179,9 +224,11 @@ def register_report_tools(mcp: MCPServer, service: ReportService) -> None:
                                 if h.metric else None) for h in highlights),
                 tuple(next_steps),
                 links=tuple(Link(Area(link.from_area), Area(link.to_area), link.text, link.basis) for link in links),
-                review=Review(review.text, ReviewTarget(review.target) if review.target else None) if review else None)
+                review=Review(review.text, ReviewTarget(review.target) if review.target else None) if review else None,
+                phase_id=phase_id)
             saved = await service.save(sub, report)
-        return {"report": _summary(saved), "message": "保存しました。アプリ（hlog）のホームの「最新のレポート」に出ます（同期のあと）。"}
+        where = "フェーズの画面" if kind == "phase" else "ホームの「最新のレポート」"
+        return {"report": _summary(saved), "message": f"保存しました。アプリ（hlog）の{where}に出ます（同期のあと）。"}
 
     @mcp.tool(annotations=READ)
     async def list_reports(
@@ -247,6 +294,7 @@ def _summary(r: Report) -> dict:
         "period_end": r.period_end.isoformat() if r.period_end else None,
         "overall_tone": r.overall_tone.value if r.overall_tone else None,
         "headline": r.headline, "created_at": _created_at(r),
+        **({"phase_id": r.phase_id} if r.phase_id is not None else {}),
     }
 
 

@@ -368,3 +368,64 @@ describe('版12のマイグレーション', () => {
     }
   });
 });
+
+describe('フェーズの振り返り（kind が phase。版16）', () => {
+  const PHASE_REVIEW = 'aaaaaaaa-0000-4000-8000-000000000003';
+  const PHASE_FIELDS = {
+    title: '増量 16週の振り返り', kind: 'phase', phase_id: 'phase-1', period_start: '2026-07-01', period_end: '2026-10-20',
+    overall_tone: 'good', headline: '目標に届いた', next_steps: ['維持の4週は、たんぱく質を今の量のまま'],
+  };
+
+  test('受け取って phase_id と一緒に読める。最新・種類ごとの最新・お知らせ・リンクには出さず、forPhase で読む', async () => {
+    const d = await device();
+    saveReport(d, WEEK, '2026-11-09T01:00:00.000Z', WEEKLY);
+    saveReport(d, PHASE_REVIEW, '2026-11-09T02:00:00.000Z', PHASE_FIELDS);
+    expect(await d.engine.run()).toMatchObject({ ok: true });
+    const seen = await d.r.reports.seenIds(); // 初めて読んだので、今ある分は見たことになる
+    expect(seen.has(PHASE_REVIEW)).toBe(true);
+    const review = (await d.r.reports.get(PHASE_REVIEW))!;
+    expect(review).toMatchObject({ kind: 'phase', phaseId: 'phase-1', periodStart: '2026-07-01', periodEnd: '2026-10-20' });
+    expect((await d.r.reports.latest())?.id).toBe(WEEK); // 新しく作った振り返りではなく、日・週・月の最新
+    expect((await d.r.reports.forLink('weekly', '2026-11-03'))?.id).toBe(WEEK);
+    expect((await d.r.reports.forPhase('phase-1'))?.id).toBe(PHASE_REVIEW);
+    expect(await d.r.reports.forPhase('phase-2')).toBeNull();
+    expect((await d.r.reports.get(WEEK))!.phaseId).toBeNull();
+    // あとから届いた振り返りは、お知らせ（unread）に出ない
+    saveReport(d, 'aaaaaaaa-0000-4000-8000-000000000004', '2026-11-09T03:00:00.000Z', { ...PHASE_FIELDS, phase_id: 'phase-2' });
+    await d.engine.run();
+    expect(await d.r.reports.unread()).toEqual([]);
+  });
+
+  test('版15の端末：phase_id の列を足し、受け取りの位置とレポートの印を消して取り直す', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-09T01:00:00.000Z' });
+    server.append([{
+      parent_id: null, changed_at: '2026-11-09T01:00:00.000Z', origin: 'mcp', device_id: null,
+      change_id: crypto.randomUUID(), entity_type: 'report', entity_id: PHASE_REVIEW, op: 'create', fields: { body: '', ...PHASE_FIELDS },
+    }]);
+    const db = memoryDb();
+    const deps = testDeps();
+    const v16 = MIGRATIONS.splice(15);
+    try {
+      await migrate(db, deps.now);
+    } finally {
+      MIGRATIONS.push(...v16);
+    }
+    // 版15の端末は、phase_id を捨てて当てはめていた
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('applying', '1')`).run();
+    db.raw.prepare(`INSERT INTO reports (id, title, body, kind, period_start, period_end, created_at, updated_at)
+      VALUES (?, '増量 16週の振り返り', '', 'phase', '2026-07-01', '2026-10-20', 'x', 'x')`).run(PHASE_REVIEW);
+    db.raw.prepare(`DELETE FROM sync_meta WHERE key = 'applying'`).run();
+    db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '1')`).run();
+    db.raw.prepare(`INSERT INTO sync_seen (entity_type, entity_id, seq) VALUES ('report', ?, 1), ('meal', 'm1', 5)`).run(PHASE_REVIEW);
+
+    expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
+    expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
+    expect(db.raw.prepare('SELECT entity_type, entity_id FROM sync_seen').all()).toEqual([{ entity_type: 'meal', entity_id: 'm1' }]);
+    const store = syncStore(db);
+    const api = createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: async () => fakeAccessToken('user-a'), fetch: server.fetch });
+    await store.rememberAccount('user-a');
+    expect(await createSyncEngine({ store, api, now: deps.now }).run()).toMatchObject({ ok: true });
+    expect((await repos(db, deps).reports.forPhase('phase-1'))?.id).toBe(PHASE_REVIEW);
+    expect(db.raw.prepare('SELECT entity_type FROM sync_outbox').all()).toEqual([]);
+  });
+});

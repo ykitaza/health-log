@@ -51,15 +51,20 @@ class ReportService:
         件数の上限は、置き換える分を除いて数える（上限でも置き換えはできる）。
         次の一歩のチェック（next_steps_done）は、置き換えでも消さない：チェックは次の一歩の番号で指すので、
         文面が同じ一歩だけを、新しい方の番号に移して引き継ぐ（_carried_done）。
-        種類は daily・weekly・monthly だけを受け付ける。other は前に保存したものが残っているだけで、
+        フェーズの振り返り（phase）は、同じフェーズ（phase_id）のものを置き換える（フェーズを延長して終わりの日が変わっても
+        重ならないように。期間ではなくフェーズで決まる）。
+        種類は daily・weekly・monthly・phase だけを受け付ける。other は前に保存したものが残っているだけで、
         新しくは保存しない（読む・消すは今までどおりできる）。
         """
-        if report.kind not in (Kind.DAILY, Kind.WEEKLY, Kind.MONTHLY):
-            raise ReportError("レポートの種類（kind）は daily（日のまとめ）・weekly（週のまとめ）・monthly（月のまとめ）のどれかにしてください。other は保存できません")
+        if report.kind not in (Kind.DAILY, Kind.WEEKLY, Kind.MONTHLY, Kind.PHASE):
+            raise ReportError("レポートの種類（kind）は daily（日のまとめ）・weekly（週のまとめ）・monthly（月のまとめ）・phase（フェーズの振り返り）のどれかにしてください。other は保存できません")
         existing = await self.reports.list(owner)
-        same = [r for r in existing if report.period_start is not None
-                and r.kind == report.kind and r.period_start == report.period_start
-                and (report.kind != Kind.DAILY or r.period_end == report.period_end)]
+        if report.kind is Kind.PHASE:  # フェーズの振り返りは、同じフェーズ（phase_id）なら期間が違っても置き換える
+            same = [r for r in existing if r.kind == Kind.PHASE and r.phase_id == report.phase_id]
+        else:
+            same = [r for r in existing if report.period_start is not None
+                    and r.kind == report.kind and r.period_start == report.period_start
+                    and (report.kind != Kind.DAILY or r.period_end == report.period_end)]
         if len(existing) - len(same) >= MAX_REPORTS:
             raise ReportError(f"レポートは{MAX_REPORTS}件までです。古いものを delete_report で消してから保存してください")
         saved = await self.reports.add(owner, replace(

@@ -17,12 +17,13 @@ import { useFocusData } from '@/hooks/data';
 import { addDays, todayKey } from '@/lib/date';
 import { previousTodo } from '@/lib/home';
 import {
-  achievementScope, formatCreated, formatPeriod, Highlight, KIND_LABELS, Metric, NEXT_TITLES, Report, ReportKind,
+  achievementScope, formatCreated, formatPeriod, Highlight, isPeriodReportKind, KIND_LABELS, Metric, NEXT_TITLES, PeriodReportKind, Report,
+  ReportKind,
 } from '@/lib/reports';
 import { dailyReportStreak, dailyStreakText } from '@/lib/reportStreak';
 import { colors } from '@/theme';
 
-type PeriodKind = Exclude<ReportKind, 'other'>;
+type PeriodKind = PeriodReportKind;
 const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
   { key: 'daily', label: '日' }, { key: 'weekly', label: '週' }, { key: 'monthly', label: '月' },
 ];
@@ -124,9 +125,10 @@ export default function ReportScreen() {
   const [confirm, setConfirm] = useState(false);
   const { busy, run } = useBusy();
   // 出すレポート：期間タブを選んでいれば、その種類の最新のもの。選んだ種類にまだなければ null（空の状態を出す）。
-  // 開いたレポートが 'other'（分析レポート）のときは出さず、最新の（other でない）レポートに替える（アプリのどこにも表示しない決まり）
+  // 開いたレポートが 'other'（分析レポート）・'phase'（フェーズの振り返り。フェーズの画面で見せる）のときは出さず、
+  // 最新の日・週・月のまとめに替える（この画面は日・週・月のタブだけ）
   const openedRaw = data?.report ?? null;
-  const opened = openedRaw?.kind === 'other' ? (data?.latest ?? null) : openedRaw;
+  const opened = openedRaw && !isPeriodReportKind(openedRaw.kind) ? (data?.latest ?? null) : openedRaw;
   const report: Report | null = data == null ? null : pickedKind ? data.latestByKind[pickedKind] : opened;
   // 次の一歩のチェック（日次＝明日の一歩、週次＝来週の焦点。月次は見るだけ。既存の next_steps_done の仕組み：components/WeeklyTodo の useTodoChecks）
   const { done, toggle } = useTodoChecks(report?.id, report?.nextStepsDone ?? []);
@@ -179,7 +181,7 @@ export default function ReportScreen() {
   });
   const period = formatPeriod(report);
   // 出しているのがその種類の最新のときだけ「最新の生成済み」と書く（古いレポートを開いたときは書かない）
-  const isLatest = report.kind !== 'other' && report.id === data.latestByKind[report.kind]?.id;
+  const isLatest = isPeriodReportKind(report.kind) && report.id === data.latestByKind[report.kind]?.id;
   const periodDots = report.periodStart
     ? `${dotDate(report.periodStart)}${report.periodEnd && report.periodEnd !== report.periodStart ? `–${dotMonthDay(report.periodEnd)}` : ''}`
     : null;

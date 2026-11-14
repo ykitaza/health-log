@@ -28,6 +28,11 @@ export type ChatPrompt =
   /** ケガの振り返りを書く。occurredOn はそのケガの痛めた日（どのケガかを探す手がかり。ほかの中身は入れない） */
   | { kind: 'injury-review'; occurredOn: string; today: string }
   | { kind: 'report'; span: ReportSpan; today: string }
+  /**
+   * フェーズの振り返りを作る（レポートの kind が phase）。startDate はそのフェーズの開始日（どのフェーズかを探す手がかり。
+   * ID や記録の中身は入れない）。呼ぶのはフェーズの画面（進捗の詳細・終えたとき）
+   */
+  | { kind: 'phase-review'; startDate: string; today: string }
   /** まだ作っていないまとめを、まとめて作る（lib/reports.ts の pendingReports の結果） */
   | { kind: 'pending'; items: PendingReport[] }
   /** まとめを自動で作るスケジュール（ChatGPT のタスク）を入れてもらう（REPORT_SCHEDULES の3つ） */
@@ -222,9 +227,27 @@ function injuryText(p: Extract<ChatPrompt, { kind: 'injury' | 'injury-review' }>
     + NO_DIAGNOSIS + AFTER_SAVE + backLink('injuries', base);
 }
 
+/**
+ * フェーズの振り返りの文。材料は period_overview（31日まで）ではなく list_phases の review_material（開始時と終わりの値・療養の期間）と
+ * target_history。phase_id は URL に入れず、開始日を手がかりに list_phases で探してもらう（injury-review と同じ）。
+ * 書くことの要点だけを入れ、成功の指標・次のフェーズのおすすめなどの決まりは save_report の説明に任せる（URL の上限のため）。
+ * 戻るリンクは付けない（認可サーバーの案内のページ /open/… とアプリの +native-intent が、まだフェーズの画面を受けないため）
+ */
+function phaseReviewText(p: Extract<ChatPrompt, { kind: 'phase-review' }>): string {
+  const start = validDate(p.startDate);
+  const today = validDate(p.today);
+  return `${CONNECTOR}で、${start ? `${dayText(start)}に始めた` : '最近の'}フェーズの振り返りを作ってください。`
+    + `list_phases でそのフェーズ（療養でないもの）を探し、review_material と target_history を読み、${FACTS_ONLY}。`
+    + 'before／after の数字はアプリが出すので並べ直さない。'
+    + '達成の度合い（届いた・ほぼ届いた・届かなかった）、うまくいったこと・課題、申し送りを next_steps に、次のフェーズの提案を書き、'
+    + '療養の期間は除き、責めない言い方で save_report(kind=phase, phase_id)で保存してください。'
+    + (today ? `今日は${dayText(today)}。` : '');
+}
+
 /** URL に入れる文（決まった文だけ。記録の中身や個人の情報は入れない。日付は入れる） */
 export function promptText(p: ChatPrompt, base: string = OPEN_BASE): string {
   if (p.kind === 'report') return reportText(p.span, p.today, base);
+  if (p.kind === 'phase-review') return phaseReviewText(p);
   if (p.kind === 'schedule') return scheduleText();
   if (p.kind === 'pending') return pendingPrompt(p.items, base).text;
   if (p.kind === 'injury' || p.kind === 'injury-review') return injuryText(p, base);
@@ -253,6 +276,7 @@ export function promptSummary(p: ChatPrompt): string {
   if (p.kind === 'schedule') return 'まとめを自動で作る予定を入れる';
   if (p.kind === 'injury') return 'ケガを記録する';
   if (p.kind === 'injury-review') return 'ケガの振り返りを記録する';
+  if (p.kind === 'phase-review') return 'フェーズの振り返りを作る';
   const day = p.date === p.today || !validDate(p.date) ? '今日' : dayText(p.date);
   if (p.kind === 'training') return `${day}の筋トレを記録する`;
   const slot = p.slot && SLOTS.includes(p.slot) ? SLOT_LABELS[p.slot] : '食事';

@@ -5,6 +5,7 @@
 分野をまたぐ気づき（links。「つながり」）・目標の見直し（review）は、アプリが色・アイコン・指標のタイルで見せるための構造のある項目。
 構造のない前の形のレポート（本文だけ）や、links・review のない前の形も読める（overall_tone は steady として扱い、指標はない）。
 達成の数字（今日の達成、今週の目標、体の変化のグラフ）はアプリが記録から計算するので、レポートには持たせない。
+フェーズの振り返り（kind が phase）も同じ形で、どのフェーズかを phase_id に持つ。before／after の数字はアプリが計算する。
 上限は、DynamoDB の1項目（400KB）に、変更の記録と今の状態の両方が入るように決める（下の MAX_ENCODED_BYTES）。
 """
 
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
@@ -33,18 +35,23 @@ MAX_LABEL = 20
 MAX_UNIT = 10
 MAX_METRIC_VALUE = 1_000_000
 MAX_PERIOD_DAYS = 366
+# フェーズの振り返り（kind が phase）の期間。フェーズは104週（728日）まで、療養で止まった日数だけ後ろにずれるので、3年までにする
+MAX_PHASE_PERIOD_DAYS = 1096
+MAX_PHASE_ID = 64  # フェーズの ID（同期の ID と同じ形。sync.registry.ID_PATTERN）
 # 1人が持てるレポートの数（消したものは数えない）。一覧は全部を読むので、多くなりすぎないようにする
 MAX_REPORTS = 200
 # 項目を JSON（日本語は \uXXXX）にしたときの大きさの上限。変更の記録には項目と今の状態の2つが入るので、
 # 2倍しても DynamoDB の1項目（400KB）に収まるようにする。日本語だけの本文 20,000 字は 120KB ほど。
 # 絵文字（1字が \uXXXX\uXXXX の12バイト）が多いと字数の上限より先にこちらで断る
 MAX_ENCODED_BYTES = 150_000
+ID_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{1,{MAX_PHASE_ID}}}$")  # sync.registry.ID_PATTERN と同じ形（ドメインは sync を import しない）
 
 
 class Kind(StrEnum):
     DAILY = "daily"  # 日のまとめ（period_start と period_end が同じ日）
     WEEKLY = "weekly"  # 週のまとめ
     MONTHLY = "monthly"  # 月のまとめ
+    PHASE = "phase"  # フェーズの振り返り（期間はフェーズの開始日〜終わった日。どのフェーズかを phase_id に持つ）
     OTHER = "other"  # その他。前は保存できたが、いまは保存を受け付けない（前に保存したものを読むためにだけ残す。service.save が断る）
 
 
@@ -119,6 +126,8 @@ class Report:
     review: Review | None = None
     # 済んだ次の一歩の番号（0 から、小さい順）。アプリのチェック（同期で届く）。次の一歩の数を超える番号は持たない
     next_steps_done: tuple[int, ...] = ()
+    # どのフェーズの振り返りか（kind が phase のときだけ。ほかの種類は None）
+    phase_id: str | None = None
 
     def __post_init__(self):
         if not self.title.strip():
@@ -161,8 +170,16 @@ class Report:
         if self.period_start and self.period_end:
             if self.period_end < self.period_start:
                 raise ReportError("period_end は period_start と同じか後の日にしてください")
-            if (self.period_end - self.period_start).days >= MAX_PERIOD_DAYS:
-                raise ReportError(f"期間は{MAX_PERIOD_DAYS}日までにしてください")
+            max_days = MAX_PHASE_PERIOD_DAYS if self.kind is Kind.PHASE else MAX_PERIOD_DAYS
+            if (self.period_end - self.period_start).days >= max_days:
+                raise ReportError(f"期間は{max_days}日までにしてください")
+        if self.kind is Kind.PHASE:
+            if not self.phase_id or not ID_PATTERN.match(self.phase_id):
+                raise ReportError("フェーズの振り返り（phase）は、どのフェーズかを phase_id（list_phases の phase_id）に入れてください")
+            if self.period_start is None:
+                raise ReportError("フェーズの振り返り（phase）は、期間（フェーズの開始日〜終わった日）を入れてください")
+        elif self.phase_id is not None:
+            raise ReportError("phase_id はフェーズの振り返り（kind が phase）だけが持ちます")
         if self.kind is Kind.DAILY and (self.period_start is None or self.period_start != self.period_end):
             raise ReportError("日のまとめ（daily）は、period_start と period_end を同じ日にしてください")
 

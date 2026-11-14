@@ -166,7 +166,7 @@ describe('版15のマイグレーション', () => {
     }
     db.raw.prepare(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '42')`).run();
     expect(await migrate(db, deps.now)).toBe(LATEST_VERSION);
-    expect(LATEST_VERSION).toBe(15);
+    expect(LATEST_VERSION).toBeGreaterThanOrEqual(15); // 版16でレポートに phase_id を足した
     expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
     db.raw.prepare(`INSERT INTO phases (id, kind, start_date, status, created_at, updated_at) VALUES ('p1', 'rehab', '2026-11-01', 'active', 'x', 'x')`).run();
     const row = db.raw.prepare('SELECT entity_type, op, fields FROM sync_outbox').get() as { entity_type: string; op: string; fields: string };
