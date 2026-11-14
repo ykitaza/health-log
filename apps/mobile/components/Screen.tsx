@@ -1,12 +1,12 @@
 import { useScrollToTop } from 'expo-router';
-import { ReactNode, Ref, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { ReactNode, Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, ScrollViewInstance, View, ViewInstance } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePullToSync } from '@/hooks/sync';
 import { ScrollWatchProvider, useScrollTarget, useScrollWatch } from '@/hooks/useOnScreen';
 import { ScrollToTopTarget, scrollToTopTarget } from '@/lib/scrollToTop';
-import { colors, size, space } from '@/theme';
+import { colors, radius, size, space } from '@/theme';
 import { PullMark, usePullMark } from './PullMark';
 import { Snackbar } from './ui';
 
@@ -99,9 +99,43 @@ function PullToSyncScroll({ children, contentContainerStyle, fab, markTop }: { c
   );
 }
 
-/** ほかの画面から来たときにスクロールして見せるビュー。request が新しい値になったら、ここまでスクロールする（hooks/useOnScreen.ts の useScrollTarget） */
+/** 光らせはじめるまでの待ち（ms）。スクロールが落ち着いてから光らせる */
+const GLOW_DELAY_MS = 350;
+/** 光って消えるまでの時間（ms）：ふわっと明るく → ゆっくり消える */
+const GLOW_IN_MS = 300;
+const GLOW_OUT_MS = 900;
+
+/**
+ * 着いたビューの上に重ねて、縁と面をアクセント色でふわっと光らせる（どの記録に来たかを見せる）。レイアウトは動かさない（絶対配置・タッチは通す）。
+ * 動きを減らす設定なら、フェードせず同じ長さのあいだ光らせるだけ
+ */
+function Glow({ request }: { request: number | null }) {
+  const reduced = useReducedMotion();
+  const [on, setOn] = useState(false);
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    if (request == null) { setOn(false); return; }
+    setOn(true);
+    opacity.value = 0;
+    opacity.value = reduced
+      ? withDelay(GLOW_DELAY_MS, withSequence(withTiming(1, { duration: 0 }), withTiming(1, { duration: GLOW_IN_MS + GLOW_OUT_MS }), withTiming(0, { duration: 0 })))
+      : withDelay(GLOW_DELAY_MS, withSequence(withTiming(1, { duration: GLOW_IN_MS }), withTiming(0, { duration: GLOW_OUT_MS })));
+    const id = setTimeout(() => setOn(false), GLOW_DELAY_MS + GLOW_IN_MS + GLOW_OUT_MS + 100);
+    return () => clearTimeout(id);
+  }, [request, reduced, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  if (!on) return null;
+  return (
+    <Animated.View
+      pointerEvents="none" testID="scroll-glow" accessible={false} importantForAccessibility="no-hide-descendants"
+      style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.card, borderWidth: 2, borderColor: colors.accent, backgroundColor: `${colors.accent}33` }, style]}
+    />
+  );
+}
+
+/** ほかの画面から来たときにスクロールして見せるビュー。request が新しい値になったら、ここまでスクロールして、少し光らせる（hooks/useOnScreen.ts の useScrollTarget） */
 export function ScrollTarget({ request, children, testID }: { request: number | null; children: ReactNode; testID?: string }) {
   const ref = useRef<ViewInstance>(null);
   const onLayout = useScrollTarget(ref, request);
-  return <View ref={ref} onLayout={onLayout} collapsable={false} testID={testID}>{children}</View>;
+  return <View ref={ref} onLayout={onLayout} collapsable={false} testID={testID}>{children}<Glow request={request} /></View>;
 }

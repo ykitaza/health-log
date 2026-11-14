@@ -63,6 +63,10 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     await expectTrainingDay(page, '11月8日（日）');
     await expectScrolledTo(visible(page, 'entry-card-2'));
     await expect(visible(page, 'entry-card-2')).toContainText('スクワット');
+    // 着いたカードだけが、少し光って、どの記録かを見せる（光らせは覆うだけで、押せなくしない）
+    await expect(visible(page, 'entry-card-2').getByTestId('scroll-glow')).toBeVisible();
+    await expect(page.getByTestId('scroll-glow').filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByTestId('scroll-glow')).toHaveCount(0);
     // 最後の種目の札も（いちばん下までスクロールして、カードの全体が見える）
     await backHome(page);
     await visible(page, 'day-body-tag').filter({ hasText: 'ショルダープレス' }).click();
