@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from training.domain import body, bodyweight, calculations, health
+from training.domain import big3, body, bodyweight, calculations, health, measures
 from training.domain import phase as phase_rules
 from training.domain.catalog import Catalog
 from training.domain.injury import Injury, InjuryReview
@@ -90,6 +90,19 @@ class PhaseProgress:
     rehab_days: int  # 通常：療養で止まった日数。療養：開始日から as_of まで（終わったものは終わった日まで）の日数
     pace: Pace | None  # 通常のフェーズだけ
     plan_kg: float | None  # as_of の予定の体重
+
+
+@dataclass(frozen=True)
+class PhaseReview:
+    """フェーズの振り返りの材料：期間（開始日〜続いた最後の日）、療養で止まった期間、終わりの時点の記録（開始時の記録と同じ出し方）。"""
+
+    period_start: str
+    period_end: str  # 続いた最後の日（終えたものは終えた日の前の日。実施中なら as_of まで）
+    finished: bool  # 終えた・中断した（実施中なら False で、period_end までの途中の値）
+    rehab_spans: list[tuple[str, str]]  # 療養で止まった期間（[始め, 終わり]。両端を含む）
+    weight: measures.Measure
+    body_fat: measures.Measure
+    big3: dict[str, float | None] | None
 
 
 def phase_progress(p: Phase, phases: list[Phase], weights: list[tuple[str, float]], as_of: str) -> PhaseProgress:
@@ -201,6 +214,28 @@ class TrainingQueries:
         """フェーズ。新しい順（開始日、同じなら記録の新しいもの）。"""
         found = await self.repository.phases(TraineeId(subject))
         return sorted(found, key=lambda p: (p.start_date, p.created_at, p.id), reverse=True)
+
+    async def phase_reviews(self, subject: str, progresses: list[PhaseProgress], as_of: str) -> dict[str, PhaseReview]:
+        """通常のフェーズの振り返りの材料（phase_id → 材料）。as_of より後に始まるフェーズは入れない。"""
+        normal = [pp for pp in progresses if pp.phase.kind == "normal" and pp.phase.start_date <= as_of]
+        if not normal:
+            return {}
+        phases = await self.phases(subject)
+        days = await self.daily_body(subject)
+        weights = [(d.date, d.weight_kg) for d in days if d.weight_kg is not None]
+        fats = [(d.date, d.body_fat_pct) for d in days if d.body_fat_pct is not None]
+        rows = await self.repository.set_rows(TraineeId(subject))
+        roles = big3.assignments((await self.catalog(subject)).exercises)
+        out = {}
+        for pp in normal:
+            p = pp.phase
+            last = max(p.start_date, min(phase_rules.end_of(p, phases, as_of), as_of))
+            spans = [(s, calculations.add_days(e, -1)) for s, e in phase_rules.pauses(p, phases, as_of) if s <= last]
+            out[p.id] = PhaseReview(
+                p.start_date, last, p.status != "active", [(s, min(e, last)) for s, e in spans],
+                measures.week_or_latest(weights, last), measures.week_or_latest(fats, last),
+                measures.big3_best(rows, roles, last))
+        return out
 
     async def phase_progresses(self, subject: str, as_of: str, start: str | None = None,
                                limit: int = 50) -> tuple[list[PhaseProgress], PhaseProgress | None, PhaseProgress | None]:

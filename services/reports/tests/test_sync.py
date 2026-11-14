@@ -87,12 +87,24 @@ def test_ID_は_UUID():
     {**FIELDS, "body": "😀" * 15000},
     {**FIELDS, "kind": "daily", "period_start": "2026-11-08", "period_end": "2026-11-09"},
     {**FIELDS, "kind": "daily"},
+    {**FIELDS, "kind": "phase", "period_start": "2026-07-01", "period_end": "2026-10-20"},  # phase_id がない
+    {**FIELDS, "kind": "phase", "phase_id": "p1"},  # 期間がない
+    {**FIELDS, "kind": "phase", "phase_id": "p 1", "period_start": "2026-07-01", "period_end": "2026-10-20"},
+    {**FIELDS, "phase_id": "p1"},  # ほかの種類は持てない
+    {**FIELDS, "kind": "phase", "phase_id": "p1", "period_start": "2023-01-01", "period_end": "2026-10-20"},  # 3年を超える
 ])
 def test_項目を確かめる(fields):
     result = REGISTRY.check_fields("report", "create", fields)
     if not isinstance(result, Rejection):
         result = REGISTRY.specs["report"].check(REPORT_ID, result)
     assert isinstance(result, Rejection)
+
+
+def test_フェーズの振り返りは_phase_id_と期間があれば受け付け_366日より長くてもよい():
+    fields = {**FIELDS, "kind": "phase", "phase_id": "p1", "period_start": "2025-01-01", "period_end": "2026-10-20"}
+    result = REGISTRY.check_fields("report", "create", fields)
+    assert not isinstance(result, Rejection)
+    assert REGISTRY.specs["report"].check(REPORT_ID, result) is None
 
 
 def test_日のまとめは_その日だけの期間なら受け付ける():

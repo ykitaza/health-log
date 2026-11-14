@@ -12,7 +12,15 @@ import { fmtInt, WeightUnit } from './units';
 
 export type Tone = 'good' | 'steady' | 'caution';
 export type Area = 'training' | 'meals' | 'body' | 'sleep';
-export type ReportKind = 'daily' | 'weekly' | 'monthly' | 'other';
+/**
+ * 種類。phase はフェーズの振り返り（どのフェーズかは phaseId。期間はフェーズの開始日〜終わった日）。
+ * 日・週・月のタブ・最新のレポート・お知らせに出すのは PeriodReportKind（日・週・月）だけ。phase はフェーズの画面で見せる
+ */
+export type ReportKind = 'daily' | 'weekly' | 'monthly' | 'phase' | 'other';
+/** 期間のまとめ（日・週・月）。タブ・最新のレポート・お知らせ・まだ作っていないまとめの対象 */
+export type PeriodReportKind = 'daily' | 'weekly' | 'monthly';
+export const PERIOD_REPORT_KINDS: readonly PeriodReportKind[] = ['daily', 'weekly', 'monthly'];
+export const isPeriodReportKind = (k: unknown): k is PeriodReportKind => PERIOD_REPORT_KINDS.includes(k as PeriodReportKind);
 
 export type Metric = { label: string; value: number; unit: string; delta: number | null; deltaGood: boolean | null };
 export type Highlight = { area: Area; tone: Tone; text: string; metric: Metric | null };
@@ -41,28 +49,34 @@ export type Report = {
   review: ReportReview | null;
   /** サーバーが受け付けた時刻（ISO 8601） */
   createdAt: string;
+  /** どのフェーズの振り返りか（kind が phase のときだけ。ほかは null） */
+  phaseId: string | null;
 };
 
-/** 端末の reports の表の1行（db/migrations.ts の版7。links と review は版9、next_steps_done は版12） */
+/** 端末の reports の表の1行（db/migrations.ts の版7。links と review は版9、next_steps_done は版12、phase_id は版16） */
 export type ReportRow = {
   id: string; title: string; body: string; kind: string; period_start: string | null; period_end: string | null;
   overall_tone: string | null; headline: string | null; highlights: string | null; next_steps: string | null;
-  links: string | null; review: string | null; next_steps_done?: string | null; created_at: string;
+  links: string | null; review: string | null; next_steps_done?: string | null; phase_id?: string | null; created_at: string;
 };
 
 export const TONE_LABELS: Record<Tone, string> = { good: '良い調子', steady: 'いつもどおり', caution: '気をつけたい' };
 /** 分野ごとのカードの印（短く） */
 export const TONE_SHORT: Record<Tone, string> = { good: '良い', steady: '変わらない', caution: '気をつけたい' };
-export const KIND_LABELS: Record<ReportKind, string> = { daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', other: 'その他' };
+export const KIND_LABELS: Record<ReportKind, string> = {
+  daily: '日のまとめ', weekly: '週のまとめ', monthly: '月のまとめ', phase: 'フェーズの振り返り', other: 'その他',
+};
 /** 一覧のカードの種類の四角の1文字（読み上げは KIND_LABELS） */
-export const KIND_SHORT: Record<ReportKind, string> = { daily: '日', weekly: '週', monthly: '月', other: '他' };
+export const KIND_SHORT: Record<ReportKind, string> = { daily: '日', weekly: '週', monthly: '月', phase: '期', other: '他' };
 export const AREA_LABELS: Record<Area, string> = { training: '筋トレ', meals: '食事', body: 'からだ', sleep: '睡眠' };
 /** 次の一歩の見出し（日のまとめなら明日、週のまとめなら来週の焦点、月なら今月の課題） */
-export const NEXT_TITLES: Record<ReportKind, string> = { daily: '明日の一歩', weekly: '来週の焦点', monthly: '今月の課題', other: '次の一歩' };
+export const NEXT_TITLES: Record<ReportKind, string> = {
+  daily: '明日の一歩', weekly: '来週の焦点', monthly: '今月の課題', phase: '次のフェーズへの申し送り', other: '次の一歩',
+};
 
 const TONES: Tone[] = ['good', 'steady', 'caution'];
 const AREAS: Area[] = ['training', 'meals', 'body', 'sleep'];
-const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly', 'other'];
+const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly', 'phase', 'other'];
 // サーバーの上限（services/reports/reports/domain/report.py）。壊れた値で画面が長くなりすぎないよう、読むときも切る
 const MAX_HIGHLIGHTS = 6;
 const MAX_NEXT_STEPS = 3;
@@ -157,6 +171,7 @@ export function parseReport(row: ReportRow): Report {
     links: parseLinks(row.links),
     review: parseReview(row.review),
     createdAt: row.created_at,
+    phaseId: row.kind === 'phase' && typeof row.phase_id === 'string' && row.phase_id !== '' ? row.phase_id : null,
   };
 }
 
@@ -249,8 +264,8 @@ function periodDays(r: Pick<Report, 'periodStart' | 'periodEnd'>): number {
   return isDateKey(r.periodStart) && isDateKey(r.periodEnd) && r.periodStart <= r.periodEnd ? daysBetween(r.periodStart, r.periodEnd) + 1 : 0;
 }
 
-/** 同じ日付のときの種類の順（期間の長いもの：月→週→日。その他は週と日のあいだ） */
-const KIND_RANK: Record<ReportKind, number> = { monthly: 0, weekly: 1, other: 2, daily: 3 };
+/** 同じ日付のときの種類の順（期間の長いもの：フェーズ→月→週→日。その他は週と日のあいだ） */
+const KIND_RANK: Record<ReportKind, number> = { phase: -1, monthly: 0, weekly: 1, other: 2, daily: 3 };
 
 /** 並びの向き（sortReports） */
 export type ReportOrder = 'newest' | 'oldest';
@@ -283,7 +298,7 @@ export function sortReports<R extends Pick<Report, 'id' | 'kind' | 'periodStart'
  */
 export function reportShortName(r: Pick<Report, 'kind' | 'periodStart' | 'periodEnd' | 'title'>, today: DateKey): string {
   const start = isDateKey(r.periodStart) ? r.periodStart : null;
-  if (!start || r.kind === 'other') return r.title;
+  if (!start || !isPeriodReportKind(r.kind)) return r.title;
   if (r.kind === 'daily') return `${start === today ? '今日' : formatMonthDay(start)}のまとめ`;
   if (r.kind === 'weekly') {
     const thisWeek = weekOf(today).start;
@@ -328,7 +343,7 @@ export function dailyHighlightLabel(h: Highlight): string {
 // --- まだ作っていないまとめ ---
 
 /** まだ作っていないまとめ。key は閉じたことを覚えるときの名前（「daily:2026-11-09」） */
-export type PendingReport = { kind: Exclude<ReportKind, 'other'>; periodStart: DateKey; periodEnd: DateKey; key: string };
+export type PendingReport = { kind: PeriodReportKind; periodStart: DateKey; periodEnd: DateKey; key: string };
 
 /** 今日の日のまとめを出し始める時刻（端末の時刻） */
 export const TODAY_DAILY_FROM_HOUR = 21;

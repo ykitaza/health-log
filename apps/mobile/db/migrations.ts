@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, REPORT_ENTITIES, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, REPORT_ENTITIES, REPORT_ENTITIES_V12, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V10, TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -363,7 +363,7 @@ DELETE FROM sync_meta WHERE key = 'cursor';
 DELETE FROM sync_seen WHERE entity_type = 'report';
 DELETE FROM sync_held WHERE entity_type = 'report';
 `);
-      for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
+      for (const spec of REPORT_ENTITIES_V12) await db.execAsync(triggerSql(spec));
       const old = await db.getFirstAsync<{ value: string | null }>(`SELECT value FROM sync_meta WHERE key = 'home.weekly_todo'`, []);
       const moved = old?.value ? oldTodoChecks(old.value) : null;
       if (moved) {
@@ -466,6 +466,24 @@ CREATE TABLE phases (
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
       for (const spec of PHASE_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // フェーズの振り返り（レポートの kind が phase）の、どのフェーズかを持つ phase_id（kind が phase のときだけ。ほかは NULL）。
+    // 列を足してトリガーを作り直す（アプリはレポートを消すのとチェックだけなので、積むものは変わらない）。
+    // 版15までの端末は、受け取ったレポートの知らない項目（phase_id）を捨てていたので、版9・版12と同じく受け取りの位置と
+    // レポートの当てはめた印を消して、スナップショットで取り直す
+    version: 16,
+    up: async (db) => {
+      await db.execAsync(`
+ALTER TABLE reports ADD COLUMN phase_id TEXT;
+DROP TRIGGER sync_reports_insert;
+DROP TRIGGER sync_reports_update;
+DELETE FROM sync_meta WHERE key = 'cursor';
+DELETE FROM sync_seen WHERE entity_type = 'report';
+DELETE FROM sync_held WHERE entity_type = 'report';
+`);
+      for (const spec of REPORT_ENTITIES) await db.execAsync(triggerSql(spec));
     },
   },
 ];
