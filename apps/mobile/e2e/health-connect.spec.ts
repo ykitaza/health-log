@@ -39,6 +39,8 @@ test('からだの睡眠・心拍・歩数の行から推移を開く。記録�
   await page.getByRole('button', { name: '睡眠の推移を見る' }).click();
   await expect(see(page, '睡眠の推移', { exact: true })).toBeVisible();
   await expect(see(page, 'まだ記録がありません')).toBeVisible();
+  // 記録がないので、ホームと同じ SLEEP のカードも出さない
+  await expect(page.getByTestId('sleep-gauge')).toHaveCount(0);
   // 期間の切り替えは残す
   await button(page, '3か月').click();
   await expect(button(page, '3か月')).toHaveAttribute('aria-selected', 'true');

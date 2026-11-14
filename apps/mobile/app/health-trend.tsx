@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LineChart, StackedBarChart, useCountUp } from '@/components/charts';
+import { SleepPanel } from '@/components/homeHud';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
@@ -11,6 +12,7 @@ import { useFocusData } from '@/hooks/data';
 import { dateLabels, datePoints } from '@/lib/chart';
 import { formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { average, averageClock, formatClock, formatHM, formatSteps } from '@/lib/health';
+import { sleepGauge } from '@/lib/homeHud';
 import { Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { colors, space } from '@/theme';
 
@@ -21,7 +23,8 @@ const ICONS = { sleep: 'moon', heart: 'heart', steps: 'steps' } as const;
 
 /**
  * 睡眠・安静時心拍・歩数の推移（からだのタブの睡眠・心拍・歩数の行から開く）。体重の推移と同じ作り：期間の切り替え、大きな数字、グラフ、日ごとの一覧。
- * Health Connect から取り込んだ記録がないときは、つなぐ画面への導線を出す
+ * Health Connect から取り込んだ記録がないときは、つなぐ画面への導線を出す。
+ * 睡眠は、いちばん上にホームの SLEEP と同じカード（7 日の棒と 7 時間の目標の線。期間の切り替えによらない）を置く。ホームの SLEEP から来ても、開いたときに見えている
  */
 export default function HealthTrendScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
@@ -47,6 +50,9 @@ export default function HealthTrendScreen() {
   return (
     <Screen>
       <Header title={title} onBack={() => router.back()} />
+      {kind === 'sleep' && data && data.sleep.length > 0 && (
+        <View style={s.gaugeRow}><SleepPanel gauge={sleepGauge(data.sleep, today)} today={today} link={false} testID="sleep-gauge" /></View>
+      )}
       <View style={{ marginTop: space.s }}>
         <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
       </View>
@@ -249,6 +255,8 @@ function StepsTrend({ days, period }: { days: StepDay[]; period: Period }) {
 }
 
 const s = StyleSheet.create({
+  // ホームの計器の段と同じく横の並びに置く（計器は flex: 1 で、並びの幅いっぱい）
+  gaugeRow: { flexDirection: 'row', marginTop: space.s },
   big: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
   meta: { flexDirection: 'row', alignItems: 'baseline', gap: space.s, flexWrap: 'wrap' },
   legend: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },

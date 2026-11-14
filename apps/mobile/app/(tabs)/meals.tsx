@@ -1,16 +1,17 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_RECORD_LABEL, AiRecordButton, useChatChooser } from '@/components/ChatSheet';
 import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/components/DayPicker';
+import { FuelPanel } from '@/components/homeHud';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { NutritionSummary } from '@/components/meals';
 import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { DailyHighlights } from '@/components/reports';
-import { Screen } from '@/components/Screen';
+import { Screen, ScrollTarget } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { MealWeekly } from '@/components/MealWeekly';
 import { Button, Card, IconButton, PrimaryTabs, Segmented, TabHeader } from '@/components/ui';
@@ -20,13 +21,17 @@ import { useBusy } from '@/hooks/busy';
 import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
+import { fuelGauge } from '@/lib/homeHud';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, slotAt } from '@/lib/meals';
 import { TAB_AREAS } from '@/lib/reports';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, radius, space } from '@/theme';
 
-/** 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「推移」は週のふり返り（週のまとめ） */
+/**
+ * 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「推移」は週のふり返り（週のまとめ）。
+ * 記録の上には、ホームの FUEL と同じカード（その日の kcal と PFC のドーナツ）を置く。ホームの FUEL から来たら（focus=fuel）、そこまでスクロールする
+ */
 export default function MealsScreen() {
   const [date, setDate] = useState(todayKey);
   // 日をまたいだら、今日を見ていたなら新しい今日へ移す（前の日に記録を足さないように）
@@ -35,8 +40,20 @@ export default function MealsScreen() {
   // 上の切り替え：その日の「記録」と「推移」（週のまとめ。前の履歴／分析のタブの食事）
   const [pane, setPane] = useState<'day' | 'week'>('day');
   // ホームの食事のカードから、その日を指定して開いたとき
-  const { date: asked } = useLocalSearchParams<{ date?: string }>();
+  const { date: asked, focus } = useLocalSearchParams<{ date?: string; focus?: string }>();
   useEffect(() => { if (asked && asked <= todayKey()) { setDate(asked); setPane('day'); } }, [asked]);
+  // ホームの FUEL から来たとき：その日の記録の FUEL のカードまでスクロールする。n は来るたびに変える（同じ日でももう一度スクロールする）。
+  // 受け取った focus は消す（次に来たときも動くように）。画面を離れたら、合わせ直すのをやめる
+  const [fuelRequest, setFuelRequest] = useState<number | null>(null);
+  const focusCount = useRef(0);
+  useEffect(() => {
+    if (focus !== 'fuel') return;
+    if (asked && asked <= todayKey()) setDate(asked);
+    setPane('day');
+    setFuelRequest(++focusCount.current);
+    router.setParams({ focus: undefined });
+  }, [focus, asked]);
+  useFocusEffect(useCallback(() => () => setFuelRequest(null), []));
   const { status } = useAuth();
   const [picking, setPicking] = useState(false);
   // 日を変えるときは、向きに合わせて中身を横へすべらせる（スワイプ・前後のボタン・日を選ぶ・Android の戻る）
@@ -97,6 +114,13 @@ export default function MealsScreen() {
         )}
       >
 
+      <ScrollTarget request={fuelRequest}>
+        {day && (
+          <View style={s.gaugeRow}>
+            <FuelPanel fuel={fuelGauge(day)} date={date} dayLabel={date === today ? '今日' : formatJpDate(date)} link={false} testID="meal-fuel" />
+          </View>
+        )}
+      </ScrollTarget>
       {day && (
         <Card style={{ marginTop: space.m }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: -space.xs }}>
@@ -308,6 +332,8 @@ function MethodIcon({ name }: { name: 'copy' | 'pencil' | 'calc' | 'chat' }) {
 }
 
 const s = StyleSheet.create({
+  // ホームの FUEL と同じく横の並びに置く（計器は flex: 1 で、並びの幅いっぱい）
+  gaugeRow: { flexDirection: 'row', marginTop: space.m },
   chipTouch: { minHeight: 48, justifyContent: 'center' },
   dayChip: { flexDirection: 'row', alignItems: 'center', gap: space.s, height: 32, borderRadius: radius.s, borderWidth: 1, paddingLeft: space.s, paddingRight: space.l },
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
