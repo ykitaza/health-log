@@ -69,8 +69,8 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   ]);
   await moveToDate(page, TODAY);
 
-  // LATEST：今日。2種目・4セット・1980kg。種目の札は 2 つ（EX-01・EX-02）
-  await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング 今日。2種目 4セット 1.98トン。1 ベンチプレス 80kg × 8、2 懸垂 10回。その日の記録を開く');
+  // LATEST：今日。2種目・4セット・1980kg。種目の札は 2 つ（EX-01・EX-02）。体は回復の色なので、回復中の部位も読む
+  await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング 今日。2種目 4セット 1.98トン。1 ベンチプレス 80kg × 8、2 懸垂 10回。回復中 胸 あと3日、背中 あと4日。その日の記録を開く');
   await expect(homeLatest(page)).toContainText('TODAY');
   await expect(visible(page, 'home-latest-ex')).toContainText('SETS 4');
   await expect(visible(page, 'home-latest-load')).toContainText('1.98t');

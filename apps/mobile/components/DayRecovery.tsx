@@ -153,7 +153,6 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   date: DateKey; today: DateKey; input: RecoveryInput; pickParts: PickPart[];
   previous?: { entries: DayBodyEntry[]; parts: string[] } | null; foot?: ReactNode; testID?: string;
 }) {
-  const [width, setWidth] = useState(0);
   const [picked, setPicked] = usePicked(date);
   const body3D = useDayBody3D();
   const list = useMemo(() => partRecoveries(input.rows, input.partName, input.names, date), [input, date]);
@@ -168,30 +167,6 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const suggestId = suggest ? pickParts.find((b) => b.name.trim() === suggest.name)?.id : undefined;
   // 札は回復中とケガの部位（からだのタブの 3D の札と同じ）
   const marked = list.filter((p) => p.level > 0 || hurt(p));
-
-  // 図の大きさ：札の幅を残した残りで、できるだけ大きく
-  const figH = Math.max(FIG_MIN_H, Math.min(FIG_MAX_H, Math.floor(width - 2 * (CALLOUT_MIN_W + CALLOUT_INSET) - FIG_GAP)));
-  const figW = figH / 2;
-  const scale = figH / 200;
-  const layout = layoutCallouts(marked.map((p, i) => ({ key: p.name, no: i + 1, part: p.name, anchor: injuryPoint(p.name, hurtOf.get(p.name) ?? []) })), {
-    figureHeight: figH, minHeight: figH + LABEL_H, slot: CALLOUT_H, gap: CALLOUT_GAP, perSide: CALLOUTS_PER_SIDE,
-  });
-  const frontX = Math.max(0, (width - (figW * 2 + FIG_GAP)) / 2);
-  const backX = frontX + figW + FIG_GAP;
-  const calloutW = Math.max(0, frontX - CALLOUT_INSET);
-  const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: p.y * scale });
-  const lines = [
-    ...layout.left.map((c) => ({ c, x: calloutW })),
-    ...layout.right.map((c) => ({ c, x: width - calloutW })),
-  ].flatMap(({ c, x }) => {
-    if (c.kind !== 'entry' || !c.anchor) return [];
-    const to = toScreen(c.anchor.view, c.anchor.point);
-    return [{ key: c.key, x1: x, y1: c.top + CALLOUT_H / 2, ...to, color: partColor(byName.get(c.key)!, hurt(byName.get(c.key)!)) }];
-  });
-  const fills = trained ? muscleFills(list, recoveryPalette) : undefined;
-  const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
-  const point = pickedPoint(picked);
-  const mark = point ? toScreen(point.view, point.point) : null;
   // 3D：回復中の部品の明るさ。前回の部位のうち、回復中でない部品があればミントで光る（凡例に出す）
   const levels = useMemo(() => recoveryLevels(list), [list]);
   const idle = useMemo(() => idleMeshes(list), [list]);
@@ -238,40 +213,10 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
             onPick={pickParts.length > 0 ? onPick : undefined} onFail={body3D.fail} style={{ marginHorizontal: -space.s }}
           />
         ) : (
-          <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: layout.height }}>
-            {width > 0 && (
-              <>
-                {(['front', 'back'] as const).map((view) => (
-                  <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, alignItems: 'center' }}>
-                    <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={figW} height={figH} />
-                    <View style={{ height: LABEL_H, justifyContent: 'flex-end' }}>
-                      <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
-                    </View>
-                  </View>
-                ))}
-                {/* 引き出し線と、その部位の点（回復の色。ケガは赤）。押した所は輪 */}
-                <Svg width={width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
-                  {lines.map((l) => (
-                    <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.sub} strokeWidth={1} strokeOpacity={0.7} />
-                  ))}
-                  {lines.map((l) => <Circle key={`dot-${l.key}`} cx={l.x} cy={l.y} r={3} fill={l.color} stroke={colors.card} strokeWidth={1.5} />)}
-                  {mark && <Circle cx={mark.x} cy={mark.y} r={8} fill="none" stroke={colors.text} strokeWidth={1.5} />}
-                </Svg>
-                {(['front', 'back'] as const).map((view) => (
-                  <FigurePress key={view} testID={`${testID}-press-${view}`} scale={scale} onPick={(p) => setPicked(pickAt(view, p, pickParts))}
-                    style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, height: figH }} />
-                ))}
-                {(['left', 'right'] as const).flatMap((side) => layout[side].map((c) => (
-                  <PartCallout
-                    key={c.kind === 'entry' ? c.key : `more-${side}`} callout={c} align={side === 'left' ? 'right' : 'left'}
-                    part={c.kind === 'entry' ? byName.get(c.key) : undefined} hurt={c.kind === 'entry' ? hurtOf.get(c.key) ?? [] : []}
-                    moreNames={c.kind === 'more' ? c.nos.map((n) => marked[n - 1].name) : []}
-                    style={{ [side]: 0, top: c.top, width: calloutW }}
-                  />
-                )))}
-              </>
-            )}
-          </View>
+          <RecoveryFigure2D
+            list={list} injuries={injuries} hurtOf={hurtOf} marked={marked} picked={pickedPoint(picked)}
+            onPress={(view, p) => setPicked(pickAt(view, p, pickParts))} pressTestID={testID}
+          />
         )}
       </View>
       {body3D.on && DayBodyAttribution && <DayBodyAttribution />}
@@ -298,6 +243,79 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
       {foot}
       {pickParts.length > 0 && <PartChips date={date} pickParts={pickParts} picked={picked} note={trained ? note : undefined} testID={`${testID}-parts`} />}
     </Card>
+  );
+}
+
+/**
+ * 2D の回復マップ（前と後ろの図）：回復の色で塗り、marked の部位に札（部位・状態・ケガ）と引き出し線を付ける。札の並べ方は種目の札と同じ
+ * lib/dayCallouts.ts の layoutCallouts（前の図の部位は左、後ろの図の部位は右。片側 4 つまで、あふれたら「+N」）。図は札の幅を残した残りでできるだけ大きく。
+ * 記録の画面の記録のない日と、からだのタブの回復マップ（web と 3D が描けないとき）で使う。
+ * onPress を渡すと図を押せる（押した所は picked に輪を描く。pressTestID-press-front・back）
+ */
+export function RecoveryFigure2D({ list, injuries, hurtOf, marked, picked, onPress, pressTestID }: {
+  list: PartRecovery[]; injuries: Injury[]; hurtOf: Map<string, Injury[]>; marked: PartRecovery[];
+  picked?: Picked | null; onPress?: (view: MuscleView, point: { x: number; y: number }) => void; pressTestID?: string;
+}) {
+  const [width, setWidth] = useState(0);
+  const byName = new Map(list.map((p) => [p.name, p]));
+  const hurt = (p: PartRecovery) => (hurtOf.get(p.name)?.length ?? 0) > 0;
+  const trained = list.some((p) => p.last != null);
+  const figH = Math.max(FIG_MIN_H, Math.min(FIG_MAX_H, Math.floor(width - 2 * (CALLOUT_MIN_W + CALLOUT_INSET) - FIG_GAP)));
+  const figW = figH / 2;
+  const scale = figH / 200;
+  const layout = layoutCallouts(marked.map((p, i) => ({ key: p.name, no: i + 1, part: p.name, anchor: injuryPoint(p.name, hurtOf.get(p.name) ?? []) })), {
+    figureHeight: figH, minHeight: figH + LABEL_H, slot: CALLOUT_H, gap: CALLOUT_GAP, perSide: CALLOUTS_PER_SIDE,
+  });
+  const frontX = Math.max(0, (width - (figW * 2 + FIG_GAP)) / 2);
+  const backX = frontX + figW + FIG_GAP;
+  const calloutW = Math.max(0, frontX - CALLOUT_INSET);
+  const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: p.y * scale });
+  const lines = [
+    ...layout.left.map((c) => ({ c, x: calloutW })),
+    ...layout.right.map((c) => ({ c, x: width - calloutW })),
+  ].flatMap(({ c, x }) => {
+    if (c.kind !== 'entry' || !c.anchor) return [];
+    const to = toScreen(c.anchor.view, c.anchor.point);
+    return [{ key: c.key, x1: x, y1: c.top + CALLOUT_H / 2, ...to, color: partColor(byName.get(c.key)!, hurt(byName.get(c.key)!)) }];
+  });
+  const fills = trained ? muscleFills(list, recoveryPalette) : undefined;
+  const marks = injuries.map((i) => ({ key: i.id, site: i.site, side: i.side, status: 'fixing' as const }));
+  const mark = picked ? toScreen(picked.view, picked.point) : null;
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: layout.height }}>
+      {width > 0 && (
+        <>
+          {(['front', 'back'] as const).map((view) => (
+            <View key={view} style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, alignItems: 'center' }}>
+              <MuscleFigure view={view} fills={fills} marks={marks} markColor={INJURY_RED} width={figW} height={figH} />
+              <View style={{ height: LABEL_H, justifyContent: 'flex-end' }}>
+                <T variant="labelS" color={colors.sub}>{view === 'front' ? '前' : '後ろ'}</T>
+              </View>
+            </View>
+          ))}
+          {/* 引き出し線と、その部位の点（回復の色。ケガは赤）。押した所は輪 */}
+          <Svg width={width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
+            {lines.map((l) => (
+              <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.sub} strokeWidth={1} strokeOpacity={0.7} />
+            ))}
+            {lines.map((l) => <Circle key={`dot-${l.key}`} cx={l.x} cy={l.y} r={3} fill={l.color} stroke={colors.card} strokeWidth={1.5} />)}
+            {mark && <Circle cx={mark.x} cy={mark.y} r={8} fill="none" stroke={colors.text} strokeWidth={1.5} />}
+          </Svg>
+          {onPress && (['front', 'back'] as const).map((view) => (
+            <FigurePress key={view} testID={`${pressTestID}-press-${view}`} scale={scale} onPick={(p) => onPress(view, p)}
+              style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: 0, width: figW, height: figH }} />
+          ))}
+          {(['left', 'right'] as const).flatMap((side) => layout[side].map((c) => (
+            <PartCallout
+              key={c.kind === 'entry' ? c.key : `more-${side}`} callout={c} align={side === 'left' ? 'right' : 'left'}
+              part={c.kind === 'entry' ? byName.get(c.key) : undefined} hurt={c.kind === 'entry' ? hurtOf.get(c.key) ?? [] : []}
+              moreNames={c.kind === 'more' ? c.nos.map((n) => marked[n - 1].name) : []}
+              style={{ [side]: 0, top: c.top, width: calloutW }}
+            />
+          )))}
+        </>
+      )}
+    </View>
   );
 }
 

@@ -8,7 +8,7 @@ import { useFocusData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
 import { dayBodyEntries } from '@/lib/dayBody';
 import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
-import { musclesForParts, MuscleView } from '@/lib/muscleFigure';
+import { Muscle, musclesForParts, MuscleView } from '@/lib/muscleFigure';
 import { colors, space } from '@/theme';
 import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
@@ -24,11 +24,13 @@ export type DayBodyProps = {
   band?: { top: number; bottom: number };
   /** 3D を描けないときに出すもの（省くと、この部品の 2D の図） */
   fallback?: ReactNode;
+  /** 2D の図の筋肉ごとの塗り（ホームの LATEST：回復の色。lib/recoveryMap.ts の muscleFills）。渡した筋肉は parts の緑より先 */
+  fills?: Partial<Record<Muscle, string>>;
 } & Pick<DayBody3DProps, 'recovery' | 'idle' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
-export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, ...rest }: DayBodyProps) {
-  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} onPressEntry={rest.onPressEntry} shield={rest.shield} />;
+export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, ...rest }: DayBodyProps) {
+  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} fills={fills} onPressEntry={rest.onPressEntry} shield={rest.shield} />;
   return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={figure2D} {...rest} /> : figure2D;
 }
 
@@ -73,11 +75,11 @@ export function DayBodyForDate({ date, unit, ...rest }: Omit<DayBodyProps, 'entr
 const FIG_GAP = space.s;
 
 /**
- * 2D の図（前と後ろ）：その日の部位を緑で塗り、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts）。
+ * 2D の図（前と後ろ）：その日の部位を緑で塗り（fills があればその色）、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts）。
  * onPressEntry があれば札を押せる（shield は図と札のあいだに重ねる）
  */
-function Figure2D({ width, band, entries, parts, onPressEntry, shield }: {
-  width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[];
+function Figure2D({ width, band, entries, parts, fills, onPressEntry, shield }: {
+  width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[]; fills?: Partial<Record<Muscle, string>>;
   onPressEntry?: (key: string | null) => void; shield?: ReactNode;
 }) {
   const figH = Math.min(200, band.bottom - band.top);
@@ -104,7 +106,7 @@ function Figure2D({ width, band, entries, parts, onPressEntry, shield }: {
     <View style={StyleSheet.absoluteFill} pointerEvents={onPressEntry ? 'box-none' : 'none'} testID="day-body-2d">
       {(['front', 'back'] as const).map((view) => (
         <View key={view} pointerEvents="none" style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
-          <MuscleFigure view={view} paint={paint} paintColor={colors.accent} width={figW} height={figH} />
+          <MuscleFigure view={view} paint={paint} paintColor={colors.accent} fills={fills} width={figW} height={figH} />
         </View>
       ))}
       <Svg width={width} height={band.bottom} style={StyleSheet.absoluteFill} pointerEvents="none">

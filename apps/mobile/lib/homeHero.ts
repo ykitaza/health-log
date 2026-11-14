@@ -1,5 +1,5 @@
 // ホームのヒーロー（刷新 A のその 2）の計算：フェーズの 1 行・外の輪（16 の目盛り）と内の輪（主な指標の進み）・白い線（予定の位置）、
-// 横スライドのページの並びと最初のページ、RECOVERY・INJURY・GROWTH の四隅。画面（components/HomeHero.tsx）から切り離し、jest で確かめる。
+// 横スライドのページの並びと最初のページ、INJURY・GROWTH の四隅。画面（components/HomeHero.tsx）から切り離し、jest で確かめる。
 // フェーズの決まり（何週目・ペース・止まった日）は lib/phases.ts のまま使い、ここで数え方を作り直さない
 import { addDays, DateKey, daysBetween } from './date';
 import { average } from './health';
@@ -9,7 +9,6 @@ import {
   planLines, tickState, Weight,
 } from './phases';
 import { lastEnded } from './phaseReview';
-import type { PartRecovery } from './recoveryMap';
 
 // ---- フェーズの状態 ----
 
@@ -167,13 +166,16 @@ export function ringSegment(ring: PhaseRing | null, i: number): 'done' | 'curren
 
 // ---- ページ ----
 
-export type HeroPage = 'latest' | 'recovery' | 'injury' | 'growth';
-export const HERO_PAGE_EN: Record<HeroPage, string> = { latest: 'LATEST', recovery: 'RECOVERY', injury: 'INJURY', growth: 'GROWTH' };
-export const HERO_PAGE_JA: Record<HeroPage, string> = { latest: '直近のトレーニング', recovery: '回復', injury: 'ケガ', growth: '成長の形' };
+export type HeroPage = 'latest' | 'injury' | 'growth';
+export const HERO_PAGE_EN: Record<HeroPage, string> = { latest: 'LATEST', injury: 'INJURY', growth: 'GROWTH' };
+export const HERO_PAGE_JA: Record<HeroPage, string> = { latest: '直近のトレーニング', injury: 'ケガ', growth: '成長の形' };
 
-/** ページの並び：LATEST → RECOVERY → INJURY（直している途中のケガがあるときだけ）→ GROWTH */
+/**
+ * ページの並び：LATEST → INJURY（直している途中のケガがあるときだけ）→ GROWTH。
+ * RECOVERY のページはやめた（2026-11-15 ユーザーの要望：LATEST の体を回復の色で塗るので、回復の体を別に出さない）
+ */
 export function heroPages(hasInjury: boolean): HeroPage[] {
-  return hasInjury ? ['latest', 'recovery', 'injury', 'growth'] : ['latest', 'recovery', 'growth'];
+  return hasInjury ? ['latest', 'injury', 'growth'] : ['latest', 'growth'];
 }
 
 /** 最初のページ：療養中で INJURY があれば INJURY、ほかは LATEST（前に見たページは覚えない） */
@@ -191,33 +193,6 @@ export function nextHeroPage(page: HeroPage, pages: HeroPage[], direction: 'prev
   const i = pages.indexOf(page);
   const j = i + (direction === 'next' ? 1 : -1);
   return i < 0 || j < 0 || j >= pages.length ? null : pages[j];
-}
-
-// ---- RECOVERY の四隅 ----
-
-export type RecoveryCorners = {
-  /** 鍛えられる（回復中でない：回復済み・空いている・まだ）部位の数と全体 */
-  ready: number;
-  total: number;
-  /** 次の部位（今日のおすすめ）。なければ null */
-  next: string | null;
-  /** 次の部位が空いているとき、最後に鍛えてからの日数（ほかは null） */
-  nextIdle: number | null;
-  /** 回復中の部位（残りがいちばん長いもの）と、ほかに回復中の数 */
-  recovering: { name: string; remaining: number; level: number; more: number } | null;
-  /** 直している途中のケガの数 */
-  injuries: number;
-};
-
-export function recoveryCorners(list: PartRecovery[], next: string | null, injuries: number): RecoveryCorners {
-  const rec = list.filter((p) => p.level > 0 && p.remaining != null);
-  const n = list.find((p) => p.name === next);
-  const top = rec.reduce<PartRecovery | null>((a, b) => (a == null || b.remaining! > a.remaining! || (b.remaining === a.remaining && b.level > a.level) ? b : a), null);
-  return {
-    ready: list.length - rec.length, total: list.length, next, nextIdle: n?.idle ? n.days : null,
-    recovering: top ? { name: top.name, remaining: top.remaining!, level: top.level, more: rec.length - 1 } : null,
-    injuries,
-  };
 }
 
 // ---- INJURY の四隅 ----

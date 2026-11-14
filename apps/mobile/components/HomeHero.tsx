@@ -1,5 +1,6 @@
 // ホームのヒーロー（刷新 A、Figma「スタディ：フェーズ」の 6・7）：輪の上にフェーズの 1 行、外の輪（フェーズの週。過ぎた週はミント）、
-// 輪の中に 4 ページ LATEST → RECOVERY → INJURY（直している途中のケガがあるときだけ）→ GROWTH。計算は lib/homeHero.ts。
+// 輪の中に 3 ページ LATEST → INJURY（直している途中のケガがあるときだけ）→ GROWTH。計算は lib/homeHero.ts。
+// LATEST の体は回復の色（からだのタブの回復マップと同じ）で塗る。RECOVERY のページはやめた（2026-11-15 ユーザーの要望）
 // - 横スワイプ（またはページの印を押す）で切り替える。最初のページはふだん LATEST、療養中は INJURY。前に見たページは覚えない
 // - 見えているページだけを描く（3D の体はそのページに来たときに読み込み、2 つ同時には描かない）
 // - 3D の体を回すのは輪の中の体の列の上だけ。それ以外の横スワイプはページの切り替え（縦のスクロール・引っぱって同期は止めない）
@@ -13,11 +14,11 @@ import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/l
 import { tonnes } from '@/lib/format';
 import {
   GrowthCorners, HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
-  phaseLine, PhaseRoute, RecoveryCorners, ringFooter, ringSegment,
+  phaseLine, PhaseRoute, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
 import { PHASE_TICKS } from '@/lib/phases';
-import { INJURY_RED, PartRecovery, recoveryColor } from '@/lib/recoveryMap';
+import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, hudColors, recoveryPalette, size, space } from '@/theme';
@@ -29,6 +30,7 @@ import { Brackets } from './homeHud';
 import { GrowthPage } from './home';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
+import { LEGEND as RECOVERY_LEGEND } from './RecoveryMap';
 import { T } from './Text';
 
 export type HeroLatest = {
@@ -45,7 +47,8 @@ export type HeroData = {
   phase: HeroPhase;
   ring: PhaseRing | null;
   pages: HeroPage[];
-  recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[]; corners: RecoveryCorners };
+  /** 部位ごとの回復（LATEST の体の色）。levels は部品ごとの明るさ、idle は空いている部品（3D） */
+  recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[] };
   injury: { fixing: Injury[]; numbers: Map<string, string>; corners: InjuryCorners };
   growth: GrowthCorners;
 };
@@ -109,6 +112,8 @@ export function HomeHero({ today, unit, latest, ready, data }: {
   const footer = data ? ringFooter(data.phase) : null;
   const band = { top: CORNER_H, bottom: h - CORNER_H };
   const rotate = rotateColumn(w);
+  // 回復の色で塗るのは、回復マップに出る部位を一度でも鍛えたときだけ（まっさらなときに体じゅうを灰色にしない）
+  const recovery = data && data.recovery.list.some((p) => p.last != null) ? data.recovery : null;
 
   return (
     <View testID="home-hero">
@@ -124,9 +129,9 @@ export function HomeHero({ today, unit, latest, ready, data }: {
             <Ring width={w} height={h} r={r} ring={data?.ring ?? null} inner={page === 'growth'} />
             <Brackets size={14} />
             <Animated.View style={[StyleSheet.absoluteFill, anim]} pointerEvents="box-none">
-              {page === 'latest' && <LatestPage width={w} height={h} today={today} unit={unit} latest={latest} ready={ready} rotate={rotate} />}
-              {page === 'recovery' && data && (
-                <RecoveryPage width={w} height={h} band={band} rotate={rotate} data={data} />
+              {page === 'latest' && (
+                <LatestPage width={w} height={h} today={today} unit={unit} latest={latest} ready={ready} rotate={rotate}
+                  recovery={recovery} injuries={data?.injury.fixing ?? NO_INJURIES} />
               )}
               {page === 'injury' && data && (
                 <InjuryPage width={w} height={h} band={band} rotate={rotate} data={data} />
@@ -164,7 +169,22 @@ export function HomeHero({ today, unit, latest, ready, data }: {
           </View>
         )}
       </View>
-      {(page === 'latest' || page === 'recovery' || page === 'injury') && DayBodyAttribution && <DayBodyAttribution />}
+      {/* LATEST の体の色の凡例（色だけにしない）。押すと回復マップ（からだのタブ） */}
+      {page === 'latest' && recovery && (
+        <PressableScale
+          accessibilityRole="button" accessibilityLabel="体の色は回復の状態。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復マップを開く"
+          scaleTo={0.97} onPress={openRecoveryMap} style={s.legend} testID="hero-legend"
+        >
+          {RECOVERY_LEGEND.map((l) => (
+            <View key={l.label} style={s.legendItem}>
+              <View style={[s.swatch, { backgroundColor: l.color }]} />
+              <T size={11} color={colors.sub}>{l.label}</T>
+            </View>
+          ))}
+          <Mono size={11} color={colors.accent}>MAP ›</Mono>
+        </PressableScale>
+      )}
+      {(page === 'latest' || page === 'injury') && DayBodyAttribution && <DayBodyAttribution />}
     </View>
   );
 }
@@ -286,19 +306,28 @@ const openInjuries = () => router.navigate({ pathname: '/training', params: { vi
 const openInjury = (id: string) => router.push(`/injuries/${id}`);
 const openRecoveryMap = () => router.navigate('/body');
 
+/** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
+const NO_PARTS: string[] = [];
+const NO_INJURIES: Injury[] = [];
+
 /**
  * LATEST：直近のトレーニング（今日までのいちばん新しい日）の体と種目の札。四隅に日付（今日なら TODAY）・種目の数（セット数）・
  * 合計負荷量・自己ベストの数。Android は 3D の体、web と 3D が描けないときは 2D の図（前と後ろ）。
+ * 体は今日の時点の回復の色で塗る（回復済みは緑、回復中は暖色、空いている・まだは灰色、ケガは赤。からだのタブの回復マップと同じ）。
+ * その日の部位をミントで光らせると緑のホログラムに緑が重なって分からない（2026-11-15 ユーザーの要望）。recovery が null（一度も鍛えていない）なら今までどおり。
  * 押すと：日付・種目の数・合計負荷量はその日の記録、種目の札はその日の記録のその種目、自己ベストは 1 種目ならその種目の推移、ほかは種目ごとの自己ベスト
  */
-function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
+function LatestPage({ width, height, today, unit, latest, ready, rotate, recovery, injuries }: {
   width: number; height: number; today: DateKey; unit: WeightUnit; latest: HeroLatest | null; ready: boolean; rotate: { left: number; width: number };
+  recovery: HeroData['recovery'] | null; injuries: Injury[];
 }) {
   const band = { top: CORNER_H, bottom: height - CORNER_H };
   const ss = latest?.session ?? null;
   const entries = latest?.entries ?? [];
   const parts = latest?.parts ?? [];
   const isToday = ss?.date === today;
+  const recovering = recovery?.list.filter((p) => p.remaining != null) ?? [];
+  const fills = useMemo(() => (recovery ? muscleFills(recovery.list, recoveryPalette) : undefined), [recovery]);
   const spoken = !ready ? '直近のトレーニング'
     : !ss ? '直近のトレーニング。まだ記録がありません'
     : [
@@ -306,6 +335,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
       `${ss.exercises}種目 ${ss.sets}セット ${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`,
       ss.prs.length > 0 ? `自己ベスト ${ss.prs.length}（${latest!.prNames.join('、')}）` : '',
       entries.map((e) => `${e.no} ${e.name} ${e.set}`).join('、'),
+      recovering.length > 0 ? `回復中 ${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '',
       'その日の記録を開く',
     ].filter(Boolean).join('。');
   const open = (entry?: string | null) => { if (ss) openTrainingDay(ss.date, entry); };
@@ -318,8 +348,8 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
   const volumeText = ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}` : '';
   return (
     <>
-      <DayBody width={width} height={height} entries={entries} parts={parts} band={band}
-        onPressEntry={open} shield={<SwipeShield width={width} rotate={rotate} />} />
+      <DayBody width={width} height={height} entries={entries} band={band} onPressEntry={open} shield={<SwipeShield width={width} rotate={rotate} />}
+        {...(recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
       <CornerButton at="tl" label={spoken} onPress={() => open()} disabled={!ss} testID="home-latest">
         <Corner align="left" label="LATEST //" value={!ss ? '—' : isToday ? 'TODAY' : formatShortDate(ss.date)} sub={ss ? WEEKDAY_EN[weekday(ss.date)] : ready ? 'NO LOG' : undefined} />
       </CornerButton>
@@ -339,42 +369,6 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate }: {
 type BodyPageProps = { width: number; height: number; band: { top: number; bottom: number }; rotate: { left: number; width: number }; data: HeroData };
 
 /**
- * RECOVERY：3D の体を回復の色で塗る（からだのタブの回復マップと同じ）。四隅に READY・NEXT・RECOVERING・INJURY。
- * 押すと：READY・NEXT・RECOVERING は回復マップ（からだのタブ）、INJURY はケガの一覧
- */
-function RecoveryPage({ width, height, band, rotate, data }: BodyPageProps) {
-  const c = data.recovery.corners;
-  const rec = c.recovering;
-  const nextIdle = c.nextIdle != null ? `、空いて${c.nextIdle}日` : '';
-  const spoken = [
-    `回復。鍛えられる ${c.ready}部位（${c.total}部位のうち）`,
-    c.next ? `次の部位 ${c.next}${nextIdle}` : '',
-    rec ? `回復中 ${rec.name} あと${rec.remaining}日${rec.more > 0 ? `、ほか${rec.more}部位` : ''}` : '回復中の部位はありません',
-    c.injuries > 0 ? `直している途中のケガ ${c.injuries}件` : '',
-  ].filter(Boolean).join('。');
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <HeroBody kind="recovery" width={width} height={height} band={band} list={data.recovery.list} levels={data.recovery.levels} idle={data.recovery.idle}
-        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
-      <CornerButton at="tl" label={`${spoken}。回復マップを開く`} testID="hero-recovery" onPress={openRecoveryMap}>
-        <Corner align="left" label="READY //" value={String(c.ready)} sub={`/ ${c.total} PARTS`} />
-      </CornerButton>
-      <CornerButton at="tr" label={`次の部位 ${c.next ? `${c.next}${nextIdle}` : 'なし'}。回復マップを開く`} testID="hero-recovery-next" onPress={openRecoveryMap}>
-        <Corner align="right" label="NEXT //" value={c.next ?? '—'} sub={!c.next ? undefined : c.nextIdle != null ? `IDLE ${c.nextIdle}D` : 'RECOVERED'} />
-      </CornerButton>
-      <CornerButton at="bl" label={`${rec ? `回復中 ${rec.name} あと${rec.remaining}日` : '回復中の部位はありません'}。回復マップを開く`} testID="hero-recovery-recovering" onPress={openRecoveryMap}>
-        <Corner align="left" label="RECOVERING" value={rec?.name ?? '—'} valueColor={rec ? recoveryColor(rec.level, recoveryPalette) : colors.text}
-          sub={rec ? `${rec.remaining}D LEFT${rec.more > 0 ? ` +${rec.more}` : ''}` : 'ALL READY'} />
-      </CornerButton>
-      <CornerButton at="br" label={`直している途中のケガ ${c.injuries}件。ケガの一覧を開く`} testID="hero-recovery-injury" onPress={openInjuries}>
-        <Corner align="right" label="INJURY" labelColor={c.injuries > 0 ? INJURY_RED : colors.accent} value={String(c.injuries)}
-          valueColor={c.injuries > 0 ? INJURY_RED : colors.text} sub="FIXING" />
-      </CornerButton>
-    </View>
-  );
-}
-
-/**
  * INJURY：3D の体にケガの部位と札（ケガの画面と同じ形、赤。札を押すとそのケガ）。四隅に INJURY・FIX・SINCE・ALERT。
  * 押すと：INJURY・ALERT はケガの一覧、FIX は直している部位のケガ、SINCE はいちばん古いケガ（療養中はフェーズの画面）
  */
@@ -390,7 +384,7 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const since = c.since;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <HeroBody kind="injury" width={width} height={height} band={band} list={data.recovery.list} levels={{}} idle={[]}
+      <HeroBody width={width} height={height} band={band}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
       <CornerButton at="tl" label={spoken} testID="hero-injury" onPress={openInjuries}>
         <Corner align="left" label="INJURY //" labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub="ACTIVE" />
@@ -449,4 +443,7 @@ const s = StyleSheet.create({
   pageTab: { minHeight: size.touch, minWidth: 28, alignItems: 'center', justifyContent: 'center' },
   pageDash: { height: 3, borderRadius: 2 },
   pageLabel: { marginLeft: space.s },
+  legend: { minHeight: size.touch, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: space.m, rowGap: space.xs },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  swatch: { width: 10, height: 10, borderRadius: 2 },
 });

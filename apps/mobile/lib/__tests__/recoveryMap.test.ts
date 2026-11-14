@@ -172,6 +172,28 @@ describe('注釈の付け根', () => {
     const places = layoutCallouts(items, 360, 340, { perSide: 3, height: 52 });
     expect(places.map((p) => p.id).sort()).toEqual(['上腕二頭筋', '腕', '腹筋'].sort());
   });
+
+  test('7 部位すべてに札（からだのタブ：左右それぞれ4つまで）：左に胸・二頭筋・腹筋、右に肩・三頭筋・背中・脚。札は枠の中で重ならない', () => {
+    const w = 360, h = 340, height = 52;
+    const parts = ['胸', '背中', '肩', '脚', '上腕二頭筋', '上腕三頭筋', '腹筋'];
+    const places = layoutCallouts(parts.map((p) => ({ id: p, ...recoveryAnchor(p)!, fixing: false, occurredOn: '2026-11-01' })), w, h, { perSide: 4, height });
+    const of = (side: string) => places.filter((p) => p.side === side);
+    expect(of('left').map((p) => p.id).sort()).toEqual(['上腕二頭筋', '腹筋', '胸'].sort());
+    expect(of('right').map((p) => p.id).sort()).toEqual(['上腕三頭筋', '肩', '背中', '脚'].sort());
+    for (const side of ['left', 'right']) {
+      const tops = of(side).map((p) => p.top);
+      for (let i = 1; i < tops.length; i++) expect(tops[i] - tops[i - 1]).toBeGreaterThanOrEqual(height);
+      for (const t of tops) { expect(t).toBeGreaterThanOrEqual(0); expect(t).toBeLessThanOrEqual(h - height); }
+    }
+  });
+
+  test('下の端からはみ出す札は、下から上へ詰め直して重ねない', () => {
+    const low = (id: string, y: number) => ({ id, anchor: [-0.15, y, 0.1] as [number, number, number], facing: 'front' as const, fixing: false, occurredOn: id });
+    const places = layoutCallouts([low('a', 0.1), low('b', 0.08), low('c', 0.06)], 360, 340, { perSide: 4, height: 52 });
+    const tops = places.map((p) => p.top);
+    expect(tops[tops.length - 1]).toBeLessThanOrEqual(340 - 52);
+    for (let i = 1; i < tops.length; i++) expect(tops[i] - tops[i - 1]).toBeGreaterThanOrEqual(52);
+  });
 });
 
 describe('回復マップのケガ', () => {

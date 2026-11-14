@@ -4,9 +4,9 @@ import { fakeAccessToken } from '../test-utils/fakeToken';
 import { button, goTab, openApp, openSettings, swipe, tab } from './helpers';
 import { fakeCognito, fakeLoginPopup } from './login';
 
-// ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 4 ページ、BIG3 の Δ PHASE、LOG のフェーズの週。
+// ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 3 ページ（LATEST・INJURY・GROWTH）、BIG3 の Δ PHASE、LOG のフェーズの週。
 // フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
-// web では 3D の体を描かないので、RECOVERY・INJURY は 2D の図になる。今日は 2026-11-08（日）。
+// web では 3D の体を描かないので、LATEST・INJURY は 2D の図になる。今日は 2026-11-08（日）。
 // 同期で入れる睡眠・食事を使って、SLEEP・FUEL の行き先（睡眠の推移・食事のタブ）のホームと同じカードもここで見る
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
@@ -94,26 +94,28 @@ async function openWith(page: Page, context: BrowserContext, changes: Change[]) 
   await signInAndSync(page);
 }
 
-test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。ページは 3 つで、横スワイプと印で切り替える。1 行を押すとフェーズの設定', async ({ page }) => {
+test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。ページは 2 つ（RECOVERY はない）で、横スワイプと印で切り替える。1 行を押すとフェーズの設定', async ({ page }) => {
   await openApp(page);
   const line = button(page, 'フェーズは未設定。フェーズを始める');
   await expect(line).toHaveText('NO PHASE · + START');
   await expect(visible(page, 'hero-ring-footer')).toHaveCount(0);
   // ケガがないので INJURY のページはない
-  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(3);
+  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(2);
   await expect(visible(page, 'hero-page-injury')).toHaveCount(0);
-  await expect(visible(page, 'hero-pages')).toContainText('01/03 LATEST');
+  await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
+  await expect(visible(page, 'hero-pages')).toContainText('01/02 LATEST');
+  // 記録がないので、体を回復の色で塗らず、凡例も出さない
+  await expect(page.getByTestId('hero-legend')).toHaveCount(0);
 
-  // 左へスワイプで RECOVERY（記録がないので鍛えられる 全体／全体、回復中なし）
-  await swipe(visible(page, 'hero-swipe'), 'next');
-  await expect(visible(page, 'hero-page-recovery')).toHaveAttribute('aria-selected', 'true');
-  await expect(visible(page, 'hero-pages')).toContainText('02/03 RECOVERY');
-  await expect(page.getByTestId('home-latest')).toHaveCount(0);
-  await expect(visible(page, 'hero-recovery')).toHaveAccessibleName(/^回復。鍛えられる \d+部位（\d+部位のうち）。回復中の部位はありません。回復マップを開く$/);
-  await expect(visible(page, 'hero-recovery-2d')).toBeVisible();
   // 縦に大きく動かしたときはページを変えない
   await swipe(visible(page, 'hero-swipe'), 'next', 200);
-  await expect(visible(page, 'hero-page-recovery')).toHaveAttribute('aria-selected', 'true');
+  await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
+  // 左へスワイプで GROWTH。いちばん右ではそれ以上動かない
+  await swipe(visible(page, 'hero-swipe'), 'next');
+  await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('home-latest')).toHaveCount(0);
+  await swipe(visible(page, 'hero-swipe'), 'next');
+  await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
   // 右へスワイプで LATEST に戻る。いちばん左ではそれ以上動かない
   await swipe(visible(page, 'hero-swipe'), 'prev');
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
@@ -121,7 +123,7 @@ test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。�
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
   // 印を押して GROWTH。フェーズがないので内の輪と白い線は出さない
   await visible(page, 'hero-page-growth').click();
-  await expect(visible(page, 'hero-pages')).toContainText('03/03 GROWTH');
+  await expect(visible(page, 'hero-pages')).toContainText('02/02 GROWTH');
   await expect(page.getByTestId('hero-ring-inner')).toHaveCount(0);
   await expect(page.getByTestId('hero-ring-plan')).toHaveCount(0);
   // LOG はふだんの W1〜W4
@@ -180,13 +182,13 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(line).toBeVisible();
 });
 
-test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（四隅と札）。輪の下は止めたフェーズ。ページは 4 つ', async ({ page, context }) => {
+test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（四隅と札）。輪の下は止めたフェーズ。ページは 3 つ', async ({ page, context }) => {
   await openWith(page, context, [bulk, ...weights, ...bench, injury, rehab]);
   await expect(button(page, '療養 3日目。増量は止めています。フェーズの進み具合を開く')).toHaveText('REHAB DAY 03 · BULK PAUSED');
   await expect(visible(page, 'hero-ring-footer')).toHaveText('増量 06/16 · 停止中');
-  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(4);
+  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(3);
   await expect(visible(page, 'hero-page-injury')).toHaveAttribute('aria-selected', 'true');
-  await expect(visible(page, 'hero-pages')).toContainText('03/04 INJURY');
+  await expect(visible(page, 'hero-pages')).toContainText('02/03 INJURY');
   const injuryCorner = visible(page, 'hero-injury');
   await expect(injuryCorner).toHaveAccessibleName('ケガ。直している途中 1件。直している部位 右肩の関節、振り返りはまだ。11月6日（金）から 3日目。ケガの一覧を開く');
   const hero = visible(page, 'hero-swipe');
@@ -195,25 +197,18 @@ test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（�
   await expect(hero).toContainText('SINCE11/6DAY 03');
   await expect(hero).toContainText('ALERT0REVIEW');
   await expect(visible(page, 'hero-injury-tag')).toContainText('INJ-01 ▲右肩の関節● 直し中');
-  // RECOVERY へ戻ると、ケガの数と回復中の胸（11/7 のベンチプレス）
+  // LATEST へ戻ると、体は回復の色（回復中の胸は読み上げにも）。凡例を押すと回復マップ（からだのタブ）
   await swipe(hero, 'prev');
-  await expect(visible(page, 'hero-page-recovery')).toHaveAttribute('aria-selected', 'true');
-  await expect(hero).toContainText('INJURY1FIXING');
-  await expect(visible(page, 'hero-recovery')).toHaveAccessibleName(/回復中 胸 あと\d日。直している途中のケガ 1件。回復マップを開く$/);
+  await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
+  await expect(visible(page, 'home-latest')).toHaveAccessibleName(/。回復中 胸 あと\d日。その日の記録を開く$/);
+  const legend = visible(page, 'hero-legend');
+  await expect(legend).toHaveAccessibleName('体の色は回復の状態。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ。回復マップを開く');
   // BIG3 と LOG は止めたフェーズのまま
   await expect(visible(page, 'home-big3')).toContainText('Δ PHASE +16.0');
   await expect(visible(page, 'home-log')).toContainText('LOG // W3-W6');
-  // RECOVERY の四隅（#219）：NEXT・RECOVERING は回復マップ（からだのタブ）、INJURY はケガの一覧
   const injuryPane = page.getByRole('tab', { name: 'ケガ', exact: true }).filter({ visible: true });
-  await visible(page, 'hero-recovery-next').click();
+  await legend.click();
   await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
-  await goTab(page, 'ホーム');
-  await visible(page, 'hero-recovery-recovering').click();
-  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
-  await goTab(page, 'ホーム');
-  await expect(visible(page, 'hero-recovery-injury')).toHaveAccessibleName('直している途中のケガ 1件。ケガの一覧を開く');
-  await visible(page, 'hero-recovery-injury').click();
-  await expect(injuryPane).toHaveAttribute('aria-selected', 'true');
   await goTab(page, 'ホーム');
   // INJURY の左上を押すとケガの一覧
   await swipe(hero, 'next');

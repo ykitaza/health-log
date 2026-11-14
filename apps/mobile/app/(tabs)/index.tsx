@@ -24,7 +24,7 @@ import { dayBodyEntries } from '@/lib/dayBody';
 import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
 import {
-  growthCorners, heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing, recoveryCorners, weekAverageKg,
+  growthCorners, heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing, weekAverageKg,
 } from '@/lib/homeHero';
 import { goalLine } from '@/lib/home';
 import {
@@ -38,7 +38,7 @@ import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
 
 /**
- * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・RECOVERY・INJURY・GROWTH の横スライド）、
+ * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY・GROWTH の横スライド）、
  * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、PARTS と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
  * 集計は lib/homeHud.ts と lib/homeHero.ts
  */
@@ -126,7 +126,7 @@ export default function HomeScreen() {
       phase,
       ring: phaseRing(phase, weights, today),
       pages: heroPages(fixing.length > 0),
-      recovery: { list, levels: recoveryLevels(list), idle: idleMeshes(list), corners: recoveryCorners(list, todaySuggestion(data.partDays, today).suggest?.name ?? null, fixing.length) },
+      recovery: { list, levels: recoveryLevels(list), idle: idleMeshes(list) },
       injury: { fixing, numbers: injuryNumbers(data.injuries), corners: injuryCorners(fixing, rehab, today) },
       growth: growthCorners(phase, weekAverageKg(weights, today), effectiveGoalWeight(data.phases, data.settings.goalWeightKg ?? null, today).kg),
     };

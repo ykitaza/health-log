@@ -133,7 +133,8 @@ export type CalloutPlace = { id: string; side: 'left' | 'right'; top: number };
 /**
  * 吹き出しの置き場所。体が正面を向いたときの印の位置で決めて、回しても動かさない（引き出し線の先だけが印を追う）。
  * 画面の左の印は左に、右の印は右に。まん中の印（腹筋・腰・首）は、体の前なら左、後ろなら右。
- * 左右それぞれ2つまで（直している途中を先に、痛めた日の新しい順）。高さは印に合わせ、重ならないように下へずらす。
+ * 左右それぞれ2つまで（直している途中を先に、痛めた日の新しい順）。高さは印に合わせ、重ならないように下へずらし、
+ * 下の端からはみ出す分は、下から順に上へ詰め直す（下の端で重ねない）。
  * 回復マップは、左右に出す数（perSide）と吹き出しの高さ（height）を変えて使う（fixing はケガのある部位、occurredOn は最後に鍛えた日）
  */
 export function layoutCallouts(
@@ -146,16 +147,19 @@ export function layoutCallouts(
   });
   return (['left', 'right'] as const).flatMap((side) => {
     let next = 0;
-    return placed
+    const list = placed
       .filter((p) => p.side === side)
       .sort((a, b) => Number(b.it.fixing) - Number(a.it.fixing) || (a.it.occurredOn < b.it.occurredOn ? 1 : -1))
       .slice(0, opts.perSide)
       .sort((a, b) => a.y - b.y)
       .map((p) => {
-        const top = Math.min(Math.max(next, p.y - 16), h - opts.height);
+        const top = Math.max(next, p.y - 16);
         next = top + opts.height + 4;
         return { id: p.it.id, side, top };
       });
+    let limit = h - opts.height;
+    for (let i = list.length - 1; i >= 0; i--) { list[i].top = Math.max(0, Math.min(list[i].top, limit)); limit = list[i].top - opts.height - 4; }
+    return list;
   });
 }
 
