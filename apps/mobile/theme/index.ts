@@ -91,6 +91,17 @@ export const TRAINED_GLOW = colors.onAccentDark;
 export const placeholderColor = colors.sub;
 
 /**
+ * 部位の量（セット数。components/PartVolumeCard）の色。青〜水色の濃淡で、緑（回復済み）・黄と橙（回復中）・赤（ケガ）は使わない。
+ * empty は 0 セット（図の筋肉の地と同じ灰色）、steps は 1〜4・5〜9・10〜14・15〜20・21 以上の 5 段（段が上がるほど明るい。lib/partVolume.ts の volumeLevel）。
+ * toward は目安に近づいた差の文字。遠ざかった・同じ差は colors.sub
+ */
+export const volumePalette = {
+  empty: figureColors.muscle,
+  steps: ['#2A78AD', '#3A9AD9', '#63BDF5', '#9DD8FF', '#DDF2FF'],
+  toward: '#63BDF5',
+} as const;
+
+/**
  * ホームの計器の盤（刷新 A）の色。ミント 1 色の濃淡（LOG の負荷量の 3 段・PFC のドーナツ）と、空のマス・輪の地。
  * mint1 の上の文字は colors.text、mint2・mint3 の上の文字は colors.onAccent（どちらも 4.5:1 以上）。いちばん薄い mint1 も、空のマス・カードの上で 3:1 以上
  */
