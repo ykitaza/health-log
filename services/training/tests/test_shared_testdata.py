@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from training.application.queries import phase_progress
-from training.domain import big3, body, bodyweight, measures, phase
+from training.domain import big3, body, bodyweight, measures, part_sets, phase
 from training.domain import calculations as c
 from training.domain.model import BodyRecord, Exercise, RecordType, SetRow
+from training.presentation import views
 
 TESTDATA = Path(__file__).parents[3] / "testdata" / "training"
 
@@ -133,3 +134,14 @@ def test_振り返りの_BIG3(case):
     rows = [SetRow(**r) for r in data["rows"]]
     since = None if case["start_date"] is None else measures.big3_end_since(case["start_date"], case["day"])
     assert measures.big3_best(rows, data["assignments"], case["day"], since) == case["expected"]
+
+
+_PART_SETS = load("part_sets.json")
+
+
+@pytest.mark.parametrize("case", _PART_SETS["cases"], ids=lambda c: c["name"])
+def test_部位ごとのセット数(case):
+    names = {p["id"]: p["name"] for p in _PART_SETS["body_parts"]}
+    rows = [SetRow(**r) for r in _PART_SETS["rows"]]
+    counted = part_sets.part_sets(rows, names.get, case["start"], case["end"], case["today"])
+    assert views.part_sets(counted) == case["expected"]

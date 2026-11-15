@@ -17,6 +17,7 @@ from training.application.queries import (
     WeeklyTrainingReview,
 )
 from training.domain import big3, body, bodyweight, calculations, health
+from training.domain import part_sets as part_sets_rules
 from training.domain.catalog import Catalog
 from training.domain import phase as phase_rules
 from training.domain.injury import MAX_LIST_REVIEWS, SITES, Injury, InjuryReview, site_label
@@ -259,6 +260,23 @@ def period_training(p: PeriodTraining, catalog: Catalog, max_exercises: int) -> 
         "exercises": exercises,
         "exercises_omitted": max(0, len(p.bests) - max_exercises),
         **({"note": MISSING_BODYWEIGHT.format(n=p.missing_bodyweight_sets)} if p.missing_bodyweight_sets else {}),
+    }
+
+
+def part_sets(p: part_sets_rules.PartSets) -> dict:
+    """部位ごとのセット数（6軸すべて。アプリのカードと同じ数）。band・short・over・trend は週（7日まで）の期間だけ付ける（目安は週の量なので、月などには当てない）。"""
+    weekly = p.days <= 7
+    parts = []
+    for part, n, before in zip(part_sets_rules.BALANCE_PARTS, p.sets, p.previous):
+        parts.append({
+            "part": part, "sets": n, "previous": before, "delta": n - before,
+            **({"short": max(0, part_sets_rules.BAND_MIN - n), "over": max(0, n - part_sets_rules.BAND_MAX),
+                "trend": part_sets_rules.trend(n, before)} if weekly else {}),
+        })
+    return {
+        "from": p.from_, "to": p.to, "previous_from": p.previous_from, "previous_to": p.previous_to,
+        **({"band": {"min": part_sets_rules.BAND_MIN, "max": part_sets_rules.BAND_MAX}} if weekly else {}),
+        "parts": parts,
     }
 
 

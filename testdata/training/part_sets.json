@@ -1,0 +1,1337 @@
+{
+  "description": "部位ごとのセット数（週の「部位の量」）。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。1行が1セットで、種目の部位の名前を軸（胸・肩・背中・腕・脚・腹）にそろえて数える。body_parts は部位の ID と名前（hidden は非表示。id が載っていない部位は消えたもの）。cases の today・start・end は日本時間の日付。今の期間は start〜min(end, today)、前の期間はそれを 7×ceil(日数÷7) 日前にずらしたもの。band・short・over・trend は期間が7日以下のときだけ",
+  "body_parts": [
+    {
+      "id": "chest",
+      "name": "胸",
+      "hidden": false
+    },
+    {
+      "id": "back",
+      "name": "背中",
+      "hidden": false
+    },
+    {
+      "id": "shoulder",
+      "name": "肩",
+      "hidden": false
+    },
+    {
+      "id": "legs",
+      "name": "脚",
+      "hidden": false
+    },
+    {
+      "id": "biceps",
+      "name": "上腕二頭筋",
+      "hidden": true
+    },
+    {
+      "id": "triceps",
+      "name": "上腕三頭筋",
+      "hidden": false
+    },
+    {
+      "id": "arm",
+      "name": "腕",
+      "hidden": false
+    },
+    {
+      "id": "abs",
+      "name": " 腹 ",
+      "hidden": false
+    },
+    {
+      "id": "neck",
+      "name": "首",
+      "hidden": false
+    }
+  ],
+  "rows": [
+    {
+      "date": "2026-09-10",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-20",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-20",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-31",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-10-31",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-01",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-03",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-03",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-03",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-03",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-03",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-04",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-05",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "pushdown",
+      "body_part_id": "triceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "pushdown",
+      "body_part_id": "triceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-06",
+      "exercise_id": "pushdown",
+      "body_part_id": "triceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "neckcurl",
+      "body_part_id": "neck",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-07",
+      "exercise_id": "neckcurl",
+      "body_part_id": "neck",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-08",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-09",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "press",
+      "body_part_id": "shoulder",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "press",
+      "body_part_id": "shoulder",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "press",
+      "body_part_id": "shoulder",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "pullup",
+      "body_part_id": "shoulder",
+      "weight_kg": null,
+      "reps": 15
+    },
+    {
+      "date": "2026-11-10",
+      "exercise_id": "press",
+      "body_part_id": "shoulder",
+      "weight_kg": 0,
+      "reps": 0
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "curl",
+      "body_part_id": "biceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "curl",
+      "body_part_id": "biceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "curl",
+      "body_part_id": "biceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "pushdown",
+      "body_part_id": "triceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-11",
+      "exercise_id": "pushdown",
+      "body_part_id": "triceps",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-12",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "curl2",
+      "body_part_id": "arm",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "curl2",
+      "body_part_id": "arm",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-13",
+      "exercise_id": "squat",
+      "body_part_id": "legs",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "row",
+      "body_part_id": "back",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "crunch",
+      "body_part_id": "abs",
+      "weight_kg": null,
+      "reps": 20
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "neckcurl",
+      "body_part_id": "neck",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "neckcurl",
+      "body_part_id": "neck",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "neckcurl",
+      "body_part_id": "neck",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "mystery",
+      "body_part_id": "gone",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-14",
+      "exercise_id": "mystery",
+      "body_part_id": "gone",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-16",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-16",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-16",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-16",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    },
+    {
+      "date": "2026-11-16",
+      "exercise_id": "bench",
+      "body_part_id": "chest",
+      "weight_kg": 70,
+      "reps": 8
+    }
+  ],
+  "cases": [
+    {
+      "name": "週の途中（月曜から今日まで）",
+      "start": "2026-11-09",
+      "end": "2026-11-15",
+      "today": "2026-11-12",
+      "expected": {
+        "from": "2026-11-09",
+        "to": "2026-11-12",
+        "previous_from": "2026-11-02",
+        "previous_to": "2026-11-05",
+        "band": {
+          "min": 10,
+          "max": 20
+        },
+        "parts": [
+          {
+            "part": "胸",
+            "sets": 12,
+            "previous": 8,
+            "delta": 4,
+            "short": 0,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "肩",
+            "sets": 5,
+            "previous": 0,
+            "delta": 5,
+            "short": 5,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "背中",
+            "sets": 11,
+            "previous": 13,
+            "delta": -2,
+            "short": 0,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "腕",
+            "sets": 5,
+            "previous": 0,
+            "delta": 5,
+            "short": 5,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "脚",
+            "sets": 0,
+            "previous": 12,
+            "delta": -12,
+            "short": 10,
+            "over": 0,
+            "trend": "away"
+          },
+          {
+            "part": "腹",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          }
+        ]
+      }
+    },
+    {
+      "name": "終わった週（月曜から日曜）",
+      "start": "2026-11-09",
+      "end": "2026-11-15",
+      "today": "2026-11-20",
+      "expected": {
+        "from": "2026-11-09",
+        "to": "2026-11-15",
+        "previous_from": "2026-11-02",
+        "previous_to": "2026-11-08",
+        "band": {
+          "min": 10,
+          "max": 20
+        },
+        "parts": [
+          {
+            "part": "胸",
+            "sets": 12,
+            "previous": 9,
+            "delta": 3,
+            "short": 0,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "肩",
+            "sets": 5,
+            "previous": 0,
+            "delta": 5,
+            "short": 5,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "背中",
+            "sets": 22,
+            "previous": 25,
+            "delta": -3,
+            "short": 0,
+            "over": 2,
+            "trend": "toward"
+          },
+          {
+            "part": "腕",
+            "sets": 7,
+            "previous": 3,
+            "delta": 4,
+            "short": 3,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "脚",
+            "sets": 10,
+            "previous": 12,
+            "delta": -2,
+            "short": 0,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "腹",
+            "sets": 4,
+            "previous": 4,
+            "delta": 0,
+            "short": 6,
+            "over": 0,
+            "trend": "same"
+          }
+        ]
+      }
+    },
+    {
+      "name": "1日だけ",
+      "start": "2026-11-11",
+      "end": "2026-11-11",
+      "today": "2026-11-11",
+      "expected": {
+        "from": "2026-11-11",
+        "to": "2026-11-11",
+        "previous_from": "2026-11-04",
+        "previous_to": "2026-11-04",
+        "band": {
+          "min": 10,
+          "max": 20
+        },
+        "parts": [
+          {
+            "part": "胸",
+            "sets": 6,
+            "previous": 0,
+            "delta": 6,
+            "short": 4,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "肩",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "背中",
+            "sets": 0,
+            "previous": 13,
+            "delta": -13,
+            "short": 10,
+            "over": 0,
+            "trend": "away"
+          },
+          {
+            "part": "腕",
+            "sets": 5,
+            "previous": 0,
+            "delta": 5,
+            "short": 5,
+            "over": 0,
+            "trend": "toward"
+          },
+          {
+            "part": "脚",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "腹",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          }
+        ]
+      }
+    },
+    {
+      "name": "31日の月（目安は付けない）",
+      "start": "2026-10-01",
+      "end": "2026-10-31",
+      "today": "2026-11-20",
+      "expected": {
+        "from": "2026-10-01",
+        "to": "2026-10-31",
+        "previous_from": "2026-08-27",
+        "previous_to": "2026-09-26",
+        "parts": [
+          {
+            "part": "胸",
+            "sets": 3,
+            "previous": 1,
+            "delta": 2
+          },
+          {
+            "part": "肩",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0
+          },
+          {
+            "part": "背中",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0
+          },
+          {
+            "part": "腕",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0
+          },
+          {
+            "part": "脚",
+            "sets": 4,
+            "previous": 0,
+            "delta": 4
+          },
+          {
+            "part": "腹",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "週の境界の直後（日曜の次の月曜の1日目）",
+      "start": "2026-11-16",
+      "end": "2026-11-22",
+      "today": "2026-11-16",
+      "expected": {
+        "from": "2026-11-16",
+        "to": "2026-11-16",
+        "previous_from": "2026-11-09",
+        "previous_to": "2026-11-09",
+        "band": {
+          "min": 10,
+          "max": 20
+        },
+        "parts": [
+          {
+            "part": "胸",
+            "sets": 5,
+            "previous": 6,
+            "delta": -1,
+            "short": 5,
+            "over": 0,
+            "trend": "away"
+          },
+          {
+            "part": "肩",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "背中",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "腕",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "脚",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          },
+          {
+            "part": "腹",
+            "sets": 0,
+            "previous": 0,
+            "delta": 0,
+            "short": 10,
+            "over": 0,
+            "trend": "same"
+          }
+        ]
+      }
+    }
+  ]
+}
