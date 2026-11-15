@@ -512,15 +512,15 @@ test('週のまとめ：今週の部位（セット数と目安）と、期間�
   await signInAndSync(page);
   await openReportsTab(page);
 
-  // 今週の部位：その週（11/2〜11/8）の部位ごとのセット数。先週（10/26〜11/1）に記録はない。2D の図と、図の色と同じ四角の行（凡例はない）
+  // 部位の量：その週（11/2〜11/8）の部位ごとのセット数。先週（10/26〜11/1）に記録はない。2D の図と、図の色と同じ四角の行（凡例はない）
   const volume = page.getByTestId('report-weekly-volume').filter({ visible: true });
   await expect(volume).toBeVisible();
-  await expect(see(volume, '今週の部位', { exact: true })).toBeVisible();
+  await expect(see(volume, '部位の量', { exact: true })).toBeVisible();
   await expect(volume).toContainText('11.02–11.08');
-  await expect(volume.getByLabel(/^この週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。胸 1 セット、あと9、先週より 1 セット増えた、目安に近づいた。肩 0 セット/)).toBeVisible();
-  await expect(volume.getByTestId('report-weekly-volume-body-row-胸')).toHaveText('胸1／10 あと9先週 +1');
-  await expect(volume.getByTestId('report-weekly-volume-body-row-脚')).toHaveText('脚1／10 あと9先週 +1');
-  await expect(volume.getByTestId('report-weekly-volume-body-row-腹')).toHaveText('腹0／10 あと10先週 ±0');
+  await expect(volume.getByLabel(/^部位の量、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。胸 1 セット、あと9、前週比で 1 セット増えた、目安に近づいた。肩 0 セット/)).toBeVisible();
+  await expect(volume.getByTestId('report-weekly-volume-body-row-胸')).toHaveText('胸1／10 あと9前週比 +1');
+  await expect(volume.getByTestId('report-weekly-volume-body-row-脚')).toHaveText('脚1／10 あと9前週比 +1');
+  await expect(volume.getByTestId('report-weekly-volume-body-row-腹')).toHaveText('腹0／10 あと10前週比 ±0');
   await expect(volume.getByTestId('report-weekly-volume-body-figure-front')).toBeVisible();
   await expect(volume.getByTestId('report-weekly-volume-body-figure-back')).toBeVisible();
 

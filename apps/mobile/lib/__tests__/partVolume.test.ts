@@ -129,32 +129,34 @@ describe('文字と読み上げ', () => {
     expect(volumeRowText(rowOf(month, '胸'))).toBe('30');
   });
 
-  test('前との差の文字：先週 +2、先週 −3、先週 ±0。月は「前の期間」', () => {
+  test('前との差の文字：先週比 +2、先週比 −3、先週比 ±0。月は「前の期間比」。週のまとめは「前週比」', () => {
     const v = week([['chest', 6], ['back', 2]], [['chest', 4], ['back', 5]]);
-    expect(volumeDeltaText(rowOf(v, '胸'), true)).toBe('先週 +2');
-    expect(volumeDeltaText(rowOf(v, '背中'), true)).toBe('先週 −3');
-    expect(volumeDeltaText(rowOf(v, '肩'), true)).toBe('先週 ±0');
-    expect(volumeDeltaText(rowOf(v, '胸'), false)).toBe('前の期間 +2');
+    expect(volumeDeltaText(rowOf(v, '胸'), true)).toBe('先週比 +2');
+    expect(volumeDeltaText(rowOf(v, '背中'), true)).toBe('先週比 −3');
+    expect(volumeDeltaText(rowOf(v, '肩'), true)).toBe('先週比 ±0');
+    expect(volumeDeltaText(rowOf(v, '胸'), false)).toBe('前の期間比 +2');
+    expect(volumeDeltaText(rowOf(v, '胸'), true, '前週')).toBe('前週比 +2');
+    expect(volumeLabel(v, '部位の量', new Set(), '前週')).toContain('胸 6 セット、あと4、前週比で 2 セット増えた');
   });
 
   test('読み上げ：期間・目安・部位ごとのセット数と目安との差・先週との差・ケガ', () => {
     const v = week([['chest', 6]], [['chest', 4]]);
     const label = volumeLabel(v, '今週の部位', new Set(['腕'] as const));
     expect(label.startsWith('今週の部位、11月2日から11月4日のセット数（目安は 1 週間 10〜20）。')).toBe(true);
-    expect(label).toContain('胸 6 セット、あと4、先週より 2 セット増えた、目安に近づいた');
-    expect(label).toContain('肩 0 セット、あと10、先週と同じ');
-    expect(label).toContain('腕 0 セット、あと10、先週と同じ、ケガ');
-    expect(label).not.toContain('肩 0 セット、あと10、先週と同じ、ケガ');
+    expect(label).toContain('胸 6 セット、あと4、先週比で 2 セット増えた、目安に近づいた');
+    expect(label).toContain('肩 0 セット、あと10、先週比で変わらず');
+    expect(label).toContain('腕 0 セット、あと10、先週比で変わらず、ケガ');
+    expect(label).not.toContain('肩 0 セット、あと10、先週比で変わらず、ケガ');
   });
 
   test('読み上げ：目安の中・多い・減った・月、記録がなければそのこと', () => {
     const v = week([['chest', 12], ['legs', 24]], [['legs', 30]]);
     const label = volumeLabel(v, 'この週の部位');
-    expect(label).toContain('胸 12 セット、目安内、先週より 12 セット増えた、目安に近づいた');
-    expect(label).toContain('脚 24 セット、目安より多い、先週より 6 セット減った、目安に近づいた');
+    expect(label).toContain('胸 12 セット、目安内、先週比で 12 セット増えた、目安に近づいた');
+    expect(label).toContain('脚 24 セット、目安より多い、先週比で 6 セット減った、目安に近づいた');
     expect(volumeLabel(week([]), '今週の部位')).toBe('今週の部位、11月2日から11月4日のセット数（目安は 1 週間 10〜20）。まだ記録がありません');
     const month = partVolume(rows('2026-11-03', 'chest', 30), nameOf, '2026-11-01', '2026-11-30', '2026-11-15');
-    expect(volumeLabel(month, '月の部位')).toContain('胸 30 セット、前の期間より 30 セット増えた');
+    expect(volumeLabel(month, '月の部位')).toContain('胸 30 セット、前の期間比で 30 セット増えた');
     expect(volumeLabel(month, '月の部位')).not.toContain('目安');
   });
 });

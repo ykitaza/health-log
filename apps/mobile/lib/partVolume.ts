@@ -14,6 +14,9 @@ export const VOLUME_BAND = { min: 10, max: 20 } as const;
 /** 目安を出す期間の長さの上限（日）。これより長い期間（月）は、数だけ */
 const BAND_MAX_DAYS = 7;
 
+/** 前の期間の呼び方：ホームは「先週」、週のまとめは「前週」 */
+export type PrevWord = '先週' | '前週';
+
 /** 目安に近づいた（toward）、遠ざかった（away）、同じ（same） */
 export type VolumeTrend = 'toward' | 'away' | 'same';
 
@@ -101,16 +104,16 @@ export function volumeRowText(p: PartVolumeRow): string {
   return p.over > 0 ? `${p.sets} 目安より多い` : `${p.sets} 目安内`;
 }
 
-/** 前の期間との差の文字：「先週 +2」「先週 −3」「先週 ±0」（マイナスは全角の「−」。lib/format.ts の formatSigned と同じ書き方で整数）。目安のない期間（月）は「前の期間」 */
-export function volumeDeltaText(p: PartVolumeRow, banded: boolean): string {
-  return `${banded ? '先週' : '前の期間'} ${p.delta === 0 ? '±0' : `${p.delta > 0 ? '+' : '−'}${Math.abs(p.delta)}`}`;
+/** 前の期間との差の文字：「先週比 +2」「先週比 −3」「先週比 ±0」（report の週のまとめは prev に「前週」）（マイナスは全角の「−」。lib/format.ts の formatSigned と同じ書き方で整数）。目安のない期間（月）は「前の期間」 */
+export function volumeDeltaText(p: PartVolumeRow, banded: boolean, prev: PrevWord = '先週'): string {
+  return `${banded ? prev : '前の期間'}比 ${p.delta === 0 ? '±0' : `${p.delta > 0 ? '+' : '−'}${Math.abs(p.delta)}`}`;
 }
 
-/** 読み上げの、前の期間との差：「先週より 2 セット増えた」「先週と同じ」 */
-function deltaSpoken(p: PartVolumeRow, banded: boolean): string {
-  const prev = banded ? '先週' : '前の期間';
-  if (p.delta === 0) return `${prev}と同じ`;
-  return `${prev}より ${Math.abs(p.delta)} セット${p.delta > 0 ? '増えた' : '減った'}`;
+/** 読み上げの、前の期間との差：「先週比で 2 セット増えた」「先週比で変わらず」 */
+function deltaSpoken(p: PartVolumeRow, banded: boolean, prevWord: PrevWord): string {
+  const prev = `${banded ? prevWord : '前の期間'}比`;
+  if (p.delta === 0) return `${prev}で変わらず`;
+  return `${prev}で ${Math.abs(p.delta)} セット${p.delta > 0 ? '増えた' : '減った'}`;
 }
 
 const TREND_SPOKEN: Record<VolumeTrend, string> = { toward: '目安に近づいた', away: '目安から離れた', same: '' };
@@ -119,13 +122,13 @@ const TREND_SPOKEN: Record<VolumeTrend, string> = { toward: '目安に近づい�
  * 読み上げ：「今週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。胸 6 セット、あと4、先週より 2 セット増えた、…」。
  * hurt はケガ（直している途中）の部位。記録がまったくなければそのことを
  */
-export function volumeLabel(v: PartVolume, title: string, hurt: ReadonlySet<BalancePart> = new Set()): string {
+export function volumeLabel(v: PartVolume, title: string, hurt: ReadonlySet<BalancePart> = new Set(), prevWord: PrevWord = '先週'): string {
   const banded = v.band != null;
   const head = `${title}、${formatMonthDay(v.from)}から${formatMonthDay(v.to)}のセット数${banded ? `（目安は 1 週間 ${v.band!.min}〜${v.band!.max}）` : ''}。`;
   if (v.parts.every((p) => p.sets === 0 && p.previous === 0)) return `${head}まだ記録がありません`;
   return head + v.parts.map((p) => {
     const note = p.short == null || p.over == null ? '' : p.short > 0 ? `あと${p.short}` : p.over > 0 ? '目安より多い' : '目安内';
-    return [`${p.part} ${p.sets} セット`, note, deltaSpoken(p, banded), p.trend ? TREND_SPOKEN[p.trend] : '', hurt.has(p.part) ? 'ケガ' : '']
+    return [`${p.part} ${p.sets} セット`, note, deltaSpoken(p, banded, prevWord), p.trend ? TREND_SPOKEN[p.trend] : '', hurt.has(p.part) ? 'ケガ' : '']
       .filter(Boolean).join('、');
   }).join('。');
 }

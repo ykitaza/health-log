@@ -35,7 +35,7 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(visible(page, 'home-log')).toContainText('NOV  0D · 0.00T');
   // 今週の部位（PARTS）と FUEL
   await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '今週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。まだ記録がありません。筋トレの推移を開く');
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0／10 あと10先週 ±0');
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0／10 あと10先週比 ±0');
   await expect(homeFuel(page)).toHaveAttribute('aria-label', '今日の食事 0kcal。休みの日。たんぱく質 0g、脂質 0g、炭水化物 0g。食事のタブを開く');
   // なくしたもの：カレンダー、今日のトレーニング・食事のカード、最近の流れ
   await expect(page.getByTestId('home-calendar')).toHaveCount(0);
@@ -94,10 +94,10 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   await expect(visible(page, 'home-log')).toContainText('NOV  2D · 3.48T');
 
   // 今週の部位：今週（11/2〜今日）のセット数（脚 3、胸 3。懸垂は背中 1）。先週の記録はないので、先週との差は増えた分
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3／10 あと7先週 +3');
-  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1／10 あと9先週 +1');
-  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3／10 あと7先週 +3');
-  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0／10 あと10先週 ±0');
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3／10 あと7先週比 +3');
+  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1／10 あと9先週比 +1');
+  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3／10 あと7先週比 +3');
+  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0／10 あと10先週比 ±0');
 
   // LATEST の左上を押すと、筋トレのタブの記録のその日。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
   await homeLatest(page).click();

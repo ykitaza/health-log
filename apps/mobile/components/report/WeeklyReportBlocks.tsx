@@ -1,5 +1,5 @@
 // 週のまとめの中身（モックの「今週」のタブ）のうち、アプリが端末の記録から組み立てるブロック。
-// - WeeklyVolumeBlock：その週（月曜〜日曜）の部位ごとのセット数と、1 週間 10〜20 セットの目安との差、前の週との差（lib/partVolume.ts。MCP の period_overview と同じ数字）
+// - WeeklyVolumeBlock：「部位の量」。その週（月曜〜日曜）の部位ごとのセット数と、1 週間 10〜20 セットの目安との差、前の週との差（lib/partVolume.ts。MCP の period_overview と同じ数字）
 // - WeeklyStatusBlock：WEEKLY STATUS の表。週の平均の体重、筋トレの日数、合計負荷量、最近の部位
 // - WeeklyGoalsBlock：今週の目標（lib/reports.ts の weeklyAchievementRows と連続）。「達成」と連続、「目標を変える ›」（設定の今週の目標の欄へ）
 // - InjuryReviewBlock：その週のケガの振り返り（lib/injuryReport.ts の3分類。数を表にし、ケガは1件ずつ2段の行で）
@@ -40,9 +40,9 @@ export function WeeklyVolumeBlock({ start, end }: { start: DateKey; end: DateKey
   if (!volume) return null;
   return (
     <Panel style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 10 }} testID="report-weekly-volume">
-      <PanelHead en="Sets By Body Part" title="今週の部位" right={`${dotMonthDay(volume.from)}–${dotMonthDay(volume.to)}`} />
-      <View accessible accessibilityLabel={volumeLabel(volume, 'この週の部位')} style={{ marginTop: 8 }}>
-        <PartVolumeBody volume={volume} ink={hud.ink} muted={hud.muted} testID="report-weekly-volume-body" />
+      <PanelHead en="Sets By Body Part" title="部位の量" right={`${dotMonthDay(volume.from)}–${dotMonthDay(volume.to)}`} />
+      <View accessible accessibilityLabel={volumeLabel(volume, '部位の量', new Set(), '前週')} style={{ marginTop: 8 }}>
+        <PartVolumeBody volume={volume} ink={hud.ink} muted={hud.muted} prev="前週" testID="report-weekly-volume-body" />
       </View>
     </Panel>
   );

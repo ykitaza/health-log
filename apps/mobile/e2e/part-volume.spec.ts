@@ -42,18 +42,18 @@ test('今週の部位：行の文字と読み上げ、行の四角と図の塗�
   });
 
   await test.step('6 つの行：セット数と目安、先週の同じ曜日までとの差', async () => {
-    await expect(row(page, '胸')).toHaveText('胸10 目安内先週 +8');
-    await expect(row(page, '肩')).toHaveText('肩6／10 あと4先週 +6');
-    await expect(row(page, '背中')).toHaveText('背中1／10 あと9先週 +1');
-    await expect(row(page, '腕')).toHaveText('腕0／10 あと10先週 ±0');
-    await expect(row(page, '脚')).toHaveText('脚4／10 あと6先週 −4');
-    await expect(row(page, '腹')).toHaveText('腹0／10 あと10先週 ±0');
+    await expect(row(page, '胸')).toHaveText('胸10 目安内先週比 +8');
+    await expect(row(page, '肩')).toHaveText('肩6／10 あと4先週比 +6');
+    await expect(row(page, '背中')).toHaveText('背中1／10 あと9先週比 +1');
+    await expect(row(page, '腕')).toHaveText('腕0／10 あと10先週比 ±0');
+    await expect(row(page, '脚')).toHaveText('脚4／10 あと6先週比 −4');
+    await expect(row(page, '腹')).toHaveText('腹0／10 あと10先週比 ±0');
   });
 
   await test.step('差の色：目安に近づいた差だけ青、遠ざかった・同じ差は灰色', async () => {
-    await expect(row(page, '胸').getByText('先週 +8')).toHaveCSS('color', RGB.level3);
-    await expect(row(page, '脚').getByText('先週 −4')).toHaveCSS('color', RGB.sub);
-    await expect(row(page, '腕').getByText('先週 ±0')).toHaveCSS('color', RGB.sub);
+    await expect(row(page, '胸').getByText('先週比 +8')).toHaveCSS('color', RGB.level3);
+    await expect(row(page, '脚').getByText('先週比 −4')).toHaveCSS('color', RGB.sub);
+    await expect(row(page, '腕').getByText('先週比 ±0')).toHaveCSS('color', RGB.sub);
   });
 
   await test.step('行の四角：0 は灰色、1〜4 は 1 段、5〜9 は 2 段、10〜14 は 3 段', async () => {
@@ -82,12 +82,12 @@ test('今週の部位：行の文字と読み上げ、行の四角と図の塗�
 
   await test.step('読み上げ：期間・目安・部位ごとのセット数と目安との差・先週との差', async () => {
     await expect(card).toHaveAttribute('aria-label', '今週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。'
-      + '胸 10 セット、目安内、先週より 8 セット増えた、目安に近づいた。'
-      + '肩 6 セット、あと4、先週より 6 セット増えた、目安に近づいた。'
-      + '背中 1 セット、あと9、先週より 1 セット増えた、目安に近づいた。'
-      + '腕 0 セット、あと10、先週と同じ。'
-      + '脚 4 セット、あと6、先週より 4 セット減った、目安から離れた。'
-      + '腹 0 セット、あと10、先週と同じ。筋トレの推移を開く');
+      + '胸 10 セット、目安内、先週比で 8 セット増えた、目安に近づいた。'
+      + '肩 6 セット、あと4、先週比で 6 セット増えた、目安に近づいた。'
+      + '背中 1 セット、あと9、先週比で 1 セット増えた、目安に近づいた。'
+      + '腕 0 セット、あと10、先週比で変わらず。'
+      + '脚 4 セット、あと6、先週比で 4 セット減った、目安から離れた。'
+      + '腹 0 セット、あと10、先週比で変わらず。筋トレの推移を開く');
   });
 
   await test.step('押すと筋トレの推移の部位のバランス（覚えている期間のまま。28日にしない）', async () => {
@@ -110,5 +110,5 @@ test('月曜は先週の月曜どうしで比べる：今日が月曜なら、�
   const card = visible(page, 'home-parts');
   await expect(card).toContainText('11/2–11/2');
   // 今週は 11/2 だけの胸 2。前は 10/26 の 3（11/1 の 1 は先週の月曜〜同じ曜日（月曜）の外）
-  await expect(row(page, '胸')).toHaveText('胸2／10 あと8先週 −1');
+  await expect(row(page, '胸')).toHaveText('胸2／10 あと8先週比 −1');
 });

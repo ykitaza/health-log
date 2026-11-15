@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Muscle } from '@/lib/muscleFigure';
 import type { BalancePart } from '@/lib/partBalance';
-import { PartVolume, volumeDeltaText, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText } from '@/lib/partVolume';
+import { PartVolume, PrevWord, volumeDeltaText, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText } from '@/lib/partVolume';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { colors, volumePalette } from '@/theme';
 import { Panel } from './homeHud';
@@ -23,8 +23,8 @@ const FIG_H = 92;
  * 凡例は付けない（行の四角が図の色と同じで、意味は行の文字が言う）。2D の図は全部のプラットフォームで使う（ホームには 3D の体が別にある）。
  * hurt の部位（ケガ）には赤の ▲。ink・muted は載せる面の文字の色（ホームとレポートで面が違う）
  */
-export function PartVolumeBody({ volume, hurt = new Set(), ink = colors.text, muted = colors.sub, testID = 'part-volume' }: {
-  volume: PartVolume; hurt?: ReadonlySet<BalancePart>; ink?: string; muted?: string; testID?: string;
+export function PartVolumeBody({ volume, hurt = new Set(), ink = colors.text, muted = colors.sub, prev = '先週', testID = 'part-volume' }: {
+  volume: PartVolume; hurt?: ReadonlySet<BalancePart>; ink?: string; muted?: string; prev?: PrevWord; testID?: string;
 }) {
   const fills = useMemo(() => {
     const levels = volumeMuscleLevels(volume);
@@ -49,7 +49,7 @@ export function PartVolumeBody({ volume, hurt = new Set(), ink = colors.text, mu
                 {hurt.has(p.part) && <View style={s.injury} testID={`${testID}-injury-${p.part}`} />}
               </View>
               <T size={12} color={ink} numberOfLines={1} style={s.count}>{volumeRowText(p)}</T>
-              <T size={12} color={p.trend === 'toward' ? volumePalette.toward : muted} numberOfLines={1} style={s.delta}>{volumeDeltaText(p, banded)}</T>
+              <T size={12} color={p.trend === 'toward' ? volumePalette.toward : muted} numberOfLines={1} style={s.delta}>{volumeDeltaText(p, banded, prev)}</T>
             </View>
           );
         })}
