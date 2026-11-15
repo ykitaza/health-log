@@ -293,6 +293,14 @@ def test_説明に_前の週の次の一歩を振り返ってから書くとあ�
     assert "振り返ってから" in mcp_tools.INSTRUCTIONS
 
 
+def test_説明に_部位のセット数は数え直さずそのまま使うとある():
+    mcp = MCPServer(name="test")
+    mcp_tools.register_report_tools(mcp, None)
+    save = {t.name: t for t in asyncio.run(mcp.list_tools())}["save_report"]
+    for text in (save.description, mcp_tools.INSTRUCTIONS):
+        assert "training.part_sets" in text and "数え直さ" in text and "あと N セット" in text
+
+
 def test_前の週のまとめの次の一歩と_アプリのチェック(call, engine):
     steps = ["脚の日を2回入れる", "たんぱく質を毎日130gとる", "0時までに寝る日を4日つくる"]
     old = call("save_report", **{**WEEKLY, "period_start": "2026-10-26", "period_end": "2026-11-01", "next_steps": ["古い"]})

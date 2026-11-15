@@ -58,6 +58,7 @@ JST = timezone(timedelta(hours=9))
 INSTRUCTIONS = f"""レポート（KARADA）：記録を読んで書いたまとめ（日のまとめ・週のまとめ・月のまとめ・フェーズの振り返り）を save_report で残すと、スマホのアプリ（KARADA）のホームとレポートの詳細（フェーズの振り返りはフェーズの画面）で読める。
 「今日のまとめを作って」「今週のまとめを作って」「レポートにして」と頼まれたら、先に period_overview でその期間（日はその日、週は月曜〜日曜、月は月の初日〜最後の日）の材料を1回で読んでから書き、save_report で保存する。くわしく見たいときだけ、記録のツール（get_workout、weekly_training_review、body_progress、sleep_summary、heart_rate_summary、step_summary など）を足して読む。
 週のまとめは、前の週のまとめの次の一歩の結果（period_overview と weekly_review の previous_next_steps。利用者がアプリでチェックした、済んだ・まだ）を先に振り返ってから、次の一歩を書く。
+週のまとめの部位ごとのセット数は、period_overview の training.part_sets をそのまま使い、数え直さない（アプリのカードと同じ数）。足りない部位は「あと N セット」（short）と書き、責めない。
 次の一歩はレポートの締めに置く：日は明日の一歩を1つ、週は来週の焦点に相当する一歩、月は今月の課題に相当する一歩（週・月は3つまで）。
 週のまとめでは、period_overview の injuries（reviewed は期間に振り返りを書いたケガ、fixing は直している途中のケガ）を見て、直し方（fix）を守れたかを振り返りに書く。ケガは、本人の分析（原因 cause・直し方 fix）をそのまま使って振り返り、原因を推測しない。診断や治療の助言はしない。
 数字は記録のツールが返した値だけを使い、推測で作らない。tone（良い・いつもどおり・気をつけたい）は数字にもとづいて決め、利用者を責めない。
@@ -197,6 +198,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
           前の週の次の一歩の結果（period_overview の previous_next_steps。done が true なら済んだ、false ならまだ）を振り返ってから、
           次の一歩を書く（済んだものは一言ほめて次へ進め、まだのものは続けるか、やりやすい形に小さくする。責めない）。
           ケガは period_overview の injuries（reviewed・fixing）を見て、直し方を守れたかを振り返りに書く（highlights の分野には入れない）
+          部位ごとのセット数は period_overview の training.part_sets をそのまま使い、数え直さない。足りない部位は「あと N セット」（short）と書き、責めない
         - 月（monthly。月の初日〜最後の日）：体の変化（体重の推移と目標までのペース）、BIG3、つながり（links）、目標の見直しの提案（review）、
           今月の課題に相当する一歩を3つまで
         - フェーズの振り返り（phase。phase_id は list_phases の値、期間は省いてよい）：材料は period_overview ではなく list_phases の

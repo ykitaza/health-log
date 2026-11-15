@@ -182,7 +182,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | 項目 | 中身 |
 |---|---|
 | `from`・`to`・`days` | 期間と日数 |
-| `training` | `sessions`（筋トレをした日数）、`total_volume`、`days`（筋トレをした日ごとの `date`・`volume`・`sets`）、`exercises`（種目ごとの期間の最高の推定1RM：`exercise`・`body_part`・`max_estimated_1rm`・`weight_kg`・`reps`・`date`。大きい順に20件まで。自重の種目は出ない）、`exercises_omitted`（20件を超えた数）、体重がなくて総負荷量に入らなかった自重のセットがあれば `note` |
+| `training` | `sessions`（筋トレをした日数）、`total_volume`、`days`（筋トレをした日ごとの `date`・`volume`・`sets`）、`exercises`（種目ごとの期間の最高の推定1RM：`exercise`・`body_part`・`max_estimated_1rm`・`weight_kg`・`reps`・`date`。大きい順に20件まで。自重の種目は出ない）、`exercises_omitted`（20件を超えた数）、体重がなくて総負荷量に入らなかった自重のセットがあれば `note`、`part_sets`（週の「部位の量」。下の「部位ごとのセット数」） |
 | `meals` | `weekly_review` と同じ形から `from`・`to`・`goal` を除いたもの：`recorded_days`・`total_days`・`average_of_recorded_days`・`average_target`・`gap`・`days`（日ごとの `date`・`day_type`・`recorded`・`kcal`・`protein_g`・`fat_g`・`carbs_g`・`target_kcal`） |
 | `body` | `days_recorded`、`average_weight_kg`、`average_body_fat_pct`、`weekly_weight_change_kg`（`end` までの28日）、`days`（体重か体脂肪率がある日の `date`・`weight_kg`・`body_fat_pct`） |
 | `sleep` | `nights_recorded`、`average_asleep_min`、`nights`（起きた日ごとの `date`・`asleep_min`・`bedtime`・`wake_time`。日本時間） |
@@ -193,6 +193,21 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 | `phase` | フェーズ。`as_of`（`to` と今日の早いほう）の時点の（あとで終えたフェーズ・療養も、その日に続いていれば実施中として扱い、そのあとの日は数えない）`current`（今のフェーズ。療養中なら療養）、`paused`（療養で止まっている通常のフェーズ）、`in_period`（期間に重なるもの。中断したものも含む。新しい順に5件まで）、`rehab_in_period`（期間に療養が重なるか）。通常のフェーズは `phase_id`・`kind`・`label`（名前。なければ「増量 16週」）・`status`・`direction`・`start_date`・`end_date`・`effective_end_date`・`ended_on`・`week`・`weeks_total`・`remaining_days`・`paused_by_rehab`・`rehab_days`・`start_weight_kg`・`target_weight_kg`・`plan_weight_kg`・`pace`（`status`・`not_judged_reason`・`weigh_ins`・`week_avg_kg`・`plan_kg`・`diff_kg`）。療養は `rehab_days`・`paused_phase_id` |
 | `previous_next_steps` | 前の週のまとめ（`start` の7日前〜前の日に終わる `weekly`。いくつかあればいちばん新しいもの）の次の一歩：`report_id`・`title`・`period_start`・`period_end`・`steps`（`text`・`done`。`done` は利用者がアプリでチェックしたか）・`done_count`・`note`。次の一歩のあるまとめがなければ null。食事の `weekly_review` も同じものを返す |
 | `last_app_sync_at` | ほかのツールと同じ |
+
+#### 部位ごとのセット数（`training.part_sets`）
+
+週のレポートで AI が書く部位のセット数が、アプリのカードの数字と食い違わないよう、アプリの `apps/mobile/lib/partBalance.ts` と同じ数え方でサーバーが数えます（`services/training/training/domain/part_sets.py`。`testdata/training/part_sets.json` で両方を確かめる）。AI は数え直さず、この値をそのまま使います。
+
+```
+"part_sets": {"from": "2026-11-09", "to": "2026-11-12", "previous_from": "2026-11-02", "previous_to": "2026-11-05",
+  "band": {"min": 10, "max": 20},
+  "parts": [{"part": "胸", "sets": 12, "previous": 9, "delta": 3, "short": 0, "over": 0, "trend": "toward"}, ...]}
+```
+
+- 数え方：1行が1セット。種目の部位の名前を6軸（胸・肩・背中・腕・脚・腹。この順で、6つとも必ず出る）にそろえて数える。上腕二頭筋・上腕三頭筋は腕、腹筋は腹。名前の前後の空白は除く。完了の印では絞らず、回数だけのセットも負荷量が 0 のセットも数える。非表示の部位も数える。軸にあたらない名前（首など）と、消えて名前が引けない部位は数えない
+- 期間：`from`〜`to` が今の期間（`to` は `end` と今日の早いほう）。`previous_from`〜`previous_to` は、それを `7 × 切り上げ(日数 ÷ 7)` 日前にずらした期間（月曜〜日曜なら前の週、月曜〜今日なら前の週の同じ曜日まで）
+- `delta` は `sets − previous`。`trend` は目安（10〜20 セット）までの距離が前の期間より小さければ `toward`、大きければ `away`、同じなら `same`
+- `band`（目安 `min` 10・`max` 20）、`short`（足りない量。`max(0, 10 − sets)`）、`over`（多い量。`max(0, sets − 20)`）は、期間が7日以下のときだけ付く
 
 今週の目標は、アプリの設定（同期の `setting`）から読みます。ID は `weekly_goal_training_days`・`weekly_goal_meal_days`・`weekly_goal_sleep_days`（ほかの設定と同じ snake_case。なければアプリの設定の名前 `weeklyGoalTrainingDays` などを読む）。値は整数の文字列で、0〜7 の整数でなければ null にします。
 
