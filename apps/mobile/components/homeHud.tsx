@@ -1,20 +1,19 @@
 // ホームの「計器の盤」（刷新 A、Figma「スタディ：フェーズ」の 6）の部品：枠（角の切り欠き）、計器の段（BIG3・LOAD・SLEEP）、
-// LOG（週ごとの方眼）、PARTS（部位のレーダー）、FUEL（今日の kcal と PFC）。集計は lib/homeHud.ts。
+// LOG（週ごとの方眼）、FUEL（今日の kcal と PFC）。集計は lib/homeHud.ts。
 // 色はミント 1 色の濃淡が主役。回復中は暖色・ケガは赤（回復マップと同じ）。光・ぼかし・グラデーションの飾りは使わない
 import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
-import Svg, { Circle, Path, Polyline, Text as SvgText, TSpan } from 'react-native-svg';
+import Svg, { Circle, Path, Polyline, Text as SvgText } from 'react-native-svg';
 import { DateKey, formatJpDate, WEEKDAY_EN, weekday } from '@/lib/date';
 import { BIG3_LABELS } from '@/lib/exercises';
 import { tonnes, formatSigned, isFlat } from '@/lib/format';
 import { formatHM } from '@/lib/health';
 import {
-  Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, logWeekRange, PartState, PartsRadar, SleepGauge,
+  Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, logWeekRange, SleepGauge,
 } from '@/lib/homeHud';
 import { DAY_TYPE_LABELS } from '@/lib/meals';
-import { BALANCE_PARTS } from '@/lib/partBalance';
-import { INJURY_RED, LOAD_ORANGE } from '@/lib/recoveryMap';
+import { INJURY_RED } from '@/lib/recoveryMap';
 import { fmt1, fmtInt, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, fonts, hudColors, space } from '@/theme';
 import { CountToText } from './charts';
@@ -39,7 +38,7 @@ export function Brackets({ color = hudColors.bracket, size = BRACKET }: { color?
 }
 
 /** 計器の枠：暗い面と 4 隅の切り欠き。onPress があれば押せる（label は読み上げ） */
-function Panel({ children, onPress, label, testID, style }: { children: ReactNode; onPress?: () => void; label?: string; testID?: string; style?: ViewStyle }) {
+export function Panel({ children, onPress, label, testID, style }: { children: ReactNode; onPress?: () => void; label?: string; testID?: string; style?: ViewStyle }) {
   if (!onPress) {
     return (
       <View style={[s.panel, style]} testID={testID} accessible={label != null} accessibilityLabel={label}>
@@ -260,77 +259,6 @@ function LogDay({ c, selected, unit, onPress }: { c: LogCell; selected: boolean;
       {c.injury && <View style={s.injury} testID={`log-injury-${c.date}`} />}
       {c.mealGoal && <View style={[s.mealLine, { backgroundColor: c.level >= 2 ? colors.onAccent : colors.accent }]} testID={`log-meal-${c.date}`} />}
     </Pressable>
-  );
-}
-
-/** レーダーの頂点の向き：胸がまうえ、60° ずつ時計回り（胸・肩・背中・腕・脚・腹） */
-const ANGLE = BALANCE_PARTS.map((_, i) => ((-90 + 60 * i) * Math.PI) / 180);
-const PREV_COLOR = 'rgba(243,245,247,0.6)';
-const STATE_COLOR: Record<Exclude<PartState, null>, string> = { recovering: LOAD_ORANGE, injury: INJURY_RED };
-const TREND_MARK = { up: '▲', down: '▼', flat: '-' } as const;
-
-/**
- * PARTS：部位のレーダー。今の 28 日（実線と塗り）、前の 28 日（破線）、等分の六角形、頂点ごとのセット数と増減、
- * 回復中（暖色）・ケガ（赤）の点、右上に「LOW › 部位」。押すと筋トレの推移の部位のバランスを、同じ 28日（前の28日を点線で）で
- */
-export function PartsPanel({ radar, states }: { radar: PartsRadar | null; states: PartState[] }) {
-  const [w, setW] = useState(0);
-  const has = radar != null && (radar.total > 0 || radar.prevSets.some((n) => n > 0));
-  const label = radar == null ? '部位のバランス' : radar.total === 0 && !has ? '部位のバランス、直近28日のセット数。まだ記録がありません'
-    : `部位のバランス、直近28日のセット数。${BALANCE_PARTS.map((p, i) => `${p} ${radar.sets[i]}（前の28日 ${radar.prevSets[i]}）${states[i] === 'injury' ? ' ケガ' : states[i] === 'recovering' ? ' 回復中' : ''}`).join('、')}${radar.low ? `。いちばん少ないのは${radar.low}` : ''}`;
-  return (
-    <Panel testID="home-parts" label={`${label}。筋トレの推移を開く`} style={s.half}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'parts' } })}>
-      <Head left="PARTS // 28D" right={radar?.low ? `LOW › ${radar.low}` : null} rightColor={colors.accent} />
-      <View style={{ flex: 1, minHeight: 112 }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
-        {w > 0 && <Radar width={w} radar={radar} states={states} />}
-      </View>
-      {radar != null && !has && <T size={11} color={colors.sub} align="center" testID="home-parts-empty">記録がたまると形になります</T>}
-    </Panel>
-  );
-}
-
-function Radar({ width, radar, states }: { width: number; radar: PartsRadar | null; states: PartState[] }) {
-  const height = 112;
-  // 左右の頂点の外に「背中 18 ▲」が入る幅を残す
-  const R = Math.max(12, Math.min(44, (width - 96) / (2 * Math.cos(Math.PI / 6)), (height - 32) / 2));
-  const cx = width / 2, cy = height / 2;
-  const at = (i: number, r: number) => ({ x: cx + r * Math.cos(ANGLE[i]), y: cy + r * Math.sin(ANGLE[i]) });
-  const poly = (ratios: number[]) => `${ratios.map((v, i) => { const p = at(i, R * v); return `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join('')}Z`;
-  const ring = (k: number) => poly(BALANCE_PARTS.map(() => k));
-  return (
-    <Svg width={width} height={height}>
-      {[1 / 3, 2 / 3, 1].map((k) => <Path key={k} d={ring(k)} fill="none" stroke={hudColors.ring} strokeWidth={1} />)}
-      <Path d={BALANCE_PARTS.map((_, i) => { const p = at(i, R); return `M${cx},${cy}L${p.x},${p.y}`; }).join('')} stroke={hudColors.ring} strokeWidth={1} />
-      {radar && radar.prevSets.some((n) => n > 0) && (
-        <Path d={poly(radar.prevRatios)} fill="none" stroke={PREV_COLOR} strokeWidth={1} strokeDasharray="3 3" />
-      )}
-      {radar && radar.total > 0 && (
-        <>
-          <Path d={poly(radar.ratios)} fill={colors.accent} fillOpacity={0.22} stroke={colors.accent} strokeWidth={1.5} strokeLinejoin="round" />
-          {radar.ratios.map((v, i) => { const p = at(i, R * v); return <Circle key={i} cx={p.x} cy={p.y} r={2} fill={colors.accent} />; })}
-        </>
-      )}
-      {states.map((st, i) => {
-        if (!st) return null;
-        const p = at(i, R * (radar?.ratios[i] ?? 0));
-        return <Circle key={`st-${i}`} cx={p.x} cy={p.y} r={4} fill={STATE_COLOR[st]} stroke={colors.card} strokeWidth={1} />;
-      })}
-      {BALANCE_PARTS.map((name, i) => {
-        const p = at(i, R);
-        const c = Math.cos(ANGLE[i]);
-        const anchor = Math.abs(c) < 0.1 ? 'middle' : c < 0 ? 'end' : 'start';
-        const dx = Math.abs(c) < 0.1 ? 0 : c < 0 ? -5 : 5;
-        const dy = Math.sin(ANGLE[i]) < -0.9 ? -5 : Math.sin(ANGLE[i]) > 0.9 ? 13 : 4;
-        const tr = radar?.trend[i] ?? 'flat';
-        return (
-          <SvgText key={name} x={p.x + dx} y={p.y + dy} fontSize={11} fontFamily={fonts.bold} fill={colors.text} textAnchor={anchor}>
-            {`${name} ${radar?.sets[i] ?? 0} `}
-            <TSpan fill={tr === 'up' ? colors.accent : tr === 'down' ? colors.danger : colors.sub}>{TREND_MARK[tr]}</TSpan>
-          </SvgText>
-        );
-      })}
-    </Svg>
   );
 }
 

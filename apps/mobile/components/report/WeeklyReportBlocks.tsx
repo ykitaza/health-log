@@ -1,84 +1,49 @@
 // 週のまとめの中身（モックの「今週」のタブ）のうち、アプリが端末の記録から組み立てるブロック。
-// - WeeklyRadarBlock：レポートの週の終わりを起点にした直近14日の部位のバランス（lib/partBalance.ts のアンカー版。ホームのレーダーと同じ集計）
+// - WeeklyVolumeBlock：その週（月曜〜日曜）の部位ごとのセット数と、1 週間 10〜20 セットの目安との差、前の週との差（lib/partVolume.ts。MCP の period_overview と同じ数字）
 // - WeeklyStatusBlock：WEEKLY STATUS の表。週の平均の体重、筋トレの日数、合計負荷量、最近の部位
 // - WeeklyGoalsBlock：今週の目標（lib/reports.ts の weeklyAchievementRows と連続）。「達成」と連続、「目標を変える ›」（設定の今週の目標の欄へ）
 // - InjuryReviewBlock：その週のケガの振り返り（lib/injuryReport.ts の3分類。数を表にし、ケガは1件ずつ2段の行で）
 // - PrevTodoBlock：先週やることの振り返り（前の週のまとめの次の一歩と済んだか。見るだけ）
 // - MetricTilesBlock：レポートの highlights の指標のタイル（2列）
-// 色はミント（colors.accent）＋モノクロだけ（ケガの画面の琥珀色も、調子の色も使わない）
+// 色はミント（colors.accent）＋モノクロだけ（ケガの画面の琥珀色も、調子の色も使わない）。ただし部位の量の図と四角だけは、青〜水色の濃淡（theme の volumePalette。緑・黄は回復の状態の色なので使わない）
 import { router } from 'expo-router';
-import { ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { useFocusData, useGoalStreak, useWeeklyAchievement } from '@/hooks/data';
 import { weekAverage } from '@/lib/body';
 import type { DateKey } from '@/lib/date';
-import { addDays, todayKey } from '@/lib/date';
+import { todayKey } from '@/lib/date';
 import { tonnes } from '@/lib/format';
 import { allGoalsReached, weekOf } from '@/lib/goals';
 import { TodoWeek, todoAllDone, todoCount, WEEKLY_GOALS_SECTION, weekRangeLabel } from '@/lib/home';
 import { RESULTS } from '@/lib/injuries';
 import { injuryPeriodInjuryCount, loadInjuryPeriodReport, type InjuryReportEntry } from '@/lib/injuryReport';
-import { BALANCE_PARTS, partBalanceAnchored, partBalancePeriodLabel } from '@/lib/partBalance';
+import { partVolume, volumeLabel } from '@/lib/partVolume';
 import { achievementRowLabel, AREA_LABELS, deltaLook, formatDelta, formatMetricValue, Highlight, Metric, metricLabel, weeklyAchievementRows, weekStreakText } from '@/lib/reports';
 import { periodPartSequence, periodVolumeKg, uniqueInjuryEntries } from '@/lib/reportView';
 import { fmt1, kgToUnit } from '@/lib/units';
-import { fonts } from '@/theme';
+import { PartVolumeBody } from '../PartVolumeCard';
 import { T } from '../Text';
 import { dotMonthDay, hud, JaVal, Micro, Mono, Panel, PanelHead, StatusRow, TableHead, ValUnit } from './hud';
 
-/** 6つの軸の向き（モックの並び：胸 左上・肩 右上・背中 右・腕 右下・脚 左下・腹 左） */
-const AXIS_DEG = [-120, -60, 0, 60, 120, 180];
-const CX = 110;
-const CY = 95;
-const R = 70;
-const at = (i: number, r: number) => {
-  const a = (AXIS_DEG[i] * Math.PI) / 180;
-  return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
-};
-const ring = (k: number) => AXIS_DEG.map((_, i) => at(i, R * k)).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-
 /**
- * 週の部位のバランスのレーダー：レポートの週の終わりの日（end）を起点にした直近14日のセット数。
- * 頂点の長さは partBalance の ratios（セット数の平方根を最大の軸で割ったもの）。軸の数値は出さない（モックと同じ）
+ * 週の部位の量：レポートの週（月曜〜日曜）の、部位ごとのセット数と、1 週間 10〜20 セットの目安との差。前の週と比べる。
+ * 数字は MCP の period_overview と同じ（AI の文章が使う数字と同じ。lib/partVolume.ts）。週が終わっていなければ今日まで
  */
-export function WeeklyRadarBlock({ end }: { end: DateKey }) {
-  const spanStart = addDays(end, -13);
-  const { data: balance } = useFocusData(async (r) => {
+export function WeeklyVolumeBlock({ start, end }: { start: DateKey; end: DateKey }) {
+  const today = todayKey();
+  const { data: volume } = useFocusData(async (r) => {
     const [rows, parts] = await Promise.all([r.workouts.allSetRows(), r.catalog.listBodyParts({ includeHidden: true })]);
     const names = new Map(parts.map((p) => [p.id, p.name]));
-    return partBalanceAnchored(rows, (id) => names.get(id) ?? '', end);
-  }, end);
-  const [width, setWidth] = useState(0);
-  if (!balance) return null;
-  const topIdx = balance.sets.indexOf(Math.max(...balance.sets));
-  const note = balance.total === 0
-    ? '直近14日間の記録はありません（胸・肩・背中・腕・脚・腹のセット数を数えます）'
-    : `いちばん多いのは${BALANCE_PARTS[topIdx]}（${balance.sets[topIdx]}セット）`;
-  const shape = balance.ratios.map((v, i) => at(i, R * v));
-  const w = Math.min(212, width);
-  const labelPos = [{ x: 62, y: 28 }, { x: 158, y: 28 }, { x: 196, y: 99 }, { x: 158, y: 172 }, { x: 62, y: 172 }, { x: 22, y: 99 }];
+    return partVolume(rows, (id) => names.get(id) ?? '', start, end, today);
+  }, `${start}:${end}:${today}`);
+  if (!volume) return null;
   return (
-    <Panel style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 7 }} testID="report-weekly-radar">
-      <PanelHead en="Body-Part Balance" title="部位のバランス" right={`${dotMonthDay(spanStart)}–${dotMonthDay(end)}`} />
-      <View accessible accessibilityLabel={partBalancePeriodLabel(balance, spanStart, end)} style={{ marginTop: 2, alignItems: 'center' }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-        {w > 0 && (
-          <Svg width={w} height={(w * 186) / 220} viewBox="0 0 220 186" testID="report-weekly-radar-chart">
-            {[1 / 3, 2 / 3, 1].map((k) => <Polygon key={k} points={ring(k)} fill="none" stroke="#2A332D" strokeWidth={1} />)}
-            {AXIS_DEG.map((_, i) => { const p = at(i, R); return <Line key={i} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke={hud.line2} strokeWidth={1} />; })}
-            {balance.total > 0 && (
-              <>
-                <Polygon points={shape.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} fill={hud.green} fillOpacity={0.16} stroke={hud.green} strokeWidth={1.6} strokeLinejoin="round" />
-                {shape.map((p, i) => <Circle key={i} cx={p.x} cy={p.y} r={2.4} fill={hud.green} />)}
-              </>
-            )}
-            {BALANCE_PARTS.map((name, i) => (
-              <SvgText key={name} x={labelPos[i].x} y={labelPos[i].y} fontSize={11} fontWeight="700" fill={hud.label} textAnchor="middle" fontFamily={fonts.bold}>{name}</SvgText>
-            ))}
-          </Svg>
-        )}
+    <Panel style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 10 }} testID="report-weekly-volume">
+      <PanelHead en="Sets By Body Part" title="今週の部位" right={`${dotMonthDay(volume.from)}–${dotMonthDay(volume.to)}`} />
+      <View accessible accessibilityLabel={volumeLabel(volume, 'この週の部位')} style={{ marginTop: 8 }}>
+        <PartVolumeBody volume={volume} ink={hud.ink} muted={hud.muted} testID="report-weekly-volume-body" />
       </View>
-      <T size={11.5} color={hud.muted} style={{ marginTop: 2, marginBottom: 2, lineHeight: 18 }}>{note}</T>
     </Panel>
   );
 }

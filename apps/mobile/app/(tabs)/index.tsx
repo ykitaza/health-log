@@ -3,11 +3,12 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { HomeHeader, ReceivedNotice, RecordSheet } from '@/components/home';
 import { HeroData, HomeHero, HeroLatest } from '@/components/HomeHero';
-import { Big3Panel, FuelPanel, LoadPanel, LogPanel, PartsPanel, SleepPanel } from '@/components/homeHud';
+import { Big3Panel, FuelPanel, LoadPanel, LogPanel, SleepPanel } from '@/components/homeHud';
 import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { loadPartDays, todaySuggestion } from '@/components/partDay';
+import { PartVolumeCard } from '@/components/PartVolumeCard';
 import { PressableScale } from '@/components/motion';
 import { LatestReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
@@ -28,10 +29,12 @@ import {
 } from '@/lib/homeHero';
 import { goalLine } from '@/lib/home';
 import {
-  big3Gauge, fuelGauge, latestSession, loadGauge, logFrom, logGrid, monthSummary, partsRadar, partStates, sleepGauge,
+  big3Gauge, fuelGauge, latestSession, loadGauge, logFrom, logGrid, monthSummary, partStates, sleepGauge,
 } from '@/lib/homeHud';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { injuryNumbers } from '@/lib/injuries';
+import { BALANCE_PARTS } from '@/lib/partBalance';
+import { partVolume } from '@/lib/partVolume';
 import { effectiveGoalWeight } from '@/lib/phases';
 import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -39,7 +42,7 @@ import { colors, radius, size, space } from '@/theme';
 
 /**
  * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY・GROWTH の横スライド）、
- * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、PARTS と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
+ * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、今週の部位（PARTS）と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
  * 集計は lib/homeHud.ts と lib/homeHero.ts
  */
 export default function HomeScreen() {
@@ -111,13 +114,17 @@ export default function HomeScreen() {
     }, today);
   }, [data, rows, partName, today, normal]);
   const monthSum = useMemo(() => (data ? monthSummary(rows, today) : null), [data, rows, today]);
-  const radar = useMemo(() => (data ? partsRadar(rows, partName, today) : null), [data, rows, partName, today]);
+  // 今週（月曜〜今日）の部位ごとのセット数。先週の同じ曜日までと比べる
+  const volume = useMemo(() => (data ? partVolume(rows, partName, weekDates[0], weekDates[6], today) : null), [data, rows, partName, weekDates, today]);
   const recovery = useMemo(() => {
     if (!data) return null;
     const list = partRecoveries(rows, partName, data.partDays.names, today);
     return { list, fixing: fixingOn(data.injuries, today) };
   }, [data, rows, partName, today]);
-  const states = useMemo(() => (recovery ? partStates(recovery.list, (p) => injuriesForPart(p, recovery.fixing).length > 0) : []), [recovery]);
+  const hurt = useMemo(() => {
+    const states = recovery ? partStates(recovery.list, (p) => injuriesForPart(p, recovery.fixing).length > 0) : [];
+    return new Set(BALANCE_PARTS.filter((_, i) => states[i] === 'injury'));
+  }, [recovery]);
   const heroData = useMemo<HeroData | null>(() => {
     if (!data || !phase || !recovery) return null;
     const { list, fixing } = recovery;
@@ -163,7 +170,9 @@ export default function HomeScreen() {
         </View>
       )}
       <View style={s.row}>
-        <PartsPanel radar={radar} states={states} />
+        <PartVolumeCard volume={volume} hurt={hurt} />
+      </View>
+      <View style={s.row}>
         <FuelPanel fuel={fuel} date={today} />
       </View>
       <ReportSuggestion />
