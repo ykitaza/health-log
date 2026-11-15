@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from training.domain import big3, body, bodyweight, calculations, health, measures
+from training.domain import big3, body, bodyweight, calculations, health, measures, part_sets
 from training.domain import phase as phase_rules
 from training.domain.catalog import Catalog
 from training.domain.injury import Injury, InjuryReview
@@ -172,6 +172,17 @@ class TrainingQueries:
         bests = sorted(calculations.personal_bests(rows).values(), key=lambda b: (-b.e1rm, b.exercise_id))
         return PeriodTraining([TrainingDay(d, v, int(n)) for d, (v, n) in sorted(by_day.items())],
                               calculations.total_volume(rows), bests, bodyweight.missing_bodyweight(rows))
+
+    async def part_sets(self, subject: str, start: str, end: str, today: str) -> part_sets.PartSets:
+        """部位ごとのセット数と、前の期間との比べ（アプリの「部位の量」と同じ数え方。training.domain.part_sets）。"""
+        catalog = await self.catalog(subject)
+
+        def part_name(body_part_id: str) -> str | None:
+            found = catalog.body_part(body_part_id)
+            return found.name if found else None
+
+        rows = await self.repository.set_rows(TraineeId(subject))
+        return part_sets.part_sets(rows, part_name, start, end, today)
 
     async def exercise_history(self, subject: str, exercise_id: str) -> ExerciseHistory:
         rows = await self.set_rows(subject)
