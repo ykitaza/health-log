@@ -248,6 +248,15 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
                                 {"date": "2026-11-06", "volume": 500, "sets": 1}]
     assert [(e["exercise"], e["max_estimated_1rm"], e["date"]) for e in training["exercises"]] == [
         ("スクワット", round(100 * (1 + 5 / 30), 1), "2026-11-06"), ("ベンチプレス", round(80 * (1 + 8 / 30), 1), "2026-11-03")]
+    part_sets = training["part_sets"]  # 部位ごとのセット数（アプリのカードと同じ数え方）。前の週の11-01のベンチ1セットは前の期間
+    assert [k for k in part_sets] == ["from", "to", "previous_from", "previous_to", "band", "parts"]
+    assert (part_sets["from"], part_sets["to"], part_sets["previous_from"], part_sets["previous_to"]) == (
+        "2026-11-02", "2026-11-08", "2026-10-26", "2026-11-01")
+    assert part_sets["band"] == {"min": 10, "max": 20}
+    assert [p["part"] for p in part_sets["parts"]] == ["胸", "肩", "背中", "腕", "脚", "腹"]
+    assert part_sets["parts"][0] == {"part": "胸", "sets": 2, "previous": 1, "delta": 1, "short": 8, "over": 0, "trend": "toward"}
+    assert part_sets["parts"][4] == {"part": "脚", "sets": 1, "previous": 0, "delta": 1, "short": 9, "over": 0, "trend": "toward"}
+    assert (today["training"]["part_sets"]["from"], today["training"]["part_sets"]["previous_from"]) == ("2026-11-08", "2026-11-01")
     meals = week["meals"]
     assert (meals["recorded_days"], meals["total_days"], len(meals["days"])) == (1, 7, 7)
     assert meals["days"][1] == {"date": "2026-11-03", "day_type": "training", "recorded": True, "kcal": 312,

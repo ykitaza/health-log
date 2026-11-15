@@ -64,7 +64,10 @@ def register_overview_tools(
         """期間（両端を含む。31日まで）の材料を1回で読む。日・週・月のまとめ（save_report）を書く前に呼ぶ。
 
         省くと start・end とも今日（日のまとめ）。週は月曜〜日曜、月は月の初日〜最後の日（今月なら今日まで）を渡す。
-        - training：筋トレをした日ごとの総負荷量とセット数、合計、種目ごとの期間の最高の推定1RM（大きい順に20件まで）
+        - training：筋トレをした日ごとの総負荷量とセット数、合計、種目ごとの期間の最高の推定1RM（大きい順に20件まで）、
+          part_sets（部位ごとのセット数。胸・肩・背中・腕・脚・腹の6つ。sets は from〜to、previous は前の期間 previous_from〜previous_to
+          （同じ長さで7日の倍数だけ前）、delta は差。7日までの期間は band（目安 10〜20 セット）と、足りない short・多い over も。
+          trend は目安に近づいた toward・離れた away・同じ same。アプリのカードと同じ数なので、数え直さずそのまま使う）
         - meals：日ごとの kcal・PFC と記録の有無、筋トレの日か、その日の目標 kcal、記録した日の平均と目標との差
         - body：体重・体脂肪率の日ごとの値と期間の平均、end までの28日の体重の週あたりの変化
         - sleep：起きた日ごとの眠っていた時間と寝た・起きた時刻、平均。heart_rate：安静時心拍の日ごとの値と平均
@@ -127,7 +130,10 @@ def register_overview_tools(
                 "from": s,
                 "to": e,
                 "days": (end - start).days + 1,
-                "training": training_views.period_training(await training.period_training(sub, s, e), catalog, MAX_EXERCISES),
+                "training": {
+                    **training_views.period_training(await training.period_training(sub, s, e), catalog, MAX_EXERCISES),
+                    "part_sets": training_views.part_sets(await training.part_sets(sub, s, e, today().isoformat())),
+                },
                 "meals": meals,
                 "body": training_views.period_body(await training.body_progress(sub, s, e)),
                 "sleep": training_views.period_sleep(await training.sleep_summary(sub, s, e)),
