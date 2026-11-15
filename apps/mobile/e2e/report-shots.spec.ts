@@ -133,9 +133,58 @@ test('レポート詳細を日・週・月で撮る（モックとの見比べ�
   await expect(page.getByTestId('report-hero-daily').filter({ visible: true })).toBeVisible();
   await shoot(page, 'daily');
   await tabs.getByRole('button', { name: '週', exact: true }).click();
-  await expect(page.getByTestId('report-weekly-radar').filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId('report-weekly-volume').filter({ visible: true })).toBeVisible();
   await shoot(page, 'weekly');
   await tabs.getByRole('button', { name: '月', exact: true }).click();
   await expect(page.getByTestId('report-big3').filter({ visible: true })).toBeVisible();
   await shoot(page, 'monthly');
+});
+
+// 部位の量（ホームの「今週の部位」と、週のまとめの同じカード）：6 段の色が見分けられるかを見る。
+// 今週（11/9〜今日 11/12）：背中 25（5 段）、脚 18（4 段）、胸 12（3 段）、肩 6（2 段）、腕 2（1 段）、腹 0（灰色）。先週は 11/2〜11/5
+test('部位の量を、ホームと週のまとめで撮る', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  const server = seed();
+  const at = '2026-11-12T03:00:00.000Z';
+  const mcp = { parent_id: null, changed_at: at, origin: 'mcp' as const, device_id: null };
+  const add = (n: string, date: string, exerciseId: string, count: number) => {
+    const id = `dddddddd-0000-4000-8000-0000000000${n}`;
+    return [
+      { ...mcp, change_id: crypto.randomUUID(), entity_type: 'workout_entry', entity_id: id, op: 'create' as const, fields: { date, exercise_id: exerciseId, sort_order: 1 } },
+      ...Array.from({ length: count }, (_, k) => ({
+        ...mcp, change_id: crypto.randomUUID(), entity_type: 'workout_set', entity_id: `${id}-${k}`, op: 'create' as const,
+        fields: { entry_id: id, set_index: k, weight_kg: 40, reps: 8, memo: '', done: true },
+      })),
+    ];
+  };
+  const SHOULDER_PRESS = 'fc03a49d-a1f7-478a-b498-1ffaf4f08c5f';
+  const CURL = '03b4fdba-721e-4c90-ad62-4dd44e25b064';
+  server.append([
+    ...add('01', '2026-11-09', BENCH, 9), ...add('02', '2026-11-10', SQUAT, 15), ...add('03', '2026-11-11', DEADLIFT, 22),
+    ...add('04', '2026-11-11', SHOULDER_PRESS, 6), ...add('05', '2026-11-12', CURL, 2),
+    ...add('06', '2026-11-03', DEADLIFT, 12), ...add('07', '2026-11-04', SQUAT, 8), ...add('08', '2026-11-05', SHOULDER_PRESS, 3),
+  ]);
+  await connect(page, context, server);
+  await openApp(page, DAY);
+  await openSettings(page);
+  await page.getByTestId('settings-account').click();
+  await button(page, 'パスキーでログイン').click();
+  await expect(page.getByTestId('sync-pending').filter({ visible: true })).toHaveText('0件');
+  await expect(page.getByTestId('sync-last').filter({ visible: true })).toHaveText(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
+  await button(page, '戻る').click();
+  await button(page, '戻る').click();
+  const card = page.getByTestId('home-parts').filter({ visible: true });
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('目安より多い');
+  await page.waitForTimeout(800);
+  await card.screenshot({ path: `${process.env.SHOT_DIR}/home-part-volume.png` });
+  await tab(page, 'レポート').click();
+  const tabs = page.getByTestId('report-period-tabs').filter({ visible: true });
+  await settle(tabs);
+  await tabs.getByRole('button', { name: '週', exact: true }).click();
+  const volume = page.getByTestId('report-weekly-volume').filter({ visible: true });
+  await expect(volume).toBeVisible();
+  await volume.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  await volume.screenshot({ path: `${process.env.SHOT_DIR}/report-part-volume.png` });
 });

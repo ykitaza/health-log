@@ -140,8 +140,8 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await expect(page.getByTestId('report-achievement').filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel(/^睡眠、睡眠（平均） 5\.8 時間/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel('筋トレ、良い。脚の日が2回に増えた').filter({ visible: true })).toBeVisible();
-  // 部位バランスのレーダー（週ビュー）
-  await expect(page.getByTestId('report-weekly-radar').filter({ visible: true })).toBeVisible();
+  // 今週の部位（週ビュー）
+  await expect(page.getByTestId('report-weekly-volume').filter({ visible: true })).toBeVisible();
   // 週のまとめは、まとめだけ（「まとめ ／ 次の週にやること」の切り替えはない）。締めは「来週の焦点」
   await expect(button(page, 'まとめ')).toHaveCount(0);
   await expect(see(page, '来週の焦点', { exact: true })).toBeVisible();
@@ -493,11 +493,11 @@ test('詳細の期間タブ（日・週・月）：種類ごとの最新のレ�
   await expect(see(band(page), '今日のまとめ', { exact: true })).toBeVisible();
 });
 
-test('週のまとめ：部位バランスのレーダーと、期間にケガがあればケガの振り返り。締めは「来週の焦点」', async ({ page, context }) => {
+test('週のまとめ：今週の部位（セット数と目安）と、期間にケガがあればケガの振り返り。締めは「来週の焦点」', async ({ page, context }) => {
   const server = serverWithReport(); // 今週のまとめ（11月2日〜8日）
   const at = '2026-11-08T01:00:00.000Z';
   server.append([
-    // 期間内（11月5日）の筋トレ：レーダーの材料
+    // 期間内（11月5日）の筋トレ：部位のセット数の材料（胸 1、脚 1）
     ...workoutChanges(at, 'eeeeeeee-0000-4000-8000-000000000001', '2026-11-05', BENCH, 60, 8),
     ...workoutChanges(at, 'eeeeeeee-0000-4000-8000-000000000002', '2026-11-05', SQUAT, 80, 5),
     // 期間内（11月4日）に痛めたケガ：ケガの振り返りの材料（fake server は injury entity_type をそのまま扱う）
@@ -512,10 +512,17 @@ test('週のまとめ：部位バランスのレーダーと、期間にケガ�
   await signInAndSync(page);
   await openReportsTab(page);
 
-  const radar = page.getByTestId('report-weekly-radar').filter({ visible: true });
-  await expect(radar).toBeVisible();
-  await expect(see(radar, '部位のバランス', { exact: true })).toBeVisible();
-  await expect(page.getByTestId('report-weekly-radar-chart').filter({ visible: true })).toBeVisible();
+  // 今週の部位：その週（11/2〜11/8）の部位ごとのセット数。先週（10/26〜11/1）に記録はない。2D の図と、図の色と同じ四角の行（凡例はない）
+  const volume = page.getByTestId('report-weekly-volume').filter({ visible: true });
+  await expect(volume).toBeVisible();
+  await expect(see(volume, '今週の部位', { exact: true })).toBeVisible();
+  await expect(volume).toContainText('11.02–11.08');
+  await expect(volume.getByLabel(/^この週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。胸 1 セット、あと9、先週より 1 セット増えた、目安に近づいた。肩 0 セット/)).toBeVisible();
+  await expect(volume.getByTestId('report-weekly-volume-body-row-胸')).toHaveText('胸1／10 あと9先週 +1');
+  await expect(volume.getByTestId('report-weekly-volume-body-row-脚')).toHaveText('脚1／10 あと9先週 +1');
+  await expect(volume.getByTestId('report-weekly-volume-body-row-腹')).toHaveText('腹0／10 あと10先週 ±0');
+  await expect(volume.getByTestId('report-weekly-volume-body-figure-front')).toBeVisible();
+  await expect(volume.getByTestId('report-weekly-volume-body-figure-back')).toBeVisible();
 
   const injury = page.getByTestId('report-injury-review').filter({ visible: true });
   await expect(injury).toBeVisible();

@@ -4,7 +4,7 @@ import { button, openApp, openMealWeek, see, tab, TabName } from './helpers';
 // 412 より狭い画面（360×800 など）での崩れ
 test.use({ viewport: { width: 360, height: 800 } });
 
-test('360 の幅でも、ホームの計器の段・LOG・PARTS の文字がはみ出さない', async ({ page }) => {
+test('360 の幅でも、ホームの計器の段・LOG・今週の部位の文字がはみ出さない', async ({ page }) => {
   await openApp(page);
   // 計器の段の 3 つは横に並び、重ならない
   const [big3, load, sleep] = await Promise.all(['home-big3', 'volume-week', 'home-sleep'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
@@ -15,12 +15,15 @@ test('360 の幅でも、ホームの計器の段・LOG・PARTS の文字がは�
   const log = (await page.getByTestId('home-log').boundingBox())!;
   const sunday = (await page.getByTestId('log-2026-11-08').boundingBox())!;
   expect(sunday.x + sunday.width).toBeLessThanOrEqual(log.x + log.width);
-  // PARTS の軸の名前が、枠からはみ出さない
+  // 今週の部位：6 つの行（部位・セット数と目安・先週との差）が枠の中に収まり、どの文字も省略されない
   const parts = (await page.getByTestId('home-parts').boundingBox())!;
-  for (const name of ['背中', '腹']) {
-    const label = (await page.getByTestId('home-parts').locator('text', { hasText: name }).boundingBox())!;
-    expect(label.x).toBeGreaterThanOrEqual(parts.x);
-    expect(label.x + label.width).toBeLessThanOrEqual(parts.x + parts.width);
+  for (const name of ['胸', '肩', '背中', '腕', '脚', '腹']) {
+    const row = page.getByTestId(`home-parts-body-row-${name}`);
+    const box = (await row.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(parts.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(parts.x + parts.width);
+    const clipped = await row.evaluate((el) => [...el.querySelectorAll('div')].some((d) => d.children.length === 0 && d.textContent !== '' && d.scrollWidth > d.clientWidth));
+    expect(clipped, `${name} の行の文字が省略されている`).toBe(false);
   }
 });
 
