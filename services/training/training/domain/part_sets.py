@@ -82,6 +82,6 @@ def distance(sets: int) -> int:
 
 
 def trend(sets: int, previous: int) -> str:
-    """前の期間より目安に近づいたか：toward（近づいた）・away（離れた）・same（同じ）。"""
+    """前の期間より目安に近づいたか（週＝7日までの期間だけ使う。views.part_sets）：toward（近づいた）・away（離れた）・same（同じ）。"""
     now, before = distance(sets), distance(previous)
     return "toward" if now < before else "away" if now > before else "same"

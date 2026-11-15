@@ -81,5 +81,5 @@ def test_ビューは6軸が常にあり_7日までは目安と足りない量�
     assert (chest["sets"], chest["over"], chest["short"]) == (22, 2, 0)
     assert (legs["sets"], legs["short"], legs["over"], legs["delta"]) == (4, 6, 0, 4)
     month = views.part_sets(counted([], "2026-10-01", "2026-10-31", "2026-11-20"))
-    assert "band" not in month and all({"short", "over"}.isdisjoint(p) for p in month["parts"])
-    assert all(p["trend"] == "same" for p in month["parts"])
+    assert "band" not in month and all({"short", "over", "trend"}.isdisjoint(p) for p in month["parts"])
+    assert all("trend" not in p for p in month["parts"])

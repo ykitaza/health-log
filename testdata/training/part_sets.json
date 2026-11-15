@@ -1,5 +1,5 @@
 {
-  "description": "部位ごとのセット数（週の「部位の量」）。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。1行が1セットで、種目の部位の名前を軸（胸・肩・背中・腕・脚・腹）にそろえて数える。body_parts は部位の ID と名前（hidden は非表示。id が載っていない部位は消えたもの）。cases の today・start・end は日本時間の日付。今の期間は start〜min(end, today)、前の期間はそれを 7×ceil(日数÷7) 日前にずらしたもの。band・short・over は期間が7日以下のときだけ",
+  "description": "部位ごとのセット数（週の「部位の量」）。行はアプリの TrainingSetRow と同じ（日付・種目・部位・重量・回数）。1行が1セットで、種目の部位の名前を軸（胸・肩・背中・腕・脚・腹）にそろえて数える。body_parts は部位の ID と名前（hidden は非表示。id が載っていない部位は消えたもの）。cases の today・start・end は日本時間の日付。今の期間は start〜min(end, today)、前の期間はそれを 7×ceil(日数÷7) 日前にずらしたもの。band・short・over・trend は期間が7日以下のときだけ",
   "body_parts": [
     {
       "id": "chest",
@@ -1226,43 +1226,37 @@
             "part": "胸",
             "sets": 3,
             "previous": 1,
-            "delta": 2,
-            "trend": "toward"
+            "delta": 2
           },
           {
             "part": "肩",
             "sets": 0,
             "previous": 0,
-            "delta": 0,
-            "trend": "same"
+            "delta": 0
           },
           {
             "part": "背中",
             "sets": 0,
             "previous": 0,
-            "delta": 0,
-            "trend": "same"
+            "delta": 0
           },
           {
             "part": "腕",
             "sets": 0,
             "previous": 0,
-            "delta": 0,
-            "trend": "same"
+            "delta": 0
           },
           {
             "part": "脚",
             "sets": 4,
             "previous": 0,
-            "delta": 4,
-            "trend": "toward"
+            "delta": 4
           },
           {
             "part": "腹",
             "sets": 0,
             "previous": 0,
-            "delta": 0,
-            "trend": "same"
+            "delta": 0
           }
         ]
       }
