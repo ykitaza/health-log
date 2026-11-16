@@ -10,7 +10,7 @@ import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/dat
 import { mealRecordTarget } from '@/lib/home';
 import { HOME_ACCOUNT_LABEL } from '@/lib/profile';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
-import { colors, radius, size, space } from '@/theme';
+import { colors, deco, radius, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { Avatar } from './Avatar';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
@@ -43,12 +43,20 @@ export function HomeHeader({ year, month }: { year: number; month: number }) {
       >
         <Avatar uri={profile.photoUri} size={AVATAR_SIZE} />
       </PressableScale>
-      <T
-        num bold size={20} color={colors.accent} accessibilityRole="header" numberOfLines={1} style={{ flex: 1, letterSpacing: 2 }}
-        accessibilityLabel={`${year}年${month}月`}
-      >
-        {`KARADA // ${MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase()} ${year}`}
-      </T>
+      {deco.enLabels ? (
+        <T
+          num bold size={20} color={colors.accent} accessibilityRole="header" numberOfLines={1} style={{ flex: 1, letterSpacing: 2 }}
+          accessibilityLabel={`${year}年${month}月`}
+        >
+          {`KARADA // ${MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase()} ${year}`}
+        </T>
+      ) : (
+        // クラシック：アプリの名前は本文の色、月は補足の色で日本語（Figma「ホーム（unslop 案）」）
+        <T accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }} accessibilityLabel={`${year}年${month}月`}>
+          <T num size={20} color={colors.text}>KARADA</T>
+          <T size={14} color={colors.sub}>{`  ${year}年${month}月`}</T>
+        </T>
+      )}
       <View style={{ marginRight: -12 }}><SettingsButton /></View>
     </View>
   );

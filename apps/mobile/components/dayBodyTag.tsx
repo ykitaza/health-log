@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 import { View, ViewStyle } from 'react-native';
 import { exerciseNumber } from '@/lib/dayCallouts';
-import { colors, fonts } from '@/theme';
+import { colors, deco, fonts, isHud } from '@/theme';
 import type { DayBodyEntry } from './DayBody3D';
 import { PressableScale } from './motion';
 import { T } from './Text';
@@ -16,7 +16,11 @@ export const PART_TAG_H = 34;
 /** 札の高さ：部位の札（kicker がある）なら PART_TAG_H */
 export const tagHeight = (entries: DayBodyEntry[]) => (entries.some((e) => e.kicker) ? PART_TAG_H : DAY_TAG_H);
 
-const mono = { fontFamily: fonts.num, fontSize: 11, lineHeight: 13, letterSpacing: 1.5 } as const;
+// クラシックは字間を開けず、ふつうの字にする。見出しの色も緑ではなく補足の色（Figma「ホーム（unslop 案）」の札）
+const mono = deco.trackedMono
+  ? { fontFamily: fonts.num, fontSize: 11, lineHeight: 13, letterSpacing: 1.5 } as const
+  : { fontFamily: fonts.regular, fontSize: 12, lineHeight: 15 } as const;
+const KICKER = isHud ? colors.accent : colors.sub;
 /** 押せない札の文字は、図のまとめの読み上げ（種目の一覧）で読むので、札そのものは読み上げから隠す */
 const hide = { 'aria-hidden': true, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true, pointerEvents: 'none' } as const;
 
@@ -37,7 +41,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
       <TagFrame testID="hero-body-tag" onPress={onPress} label={`${e.kicker} ${e.name} ${e.set}`}
         style={[{ height: PART_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
         <View style={e.stack ? { alignItems: align === 'right' ? 'flex-end' : 'flex-start' } : { flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          <T style={[mono, { color: colors.accent }]}>{e.kicker}</T>
+          <T style={[mono, { color: KICKER }]}>{e.kicker}</T>
           <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
         </View>
         {e.set !== '' && <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>}
@@ -47,7 +51,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
   return (
     <TagFrame testID="day-body-tag" onPress={onPress} label={`${exerciseNumber(e.no)} ${e.name} ${e.set}。この種目の記録を開く`}
       style={[{ height: DAY_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
-      <T style={[mono, { color: colors.accent }]}>{exerciseNumber(e.no)}</T>
+      <T style={[mono, { color: KICKER }]}>{exerciseNumber(e.no)}</T>
       <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
       <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>
     </TagFrame>
@@ -58,7 +62,7 @@ export function MoreTag({ nos, style, onPress }: { nos: number[]; style: ViewSty
   return (
     <TagFrame testID="day-body-tag-more" onPress={onPress} label={`ほかの種目 ${nos.map(exerciseNumber).join('、')}。その日の記録を開く`}
       style={[{ width: DAY_TAG_W, height: DAY_TAG_H, justifyContent: 'center', alignItems: 'flex-end' }, style]}>
-      <T style={[mono, { color: colors.accent }]}>{`+${nos.length}`}</T>
+      <T style={[mono, { color: KICKER }]}>{`+${nos.length}`}</T>
       <T style={[mono, { color: colors.sub }]} numberOfLines={2} align="right">{nos.map(exerciseNumber).join(' ')}</T>
     </TagFrame>
   );

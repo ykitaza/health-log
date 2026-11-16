@@ -9,10 +9,13 @@ import type { DateKey } from '@/lib/date';
 import { dayBodyEntries } from '@/lib/dayBody';
 import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { Muscle, musclesForParts, MuscleView } from '@/lib/muscleFigure';
-import { colors, space } from '@/theme';
+import { colors, isHud, space } from '@/theme';
 import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
 import { MuscleFigure } from './MuscleFigure';
+
+/** 札と体をつなぐ線の色（クラシックは補足の灰色） */
+const LEADER = isHud ? colors.accent : colors.sub;
 
 export type DayBodyProps = {
   width: number;
@@ -137,8 +140,8 @@ function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint
         </View>
       ))}
       <Svg width={width} height={band.bottom} style={StyleSheet.absoluteFill} pointerEvents="none">
-        {lines.map((l) => <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={colors.accent} strokeOpacity={0.7} strokeWidth={1} />)}
-        {lines.map((l) => <Circle key={`d-${l.key}`} cx={l.x} cy={l.y} r={3} fill={colors.accent} stroke={colors.bg} strokeWidth={1} />)}
+        {lines.map((l) => <Line key={l.key} x1={l.x1} y1={l.y1} x2={l.x} y2={l.y} stroke={LEADER} strokeOpacity={0.7} strokeWidth={1} />)}
+        {lines.map((l) => <Circle key={`d-${l.key}`} cx={l.x} cy={l.y} r={3} fill={isHud ? colors.accent : colors.text} stroke={colors.bg} strokeWidth={1} />)}
       </Svg>
       {shield}
       {/* 図を押す面（shield の上。押せるのは図のところだけで、そこからの横スワイプは親のページの切り替えに回る） */}

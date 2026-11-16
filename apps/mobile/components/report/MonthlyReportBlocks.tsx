@@ -30,7 +30,7 @@ export function GrowthScoreBlock({ asOf }: { asOf: DateKey }) {
     <Panel style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16 }} testID="report-growth-score" accessible accessibilityLabel={label}>
       <Mono size={48} color={hud.white} style={{ lineHeight: 52 }}>{String(score.total)}</Mono>
       <View style={{ gap: 3, flex: 1 }}>
-        <Micro green>Growth Score</Micro>
+        <Micro green ja="成長スコア">Growth Score</Micro>
         <T bold size={13} color={hud.label}>成長スコア</T>
         {d != null
           ? <Mono size={15} color={d <= 0 ? hud.muted : hud.green}>{`${arrow(d)} ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}`}</Mono>
@@ -64,19 +64,19 @@ export function GoalBarBlock({ start, end }: { start: DateKey; end: DateKey }) {
   return (
     <Panel style={{ paddingHorizontal: 14, paddingVertical: 10 }} testID="report-goal-bar">
       <View accessible accessibilityLabel={label}>
-        <Micro style={{ marginBottom: 4 }}>Goal Progress</Micro>
+        <Micro style={{ marginBottom: 4 }} ja="目標までの進み">Goal Progress</Micro>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <T bold size={13} color={hud.ink} accessibilityRole="header">目標への進捗</T>
           <T size={12} color={hud.muted}>{p.reached ? '届いています' : 'あと '}{!p.reached && <Mono size={12} color={hud.green}>{`${u(p.remainingKg)}${unit}`}</Mono>}</T>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 6 }}>
           <View>
-            <Micro>Current</Micro>
+            <Micro ja="今">Current</Micro>
             <T><Mono size={32} color={hud.white} style={{ lineHeight: 36 }}>{u(c.last.value)}</Mono><Mono size={14} color={hud.muted}>{unit}</Mono></T>
           </View>
           <T bold size={14} color={hud.green} style={{ paddingBottom: 6 }}>››</T>
           <View style={{ alignItems: 'flex-end' }}>
-            <Micro>Target</Micro>
+            <Micro ja="目標">Target</Micro>
             <T><Mono size={26} color={hud.label} style={{ lineHeight: 30 }}>{kgLabel(kgToUnit(goal, unit))}</Mono><Mono size={14} color={hud.muted}>{unit}</Mono></T>
           </View>
         </View>
@@ -148,7 +148,7 @@ export function Big3Block({ start, end }: { start: DateKey; end: DateKey }) {
   const label = `BIG3 推定1RM 合計 ${fmt1(kgToUnit(total.totalKg, unit))} ${unit}${since != null ? `。期間の初めより ${formatSigned(since)} ${unit}` : ''}`;
   return (
     <Panel style={{ paddingHorizontal: 14, paddingVertical: 10 }} testID="report-big3" accessible accessibilityLabel={label}>
-      <Micro green>BIG3 // Estimated 1RM Total</Micro>
+      <Micro green ja="BIG3 推定1RM の合計">BIG3 // Estimated 1RM Total</Micro>
       <T bold size={13} color={hud.ink} style={{ marginTop: 4 }} accessibilityRole="header">BIG3 推定1RM 合計</T>
       <T style={{ marginTop: 4 }}>
         <Mono size={36} color={hud.white} style={{ lineHeight: 40 }}>{fmt1(kgToUnit(total.totalKg, unit))}</Mono>

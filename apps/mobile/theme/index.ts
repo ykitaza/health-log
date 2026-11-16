@@ -58,40 +58,18 @@ export const HUD_COLORS = {
 export type Palette = { readonly [K in keyof typeof HUD_COLORS]: string };
 
 /**
- * クラシック（飾りの少ない見た目）の色。仮の値で、Figma のデザインに合わせて次の PR で直す。
- * 名前の意味は HUD_COLORS と同じ
+ * クラシック（飾りの少ない見た目）の色。Figma「ホーム（unslop 案）」（249:15091・250:15489）は、地と文字の灰色を HUD のまま残し、
+ * 飾り（角の切り欠き・英字のラベル・光）だけをやめている。なので色の値は HUD と同じにする（名前の意味も同じ）。
+ * 見た目の違いは deco と lbl、計器の色（CLASSIC_METER_COLORS）で出す
  */
-export const CLASSIC_COLORS: Palette = {
-  bg: '#121413',
-  card: '#191B1A',
-  input: '#232625',
-  line: '#2A2D2C',
-  outline: '#6B716F',
-  text: '#ECEDEA',
-  sub: '#A2A7A3',
-  accent: '#4CC38A',
-  onAccent: '#06140C',
-  accentDark: '#183527',
-  onAccentDark: '#B5E6CC',
-  accentMuted: '#3B7F5E',
-  inverseAccent: '#1B6B43',
-  danger: '#E5484D',
-  /** danger の文字が 4.5:1 以上になる暗さ */
-  dangerDark: '#281012',
-  onDangerDark: '#FFB3B5',
-  star: '#F5A524',
-  /** text を card に 38% で混ぜた色 */
-  disabled: '#696B69',
-  disabledContainer: '#323533',
-  scrim: 'rgba(0,0,0,0.6)',
-};
+export const CLASSIC_COLORS: Palette = { ...HUD_COLORS };
 
 /** 画面で使う色。見た目（look）で HUD かクラシックを選ぶ */
 export const colors: Palette = isHud ? HUD_COLORS : CLASSIC_COLORS;
 
 /**
  * 見た目ごとの飾り。brackets は角の切り欠き、enLabels は英語の見出し（lbl）、trackedMono は字間を広げた英数字、
- * pulse は光の明滅、scan は走査線。HUD では全部あり、クラシックでは全部なし。画面への反映は次の PR
+ * pulse は光の明滅、scan は走査線。HUD では全部あり、クラシックでは全部なし
  */
 export const deco = { brackets: isHud, enLabels: isHud, trackedMono: isHud, pulse: isHud, scan: isHud } as const;
 
@@ -167,15 +145,22 @@ export const HUD_METER_COLORS = {
 
 export type MeterPalette = { readonly [K in keyof typeof HUD_METER_COLORS]: string };
 
-/** クラシックの計器の色（仮の値。次の PR で直す）。ミントの濃淡ではなく灰色の濃淡にする */
+/**
+ * クラシックの計器の色（Figma「ホーム（unslop 案）」の方眼のマス）。LOG の負荷量の 3 段は落ち着いた緑の濃淡で、どの段の上の文字も colors.text（4.5:1 以上）。
+ * いちばん薄い mint1 は空のマスと色だけでは 3:1 に届かないので、鍛えた日はマスの部位の文字（胸・脚…）でも見分ける。
+ * PFC は灰色の棒にするので、ここの濃淡は使わない。ring は輪のこれからの目盛り（過ぎた目盛りは colors.outline、今の週は colors.accent）
+ */
 export const CLASSIC_METER_COLORS: MeterPalette = {
-  mint1: '#3A3F3D',
-  mint2: '#5A615E',
-  mint3: CLASSIC_COLORS.accent,
+  mint1: '#223A2D',
+  mint2: '#2A5840',
+  mint3: '#357A55',
   empty: CLASSIC_COLORS.input,
-  ring: CLASSIC_COLORS.line,
+  ring: '#2A2F37',
   bracket: CLASSIC_COLORS.accentMuted,
 };
+
+/** クラシックのカードの細い枠（本文の色 #F3F5F7 の 8%。Figma「ホーム（unslop 案）」の枠）。Palette の外に置く（HUD の色の組は変えない） */
+export const hairline = 'rgba(243,245,247,0.08)';
 
 export const hudColors: MeterPalette = isHud ? HUD_METER_COLORS : CLASSIC_METER_COLORS;
 

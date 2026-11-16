@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { AREA_LABELS, Block, linkCaption, parseMarkdown, ReportLink, ReportReview, Span } from '@/lib/reports';
+import { deco, lbl } from '@/theme';
 import { T } from '../Text';
 import { hud, JaVal, Micro, Mono, NotchChip, Panel, PanelHead, StatusRow, TableHead } from './hud';
 
@@ -56,7 +57,7 @@ export function CheckSteps({ en, title, steps, done, onToggle, streak, testID }:
 export function MonthlyTaskBlock({ steps }: { steps: string[] }) {
   return (
     <Panel testID="report-monthly-task">
-      <TableHead left="Monthly Task" right="This Month" />
+      <TableHead left="Monthly Task" leftJa="今月の課題" right={lbl('This Month', '今月')} />
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
         {steps.map((s, i) => (
           <StatusRow key={i} en={i === 0 ? 'Monthly Task' : `Task ${String(i + 1).padStart(2, '0')}`} ja={i === 0 ? '今月の課題' : `課題 ${i + 1}`}
@@ -71,7 +72,7 @@ export function MonthlyTaskBlock({ steps }: { steps: string[] }) {
 function SubHead({ en, title }: { en: string; title: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingTop: 10 }}>
-      <Micro green>{en}</Micro>
+      {deco.enLabels && <Micro green>{en}</Micro>}
       <T bold size={12.5} color={hud.label} accessibilityRole="header">{title}</T>
     </View>
   );
@@ -120,7 +121,7 @@ export function MoreFold({ links, review, body }: { links: ReportLink[]; review:
         style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-          <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>MORE</Mono>
+          {deco.enLabels && <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>MORE</Mono>}
           <T bold size={13.5} color={hud.ink} numberOfLines={1} style={{ flexShrink: 1 }}>{parts.join('・')}</T>
         </View>
         <T size={13} color={hud.green}>{open ? '▾' : '▸'}</T>

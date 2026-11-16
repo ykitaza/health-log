@@ -1,11 +1,12 @@
 // ホームの「計器の盤」（刷新 A、Figma「スタディ：フェーズ」の 6）の部品：枠（角の切り欠き）、計器の段（BIG3・LOAD・SLEEP）、
 // LOG（週ごとの方眼）、FUEL（今日の kcal と PFC）。集計は lib/homeHud.ts。
-// 色はミント 1 色の濃淡が主役。回復中は暖色・ケガは赤（回復マップと同じ）。光・ぼかし・グラデーションの飾りは使わない
+// 色はミント 1 色の濃淡が主役。回復中は暖色・ケガは赤（回復マップと同じ）。光・ぼかし・グラデーションの飾りは使わない。
+// クラシック（Figma「ホーム（unslop 案）」）は、切り欠きをやめて細い枠と丸い角にし、見出しは日本語、小さなグラフは灰色にする（deco・lbl）
 import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polyline, Text as SvgText } from 'react-native-svg';
-import { DateKey, formatJpDate, WEEKDAY_EN, weekday } from '@/lib/date';
+import { DateKey, formatJpDate, WEEKDAY_EN, WEEKDAY_JA, weekday } from '@/lib/date';
 import { BIG3_LABELS } from '@/lib/exercises';
 import { tonnes, formatSigned, isFlat } from '@/lib/format';
 import { formatHM } from '@/lib/health';
@@ -15,7 +16,7 @@ import {
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { fmt1, fmtInt, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, fonts, hudColors, space } from '@/theme';
+import { colors, deco, fonts, hairline, hudColors, isHud, lbl, radius, space } from '@/theme';
 import { CountToText } from './charts';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
@@ -26,6 +27,7 @@ const BRACKET = 10;
 
 /** 4 隅の切り欠き（ブラケット）。color を変えると強める（今週の行） */
 export function Brackets({ color = hudColors.bracket, size = BRACKET }: { color?: string; size?: number }) {
+  if (!deco.brackets) return null;
   const b = { position: 'absolute', width: size, height: size, borderColor: color } as const;
   return (
     <>
@@ -41,20 +43,33 @@ export function Brackets({ color = hudColors.bracket, size = BRACKET }: { color?
 export function Panel({ children, onPress, label, testID, style }: { children: ReactNode; onPress?: () => void; label?: string; testID?: string; style?: ViewStyle }) {
   if (!onPress) {
     return (
-      <View style={[s.panel, style]} testID={testID} accessible={label != null} accessibilityLabel={label}>
+      <View style={[s.panel, PANEL_LOOK, style]} testID={testID} accessible={label != null} accessibilityLabel={label}>
         <Brackets />{children}
       </View>
     );
   }
   return (
-    <PressableScale style={[s.panel, style]} testID={testID} accessibilityRole="button" accessibilityLabel={label} scaleTo={0.98} onPress={onPress}>
+    <PressableScale style={[s.panel, PANEL_LOOK, style]} testID={testID} accessibilityRole="button" accessibilityLabel={label} scaleTo={0.98} onPress={onPress}>
       <Brackets />{children}
     </PressableScale>
   );
 }
 
-/** 見出しの行：左に英字のラベル、右に小さな数字 */
-function Head({ left, right, rightColor = colors.sub }: { left: string; right?: string | null; rightColor?: string }) {
+/** クラシックの枠：切り欠きの代わりに、細い線（theme の hairline）と丸い角。先週比は Figma のとおり、増えても減っても補足の色 */
+const PANEL_LOOK: ViewStyle | null = isHud ? null : { borderWidth: 1, borderColor: hairline, borderRadius: radius.card, padding: space.m };
+
+/**
+ * 見出しの行：左に英字のラベル、右に小さな数字。クラシックは日本語のラベル（ja）を、strong なら本文の色の太字で、ほかは補足の色で
+ */
+function Head({ left, ja, strong = false, right, rightColor = colors.sub }: { left: string; ja: string; strong?: boolean; right?: string | null; rightColor?: string }) {
+  if (!deco.enLabels) {
+    return (
+      <View style={s.head}>
+        {strong ? <T variant="labelL">{ja}</T> : <T size={12} color={colors.sub}>{ja}</T>}
+        {right ? <T size={12} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{right}</T> : null}
+      </View>
+    );
+  }
   return (
     <View style={s.head}>
       <Mono color={colors.accent} size={11}>{left}</Mono>
@@ -63,20 +78,39 @@ function Head({ left, right, rightColor = colors.sub }: { left: string; right?: 
   );
 }
 
+/** 数字のあとの小さな単位。クラシックは補足の色の 12 */
+function Unit({ children }: { children: string }) {
+  if (!deco.enLabels) return <T size={12} color={colors.sub}>{children}</T>;
+  return <Mono size={11}>{children}</Mono>;
+}
+
+/** 計器の補足の 1 行（差・比・平均） */
+function Note({ children, color = colors.sub }: { children: string; color?: string }) {
+  if (!deco.enLabels) return <T size={12} color={color} numberOfLines={1}>{children}</T>;
+  return <Mono size={11} color={color}>{children}</Mono>;
+}
+
 /** 大きな数字と単位（数字は数え上げる。読み込む前は「—」） */
 function Big({ value, format, unit, testID }: { value: number | null; format: (v: number) => string; unit: string; testID?: string }) {
   return (
     <View style={s.big} testID={testID}>
       {value == null
-        ? <T num bold size={22} style={s.bigText}>—</T>
-        : <CountToText value={value} format={(v) => format(v ?? 0)} num bold size={22} style={s.bigText} />}
-      <Mono size={11}>{unit}</Mono>
+        ? <T num bold size={BIG} style={s.bigText}>—</T>
+        : <CountToText value={value} format={(v) => format(v ?? 0)} num bold size={BIG} style={s.bigText} />}
+      <Unit>{unit}</Unit>
     </View>
   );
 }
 
+/** 計器の大きな数字の大きさ（クラシックは Figma の 24） */
+const BIG = isHud ? 22 : 24;
+
 const trendColor = (n: number) => (isFlat(n) ? colors.sub : n > 0 ? colors.accent : colors.danger);
 const big3Short = { bench: 'B', squat: 'S', deadlift: 'D' } as const;
+/** クラシックの BIG3 の差の言い方（Figma「開始から +2.5」） */
+const DELTA_JA = { PHASE: '開始から', '28D': '28日前から', START: '始めた日から' } as const;
+/** クラシックの小さなグラフは灰色の一段（Figma の棒と線は colors.outline） */
+const CHART = isHud ? colors.accent : colors.outline;
 
 /** 行き先の画面（筋トレの推移・睡眠の推移・食事のタブ）にも同じ計器を置く。そのときは link を false にして押せなくし、testID をほかにする（ほかのタブも DOM に残るため） */
 type Placement = { link?: boolean; testID?: string };
@@ -97,16 +131,16 @@ export function Big3Panel({ gauge, unit, ready, link = true, testID = 'home-big3
   return (
     <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } }) : undefined}>
-      <Head left="BIG3" />
-      <Big value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} unit={unit.toUpperCase()} />
+      <Head left="BIG3" ja="BIG3" />
+      <Big value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} unit={lbl(unit.toUpperCase(), unit)} />
       {gauge?.deltaKg != null
-        ? <Mono size={11} color={trendColor(gauge.deltaKg)}>{`Δ ${gauge.deltaBase} ${formatSigned(u(gauge.deltaKg))}`}</Mono>
-        : <Mono size={11}>{ready && !gauge ? 'NO DATA' : 'Δ —'}</Mono>}
+        ? <Note color={trendColor(gauge.deltaKg)}>{lbl(`Δ ${gauge.deltaBase} ${formatSigned(u(gauge.deltaKg))}`, `${DELTA_JA[gauge.deltaBase]} ${formatSigned(u(gauge.deltaKg))}`)}</Note>
+        : <Note>{ready && !gauge ? lbl('NO DATA', '記録なし') : lbl('Δ —', '—')}</Note>}
       <View style={{ gap: 2, marginTop: 2 }}>
         {(gauge?.lifts ?? (['bench', 'squat', 'deadlift'] as const).map((role) => ({ role, kg: null }))).map((l) => (
           <View key={l.role} style={s.liftRow}>
             <Mono size={11}>{big3Short[l.role]}</Mono>
-            <View style={s.track}><View style={[s.fill, { width: `${max > 0 && l.kg ? (l.kg / max) * 100 : 0}%` }]} /></View>
+            <View style={s.track}><View style={[s.fill, { backgroundColor: CHART, width: `${max > 0 && l.kg ? (l.kg / max) * 100 : 0}%` }]} /></View>
           </View>
         ))}
       </View>
@@ -130,16 +164,23 @@ function Big3Line({ gauge, width, height }: { gauge: Big3Gauge; width: number; h
   return (
     <Svg width={width} height={height}>
       <Path d={`M0 ${height - 0.5}H${width}`} stroke={colors.line} strokeWidth={1} />
-      {pts.length > 1 && <Polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={colors.accent} strokeWidth={1.5} />}
-      <Circle cx={start.x} cy={start.y} r={2.5} fill={colors.card} stroke={colors.accent} strokeWidth={1} />
+      {pts.length > 1 && <Polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={CHART} strokeWidth={1.5} />}
+      <Circle cx={start.x} cy={start.y} r={2.5} fill={colors.card} stroke={CHART} strokeWidth={1} />
       {gauge.best !== gauge.now && <Circle cx={best.x} cy={best.y} r={2.5} fill={colors.text} />}
-      <Circle cx={now.x} cy={now.y} r={3} fill={colors.accent} />
+      <Circle cx={now.x} cy={now.y} r={3} fill={isHud ? colors.accent : colors.text} />
     </Svg>
   );
 }
 
-/** 曜日の頭文字（M T W T F S S）。今日は緑 */
+/** 曜日の頭文字（M T W T F S S）。今日は緑。クラシックは日本語の曜日で、今日は本文の色の太字 */
 function DayLetters({ dates, today }: { dates: DateKey[]; today: DateKey }) {
+  if (!deco.enLabels) {
+    return (
+      <View style={s.letters}>
+        {dates.map((d) => <View key={d} style={s.letterCell}><T size={11} bold={d === today} color={d === today ? colors.text : colors.sub}>{WEEKDAY_JA[weekday(d)]}</T></View>)}
+      </View>
+    );
+  }
   return (
     <View style={s.letters}>
       {dates.map((d) => <View key={d} style={s.letterCell}><Mono size={11} color={d === today ? colors.accent : colors.sub}>{WEEKDAY_EN[weekday(d)][0]}</Mono></View>)}
@@ -148,6 +189,8 @@ function DayLetters({ dates, today }: { dates: DateKey[]; today: DateKey }) {
 }
 
 const BAR_H = 34;
+/** 睡眠の棒の色（目標に届かない・届いた）。クラシックは灰色の濃淡 */
+const SLEEP_BAR = isHud ? [colors.accentMuted, colors.accent] : [colors.outline, colors.text];
 
 /** LOAD：今週の合計負荷量、今週 7 日の棒と、先週の日ごとの破線の枠、先週の同じ曜日までとの比。押すと筋トレの推移の、同じカードと総負荷量を日ごとで */
 export function LoadPanel({ gauge, dates, today, unit, ready, link = true, testID = 'volume-week' }: {
@@ -160,17 +203,17 @@ export function LoadPanel({ gauge, dates, today, unit, ready, link = true, testI
   return (
     <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } }) : undefined}>
-      <Head left="LOAD" />
+      <Head left="LOAD" ja="今週の負荷量" />
       <View style={s.big}>
-        <CountToText value={ready ? gauge.totalKg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={22} style={s.bigText} />
-        <Mono size={11}>{tUnit}</Mono>
+        <CountToText value={ready ? gauge.totalKg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={BIG} style={s.bigText} />
+        <Unit>{tUnit}</Unit>
       </View>
-      <Mono size={11} color={pct != null ? trendColor(pct) : colors.sub}>{pct != null ? `vs LW ${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` : 'vs LW —'}</Mono>
+      <Note color={pct != null && isHud ? trendColor(pct) : colors.sub}>{`${lbl('vs LW', '先週比')} ${pct != null ? `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` : '—'}`}</Note>
       <View style={[s.bars, { marginTop: 'auto' }]}>
         {gauge.thisWeek.map((v, i) => (
           <View key={i} style={s.barCell}>
             {gauge.lastWeek[i] > 0 && <View style={[s.ghost, { height: Math.max(2, (gauge.lastWeek[i] / max) * BAR_H) }]} />}
-            {v != null && v > 0 && <View style={[s.bar, { height: Math.max(2, (v / max) * BAR_H), backgroundColor: colors.accent }]} />}
+            {v != null && v > 0 && <View style={[s.bar, { height: Math.max(2, (v / max) * BAR_H), backgroundColor: isHud ? colors.accent : colors.text }]} />}
           </View>
         ))}
       </View>
@@ -187,18 +230,18 @@ export function SleepPanel({ gauge, today, link = true, testID = 'home-sleep' }:
   return (
     <Panel testID={testID} label={link ? `${label}。睡眠の推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } }) : undefined}>
-      <Head left="SLEEP" />
+      <Head left="SLEEP" ja="昨夜の睡眠" />
       <View style={s.big}>
-        <T num bold size={22} style={s.bigText}>{gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '—'}</T>
-        <Mono size={11}>H</Mono>
+        <T num bold size={BIG} style={s.bigText}>{gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '—'}</T>
+        <Unit>{lbl('H', '時間')}</Unit>
       </View>
-      <Mono size={11}>{`AVG ${gauge.averageMin != null ? formatHM(gauge.averageMin) : '—'}`}</Mono>
+      <Note>{`${lbl('AVG', '平均')} ${gauge.averageMin != null ? formatHM(gauge.averageMin) : '—'}`}</Note>
       <View style={[s.bars, { marginTop: 'auto' }]}>
         <View pointerEvents="none" style={[s.goal, { bottom: goalY }]} />
         {gauge.days.map((d) => (
           <View key={d.date} style={s.barCell}>
             {d.min != null && d.min > 0 && (
-              <View style={[s.bar, { height: Math.max(2, (d.min / max) * BAR_H), backgroundColor: d.min >= gauge.goalMin ? colors.accent : colors.accentMuted }]} />
+              <View style={[s.bar, { height: Math.max(2, (d.min / max) * BAR_H), backgroundColor: SLEEP_BAR[d.min >= gauge.goalMin ? 1 : 0] }]} />
             )}
           </View>
         ))}
@@ -219,10 +262,10 @@ export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home
   const spoken = weightKg != null ? `体重 ${value} ${unit}${goal ? `。${goal}` : ''}` : '体重 記録なし';
   return (
     <Panel testID={testID} label={`${spoken}。からだのタブを開く`} onPress={onPress} style={s.bodyPanel}>
-      <Mono color={colors.accent} size={11}>{label}</Mono>
+      {deco.enLabels ? <Mono color={colors.accent} size={11}>{label}</Mono> : <T size={13} color={colors.sub}>{label}</T>}
       <View style={s.big}>
-        <T num bold size={18} style={{ lineHeight: 22 }}>{value}</T>
-        <Mono size={11}>{unit.toUpperCase()}</Mono>
+        <T num bold size={isHud ? 18 : 24} style={{ lineHeight: isHud ? 22 : 28 }}>{value}</T>
+        <Unit>{lbl(unit.toUpperCase(), unit)}</Unit>
       </View>
       {goal ? <T size={12} color={colors.sub} numberOfLines={1} style={s.bodyGoal}>{goal}</T> : null}
     </Panel>
@@ -230,7 +273,8 @@ export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home
 }
 
 const CELL_BG = [hudColors.empty, hudColors.mint1, hudColors.mint2, hudColors.mint3];
-const onCell = (level: number) => (level >= 2 ? colors.onAccent : colors.text);
+/** マスの上の文字の色。クラシックの塗りは落ち着いた濃淡なので、どの段でも本文の色 */
+const onCell = (level: number) => (isHud && level >= 2 ? colors.onAccent : colors.text);
 
 /**
  * LOG：直近 4 週の方眼（月曜始まり、今週がいちばん下）。塗りの濃さは負荷量（3 段）、右下に部位の頭文字、下線は食事の目標を達成、
@@ -238,20 +282,29 @@ const onCell = (level: number) => (level >= 2 ? colors.onAccent : colors.text);
  * マスを押すとその日を選ぶ（前のカレンダーと同じ。「記録する」と体調のカードがその日になる）
  */
 export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
-  weeks: LogWeek[]; month: { month: string; days: number; volumeKg: number } | null; selected: DateKey; unit: WeightUnit; onPressDay: (d: DateKey) => void;
+  weeks: LogWeek[]; month: { month: string; monthJa: string; days: number; volumeKg: number } | null; selected: DateKey; unit: WeightUnit; onPressDay: (d: DateKey) => void;
 }) {
   return (
     <Panel testID="home-log" style={{ paddingHorizontal: space.m }}>
-      <Head left={`LOG // ${logWeekRange(weeks.map((w) => w.label))}`} right={month ? `${month.month}  ${month.days}D · ${tonnes(month.volumeKg, unit)}${unit === 'kg' ? 'T' : 'K LB'}` : null} />
+      <Head left={`LOG // ${logWeekRange(weeks.map((w) => w.label))}`} ja="直近4週" strong
+        right={month ? lbl(`${month.month}  ${month.days}D · ${tonnes(month.volumeKg, unit)}${unit === 'kg' ? 'T' : 'K LB'}`, `${month.monthJa} 筋トレ ${month.days}日 · ${tonnes(month.volumeKg, unit)} ${unit === 'kg' ? 't' : 'k lb'}`) : null} />
       <View style={[s.logRow, { marginTop: space.xs }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={s.weekLabel} />
-        {(weeks[0]?.cells ?? []).map((c) => <View key={c.date} style={s.logHead}><Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono></View>)}
+        {(weeks[0]?.cells ?? []).map((c) => (
+          <View key={c.date} style={s.logHead}>
+            {deco.enLabels ? <Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono> : <T size={11} color={colors.sub}>{WEEKDAY_JA[weekday(c.date)]}</T>}
+          </View>
+        ))}
       </View>
       <View style={{ gap: 4 }}>
         {weeks.map((w) => (
           <View key={w.cells[0].date} style={[s.logRow, w.current && s.currentRow]} testID={w.current ? 'log-current-week' : undefined}>
             {w.current && <Brackets color={colors.accent} size={8} />}
-            <View style={s.weekLabel}><Mono size={11} color={w.current ? colors.accent : colors.sub}>{w.label}</Mono></View>
+            <View style={s.weekLabel}>
+              {deco.enLabels
+                ? <Mono size={11} color={w.current ? colors.accent : colors.sub}>{w.label}</Mono>
+                : <T size={11} bold={w.current} color={w.current ? colors.text : colors.sub}>{weekLabelJa(w.label)}</T>}
+            </View>
             {w.cells.map((c) => <LogDay key={c.date} c={c} selected={c.date === selected} unit={unit} onPress={() => onPressDay(c.date)} />)}
           </View>
         ))}
@@ -259,6 +312,9 @@ export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
     </Panel>
   );
 }
+
+/** クラシックの週の名前：「W2」→「2週」 */
+const weekLabelJa = (label: string) => (label.startsWith('W') ? `${label.slice(1)}週` : label);
 
 function LogDay({ c, selected, unit, onPress }: { c: LogCell; selected: boolean; unit: WeightUnit; onPress: () => void }) {
   const fg = onCell(c.level);
@@ -277,8 +333,8 @@ function LogDay({ c, selected, unit, onPress }: { c: LogCell; selected: boolean;
       {c.initial && (
         <T bold size={11} color={c.suggested ? colors.accent : fg} style={s.cellPart} testID={c.suggested ? 'log-suggest' : undefined}>{c.initial}</T>
       )}
-      {c.injury && <View style={s.injury} testID={`log-injury-${c.date}`} />}
-      {c.mealGoal && <View style={[s.mealLine, { backgroundColor: c.level >= 2 ? colors.onAccent : colors.accent }]} testID={`log-meal-${c.date}`} />}
+      {c.injury && <View style={isHud ? s.injury : s.injuryDot} testID={`log-injury-${c.date}`} />}
+      {c.mealGoal && <View style={[s.mealLine, { backgroundColor: isHud ? (c.level >= 2 ? colors.onAccent : colors.accent) : colors.text }]} testID={`log-meal-${c.date}`} />}
     </Pressable>
   );
 }
@@ -299,10 +355,12 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
       DAY_TYPE_LABELS[fuel.dayType],
       fuel.grams.map((g) => `${g.key === 'P' ? 'たんぱく質' : g.key === 'F' ? '脂質' : '炭水化物'} ${fmtInt(g.g)}g${g.target != null ? `／${fmtInt(g.target)}g` : ''}${pct(g.key) != null ? `（${pct(g.key)}%）` : ''}`).join('、'),
     ].join('。');
+  const onPress = link ? () => router.navigate({ pathname: '/meals', params: { date, focus: 'fuel' } }) : undefined;
+  if (!isHud) return <FuelPanelClassic fuel={fuel} label={link ? `${label}。食事のタブを開く` : label} kcalRatio={kcalRatio} pct={pct} onPress={onPress} testID={testID} />;
   return (
     <Panel testID={testID} label={link ? `${label}。食事のタブを開く` : label} style={s.half}
-      onPress={link ? () => router.navigate({ pathname: '/meals', params: { date, focus: 'fuel' } }) : undefined}>
-      <Head left="FUEL //" right={fuel ? (fuel.dayType === 'training' ? 'TRAIN DAY' : 'REST DAY') : null} />
+      onPress={onPress}>
+      <Head left="FUEL //" ja="今日の食事" right={fuel ? (fuel.dayType === 'training' ? 'TRAIN DAY' : 'REST DAY') : null} />
       <View style={s.big}>
         <CountToText value={fuel ? fuel.kcal : null} format={(v) => fmtInt(v ?? 0)} num bold size={22} style={s.bigText} />
         <Mono size={11}>{fuel?.kcalTarget != null ? `/ ${fmtInt(fuel.kcalTarget)} KCAL` : 'KCAL'}</Mono>
@@ -323,6 +381,46 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
             </View>
           ))}
         </View>
+      </View>
+    </Panel>
+  );
+}
+
+const PFC_NAMES = { P: 'たんぱく質', F: '脂質', C: '炭水化物' } as const;
+
+/**
+ * クラシックの FUEL（Figma「ホーム（unslop 案）」の今日の食事）：見出しと日の種類、摂った kcal と目標、補足に「あと N kcal」、
+ * kcal の棒（ミント）と、PFC の 3 行（名前・割合・グラム／目標と灰色の棒）。ドーナツは使わない
+ */
+function FuelPanelClassic({ fuel, label, kcalRatio, pct, onPress, testID }: {
+  fuel: FuelGauge | null; label: string; kcalRatio: number; pct: (k: 'P' | 'F' | 'C') => number | null; onPress?: () => void; testID: string;
+}) {
+  const left = fuel?.kcalTarget != null ? fuel.kcalTarget - fuel.kcal : null;
+  return (
+    <Panel testID={testID} label={label} style={{ ...s.half, ...s.fuelClassic }} onPress={onPress}>
+      <Head left="FUEL //" ja="今日の食事" strong right={fuel ? DAY_TYPE_LABELS[fuel.dayType] : null} />
+      <View style={[s.head, { alignItems: 'baseline', marginTop: space.s }]}>
+        <View style={s.big}>
+          <CountToText value={fuel ? fuel.kcal : null} format={(v) => fmtInt(v ?? 0)} num bold size={32} style={{ lineHeight: 38 }} />
+          <T size={14} color={colors.sub}>{fuel?.kcalTarget != null ? `/ ${fmtInt(fuel.kcalTarget)} kcal` : 'kcal'}</T>
+        </View>
+        {left != null ? <T size={13} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{left >= 0 ? `あと ${fmtInt(left)} kcal` : `${fmtInt(-left)} kcal 多い`}</T> : null}
+      </View>
+      <View style={[s.bar1, s.round, { marginTop: space.s }]}><View style={[s.fill, s.round, { width: `${kcalRatio * 100}%` }]} /></View>
+      <View style={{ gap: space.s, marginTop: space.m }}>
+        {(fuel?.grams ?? (['P', 'F', 'C'] as const).map((key) => ({ key, g: 0, target: null }))).map((g) => (
+          <View key={g.key} style={{ gap: space.xs }}>
+            <View style={[s.head, { alignItems: 'baseline' }]}>
+              <T size={12} numberOfLines={1} style={{ flexShrink: 1 }}>
+                {PFC_NAMES[g.key]}<T num size={14} color={colors.sub}>{`  ${pct(g.key) ?? '—'}%`}</T>
+              </T>
+              <T num size={14} color={colors.sub}>{g.target != null ? `${fmtInt(g.g)} / ${fmtInt(g.target)} g` : `${fmtInt(g.g)} g`}</T>
+            </View>
+            <View style={[s.bar1, s.round]}>
+              <View style={[s.fill, s.round, { backgroundColor: colors.outline, width: `${g.target ? Math.min(1, g.g / g.target) * 100 : 0}%` }]} />
+            </View>
+          </View>
+        ))}
       </View>
     </Panel>
   );
@@ -367,7 +465,10 @@ const s = StyleSheet.create({
   bars: { height: BAR_H, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   barCell: { flex: 1, height: BAR_H, justifyContent: 'flex-end', alignItems: 'center' },
   bar: { position: 'absolute', bottom: 0, width: '60%' },
-  ghost: { position: 'absolute', bottom: 0, width: '100%', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline },
+  // 先週の同じ曜日。クラシックは破線の枠ではなく、地より一段明るい塗り（Figma）
+  ghost: isHud
+    ? { position: 'absolute', bottom: 0, width: '100%', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline }
+    : { position: 'absolute', bottom: 0, width: '100%', borderRadius: 2, backgroundColor: colors.line },
   goal: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderStyle: 'dashed', borderColor: colors.text, opacity: 0.6 },
   letters: { flexDirection: 'row', gap: 3, marginTop: 2 },
   letterCell: { flex: 1, alignItems: 'center' },
@@ -375,13 +476,16 @@ const s = StyleSheet.create({
   currentRow: { marginHorizontal: -6, paddingHorizontal: 6, paddingVertical: 3 },
   weekLabel: { width: 22 },
   logHead: { flex: 1, alignItems: 'center' },
-  cell: { flex: 1, height: 44, borderRadius: 2, overflow: 'hidden' },
+  cell: { flex: 1, height: 44, borderRadius: isHud ? 2 : 6, overflow: 'hidden' },
   cellFuture: { borderWidth: 1, borderColor: colors.line },
   cellToday: { borderWidth: 1.5, borderColor: colors.accent },
   cellSelected: { borderWidth: 1.5, borderColor: colors.text },
   cellDay: { position: 'absolute', left: 3, top: 2, lineHeight: 13 },
   cellPart: { position: 'absolute', right: 3, bottom: 4, lineHeight: 14 },
   weighDot: { position: 'absolute', right: 4, top: 4, width: 4, height: 4, borderRadius: 2 },
+  injuryDot: { position: 'absolute', left: 4, bottom: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: INJURY_RED },
+  fuelClassic: { paddingHorizontal: space.l + space.xs, paddingVertical: space.l },
+  round: { borderRadius: 2 },
   injury: {
     position: 'absolute', left: 3, bottom: 5, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 8,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: INJURY_RED,

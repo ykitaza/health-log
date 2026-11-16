@@ -104,7 +104,7 @@ describe('theme：読んだ見た目で色と飾りを選ぶ', () => {
     expect(t.isHud).toBe(false);
     expect(t.colors).toBe(t.CLASSIC_COLORS);
     expect(t.hudColors).toBe(t.CLASSIC_METER_COLORS);
-    expect(t.colors.bg).toBe('#121413');
+    expect(t.hudColors.mint1).toBe('#223A2D');
     expect(Object.values(t.deco).some(Boolean)).toBe(false);
     expect(t.lbl('LOAD', '負荷量')).toBe('負荷量');
   });

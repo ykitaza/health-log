@@ -73,7 +73,8 @@ export const MONTH_NAMES_EN = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 export const WEEKDAY_EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+/** 曜日の 1 文字（日曜から） */
+export const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
 /** 11月8日（日） */
 export function formatJpDate(key: DateKey): string {

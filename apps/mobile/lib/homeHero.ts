@@ -69,24 +69,26 @@ const two = (n: number) => String(n).padStart(2, '0');
 export type PhaseRoute = '/phase' | '/phase/new' | `/phase/review/${string}`;
 
 /**
- * 輪の上の 1 行（等幅）と読み上げと、押したときに開く画面。
+ * 輪の上の 1 行（等幅）と、クラシックの日本語の 1 行（ja。「増量 2 / 8週 · 順調」）と、読み上げと、押したときに開く画面。
  * 実施中「BULK 06/16 · ON TRACK」、療養中「REHAB DAY 03 · BULK PAUSED」（止めたフェーズがなければ「REHAB DAY 03」）、未設定「NO PHASE · + START」。
  * フェーズを終えて次が未設定なら「CUT DONE · REVIEW」（その振り返りへ。振り返りの画面から次のフェーズを始められる）
  */
-export function phaseLine(h: HeroPhase): { text: string; spoken: string; route: PhaseRoute } {
+export function phaseLine(h: HeroPhase): { text: string; ja: string; spoken: string; route: PhaseRoute } {
   if (h.kind === 'none' && h.last) {
     return {
       text: `${DIRECTION_EN[h.last.direction!]} DONE · REVIEW`,
+      ja: `${DIRECTION_LABELS[h.last.direction!]}を終えました · 振り返り`,
       spoken: `${phaseLabel(h.last)}を終えました。次のフェーズは未設定。振り返りを開く`,
       route: `/phase/review/${h.last.id}`,
     };
   }
-  if (h.kind === 'none') return { text: 'NO PHASE · + START', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' };
+  if (h.kind === 'none') return { text: 'NO PHASE · + START', ja: 'フェーズは未設定 · 始める', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' };
   if (h.kind === 'rehab') {
     const p = h.paused?.phase;
     const dir = p?.direction ?? null;
     return {
       text: `REHAB DAY ${two(h.rehabDays)}${dir ? ` · ${DIRECTION_EN[dir]} PAUSED` : ''}`,
+      ja: `療養 ${h.rehabDays}日目${dir ? ` · ${DIRECTION_LABELS[dir]}は停止中` : ''}`,
       spoken: `療養 ${h.rehabDays}日目${dir ? `。${DIRECTION_LABELS[dir]}は止めています` : ''}。フェーズの進み具合を開く`,
       route: '/phase',
     };
@@ -96,6 +98,7 @@ export function phaseLine(h: HeroPhase): { text: string; spoken: string; route: 
   const total = progress.weeksTotal ?? progress.week;
   return {
     text: `${DIRECTION_EN[phase.direction!]} ${two(progress.week)}/${two(total)} · ${status ? PACE_EN[status] : NO_PACE}`,
+    ja: `${DIRECTION_LABELS[phase.direction!]} ${progress.week} / ${total}週 · ${status ? PACE_LABELS[status] : '判定なし'}`,
     spoken: `${DIRECTION_LABELS[phase.direction!]} ${total}週のうち${progress.week}週目。ペース ${status ? PACE_LABELS[status] : '判定なし'}。フェーズの進み具合を開く`,
     route: '/phase',
   };

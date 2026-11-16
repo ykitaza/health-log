@@ -8,7 +8,7 @@ import {
   FIGURE_PIECES, FigurePiece, FigureTarget, jointPoints, JOINT_RADIUS, markPoint, Muscle, muscleFigureFor, MuscleView, piecesFor, pickTarget,
 } from '@/lib/muscleFigure';
 import { BODY } from '@/lib/muscleFigurePaths';
-import { colors, figureColors, toneColors } from '@/theme';
+import { colors, deco, figureColors, toneColors } from '@/theme';
 
 /** ケガの印の色。直している途中は琥珀色（責める感じにしない。レポートの「気をつけたい」と同じ）、直せたは控えめな緑 */
 export const INJURY_AMBER = toneColors.caution.accent;
@@ -134,11 +134,11 @@ export function MuscleFigure({ name, view: injuryView, paint, paintColor = color
 }
 
 /**
- * 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定なら出さない。
+ * 直している途中の印の、ゆっくり広がって消える輪（2秒の周期）。動きを減らす設定と、クラシックの見た目（deco.pulse）なら出さない。
  * スクロールして見えないあいだは止め、見えたら輪の始めから動かす
  */
 function Pulse({ x, y, size, color }: { x: number; y: number; size: number; color: string }) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion() || !deco.pulse;
   const ring = useRef<ViewInstance>(null);
   const view = useOnScreen(ring);
   const t = useSharedValue(0);

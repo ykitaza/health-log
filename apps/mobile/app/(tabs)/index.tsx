@@ -28,7 +28,7 @@ import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweig
 import { injuryNumbers } from '@/lib/injuries';
 import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
 import { fixingOn, idleMeshes, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
-import { colors, size, space } from '@/theme';
+import { colors, lbl, size, space } from '@/theme';
 
 /**
  * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド。体の色は回復／部位の量）、
@@ -149,7 +149,7 @@ export default function HomeScreen() {
       {/* BODY：体重と目標まで（その日。LOG で選んだ日）。睡眠は SLEEP だけ、安静時心拍はホームに出さない */}
       <View style={{ marginTop: space.s }}>
         <BodyPanel
-          label={isToday ? 'BODY' : `BODY // ${formatMonthDay(selected)}`}
+          label={isToday ? lbl('BODY', '体重') : lbl(`BODY // ${formatMonthDay(selected)}`, `体重 ${formatMonthDay(selected)}`)}
           weightKg={body?.weightKg ?? null}
           goal={body ? goalLine(body.weightKg, body.settings.goalWeightKg ?? null, unit) : null}
           unit={unit}

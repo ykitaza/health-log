@@ -39,7 +39,7 @@ function Frame({ sys, onBack, menu, action, children }: { sys: string | null; on
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 44, zIndex: 2 }}>
           {onBack && <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-            <Micro>KARADA // REPORT</Micro>
+            <Micro ja="レポート">KARADA // REPORT</Micro>
             {sys && onBack && <Micro>{sys}</Micro>}
           </View>
           {action}
@@ -229,7 +229,7 @@ export function ReportDetail({ source, onBack, action, empty }: {
       <View style={{ gap: 2, paddingHorizontal: 2, paddingTop: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {isLatest && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: hud.green }} />}
-          <Micro green>{isLatest ? 'Latest Report' : 'Report'}</Micro>
+          <Micro green ja={isLatest ? '最新のレポート' : 'レポート'}>{isLatest ? 'Latest Report' : 'Report'}</Micro>
           {periodDots && <Mono size={14} color={hud.white} spacing={0.8}>{periodDots}</Mono>}
         </View>
         <T size={11} color={hud.muted} style={{ lineHeight: 17, paddingLeft: isLatest ? 15 : 0 }} testID="report-latest-line">
@@ -288,7 +288,7 @@ export function ReportDetail({ source, onBack, action, empty }: {
       <MoreFold links={report.links} review={report.review} body={report.body} />
 
       <View style={{ alignItems: 'center', gap: 4, paddingTop: 4 }}>
-        <Micro>Data from your records — End of Report</Micro>
+        <Micro ja="記録から作ったまとめ">Data from your records — End of Report</Micro>
         <T size={11} color={hud.muted} testID="report-created">{`${KIND_LABELS[report.kind]} ・ ${formatCreated(report.createdAt)}に作成`}</T>
         <T size={11} color={hud.muted} style={{ textAlign: 'center' }}>Claude・ChatGPT が書いたまとめです。数字はアプリの記録で確かめてください。</T>
       </View>

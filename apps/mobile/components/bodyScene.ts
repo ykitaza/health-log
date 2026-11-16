@@ -3,7 +3,8 @@
 import { PanResponder } from 'react-native';
 import * as THREE from 'three';
 import { facingOf, siteOfPart, type Vec3 } from '@/lib/bodyModel';
-import { colors, toneColors } from '@/theme';
+import { colors, look as themeLook, toneColors } from '@/theme';
+import type { Look } from '@/theme/look';
 
 const GREEN = new THREE.Color(colors.accent);
 /** 直している途中の色（components/MuscleFigure.tsx の INJURY_AMBER と同じ） */
@@ -25,6 +26,8 @@ const QUIET_GLOW = 0.8;
  * ちらついて見える。回復マップは色で状態を伝えるので、帯は控えめにする
  */
 const QUIET_SCAN = 0.35;
+/** 皮膚の線の不透明度 */
+const SKIN_WIRE = 0.012;
 /**
  * 透視の写し（光っている部品が体の裏にあっても見えるように、奥行きを見ずに上から重ねる。2026-11-14 #212）の、いちばん強いときの強さ（元の光を 1 として。写しは両面を描くので、手前と奥の2枚が重なって約2倍になる）。
  * 部品の表がカメラから向こうを向くほど強くし、こちらを向いているときは出さない（表が見えているので要らない。重ねるとうるさい）。
@@ -33,6 +36,34 @@ const QUIET_SCAN = 0.35;
 const XRAY_GAIN = 0.25;
 const XRAY_FROM = 0.15;
 const XRAY_FULL = -0.45;
+
+/** ふだんの部品の光の強さ（空いている部品も同じ） */
+const IDLE_GLOW = { base: 0.13, rim: 1.2 };
+
+/**
+ * 見た目（HUD・クラシック）ごとの場面の強さ。シェーダーは変えず、今ある値（uniform・不透明度・見せるか）だけを変える。
+ * scan は走査の帯の強さ（quietScan は回復マップ）、scanRing は走査の輪を見せるか、markPulse・quietPulse はケガの印の脈の深さ（ケガの画面・回復マップ）、
+ * glow はふだんの光と回復の光（base・rim）に掛ける倍率、deck・skinWire は台の線と皮膚の線の不透明度に掛ける倍率、disc は台の光の円盤を見せるか
+ */
+export type SceneLook = {
+  scan: number; quietScan: number; scanRing: boolean; markPulse: number; quietPulse: number; glow: number; deck: number; skinWire: number; disc: boolean;
+};
+
+/** HUD（今の見た目）：今までの値のまま */
+const HUD_SCENE: SceneLook = {
+  scan: 1, quietScan: QUIET_SCAN, scanRing: true, markPulse: 1, quietPulse: QUIET_MARK.pulse, glow: 1, deck: 1, skinWire: 1, disc: true,
+};
+
+/**
+ * クラシック：走査の帯と輪・印の脈をやめ、光を 0.7 倍に、台と皮膚の線を 0.4 倍にし、台の光の円盤を出さない
+ * （色と光は体に集め、まわりの飾りを静かにする。Figma「ホーム（unslop 案）」）。実機ではまだ確かめていない
+ */
+const CLASSIC_SCENE: SceneLook = {
+  scan: 0, quietScan: 0, scanRing: false, markPulse: 0, quietPulse: 0, glow: 0.7, deck: 0.4, skinWire: 0.4, disc: false,
+};
+
+/** 見た目ごとの場面の強さ */
+export const sceneLook = (l: Look): SceneLook => (l === 'classic' ? CLASSIC_SCENE : HUD_SCENE);
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -127,7 +158,7 @@ function makeDeck() {
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = -0.002;
   deck.add(disc);
-  return { deck, ticks };
+  return { deck, ticks, disc };
 }
 
 /**
@@ -139,6 +170,14 @@ export class BodyScene {
   readonly body = new THREE.Group();
   readonly deck: THREE.Group;
   private readonly ticks: THREE.Group;
+  /** 台の光の円盤（クラシックでは出さない） */
+  private readonly disc: THREE.Mesh;
+  /** 台の線と、元の不透明度（見た目で倍率を掛け直す。掛けた値に掛け重ねない） */
+  private readonly deckLines: { m: THREE.LineBasicMaterial; opacity: number }[] = [];
+  /** 皮膚の線（読み込んでから付く） */
+  private skinWire: THREE.LineBasicMaterial | null = null;
+  /** 見た目ごとの場面の強さ（configure の look。初めは theme の見た目） */
+  private scene: SceneLook = sceneLook(themeLook);
   readonly scanRing = new THREE.LineLoop(circle(0.36, 64), lineMat(0));
   readonly glowGroup = new THREE.Group();
   private pickables: THREE.Mesh[] = [];
@@ -191,14 +230,26 @@ export class BodyScene {
   private onTips: (tips: number[]) => void = () => {};
 
   constructor() {
-    const { deck, ticks } = makeDeck();
+    const { deck, ticks, disc } = makeDeck();
     this.deck = deck;
     this.ticks = ticks;
+    this.disc = disc;
     deck.traverse((o) => {
       const m = (o as THREE.Mesh).material;
       if (m instanceof THREE.LineBasicMaterial || m instanceof THREE.ShaderMaterial) this.tinted.push(m);
+      if (m instanceof THREE.LineBasicMaterial) this.deckLines.push({ m, opacity: m.opacity });
     });
     this.tinted.push(this.scanRing.material as THREE.LineBasicMaterial);
+    this.applyLook();
+  }
+
+  /** 見た目ごとの、台・皮膚の線・円盤・走査の輪（元の値から掛け直す。何度呼んでも同じ） */
+  private applyLook() {
+    const k = this.scene;
+    for (const { m, opacity } of this.deckLines) m.opacity = opacity * k.deck;
+    if (this.skinWire) this.skinWire.opacity = SKIN_WIRE * k.skinWire;
+    this.disc.visible = k.disc;
+    this.scanRing.visible = k.scanRing;
   }
 
   /** 台・走査の輪・皮膚を土台の色にする */
@@ -217,14 +268,15 @@ export class BodyScene {
     if (this.loaded === loaded) return;
     const root = loaded.clone(true);
     const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4 });
-    const skinWire = new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.012, blending: THREE.AdditiveBlending, depthWrite: false });
+    const skinWire = new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: SKIN_WIRE, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.skinWire = skinWire;
     // 先に部品を集めてから手を入れる（たどりながら子を足すと、足した子もたどって終わらなくなる）
     const meshes: THREE.Mesh[] = [];
     root.traverse((o: THREE.Object3D) => { if (o instanceof THREE.Mesh) meshes.push(o); });
     for (const o of meshes) {
       if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
       const core = o.name === 'skin';
-      o.material = core ? holoMat(this.shared, GREEN, 0.004, 0.32) : holoMat(this.shared, GREEN, 0.13, 1.2);
+      o.material = core ? holoMat(this.shared, GREEN, 0.004, 0.32) : holoMat(this.shared, GREEN, IDLE_GLOW.base * this.scene.glow, IDLE_GLOW.rim * this.scene.glow);
       if (core) {
         this.tinted.push(o.material as THREE.ShaderMaterial, skinWire);
         o.add(new THREE.LineSegments(new THREE.WireframeGeometry(o.geometry), skinWire));
@@ -243,6 +295,7 @@ export class BodyScene {
       this.byName[o.name] = o;
     }
     this.body.add(root);
+    this.applyLook();
     // 部品のまん中と外向き（体の座標）。外向きは引き出し線の先と同じ決め方（前の部位は前、後ろの部位は後ろ。腕・脚のように
     // まん中から離れた部品は横へも傾ける）。部位のない部品（三角筋の中部）は横だけ。面の法線は部品によって向きがそろっていないので使わない
     this.body.updateMatrixWorld(true);
@@ -266,18 +319,21 @@ export class BodyScene {
 
   /**
    * 画面から渡すもの（ケガの印・動きを減らす設定・引き出し線を出すケガ・押したとき・線の先が動いたとき）。
-   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）、空いている部品とその色（idle・idleColor）も渡す
+   * 回復マップは、部品ごとの回復の光の明るさ（levels。0〜1）と、ケガの印を控えめにする（quietMarks）、空いている部品とその色（idle・idleColor）も渡す。
+   * look は見た目（渡さなければ theme の見た目）。場面の強さ（sceneLook）だけを変える
    */
   configure(o: {
     marks: Mark[]; reduced: boolean; tipMarks: Mark[]; onPick: (part: string | null) => void; onTips: (tips: number[]) => void;
     levels?: Record<string, number>; quietMarks?: boolean;
     baseColor?: string; levelColor?: (k: number, mesh: string) => string; injuryColor?: string;
-    idle?: string[]; idleColor?: string;
+    idle?: string[]; idleColor?: string; look?: Look;
   }) {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
     this.quiet = o.quietMarks ?? false;
-    this.shared.uScanAmp.value = this.quiet ? QUIET_SCAN : 1;
+    this.scene = sceneLook(o.look ?? themeLook);
+    this.applyLook();
+    this.shared.uScanAmp.value = this.quiet ? this.scene.quietScan : this.scene.scan;
     this.base.set(o.baseColor ?? GREEN);
     this.levelColor = o.levelColor ?? null;
     this.idleParts = new Set(o.idle ?? []);
@@ -318,21 +374,22 @@ export class BodyScene {
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
-    for (const m of this.pickables) set(m, this.idleParts.has(m.name) ? this.idleTint : this.base, 0.13, 1.2, 0);
+    const glow = this.scene.glow;
+    for (const m of this.pickables) set(m, this.idleParts.has(m.name) ? this.idleTint : this.base, IDLE_GLOW.base * glow, IDLE_GLOW.rim * glow, 0);
     lit.clear();
     for (const [p, v] of Object.entries(this.levels)) {
       const k = Math.min(1, Math.max(0, v));
       const lerp = (a: number, b: number) => a + (b - a) * k;
       const color = this.levelColor ? this.tmpC.set(this.levelColor(k, p)) : this.base;
-      if (k > 0) set(this.byName[p], color, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base), lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim), 0);
+      if (k > 0) set(this.byName[p], color, lerp(RECOVERY_IDLE.base, RECOVERY_FULL.base) * glow, lerp(RECOVERY_IDLE.rim, RECOVERY_FULL.rim) * glow, 0);
     }
     if (this.quiet) {
       for (const mk of marks.filter((k) => k.fixing)) {
-        for (const p of mk.parts) set(this.byName[p], this.injury, QUIET_MARK.base, QUIET_MARK.rim, this.reduced ? 0 : QUIET_MARK.pulse);
+        for (const p of mk.parts) set(this.byName[p], this.injury, QUIET_MARK.base, QUIET_MARK.rim, this.reduced ? 0 : this.scene.quietPulse);
       }
     } else {
       for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
-      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : 1);
+      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : this.scene.markPulse);
     }
     this.setXrays(lit);
     for (const g of this.glows) { g.mesh.geometry.dispose(); (g.mesh.material as THREE.Material).dispose(); }
@@ -434,12 +491,14 @@ export class BodyScene {
     // にじみ：付け根に置き、カメラに向ける。2 秒で脈打つ
     const pul = 0.5 + 0.5 * Math.sin(t * Math.PI);
     const q = this.quiet ? QUIET_GLOW : 1;
+    // 印の脈がない見た目（クラシック）は、にじみも動かさない（動きを減らす設定と同じ）
+    const still = reduced || (this.quiet ? this.scene.quietPulse : this.scene.markPulse) === 0;
     for (const gl of this.glows) {
       gl.mesh.position.copy(gl.anchor);
       g.localToWorld(gl.mesh.position);
       gl.mesh.quaternion.copy(camera.quaternion);
-      gl.mesh.scale.setScalar((reduced ? 0.3 : 0.26 + 0.08 * pul) * q);
-      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (reduced ? 0.5 : 0.25 + 0.45 * pul) * q;
+      gl.mesh.scale.setScalar((still ? 0.3 : 0.26 + 0.08 * pul) * q);
+      (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (still ? 0.5 : 0.25 + 0.45 * pul) * q;
     }
 
     // 透視の写し：部品の外向きがカメラから向こうを向くほど強く。こちらを向いているあいだは出さない
