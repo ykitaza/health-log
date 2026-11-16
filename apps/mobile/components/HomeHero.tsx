@@ -1,5 +1,5 @@
 // ホームのヒーロー（刷新 A、Figma「スタディ：フェーズ」の 6・7）：輪の上にフェーズの 1 行、外の輪（フェーズの週。過ぎた週はミント）、
-// 輪の中に 3 ページ LATEST → INJURY（直している途中のケガがあるときだけ）→ GROWTH。計算は lib/homeHero.ts。
+// 輪の中に 2 ページ LATEST → INJURY（直している途中のケガがあるときだけ）。計算は lib/homeHero.ts。
 // LATEST の体は回復の色（からだのタブの回復マップと同じ）で塗る。RECOVERY のページはやめた（2026-11-15 ユーザーの要望）。
 // 体の下の「回復」「部位の量」の切り替えで、フェーズの 1 週間あたりのセット数の色（ホームの「部位の量」のカードと同じ）にもできる（3D の Canvas は 1 つのまま。選んだものは端末に覚える）。
 // 体の札は、色の見方に合わせる（lib/heroTags.ts）：回復は回復中の部位、部位の量は目安（10〜20）から外れた部位を、多くても 3 つ。なければ札なし。体を押すと、その部位の札を足す。
@@ -11,14 +11,14 @@ import { router } from 'expo-router';
 import { ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Line, Path } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { useRepos } from '@/hooks/data';
 import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/lib/date';
 import { tonnes } from '@/lib/format';
 import {
-  GrowthCorners, HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
-  phaseLine, PhaseRoute, ringFooter, ringSegment,
+  HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
+  phaseLine, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
 import { recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
@@ -27,14 +27,13 @@ import { HeroBodyMode, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, Phase
 import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
-import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
+import type { WeightUnit } from '@/lib/units';
 import { colors, hudColors, recoveryPalette, size, space, volumePalette } from '@/theme';
 import { DayBody } from './DayBody';
 import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { usePageSlide } from './DayPicker';
 import { HeroBody } from './HeroBody';
 import { Brackets } from './homeHud';
-import { GrowthPage } from './home';
 import { Mono } from './injuries';
 import { volumeColor } from './PartVolumeCard';
 import { PressableScale } from './motion';
@@ -58,7 +57,6 @@ export type HeroData = {
   /** 部位ごとの回復（LATEST の体の色）。levels は部品ごとの明るさ、idle は空いている部品（3D） */
   recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[] };
   injury: { fixing: Injury[]; numbers: Map<string, string>; corners: InjuryCorners };
-  growth: GrowthCorners;
   /** フェーズの部位ごとの 1 週間あたりのセット数（体を部位の量の色にするとき。ホームの「部位の量」のカードと同じ） */
   volume: PhaseVolume | null;
   /** 覚えていた体の色の見方 */
@@ -67,11 +65,10 @@ export type HeroData = {
 
 /** 四隅の数字の高さ（札はこの内側の上下に置く） */
 const CORNER_H = 76;
-/** 外の輪の太さ、内の輪の太さ */
+/** 外の輪の太さ */
 const RING_W = 8;
 /** 外の輪の目盛りどうしの間（ラジアン） */
 const RING_GAP = 0.05;
-const INNER_W = 4;
 
 /** ヒーローの高さ：幅に合わせ、300〜380 */
 const heroHeight = (w: number) => Math.round(Math.min(380, Math.max(300, w * 0.95)));
@@ -146,7 +143,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
       <View style={[s.stage, { height: h }]} onLayout={(e) => setW(e.nativeEvent.layout.width)} {...pan} testID="hero-swipe">
         {w > 0 && (
           <>
-            <Ring width={w} height={h} r={r} ring={data?.ring ?? null} inner={page === 'growth'} />
+            <Ring width={w} height={h} r={r} ring={data?.ring ?? null} />
             <Brackets size={14} />
             <Animated.View style={[StyleSheet.absoluteFill, anim]} pointerEvents="box-none">
               {page === 'latest' && (
@@ -155,11 +152,6 @@ export function HomeHero({ today, unit, latest, ready, data }: {
               )}
               {page === 'injury' && data && (
                 <InjuryPage width={w} height={h} band={band} rotate={rotate} data={data} />
-              )}
-              {page === 'growth' && data && (
-                <GrowthPage today={today} width={w} height={h} box={Math.round(r * 1.3)}>
-                  <GrowthCornersView c={data.growth} unit={unit} route={phaseLine(data.phase).route} />
-                </GrowthPage>
               )}
             </Animated.View>
           </>
@@ -202,9 +194,9 @@ const arcPath = (cx: number, cy: number, rr: number, a0: number, a1: number) => 
 /**
  * 外の輪：フェーズの進み具合の 16 の目盛り（期間に比例して進む。8 週なら 1 週で 2 つ。過ぎた目盛りはミント、今の目盛りは濃いミント、
  * これからは灰色。療養で止めているあいだは過ぎた目盛りも灰色）と、外側の細かい刻み。
- * フェーズがなければ灰色の枠だけ。inner（GROWTH）なら内の輪（主な指標の進み）と白い線（予定の位置）も描く
+ * フェーズがなければ灰色の枠だけ
  */
-function Ring({ width, height, r, ring, inner }: { width: number; height: number; r: number; ring: PhaseRing | null; inner: boolean }) {
+function Ring({ width, height, r, ring }: { width: number; height: number; r: number; ring: PhaseRing | null }) {
   const cx = width / 2, cy = height / 2;
   const step = (2 * Math.PI) / PHASE_TICKS;
   const gap = RING_GAP;
@@ -214,10 +206,7 @@ function Ring({ width, height, r, ring, inner }: { width: number; height: number
     if (ring?.paused) return colors.outline;
     return k === 'done' ? colors.accent : colors.accentMuted;
   };
-  const ri = r - RING_W - 10;
   const top = -Math.PI / 2;
-  const showInner = inner && ring != null;
-  const at = (k: number) => top + k * 2 * Math.PI;
   return (
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none" testID="hero-ring">
       {Array.from({ length: PHASE_TICKS }, (_, i) => (
@@ -228,23 +217,6 @@ function Ring({ width, height, r, ring, inner }: { width: number; height: number
         const r0 = r + 4, r1 = r + (i % 3 === 0 ? 10 : 7);
         return <Line key={`t${i}`} x1={cx + r0 * Math.cos(a)} y1={cy + r0 * Math.sin(a)} x2={cx + r1 * Math.cos(a)} y2={cy + r1 * Math.sin(a)} stroke={colors.line} strokeWidth={1} />;
       })}
-      {showInner && (
-        <>
-          <Circle cx={cx} cy={cy} r={ri} stroke={hudColors.ring} strokeWidth={INNER_W} fill="none" />
-          {ring.inner != null && ring.inner > 0 && (
-            ring.inner >= 0.999
-              ? <Circle cx={cx} cy={cy} r={ri} stroke={colors.accent} strokeWidth={INNER_W} fill="none" />
-              : <Path d={arcPath(cx, cy, ri, top, at(ring.inner))} stroke={colors.accent} strokeWidth={INNER_W} fill="none" testID="hero-ring-inner" />
-          )}
-          {ring.plan != null && (
-            <Line
-              x1={cx + (ri - 9) * Math.cos(at(ring.plan))} y1={cy + (ri - 9) * Math.sin(at(ring.plan))}
-              x2={cx + (ri + 9) * Math.cos(at(ring.plan))} y2={cy + (ri + 9) * Math.sin(at(ring.plan))}
-              stroke={colors.text} strokeWidth={2} testID="hero-ring-plan"
-            />
-          )}
-        </>
-      )}
     </Svg>
   );
 }
@@ -458,33 +430,6 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
           valueColor={c.alert > 0 ? INJURY_RED : colors.text} sub="REVIEW" />
       </CornerButton>
     </View>
-  );
-}
-
-/** GROWTH の四隅のうち PHASE・PACE・WEIGHT（SCORE は GrowthPage が出す）。PHASE・PACE はフェーズ（なければ始める）、WEIGHT は体重の推移 */
-function GrowthCornersView({ c, unit, route }: { c: GrowthCorners; unit: WeightUnit; route: PhaseRoute }) {
-  const u = (kg: number) => fmt1(kgToUnit(kg, unit));
-  const openPhase = () => router.push(route);
-  const phaseAction = route === '/phase' ? 'フェーズの進み具合を開く' : route === '/phase/new' ? 'フェーズを始める' : 'フェーズの振り返りを開く';
-  const spoken = [
-    c.phase ? `フェーズ ${c.phase.value}` : 'フェーズは未設定',
-    c.pace ? `ペース ${c.pace.value ?? '判定なし'}` : '',
-    `体重 週平均 ${c.weekAvgKg != null ? `${u(c.weekAvgKg)}${unit}` : 'まだ'}${c.goalKg != null ? `、目標 ${u(c.goalKg)}${unit}` : ''}`,
-  ].filter(Boolean).join('。');
-  return (
-    <>
-      <CornerButton at="tl" label={`${spoken}。${phaseAction}`} testID="hero-growth" onPress={openPhase}>
-        <Corner align="left" label="PHASE //" value={c.phase?.value ?? '—'} sub={c.phase?.sub ?? 'NO PHASE'} />
-      </CornerButton>
-      <CornerButton at="tr" label={`ペース ${c.pace?.value ?? '判定なし'}。${phaseAction}`} testID="hero-growth-pace" onPress={openPhase}>
-        <Corner align="right" label="PACE //" value={c.pace?.value ?? '—'} sub={c.pace?.sub ?? 'NO DATA'} />
-      </CornerButton>
-      <CornerButton at="bl" testID="hero-growth-weight"
-        label={`体重 週平均 ${c.weekAvgKg != null ? `${u(c.weekAvgKg)}${unit}` : 'まだ'}${c.goalKg != null ? `、目標 ${u(c.goalKg)}${unit}` : ''}。体重の推移を開く`}
-        onPress={() => router.push({ pathname: '/body-trend', params: { metric: 'weight' } })}>
-        <Corner align="left" label="WEIGHT" value={c.weekAvgKg != null ? u(c.weekAvgKg) : '—'} sub={c.goalKg != null ? `→ ${u(c.goalKg)} ${unit.toUpperCase()}` : 'NO GOAL'} />
-      </CornerButton>
-    </>
   );
 }
 

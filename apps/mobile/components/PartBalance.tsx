@@ -1,4 +1,4 @@
-// 部位のバランスの大きなレーダー（成長の記録・筋トレの推移）。部位ごとのセット数を六角形のレーダーで
+// 部位のバランスの大きなレーダー（筋トレの推移）。部位ごとのセット数を六角形のレーダーで
 import { useLayoutEffect } from 'react';
 import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -16,17 +16,17 @@ const ZEROS = BALANCE_PARTS.map(() => 0);
 const COS = BALANCE_PARTS.map((_, i) => Math.cos(axisAngle(i)));
 const SIN = BALANCE_PARTS.map((_, i) => Math.sin(axisAngle(i)));
 
-/** 大きなレーダーの、軸の名前と数の余白（左右は「背中 60」の幅、上下は文字の高さ。Figma 成長 11-2 の 348×262 で外周の半径 108） */
+/** 大きなレーダーの、軸の名前と数の余白（左右は「背中 60」の幅、上下は文字の高さ。Figma の 348×262 で外周の半径 108） */
 const BIG_PAD_X = 64;
 const BIG_PAD_Y = 22;
 /** 直近2週の点線の色（白の約85%） */
 const RECENT_COLOR = 'rgba(243,245,247,0.85)';
 
 /**
- * 大きなレーダー（Figma 成長 11-2 ⑤、筋トレ 1-4-2）。all（緑の実線・放射状の面・点）と、recent（白の点線）を重ねる。
- * 成長の記録では all がこれまでの累計、recent が直近2週。筋トレの推移では all が選んだ期間で、recent はこれまでのときだけ。
+ * 大きなレーダー（Figma 筋トレ 1-4-2）。all（緑の実線・放射状の面・点）と、recent（白の点線）を重ねる。
+ * all が選んだ期間で、recent はこれまでのときだけ。
  * どちらも、その期間でいちばん多い部位を外周にそろえる。軸の名前の横に、all のセット数。
- * token を渡さなければ動かさない（成長の記録はスクロールで何度も出入りするため）。渡すと、token が変わるたびに中心から外へ広がる
+ * token を渡さなければ動かさない。渡すと、token が変わるたびに中心から外へ広がる
  * （1200ms、ease-out。動きを減らす設定ならすぐ）。
  * 読み上げはカードの側でまとめて出すので、ここは飾り。fillId は画面ごとに変える（Web では SVG の id が画面をまたいで重なるため）
  */

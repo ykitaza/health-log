@@ -6,7 +6,7 @@ import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, swipe, tab
 //   BIG3・LOAD・FUEL の行き先には、ホームと同じカードがあり、そこまでスクロールする（SLEEP は home-phase.spec.ts。睡眠を同期で入れる）
 // - LATEST の四隅：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移
 // - 体の札は部位の札（回復中・目安から外れた部位。押しても何も開かない）。種目の札（EX-01〜）はヒーローの体から外した。体を押して部位の札を足すのは part-volume.spec.ts
-// INJURY・GROWTH の四隅とケガの札は home-phase.spec.ts（フェーズと療養の記録を同期で作る）
+// INJURY の四隅とケガの札は home-phase.spec.ts（フェーズと療養の記録を同期で作る）
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
 const pane = (page: Page, name: string) => page.getByRole('tab', { name, exact: true }).filter({ visible: true });
@@ -64,14 +64,13 @@ test('ホームの体の札・LATEST の四隅・計器の段を押すと、そ�
     await expect(latest).toBeVisible();
   });
 
-  await test.step('札や四隅からの横のなぞりは、押したことにならず、ヒーローのページの切り替え（押すのは短いタップだけ）', async () => {
+  await test.step('札や四隅からの横のなぞりは、押したことにならない（押すのは短いタップだけ。ケガがなければページは LATEST だけで動かない）', async () => {
     await backHome(page);
     for (const from of [visible(page, 'hero-body-tag').first(), visible(page, 'home-latest-ex')]) {
       await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
       await swipe(from, 'next');
-      await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
+      await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
       await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
-      await visible(page, 'hero-page-latest').click();
     }
   });
 

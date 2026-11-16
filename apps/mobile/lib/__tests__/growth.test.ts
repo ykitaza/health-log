@@ -1,15 +1,10 @@
-import { addDays } from '../date';
-import {
-  growthScore, GrowthDay, growthSeries, Highlight, highlights, isTrainingCountMilestone, mealGoalReached, pickSubtitles,
-  playbackSeconds, satellites,
-} from '../growth';
+import { growthScore, GrowthDay, mealGoalReached, personalBestEvents } from '../growth';
 import type { TrainingSetRow } from '../training';
 
 // trained は、指定がなければ「負荷量があれば true」
 const day = (date: string, p: Partial<GrowthDay> = {}): GrowthDay => ({
   date, trained: (p.volumeKg ?? 0) > 0, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: null, ...p,
 });
-const hl = (date: string, priority: number, text = date): Highlight => ({ date, kind: 'goalStreak', text, priority });
 
 describe('mealGoalReached（食事の目標：カロリーとたんぱく質の両方が 90% 以上）', () => {
   const d = (kcal: number, protein: number, target: { kcal: number | null; protein_g: number | null } | null, n = 1) => ({
@@ -26,56 +21,6 @@ describe('mealGoalReached（食事の目標：カロリーとたんぱく質の�
     expect(mealGoalReached(d(2000, 100, { kcal: 2000, protein_g: 100 }, 0))).toBe(false);
     expect(mealGoalReached(d(2000, 100, null))).toBe(false);
     expect(mealGoalReached(d(2000, 100, { kcal: null, protein_g: 100 }))).toBe(false);
-  });
-});
-
-describe('growthSeries', () => {
-  test('記録が1つもなければ空。today より後の記録は見ない', () => {
-    expect(growthSeries([], '2026-11-10')).toEqual([]);
-    expect(growthSeries([day('2026-11-11', { volumeKg: 5 })], '2026-11-10')).toEqual([]);
-  });
-  test('最初の記録の日から today まで、記録のない日も埋める。休んでも値は減らない', () => {
-    const s = growthSeries([
-      day('2026-11-08', { volumeKg: 100, mealRecorded: true, mealGoalReached: true, sleepMin: 420 }),
-      day('2026-11-10', { volumeKg: 50, mealRecorded: true, sleepMin: 419 }),
-    ], '2026-11-11');
-    const none = [0, 0, 0, 0, 0, 0];
-    expect(s).toEqual([
-      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 1, partSets: none },
-      { volumeKg: 100, foodDays: 1, sleepDays: 1, days: 2, partSets: none }, // 休んだ日
-      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 3, partSets: none }, // 目標に届かない食事、7時間未満の睡眠は数えない
-      { volumeKg: 150, foodDays: 1, sleepDays: 1, days: 4, partSets: none },
-    ]);
-  });
-  test('食事は記録がなければ、届いた印があっても数えない。睡眠の記録がない日は数えない', () => {
-    const s = growthSeries([day('2026-11-10', { mealRecorded: false, mealGoalReached: true, sleepMin: null })], '2026-11-10');
-    expect(s).toEqual([{ volumeKg: 0, foodDays: 0, sleepDays: 0, days: 1, partSets: [0, 0, 0, 0, 0, 0] }]);
-  });
-  test('部位ごとのセット数を、その日までの累計にする（BALANCE_PARTS の順。休んだ日も減らない。前の日の配列を書き換えない）', () => {
-    const s = growthSeries([
-      day('2026-11-08', { volumeKg: 100, partSets: [3, 0, 2, 0, 0, 1] }),
-      day('2026-11-10', { volumeKg: 50, partSets: [0, 4, 0, 0, 5, 0] }),
-    ], '2026-11-10');
-    expect(s.map((p) => p.partSets)).toEqual([[3, 0, 2, 0, 0, 1], [3, 0, 2, 0, 0, 1], [3, 4, 2, 0, 5, 1]]);
-  });
-});
-
-describe('satellites', () => {
-  test('記録がない日は3つとも none', () => {
-    expect(satellites(null)).toEqual({ training: 'none', meal: 'none', sleep: 'none' });
-    expect(satellites(day('2026-11-10'))).toEqual({ training: 'none', meal: 'none', sleep: 'none' });
-  });
-  test('筋トレはその日にセットがあれば bright（自重だけで負荷量 0 の日も）', () => {
-    expect(satellites(day('x', { volumeKg: 1 })).training).toBe('bright');
-    expect(satellites(day('x', { trained: true, volumeKg: 0 })).training).toBe('bright');
-  });
-  test('食事：記録なし none／届かない dim／届いた bright', () => {
-    expect(satellites(day('x', { mealRecorded: true })).meal).toBe('dim');
-    expect(satellites(day('x', { mealRecorded: true, mealGoalReached: true })).meal).toBe('bright');
-  });
-  test('睡眠：なし none／7時間未満 dim／7時間以上 bright', () => {
-    expect(satellites(day('x', { sleepMin: 419 })).sleep).toBe('dim');
-    expect(satellites(day('x', { sleepMin: 420 })).sleep).toBe('bright');
   });
 });
 
@@ -152,96 +97,14 @@ describe('growthScore', () => {
   });
 });
 
-describe('playbackSeconds', () => {
-  test('日数 × 0.5秒、最短 8秒・最長 30秒', () => {
-    expect(playbackSeconds(20, 1)).toBe(10);
-    expect(playbackSeconds(16, 1)).toBe(8); // 8秒ちょうど
-    expect(playbackSeconds(15, 1)).toBe(8); // 7.5 → 8
-    expect(playbackSeconds(1, 1)).toBe(8);
-    expect(playbackSeconds(60, 1)).toBe(30); // 30秒ちょうど
-    expect(playbackSeconds(61, 1)).toBe(30);
-    expect(playbackSeconds(1000, 1)).toBe(30);
-  });
-});
-
-describe('pickSubtitles', () => {
-  // 61日 → 30秒。1日あたり 0.5秒、3秒は 6日ぶん
-  const start = '2026-01-01';
-  const at = (n: number) => addDays(start, n);
-  test('同じ3秒に重なったら、優先度の高いものを出す', () => {
-    const { subtitles } = pickSubtitles([hl(at(1), 1), hl(at(2), 5), hl(at(3), 3)], 61, 1, start);
-    expect(subtitles.map((s) => s.date)).toEqual([at(2)]);
-  });
-  test('優先度が同じなら早い日。3秒をまたげば別々に出る', () => {
-    expect(pickSubtitles([hl(at(2), 3), hl(at(1), 3)], 61, 1, start).subtitles.map((s) => s.date)).toEqual([at(1)]);
-    // 日 5 は 2.5秒、日 6 は 3.0秒 → 別の枠
-    expect(pickSubtitles([hl(at(5), 1), hl(at(6), 1)], 61, 1, start).subtitles).toHaveLength(2);
-  });
-  test('markDates：下の線の点の日付（範囲外は外す。重複なし、古い順）', () => {
-    const r = pickSubtitles([hl(at(30), 1), hl(at(30), 4), hl(at(5), 2), hl(at(61), 5), hl(addDays(start, -1), 5)], 61, 1, start);
-    expect(r.markDates).toEqual([at(5), at(30)]);
-  });
-});
-
-describe('highlights', () => {
+describe('personalBestEvents', () => {
   const set = (date: string, exerciseId: string, weightKg: number, reps: number): TrainingSetRow => ({ date, exerciseId, bodyPartId: 'p', weightKg, reps });
-  const base = {
-    today: '2026-12-31', days: [] as GrowthDay[], sets: [] as TrainingSetRow[],
-    exerciseNames: new Map([['bench', 'ベンチプレス'], ['squat', 'スクワット'], ['dl', 'デッドリフト']]),
-    big3: { bench: 'bench', squat: 'squat', deadlift: 'dl' }, weights: [] as { date: string; weightKg: number }[],
-    goalWeightKg: null as number | null, weeklyGoals: { trainingDays: 2, mealDays: 3, sleepDays: 0 },
-  };
-
-  test('筋トレの回数の節目：10・25・50・100、以後100ごと', () => {
-    expect([9, 10, 25, 50, 75, 100, 150, 200].filter(isTrainingCountMilestone)).toEqual([10, 25, 50, 100, 200]);
-    const sets = Array.from({ length: 25 }, (_, i) => set(addDays('2026-01-01', i), 'x', 20, 5));
-    const r = highlights({ ...base, sets }).filter((h) => h.kind === 'trainingCount');
-    expect(r.map((h) => [h.date, h.text])).toEqual([['2026-01-10', '筋トレ 10回目'], ['2026-01-25', '筋トレ 25回目']]);
-  });
-
-  test('自己ベスト：前に記録がある種目で、推定1RM を超えた日。同じ値や初回は出さない', () => {
-    const sets = [set('2026-01-01', 'bench', 80, 1), set('2026-01-03', 'bench', 80, 1), set('2026-01-05', 'bench', 82.5, 1)];
-    const r = highlights({ ...base, sets }).filter((h) => h.kind === 'personalBest');
-    expect(r).toEqual([{ date: '2026-01-05', kind: 'personalBest', text: 'ベンチプレス 自己ベスト 82.5 kg', priority: 2 }]);
-  });
-
-  test('BIG3 合計：記録がある種目だけの合計が、50kg の節目を超えた日。種目が増えて飛び越えたら、いちばん高い節目だけ', () => {
+  test('前に記録がある種目で、推定1RM を超えた日。同じ値や初回は出さない。today より後は見ない', () => {
     const sets = [
-      set('2026-01-01', 'bench', 60, 1), set('2026-01-01', 'squat', 80, 1), // 2種目で合計 140 → 100 を超えた
-      set('2026-01-02', 'dl', 100, 1), // デッドリフトが入って合計 240 → 150 を飛び越えて 200 を超えた
-      set('2026-01-09', 'bench', 70, 1), // 合計 250
+      set('2026-01-01', 'bench', 80, 1), set('2026-01-03', 'bench', 80, 1), set('2026-01-05', 'bench', 82.5, 1),
+      set('2026-02-01', 'bench', 90, 1),
     ];
-    const r = highlights({ ...base, sets }).filter((h) => h.kind === 'big3Total');
-    expect(r.map((h) => [h.date, h.text, h.priority])).toEqual([
-      ['2026-01-01', 'BIG3 合計 100.0 kg 突破', 4], ['2026-01-02', 'BIG3 合計 200.0 kg 突破', 4], ['2026-01-09', 'BIG3 合計 250.0 kg 突破', 4],
-    ]);
-  });
-
-  test('目標体重：最初の体重から目標の向きに、はじめて届いた日', () => {
-    const weights = [{ date: '2026-01-01', weightKg: 80 }, { date: '2026-02-01', weightKg: 74 }, { date: '2026-03-01', weightKg: 70 }, { date: '2026-04-01', weightKg: 69 }];
-    const r = highlights({ ...base, weights, goalWeightKg: 70 }).filter((h) => h.kind === 'goalWeight');
-    expect(r).toEqual([{ date: '2026-03-01', kind: 'goalWeight', text: '目標体重 70.0 kg に到達', priority: 5 }]);
-    // 増やす目標
-    expect(highlights({ ...base, weights: [{ date: '2026-01-01', weightKg: 60 }, { date: '2026-02-01', weightKg: 65 }], goalWeightKg: 65 })[0].date).toBe('2026-02-01');
-    expect(highlights({ ...base, weights, goalWeightKg: null })).toEqual([]);
-  });
-
-  test('目標の連続達成：週の終わりに連続が2週になった日', () => {
-    // 週の目標：筋トレ2日・食事3日（睡眠は切）。11/2（月）の週と 11/9 の週を達成
-    const dates = ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-09', '2026-11-10', '2026-11-11'];
-    const days = dates.map((d) => day(d, { volumeKg: 100, mealRecorded: true }));
-    const sets = dates.map((d) => set(d, 'x', 20, 5));
-    const r = highlights({ ...base, today: '2026-11-15', days, sets }).filter((h) => h.kind === 'goalStreak');
-    expect(r).toEqual([{ date: '2026-11-15', kind: 'goalStreak', text: '2週連続で目標達成', priority: 1 }]);
-  });
-
-  test('日付の古い順', () => {
-    const sets = [
-      ...Array.from({ length: 10 }, (_, i) => set(addDays('2026-01-01', i), 'bench', 80, 1)),
-      set('2026-01-11', 'bench', 85, 1),
-    ];
-    const r = highlights({ ...base, sets });
-    // 1種目でも記録があれば、合計の節目（80kg → 50）が最初の日に出る
-    expect(r.map((h) => [h.date, h.kind])).toEqual([['2026-01-01', 'big3Total'], ['2026-01-10', 'trainingCount'], ['2026-01-11', 'personalBest']]);
+    const r = personalBestEvents(sets, '2026-01-31');
+    expect(r.map((e) => [e.date, e.exerciseId, e.e1rm])).toEqual([['2026-01-05', 'bench', 82.5]]);
   });
 });

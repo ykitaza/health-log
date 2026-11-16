@@ -2,7 +2,6 @@
 // 同じ入力から同じ数字が出ることを確かめる（イシュー #213 の M4・A6）。寄せる前の出し方は下にそのまま写して比べる
 import { addDays, addMonths, DateKey, daysBetween } from '../date';
 import type { Big3Role } from '../exercises';
-import { big3Growth } from '../growthRecords';
 import { big3Totals } from '../phases';
 import { big3Best, big3Sum } from '../phaseView';
 import { big3Total, Big3Lifts } from '../reports';
@@ -54,20 +53,6 @@ function oldBig3TrendSums(rows: TrainingSetRow[], assignments: Partial<Record<Bi
     totalMonthAgo: sumAt(monthAgo),
     points,
   };
-}
-
-function oldBig3Growth(sets: TrainingSetRow[], big3: Partial<Record<Big3Role, string>>, today: DateKey) {
-  const out: { role: Big3Role; startDate: DateKey; startKg: number; nowKg: number; pct: number | null }[] = [];
-  for (const role of ['bench', 'squat', 'deadlift'] as const) {
-    const id = big3[role];
-    if (!id) continue;
-    const series = exerciseDailySeries(sets, id).filter((p) => p.max1RM > 0 && p.date <= today);
-    if (series.length === 0) continue;
-    const startKg = series[0].max1RM;
-    const nowKg = Math.max(...series.map((p) => p.max1RM));
-    out.push({ role, startDate: series[0].date, startKg, nowKg, pct: startKg > 0 ? Math.round(((nowKg - startKg) / startKg) * 100) : null });
-  }
-  return out;
 }
 
 function oldBig3Total(sets: TrainingSetRow[], lifts: Big3Lifts | null, start: DateKey, end: DateKey) {
@@ -160,12 +145,6 @@ describe('BIG3 の合計：寄せる前と後で同じ数字', () => {
       expect(big3Trend(ROWS, a, today, from)).toEqual(oldBig3TrendSums(ROWS, a, today, from));
     }
     expect(big3Trend(ROWS, FULL, '2026-11-14', '2026-08-14').points.length).toBeGreaterThan(3);
-  });
-
-  test('成長の記録の「始めたとき → 今」（big3Growth）', () => {
-    for (const a of ASSIGNMENTS) for (const today of DAYS) {
-      expect(big3Growth(ROWS, a, today).map(({ name: _name, ...rest }) => rest)).toEqual(oldBig3Growth(ROWS, a, today));
-    }
   });
 
   test('月のレポートの合計と前の期間との差（big3Total）', () => {

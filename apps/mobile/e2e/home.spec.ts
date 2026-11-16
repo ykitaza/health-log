@@ -191,51 +191,6 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await expect(homeCard(page, 'condition')).toContainText('目標に届きました');
 });
 
-// 形は web では描かない（components/growth/GrowthShape.web.tsx）。スコアの計算と文言は jest（lib/__tests__/growth.test.ts・home.test.ts）。
-// ここはヒーローの GROWTH のページの文字と押せるものが出ること
-test('ヒーローの GROWTH のページ：育つ形・PHASE・PACE・WEIGHT・成長スコア。スコアを押すと内訳のシート。開き直すと LATEST から', async ({ page }) => {
-  await openApp(page);
-  // はじめは LATEST。GROWTH は切り替えるまで描かない
-  await expect(page.getByTestId('growth-stage')).toHaveCount(0);
-  await visible(page, 'hero-page-growth').click();
-  await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('home-latest')).toHaveCount(0);
-  const stage = visible(page, 'growth-stage');
-  await expect(button(stage, '成長の形（点の軌跡）。押すと成長を見る画面を開く')).toBeVisible();
-  // 右上はフェーズのペース（「成長を見る」は形を押して開く）。フェーズがなければ PHASE・PACE は「—」、WEIGHT は体重がまだない
-  await expect(button(stage, '成長を見る')).toHaveCount(0);
-  await expect(visible(page, 'hero-growth')).toHaveAccessibleName('フェーズは未設定。体重 週平均 まだ。フェーズを始める');
-  await expect(visible(page, 'hero-swipe')).toContainText('PACE //—NO DATA');
-
-  // 記録がまだないときは「—」。内訳もどの柱も「—」で、先週との差は出さない
-  const noScore = button(stage, '成長スコア まだ記録がありません。押すと内訳');
-  await expect(noScore).toHaveText('SCORE //—成長スコア');
-  await noScore.click();
-  const sheet = visible(page, 'growth-score-sheet');
-  await expect(see(sheet, '成長スコア', { exact: true })).toBeVisible();
-  for (const name of ['training', 'meal', 'sleep', 'total']) await expect(sheet.getByTestId(`growth-score-${name}`)).toContainText('—');
-  await expect(sheet.getByTestId('growth-score-week')).toHaveCount(0);
-  await expect(see(sheet, '直近7日の記録から計算します。記録がない日は数えません')).toBeVisible();
-  await button(page, '閉じる').click();
-  await expect(sheet).toHaveCount(0);
-
-  // 先週（11/1）と今日に筋トレ：今週は筋トレ 1/3 回・負荷量は前の4週の平均以上で 27点、食事と睡眠は記録がないので外す
-  await recordOn(page, '2026-11-01', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
-  await moveToDate(page, TODAY);
-  // 開き直すと LATEST から（前に見たページは覚えない）
-  await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
-  await visible(page, 'hero-page-growth').click();
-  await recordToday(page, [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
-  const score = button(stage, '成長スコア 67点、直近7日。先週より 34点高い。押すと内訳');
-  await expect(score).toHaveText('SCORE //67成長スコア↑ +34');
-  await score.click();
-  await expect(sheet.getByTestId('growth-score-training')).toHaveText('筋トレ27 / 40');
-  await expect(sheet.getByTestId('growth-score-meal')).toHaveText('食事—');
-  await expect(sheet.getByTestId('growth-score-sleep')).toHaveText('睡眠—');
-  await expect(sheet.getByTestId('growth-score-total')).toHaveText('合計67 / 100');
-  await expect(sheet.getByTestId('growth-score-week')).toHaveText('先週との差↑ +34');
-});
-
 test('タブを移ってホームに戻ると、数え上げをやり直して最後の値に着く', async ({ page }) => {
   await recordOn(page, TODAY, [{ exercise: 'ベンチプレス', sets: [{ weight: '80', reps: '8' }] }]);
   await moveToDate(page, TODAY);

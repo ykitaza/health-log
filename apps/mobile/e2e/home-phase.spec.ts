@@ -2,7 +2,7 @@ import { expect, Page, test } from '@playwright/test';
 import { button, goTab, openApp, swipe, tab } from './helpers';
 import { change, openWith } from './seed';
 
-// ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 3 ページ（LATEST・INJURY・GROWTH）、BIG3 の Δ PHASE、LOG のフェーズの週。
+// ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 2 ページ（LATEST・INJURY。INJURY は直している途中のケガがあるときだけ）、BIG3 の Δ PHASE、LOG のフェーズの週。
 // フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
 // web では 3D の体を描かないので、LATEST・INJURY は 2D の図になる。今日は 2026-11-08（日）。
 // 同期で入れる睡眠・食事を使って、SLEEP・FUEL の行き先（睡眠の推移・食事のタブ）のホームと同じカードもここで見る
@@ -53,36 +53,23 @@ const lunch = [
 ];
 
 
-test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。ページは 2 つ（RECOVERY はない）で、横スワイプと印で切り替える。1 行を押すとフェーズの設定', async ({ page }) => {
+test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。ページは LATEST だけ（RECOVERY はない）で、横スワイプしても動かない。1 行を押すとフェーズの設定', async ({ page }) => {
   await openApp(page);
   const line = button(page, 'フェーズは未設定。フェーズを始める');
   await expect(line).toHaveText('NO PHASE · + START');
   await expect(visible(page, 'hero-ring-footer')).toHaveCount(0);
-  // ケガがないので INJURY のページはない
-  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(2);
+  // ケガがないので INJURY のページはなく、LATEST だけ
+  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(1);
   await expect(visible(page, 'hero-page-injury')).toHaveCount(0);
   await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
-  await expect(visible(page, 'hero-pages')).toContainText('01/02 LATEST');
+  await expect(visible(page, 'hero-pages')).toContainText('01/01 LATEST');
 
-  // 縦に大きく動かしたときはページを変えない
+  // 横にも縦にも、動かさない（ページが 1 つなので、スワイプしても LATEST のまま）
   await swipe(visible(page, 'hero-swipe'), 'next', 200);
-  await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
-  // 左へスワイプで GROWTH。いちばん右ではそれ以上動かない
   await swipe(visible(page, 'hero-swipe'), 'next');
-  await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('home-latest')).toHaveCount(0);
-  await swipe(visible(page, 'hero-swipe'), 'next');
-  await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
-  // 右へスワイプで LATEST に戻る。いちばん左ではそれ以上動かない
   await swipe(visible(page, 'hero-swipe'), 'prev');
   await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
-  await swipe(visible(page, 'hero-swipe'), 'prev');
-  await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
-  // 印を押して GROWTH。フェーズがないので内の輪と白い線は出さない
-  await visible(page, 'hero-page-growth').click();
-  await expect(visible(page, 'hero-pages')).toContainText('02/02 GROWTH');
-  await expect(page.getByTestId('hero-ring-inner')).toHaveCount(0);
-  await expect(page.getByTestId('hero-ring-plan')).toHaveCount(0);
+  await expect(visible(page, 'home-latest')).toBeVisible();
   // LOG はふだんの W1〜W4
   await expect(visible(page, 'home-log')).toContainText('LOG // W1-W4');
 
@@ -92,7 +79,7 @@ test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。�
   await expect(line).toBeVisible();
 });
 
-test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH の四隅と内の輪、BIG3 の Δ PHASE、LOG はフェーズの週。1 行を押すと進み具合', async ({ page, context }) => {
+test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、BIG3 の Δ PHASE、LOG はフェーズの週。1 行を押すと進み具合', async ({ page, context }) => {
   await openWith(page, context, [bulk, ...weights, ...bench]);
   const line = button(page, '増量 16週のうち6週目。ペース 順調。フェーズの進み具合を開く');
   await expect(line).toHaveText('BULK 06/16 · ON TRACK');
@@ -106,15 +93,6 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(visible(page, 'home-log')).toContainText('LOG // W3-W6');
   await expect(visible(page, 'log-current-week')).toContainText('W6');
 
-  await visible(page, 'hero-page-growth').click();
-  await expect(visible(page, 'hero-growth')).toHaveAccessibleName('フェーズ 増量。ペース 順調。体重 週平均 76.3kg、目標 80.0kg。フェーズの進み具合を開く');
-  const hero = visible(page, 'hero-swipe');
-  await expect(hero).toContainText('PHASE //増量06/16W');
-  await expect(hero).toContainText('PACE //順調ON TRACK');
-  await expect(hero).toContainText('WEIGHT76.3→ 80.0 KG');
-  await expect(page.getByTestId('hero-ring-inner')).toHaveCount(1);
-  await expect(page.getByTestId('hero-ring-plan')).toHaveCount(1);
-
   // 推移の BIG3 のカードも、ホームと同じ Δ PHASE
   await visible(page, 'home-big3').click();
   await expect(visible(page, 'trend-big3-gauge')).toContainText('Δ PHASE +16.0');
@@ -126,26 +104,15 @@ test('フェーズ実施中：BULK 06/16 · ON TRACK と残り 10週、GROWTH �
   await expect(visible(page, 'phase-pace-status')).toHaveText('順調');
   await button(page, '戻る').click();
   await expect(line).toBeVisible();
-
-  // GROWTH の四隅（#219）：PACE は進み具合、WEIGHT は体重の推移
-  await expect(visible(page, 'hero-growth-pace')).toHaveAccessibleName('ペース 順調。フェーズの進み具合を開く');
-  await visible(page, 'hero-growth-pace').click();
-  await expect(page.getByRole('heading', { name: '増量 16週' }).filter({ visible: true })).toBeVisible();
-  await button(page, '戻る').click();
-  await expect(visible(page, 'hero-growth-weight')).toHaveAccessibleName('体重 週平均 76.3kg、目標 80.0kg。体重の推移を開く');
-  await visible(page, 'hero-growth-weight').click();
-  await expect(page.getByRole('heading', { name: '体重の推移' }).filter({ visible: true })).toBeVisible();
-  await button(page, '戻る').click();
-  await expect(line).toBeVisible();
 });
 
-test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（四隅と札）。輪の下は止めたフェーズ。ページは 3 つ', async ({ page, context }) => {
+test('療養中：REHAB DAY 03 · BULK PAUSED、最初のページは INJURY（四隅と札）。輪の下は止めたフェーズ。ページは 2 つ', async ({ page, context }) => {
   await openWith(page, context, [bulk, ...weights, ...bench, injury, rehab]);
   await expect(button(page, '療養 3日目。増量は止めています。フェーズの進み具合を開く')).toHaveText('REHAB DAY 03 · BULK PAUSED');
   await expect(visible(page, 'hero-ring-footer')).toHaveText('増量 06/16 · 停止中');
-  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(3);
+  await expect(visible(page, 'hero-pages').getByRole('tab')).toHaveCount(2);
   await expect(visible(page, 'hero-page-injury')).toHaveAttribute('aria-selected', 'true');
-  await expect(visible(page, 'hero-pages')).toContainText('02/03 INJURY');
+  await expect(visible(page, 'hero-pages')).toContainText('02/02 INJURY');
   const injuryCorner = visible(page, 'hero-injury');
   await expect(injuryCorner).toHaveAccessibleName('ケガ。直している途中 1件。直している部位 右肩の関節、振り返りはまだ。11月6日（金）から 3日目。ケガの一覧を開く');
   const hero = visible(page, 'hero-swipe');

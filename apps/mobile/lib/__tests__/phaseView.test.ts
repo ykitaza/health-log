@@ -33,8 +33,8 @@ function onPlan(from: string, to: string, off = 0): { date: string; kg: number }
 
 describe('今の記録（開始時の記録と成功の指標の「今」）', () => {
   const growth = (o: Partial<GrowthData> = {}): GrowthData => ({
-    today: TODAY, days: [], sets: [], exerciseNames: new Map(), big3: {}, weights: [], bodyFats: [], mealCount: 0, partNames: new Map(),
-    goalWeightKg: 80, weeklyGoals: {} as GrowthData['weeklyGoals'], weeklyTrainingGoal: 3, weightUnit: 'kg', ...o,
+    today: TODAY, days: [], sets: [], big3: {}, weights: [], bodyFats: [],
+    goalWeightKg: 80, weeklyTrainingGoal: 3, weightUnit: 'kg', ...o,
   });
   test('体重と体脂肪率は直近 7 日の平均、なければ最新の値。記録がなければ null', () => {
     const m = measuresFrom(growth({
@@ -58,8 +58,8 @@ describe('今の記録（開始時の記録と成功の指標の「今」）', (
 
 describe('終わりの時点の記録（振り返りの after・成功の指標の「今」）', () => {
   const g = (sets: { date: string; kg: number; reps: number }[]): GrowthData => ({
-    today: TODAY, days: [], exerciseNames: new Map(), big3: { bench: 'b' }, weights: [{ date: '2026-10-30', weightKg: 72 }], bodyFats: [],
-    mealCount: 0, partNames: new Map(), goalWeightKg: null, weeklyGoals: {} as GrowthData['weeklyGoals'], weeklyTrainingGoal: 3, weightUnit: 'kg',
+    today: TODAY, days: [], big3: { bench: 'b' }, weights: [{ date: '2026-10-30', weightKg: 72 }], bodyFats: [],
+    goalWeightKg: null, weeklyTrainingGoal: 3, weightUnit: 'kg',
     sets: sets.map((x) => ({ date: x.date, exerciseId: 'b', bodyPartId: 'chest', weightKg: x.kg, reps: x.reps })),
   });
   test('減量で BIG3 が下がったら「保つ」から外れる（終わりは最後の 28 日の最高。開始時の最高は残らない）', () => {

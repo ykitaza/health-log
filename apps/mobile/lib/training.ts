@@ -312,7 +312,7 @@ export type Big3Trend = {
 
 /**
  * BIG3 の役ごとの日ごとの推定1RM（exerciseDailySeries）。割り当てがない役は空。推定1RM の出ない日と today より後の日は入れない。
- * BIG3 の合計・役ごとの最高を出すところ（big3Trend・big3Growth・big3Best・big3Total）はすべてこれを使う
+ * BIG3 の合計・役ごとの最高を出すところ（big3Trend・big3Best・big3Total）はすべてこれを使う
  */
 export function big3Series(rows: TrainingSetRow[], assignments: Partial<Record<Big3Role, string>>, today: DateKey): Record<Big3Role, DailyPoint[]> {
   const of = (id: string | undefined) => (id ? exerciseDailySeries(rows, id).filter((p) => p.max1RM > 0 && p.date <= today) : []);

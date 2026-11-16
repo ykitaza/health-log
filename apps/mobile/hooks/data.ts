@@ -68,7 +68,7 @@ export function usePendingReports() {
   return { ...q, dismiss };
 }
 
-/** 「記録で育つ形」に要る全期間の記録（lib/growthData.ts の GrowthData）。today を渡し、日をまたいだら読み直す */
+/** 成長スコアとフェーズの記録に要る全期間の記録（lib/growthData.ts の GrowthData）。today を渡し、日をまたいだら読み直す */
 export function useGrowthData(today: DateKey) {
   return useFocusData((r) => loadGrowthData(r, today), today);
 }

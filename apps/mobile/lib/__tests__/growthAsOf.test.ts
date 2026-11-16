@@ -1,4 +1,4 @@
-import { growthScore, growthScoreAsOf, GrowthDay, scoreDetail, scoreDetailAsOf } from '../growth';
+import { growthScore, growthScoreAsOf, GrowthDay } from '../growth';
 
 const day = (date: string, p: Partial<GrowthDay> = {}): GrowthDay => ({
   date, trained: (p.volumeKg ?? 0) > 0, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: null, ...p,
@@ -24,8 +24,5 @@ describe('growthScoreAsOf（月末アンカー）', () => {
     // 11/2〜11/8：筋トレ2日・負荷量1000、食事は届いた日が記録日の全部、睡眠は420分が1日
     expect(s.total).toBe(growthScore(days.filter((d) => d.date <= '2026-11-08'), '2026-11-08').total);
     expect(s.diffFromLastWeek).not.toBeNull();
-  });
-  test('scoreDetailAsOf は scoreDetail の as-of 版で、asOf = today で一致する', () => {
-    expect(scoreDetailAsOf(days, '2026-11-11')).toEqual(scoreDetail(days, '2026-11-11'));
   });
 });

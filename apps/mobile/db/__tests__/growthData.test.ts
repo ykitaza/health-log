@@ -1,7 +1,7 @@
-// 「記録で育つ形」の読み込み：DB から集めて GrowthDay[] などにする（計算は lib/growth.ts）
+// 成長スコアとフェーズの記録の読み込み：DB から集めて GrowthDay[] などにする（計算は lib/growth.ts）
 import { migrate } from '../migrations';
 import { SEED_EXERCISES } from '../seed';
-import { growthSeries } from '@/lib/growth';
+import { growthScore } from '@/lib/growth';
 import { loadGrowthData, mergeGrowthDays } from '@/lib/growthData';
 import type { ItemInput } from '@/lib/meals';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
@@ -38,23 +38,18 @@ test('全期間の記録を日ごとにまとめる：負荷量・筋トレの�
 
   const g = await loadGrowthData(r, '2026-11-10');
   expect(g.days).toEqual([
-    // partSets：部位ごとのセット数（ベンチプレスは胸。BALANCE_PARTS の順）
-    { date: '2026-11-01', trained: true, volumeKg: 1100, mealRecorded: false, mealGoalReached: false, sleepMin: null, partSets: [2, 0, 0, 0, 0, 0] },
+    { date: '2026-11-01', trained: true, volumeKg: 1100, mealRecorded: false, mealGoalReached: false, sleepMin: null },
     { date: '2026-11-08', trained: false, volumeKg: 0, mealRecorded: false, mealGoalReached: false, sleepMin: 420 },
-    { date: '2026-11-09', trained: true, volumeKg: 300, mealRecorded: true, mealGoalReached: true, sleepMin: 400, partSets: [1, 0, 0, 0, 0, 0] },
+    { date: '2026-11-09', trained: true, volumeKg: 300, mealRecorded: true, mealGoalReached: true, sleepMin: 400 },
     { date: '2026-11-10', trained: false, volumeKg: 0, mealRecorded: true, mealGoalReached: false, sleepMin: null },
   ]);
   expect(g.sets).toHaveLength(3);
-  expect(g.exerciseNames.get(BENCH)).toBeTruthy();
   expect(g.weights).toEqual([{ date: '2026-11-02', weightKg: 75 }]);
   expect(g.goalWeightKg).toBe(70);
   expect(g.weeklyTrainingGoal).toBe(4);
-  expect(g.weeklyGoals).toMatchObject({ trainingDays: 4 });
   expect(g.weightUnit).toBe('kg');
-  // 形の入力にそのまま使える：最初の記録の日（11/1）から今日まで 10日
-  const series = growthSeries(g.days, g.today);
-  expect(series).toHaveLength(10);
-  expect(series[9]).toEqual({ volumeKg: 1400, foodDays: 1, sleepDays: 1, days: 10, partSets: [3, 0, 0, 0, 0, 0] });
+  // 成長スコアの入力にそのまま使える
+  expect(growthScore(g.days, g.today, g.weeklyTrainingGoal).total).toBeGreaterThan(0);
 });
 
 test('今日より後の記録は入れない。記録が何もなければ空', async () => {

@@ -20,10 +20,10 @@ import { dateLabels, datePoints } from '@/lib/chart';
 import { addDays, addMonths, formatJpDate, formatMonthDay, formatShortDate, todayKey, weekStart } from '@/lib/date';
 import { BIG3_LABELS, big3Assignments, Big3Role } from '@/lib/exercises';
 import { formatSetLong } from '@/lib/format';
-import { partsNote, topPart } from '@/lib/growthRecords';
+
 import { heroPhase, normalPhaseOf } from '@/lib/homeHero';
 import { big3Gauge, loadGauge } from '@/lib/homeHud';
-import { BALANCE_RANGES, BalanceRange, partBalanceForRange, partBalanceRangeLabel } from '@/lib/partBalance';
+import { BALANCE_RANGES, BalanceRange, partBalanceForRange, partBalanceRangeLabel, partsNote, topPart } from '@/lib/partBalance';
 import type { Phase } from '@/lib/phases';
 import {
   bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
@@ -503,7 +503,7 @@ const CHECK_MIN_WIDTH = 324;
 
 /**
  * 部位のバランス（Figma 筋トレ 1-4-2）。期間は 2週・3か月・これまで。
- * 軸の名前の横に、その期間のセット数。これまでのときは直近2週を点線で重ねる（成長を見るの⑤と同じ部品）。
+ * 軸の名前の横に、その期間のセット数。これまでのときは直近2週を点線で重ねる。
  * 画面に入ったとき・期間を変えたときに中心から広がる（1200ms、ease-out。動きを減らす設定ならすぐ）
  */
 function PartBalanceCard({ rows, parts, today, range, onRange }: {

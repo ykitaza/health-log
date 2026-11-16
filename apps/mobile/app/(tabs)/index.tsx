@@ -25,7 +25,7 @@ import { dayBodyEntries } from '@/lib/dayBody';
 import { big3Assignments } from '@/lib/exercises';
 import { formatMinutes } from '@/lib/health';
 import {
-  growthCorners, heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing, weekAverageKg,
+  heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing,
 } from '@/lib/homeHero';
 import { goalLine } from '@/lib/home';
 import {
@@ -35,13 +35,12 @@ import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweig
 import { injuryNumbers } from '@/lib/injuries';
 import { BALANCE_PARTS } from '@/lib/partBalance';
 import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
-import { effectiveGoalWeight } from '@/lib/phases';
 import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { fmt1, kgToUnit } from '@/lib/units';
 import { colors, radius, size, space } from '@/theme';
 
 /**
- * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY・GROWTH の横スライド）、
+ * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド）、
  * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、部位の量（フェーズの週あたり）と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
  * 集計は lib/homeHud.ts と lib/homeHero.ts
  */
@@ -137,7 +136,6 @@ export default function HomeScreen() {
       injury: { fixing, numbers: injuryNumbers(data.injuries), corners: injuryCorners(fixing, rehab, today) },
       volume,
       bodyMode: data.heroBodyMode,
-      growth: growthCorners(phase, weekAverageKg(weights, today), effectiveGoalWeight(data.phases, data.settings.goalWeightKg ?? null, today).kg),
     };
   }, [data, phase, recovery, weights, today, volume]);
   const todayMeal = data?.meals.find((d) => d.date === today) ?? null;
