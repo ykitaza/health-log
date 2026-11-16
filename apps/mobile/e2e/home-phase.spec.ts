@@ -1,52 +1,18 @@
-import { BrowserContext, expect, Page, test } from '@playwright/test';
-import { createFakeSyncServer, FakeSyncServer } from '../test-utils/fakeSyncServer';
-import { fakeAccessToken } from '../test-utils/fakeToken';
-import { button, goTab, openApp, openSettings, swipe, tab } from './helpers';
-import { fakeCognito, fakeLoginPopup } from './login';
+import { expect, Page, test } from '@playwright/test';
+import { button, goTab, openApp, swipe, tab } from './helpers';
+import { change, openWith } from './seed';
 
 // ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 3 ページ（LATEST・INJURY・GROWTH）、BIG3 の Δ PHASE、LOG のフェーズの週。
 // フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
 // web では 3D の体を描かないので、LATEST・INJURY は 2D の図になる。今日は 2026-11-08（日）。
 // 同期で入れる睡眠・食事を使って、SLEEP・FUEL の行き先（睡眠の推移・食事のタブ）のホームと同じカードもここで見る
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, accept', 'Access-Control-Allow-Methods': 'GET, POST' };
-const AT = '2026-11-08T01:00:00.000Z';
 const BULK = 'ffffffff-0000-4000-8000-000000000001';
 const REHAB = 'ffffffff-0000-4000-8000-000000000002';
 const INJURY = 'cccccccc-0000-4000-8000-000000000001';
 const BENCH = 'd41c7096-c246-4dfa-945a-e1cb329977a6';
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
-const mcp = { parent_id: null, changed_at: AT, origin: 'mcp' as const, device_id: null };
-type Change = Parameters<FakeSyncServer['append']>[0][number];
-
-async function connect(page: Page, context: BrowserContext, server: FakeSyncServer) {
-  await fakeCognito(context, { status: 200, body: { access_token: fakeAccessToken('user-a'), refresh_token: 'r', expires_in: 3600, token_type: 'Bearer' } });
-  await fakeLoginPopup(page, { code: 'test-code' });
-  await context.route(/^https:\/\/[^/]+\.execute-api\.[^/]+\.amazonaws\.com\//, async (route) => {
-    const req = route.request();
-    if (req.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
-    const res = server.handle(req.method(), req.url(), req.postData() ? JSON.parse(req.postData()!) : undefined);
-    await route.fulfill({ status: res.status, contentType: 'application/json', body: JSON.stringify(res.body), headers: CORS });
-  });
-}
-
-/** ログインして同期し、ホームに戻る */
-async function signInAndSync(page: Page) {
-  await openSettings(page);
-  await page.getByTestId('settings-account').click();
-  await button(page, 'パスキーでログイン').click();
-  await expect(page.getByTestId('sync-pending').filter({ visible: true })).toHaveText('0件');
-  // 同期が終わるまで待つ。「0件」は同期の前から 0件で、ホームの表示も当てはめの途中（COMMIT の前）から読めるので、終わった印にならない。
-  // 最後に同期した時刻は、当てはめを書き終えたあとに入る。web はログインをメモリーにだけ置くので、終わる前に読み込み直すと、
-  // 当てはめの途中が捨てられ、同期し直しもしない
-  await expect(page.getByTestId('sync-last').filter({ visible: true })).toHaveText(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
-  await button(page, '戻る').click();
-  await button(page, '戻る').click();
-}
-
-const change = (entity_type: string, entity_id: string, fields: Record<string, unknown>): Change =>
-  ({ ...mcp, change_id: crypto.randomUUID(), entity_type, entity_id, op: 'create', fields }) as Change;
 
 /** 増量 16 週（9/28 開始、74kg → 80kg）。開始時のベンチプレスの推定1RM は 60kg。今日は 6 週目 */
 const bulk = change('phase', BULK, {
@@ -86,13 +52,6 @@ const lunch = [
   }), parent_id: 'dddddddd-0000-4000-8000-000000000001' },
 ];
 
-async function openWith(page: Page, context: BrowserContext, changes: Change[]) {
-  const server = createFakeSyncServer({ clock: () => AT });
-  server.append(changes);
-  await connect(page, context, server);
-  await openApp(page);
-  await signInAndSync(page);
-}
 
 test('フェーズ未設定：NO PHASE · + START、輪は灰色の枠だけ。ページは 2 つ（RECOVERY はない）で、横スワイプと印で切り替える。1 行を押すとフェーズの設定', async ({ page }) => {
   await openApp(page);

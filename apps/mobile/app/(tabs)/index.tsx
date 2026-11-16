@@ -8,7 +8,7 @@ import { WeeklyTodoCard } from '@/components/WeeklyTodo';
 import { Icon } from '@/components/Icon';
 import { LoadError } from '@/components/LoadError';
 import { loadPartDays, todaySuggestion } from '@/components/partDay';
-import { PartVolumeCard } from '@/components/PartVolumeCard';
+import { PhaseVolumeCard } from '@/components/PartVolumeCard';
 import { PressableScale } from '@/components/motion';
 import { LatestReportCard } from '@/components/reports';
 import { ReportSuggestion } from '@/components/ReportSuggestion';
@@ -34,7 +34,7 @@ import {
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { injuryNumbers } from '@/lib/injuries';
 import { BALANCE_PARTS } from '@/lib/partBalance';
-import { partVolume } from '@/lib/partVolume';
+import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
 import { effectiveGoalWeight } from '@/lib/phases';
 import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -42,7 +42,7 @@ import { colors, radius, size, space } from '@/theme';
 
 /**
  * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY・GROWTH の横スライド）、
- * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、今週の部位（PARTS）と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
+ * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、部位の量（フェーズの週あたり）と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
  * 集計は lib/homeHud.ts と lib/homeHero.ts
  */
 export default function HomeScreen() {
@@ -114,8 +114,8 @@ export default function HomeScreen() {
     }, today);
   }, [data, rows, partName, today, normal]);
   const monthSum = useMemo(() => (data ? monthSummary(rows, today) : null), [data, rows, today]);
-  // 今週（月曜〜今日）の部位ごとのセット数。先週の同じ曜日までと比べる
-  const volume = useMemo(() => (data ? partVolume(rows, partName, weekDates[0], weekDates[6], today) : null), [data, rows, partName, weekDates, today]);
+  // 部位の量：今のフェーズ（なければ直近 4 週）の、部位ごとのセット数と 1 週間あたり（カードと体の色・札で同じ数字）
+  const volume = useMemo(() => (data ? phasePartVolume(rows, partName, volumeWindow(data.phases, today)) : null), [data, rows, partName, today]);
   const recovery = useMemo(() => {
     if (!data) return null;
     const list = partRecoveries(rows, partName, data.partDays.names, today);
@@ -172,7 +172,7 @@ export default function HomeScreen() {
         </View>
       )}
       <View style={s.row}>
-        <PartVolumeCard volume={volume} hurt={hurt} />
+        <PhaseVolumeCard volume={volume} hurt={hurt} />
       </View>
       <View style={s.row}>
         <FuelPanel fuel={fuel} date={today} />

@@ -1,8 +1,8 @@
 // その日の体：その日のトレーニングの部位と種目の札（EX-01〜）。Android は 3D（DayBody3D.native.tsx。見えないとき・ほかの画面では止め、
 // 触っていないときは 30fps）、web と 3D が描けないときは 2D の図（前と後ろ）。ホームの LATEST と、筋トレの記録の画面で使う。
 // DayBody は札と部位を渡す形、DayBodyForDate は日付を渡すとその日の記録を読む形。DayBodyBox は画面の流れの中に置く形（記録の画面）
-import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View, ViewInstance } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { useFocusData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
@@ -11,7 +11,7 @@ import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { Muscle, musclesForParts, MuscleView } from '@/lib/muscleFigure';
 import { colors, space } from '@/theme';
 import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
-import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
+import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
 import { MuscleFigure } from './MuscleFigure';
 
 export type DayBodyProps = {
@@ -26,11 +26,18 @@ export type DayBodyProps = {
   fallback?: ReactNode;
   /** 2D の図の筋肉ごとの塗り（ホームの LATEST：回復の色。lib/recoveryMap.ts の muscleFills）。渡した筋肉は parts の緑より先 */
   fills?: Partial<Record<Muscle, string>>;
+  /** 2D の図の、片側に出す札の数（省くと 3。ホームのヒーローは、気にしたい部位 3 つと押した部位で 4） */
+  perSide?: number;
+  /** 2D の図を押した（前か後ろ、図の座標の点。ホームのヒーロー。3D は onPick）。渡すと図が押せる（図の上に、札より下の面を置く） */
+  onPickPoint?: (view: MuscleView, point: { x: number; y: number }) => void;
 } & Pick<DayBody3DProps, 'recovery' | 'idle' | 'levelColor' | 'idleColor' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
-export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, ...rest }: DayBodyProps) {
-  const figure2D = fallback ?? <Figure2D width={width} band={band} entries={entries} parts={parts} fills={fills} onPressEntry={rest.onPressEntry} shield={rest.shield} />;
+export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, perSide, onPickPoint, ...rest }: DayBodyProps) {
+  const figure2D = fallback ?? (
+    <Figure2D width={width} band={band} entries={entries} parts={parts} fills={fills} perSide={perSide} onPickPoint={onPickPoint}
+      onPressEntry={rest.onPressEntry} shield={rest.shield} />
+  );
   return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={figure2D} {...rest} /> : figure2D;
 }
 
@@ -78,9 +85,9 @@ const FIG_GAP = space.s;
  * 2D の図（前と後ろ）：その日の部位を緑で塗り（fills があればその色）、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts）。
  * onPressEntry があれば札を押せる（shield は図と札のあいだに重ねる）
  */
-function Figure2D({ width, band, entries, parts, fills, onPressEntry, shield }: {
+function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint, onPressEntry, shield }: {
   width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[]; fills?: Partial<Record<Muscle, string>>;
-  onPressEntry?: (key: string | null) => void; shield?: ReactNode;
+  perSide?: number; onPickPoint?: DayBodyProps['onPickPoint']; onPressEntry?: (key: string | null) => void; shield?: ReactNode;
 }) {
   const figH = Math.min(200, band.bottom - band.top);
   const figW = figH / 2;
@@ -89,12 +96,12 @@ function Figure2D({ width, band, entries, parts, fills, onPressEntry, shield }: 
   const backX = frontX + figW + FIG_GAP;
   const tagW = Math.min(DAY_TAG_W, Math.max(0, frontX - 4));
   const layout = layoutCallouts(entries.map((e) => ({ key: e.key, no: e.no, part: e.part })), {
-    figureHeight: figH, minHeight: figH, slot: DAY_TAG_H, gap: 4, perSide: 3,
+    figureHeight: figH, minHeight: figH, slot: tagHeight(entries), gap: 4, perSide,
   });
   const byKey = new Map(entries.map((e) => [e.key, e]));
   const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: band.top + p.y * scale });
   const lines = [...layout.left.map((c) => ({ c, x: tagW })), ...layout.right.map((c) => ({ c, x: width - tagW }))]
-    .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + DAY_TAG_H / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
+    .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + tagHeight(entries) / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
   const paint = musclesForParts(parts);
   const tag = (c: PlacedCallout, side: 'left' | 'right'): ReactNode => {
     const style = { position: 'absolute', [side]: 0, top: band.top + c.top, width: tagW } as const;
@@ -103,7 +110,7 @@ function Figure2D({ width, band, entries, parts, fills, onPressEntry, shield }: 
       : <DayBodyTag key={c.key} e={byKey.get(c.key)!} align={side === 'left' ? 'right' : 'left'} style={style} onPress={onPressEntry && (() => onPressEntry(c.key))} />;
   };
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={onPressEntry ? 'box-none' : 'none'} testID="day-body-2d">
+    <View style={StyleSheet.absoluteFill} pointerEvents={onPressEntry || onPickPoint ? 'box-none' : 'none'} testID="day-body-2d">
       {(['front', 'back'] as const).map((view) => (
         <View key={view} pointerEvents="none" style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
           <MuscleFigure view={view} paint={paint} paintColor={colors.accent} fills={fills} width={figW} height={figH} />
@@ -114,9 +121,28 @@ function Figure2D({ width, band, entries, parts, fills, onPressEntry, shield }: 
         {lines.map((l) => <Circle key={`d-${l.key}`} cx={l.x} cy={l.y} r={3} fill={colors.accent} stroke={colors.bg} strokeWidth={1} />)}
       </Svg>
       {shield}
+      {/* 図を押す面（shield の上。押せるのは図のところだけで、そこからの横スワイプは親のページの切り替えに回る） */}
+      {onPickPoint && (['front', 'back'] as const).map((view) => (
+        <PickLayer key={view} testID={`day-body-2d-press-${view}`} scale={scale} onPick={(p) => onPickPoint(view, p)}
+          style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top, width: figW, height: figH }} />
+      ))}
       {layout.left.map((c) => tag(c, 'left'))}
       {layout.right.map((c) => tag(c, 'right'))}
     </View>
   );
 }
 
+
+/** 2D の図を押す面（読み上げでは隠す。押した位置は画面の座標から左上を引いて図の座標に直す。web の locationX は押した中の要素からの位置になるため） */
+function PickLayer({ scale, onPick, style, testID }: { scale: number; onPick: (p: { x: number; y: number }) => void; style: object; testID: string }) {
+  const ref = useRef<ViewInstance>(null);
+  return (
+    <Pressable
+      ref={ref} testID={testID} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={style}
+      onPress={(e) => {
+        const { pageX, pageY } = e.nativeEvent;
+        ref.current?.measure((_x, _y, _w, _h, left, top) => onPick({ x: (pageX - left) / scale, y: (pageY - top) / scale }));
+      }}
+    />
+  );
+}

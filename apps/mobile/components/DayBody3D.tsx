@@ -4,7 +4,11 @@ import type { ComponentType, ReactNode } from 'react';
 import type { Injury } from '@/db/repositories/injuries';
 
 /** 種目の札（EX-01〜）：番号・種目・いちばん重いセット・部位 */
-export type DayBodyEntry = { key: string; no: number; name: string; set: string; part: string };
+export type DayBodyEntry = {
+  key: string; no: number; name: string; set: string; part: string;
+  /** EX-01 の代わりに出す見出し（ホームのヒーローの、部位の札。lib/heroTags.ts）。あれば札は部位の札（testID は hero-body-tag） */
+  kicker?: string;
+};
 
 export type DayBody3DProps = {
   width: number;
