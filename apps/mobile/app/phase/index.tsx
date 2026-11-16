@@ -8,7 +8,7 @@ import {
   ActionRow, DateField, HudButton, ModeTabs, NumberField, PhaseFrame, RehabStartSheet, SheetBody, Tag, TextButton, TickBar, WeeksStepper,
 } from '@/components/phase/parts';
 import { WeightChart } from '@/components/phase/WeightChart';
-import { hud, Micro, Mono, Panel, PanelHead, StatusRow } from '@/components/report/hud';
+import { hud, Micro, Mono, Panel, PanelHead, StatusRow, unitLabel } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { ConfirmDialog } from '@/components/ui';
 import type { Injury, InjuryReview } from '@/db/repositories/injuries';
@@ -26,7 +26,7 @@ import {
 } from '@/lib/phaseEdit';
 import { loadMaintenance, missingNote, rehabMealTargets } from '@/lib/phaseMeals';
 import {
-  currentPhase, PACE_LABELS, Phase, PHASE_LIMITS, PHASE_TICKS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
+  currentPhase, DIRECTION_LABELS, PACE_LABELS, Phase, PHASE_LIMITS, PHASE_TICKS, PhaseMealTargets, phaseLabel, phaseProgress, PhaseProgress, recoveryUntil,
   successMetrics, Weight,
 } from '@/lib/phases';
 import { readyToEndRehab, rehabInjuries, RehabWatch, rehabWatch } from '@/lib/phaseReview';
@@ -35,7 +35,7 @@ import {
   PhaseMeasures, planSlopePerWeek, projectedKg, recentSlopePerWeek, snapshotOf, STREAK_TITLES, SUCCESS_RULE, weightChart,
 } from '@/lib/phaseView';
 import { fmt1, kgToUnit, parseNumber, trimNumber, unitToKg, WeightUnit } from '@/lib/units';
-import { colors } from '@/theme';
+import { accentSurface, colors, deco, lbl } from '@/theme';
 
 type Dialog = 'change' | 'correct' | 'rehab' | 'meals' | 'end' | 'abort' | 'endRehab' | null;
 
@@ -118,10 +118,10 @@ export default function PhaseScreen() {
     const watch = rehabWatch(data!.growth.days, data!.reviews, current, today);
     const names = data!.targets.map((i) => siteLabel(i.site, i.side)).join('・');
     return (
-      <PhaseFrame sys={`KARADA // REHAB · DAY ${two(progress.rehabDays)}`} onBack={close} testID="phase-progress">
+      <PhaseFrame sys={`KARADA // REHAB · DAY ${two(progress.rehabDays)}`} sysJa={`療養中 · ${progress.rehabDays}日目`} onBack={close} testID="phase-progress">
         <Heading en={`REHAB · DAY ${two(progress.rehabDays)}`} sub={`${formatMonthDay(current.startDate)}から ・ ${progress.rehabDays}日目`} title={phaseLabel(current)} />
         {ready && (
-          <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-rehab-ready">
+          <Panel border={hud.green} bg={accentSurface} style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-rehab-ready">
             <PanelHead en="REHAB // ALL FIXED" title={`${names}が「直せた」になりました`} />
             <T size={13} color={hud.note}>療養を終えますか？ 続けてもかまいません。</T>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -210,7 +210,7 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
   const remaining = progress.remainingDays;
 
   return (
-    <PhaseFrame sys={`KARADA // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} onBack={onBack} testID="phase-progress">
+    <PhaseFrame sys={`KARADA // PHASE · ${DIRECTION_EN[dir]} ${two(progress.week)}/${two(total)}`} sysJa={`フェーズ · ${DIRECTION_LABELS[dir]} ${progress.week}/${total}週`} onBack={onBack} testID="phase-progress">
       <Heading en={`${DIRECTION_EN[dir]} · W${two(progress.week)}/${two(total)}`}
         sub={`${formatMonthDay(phase.startDate)}〜${end ? formatMonthDay(end) : ''}`} title={phaseLabel(phase)} />
 
@@ -220,11 +220,11 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}
           accessible accessibilityLabel={`${total}週のうち${progress.week}週目。${expired ? '期間は終わりました' : `残り${remaining ?? 0}日`}`}>
           <T>
-            <Mono size={30} color={hud.white}>{`W${two(progress.week)}`}</Mono>
-            <Mono size={13} color={hud.muted}>{` / ${two(total)}`}</Mono>
+            <Mono size={30} color={hud.white}>{lbl(`W${two(progress.week)}`, `${progress.week}週目`)}</Mono>
+            <Mono size={13} color={hud.muted}>{lbl(` / ${two(total)}`, ` / ${total}週`)}</Mono>
           </T>
           <T style={{ textAlign: 'right' }} testID="phase-remaining">
-            <Mono size={11} color={hud.muted}>{expired ? 'COMPLETE ' : 'LEFT '}</Mono>
+            <Mono size={11} color={hud.muted}>{expired ? lbl('COMPLETE ', '期間終了 残り ') : lbl('LEFT ', '残り ')}</Mono>
             <Mono size={20} color={hud.white}>{expired ? '0' : String(remaining ?? '—')}</Mono>
             <Mono size={11} color={hud.muted}>{' 日'}</Mono>
           </T>
@@ -232,21 +232,21 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
         <TickBar ticks={progress.ticks} testID="phase-ticks"
           accessibilityLabel={`進み具合。16の目盛りのうち${progress.ticks?.done ?? 0}つが過ぎた（1つは${tickSpan(total)}）`} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Micro>{`START ${phase.startDate.slice(5).replace('-', '/')}`}</Micro>
-          <Micro>{`1 TICK = ${tickSpan(total)}`}</Micro>
-          <Micro>{`END ${end ? end.slice(5).replace('-', '/') : '—'}`}</Micro>
+          <Micro ja={`開始 ${phase.startDate.slice(5).replace('-', '/')}`}>{`START ${phase.startDate.slice(5).replace('-', '/')}`}</Micro>
+          <Micro ja={`1目盛り = ${tickSpan(total).replace('W', '週').replace('D', '日')}`}>{`1 TICK = ${tickSpan(total)}`}</Micro>
+          <Micro ja={`終了 ${end ? end.slice(5).replace('-', '/') : '—'}`}>{`END ${end ? end.slice(5).replace('-', '/') : '—'}`}</Micro>
         </View>
         <T size={14} color={hud.insight} style={{ lineHeight: 22 }} testID="phase-pace-reason">
           {paceSentence(pace, recoveryUntil(phase, phases, today), kg, formatMonthDay)}
         </T>
         <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
-          <Micro>{`3W ${perWeek(recentSlopePerWeek(chart))}`}</Micro>
-          <Micro>{`PLAN ${perWeek(planSlopePerWeek(chart))}`}</Micro>
+          <Micro ja={`直近3週 ${perWeek(recentSlopePerWeek(chart))}`}>{`3W ${perWeek(recentSlopePerWeek(chart))}`}</Micro>
+          <Micro ja={`予定 ${perWeek(planSlopePerWeek(chart))}`}>{`PLAN ${perWeek(planSlopePerWeek(chart))}`}</Micro>
         </View>
       </Panel>
 
       {expired && (
-        <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-expired">
+        <Panel border={hud.green} bg={accentSurface} style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-expired">
           <PanelHead en="PHASE // COMPLETE" title="期間が終わりました" right={`${formatMonthDay(end!)}まで`} />
           <T size={13} color={hud.note} style={{ lineHeight: 20 }}>終えて振り返るか、続けるなら期間を延ばします。</T>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -267,7 +267,7 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
       )}
 
       {showMid && (
-        <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-mid">
+        <Panel border={hud.green} bg={accentSurface} style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 8 }} testID="phase-mid">
           <PanelHead en="MID REVIEW" title="中間の見直し" right={`${mid}／${total}週`} />
           <MidRow label="体重" value={
             `${phase.snapshot?.weight_kg == null ? '—' : fmt1(u(phase.snapshot.weight_kg))} → ${weekAvg == null ? '—' : fmt1(u(weekAvg))} ${unit}` +
@@ -289,7 +289,7 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
           rightNode={(
             <T style={{ textAlign: 'right' }}>
               <Mono size={18} color={hud.white}>{weekAvg == null ? '—' : fmt1(u(weekAvg))}</Mono>
-              <Mono size={10} color={hud.muted}>{` / GOAL ${phase.targetWeightKg == null ? '—' : fmt1(u(phase.targetWeightKg))} ${unit.toUpperCase()}`}</Mono>
+              <Mono size={10} color={hud.muted}>{` / ${lbl('GOAL', '目標')} ${phase.targetWeightKg == null ? '—' : fmt1(u(phase.targetWeightKg))} ${unitLabel(unit)}`}</Mono>
             </T>
           )} />
         <WeightChart chart={chart} unit={unit}
@@ -310,7 +310,7 @@ function NormalPhase({ phase, phases, weights, measures, now, growth, unit, toda
                 <T>
                   <Mono size={12} color={hud.muted}>{`${m.start == null ? '—' : f(m.start)} → `}</Mono>
                   <Mono size={16} color={m.reference ? hud.muted : hud.white}>{m.now == null ? '—' : f(m.now)}</Mono>
-                  <Mono size={10} color={hud.muted}>{` ${isKg ? unit.toUpperCase() : m.key === 'body_fat' ? '%' : ''}`}</Mono>
+                  <Mono size={10} color={hud.muted}>{` ${isKg ? unitLabel(unit) : m.key === 'body_fat' ? '%' : ''}`}</Mono>
                 </T>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -388,7 +388,7 @@ function mealSummary(t: PhaseMealTargets | null): string {
 function Heading({ en, sub, title }: { en: string; sub: string; title: string }) {
   return (
     <View style={{ gap: 2, marginBottom: 4 }}>
-      <Micro green>{en}</Micro>
+      {deco.enLabels && <Micro green>{en}</Micro>}
       <T size={11.5} color={hud.muted}>{sub}</T>
       <T bold size={22} color={hud.ink} accessibilityRole="header" style={{ lineHeight: 30 }}>{title}</T>
     </View>
@@ -398,7 +398,7 @@ function Heading({ en, sub, title }: { en: string; sub: string; title: string })
 function Section({ en, title, children }: { en: string; title: string; children: ReactNode }) {
   return (
     <View style={{ gap: 4, marginTop: 6 }}>
-      <Micro green>{en}</Micro>
+      {deco.enLabels && <Micro green>{en}</Micro>}
       <T bold size={13} color={hud.green} accessibilityRole="header">{title}</T>
       <Panel style={{ paddingHorizontal: 14, paddingVertical: 2 }}>{children}</Panel>
     </View>

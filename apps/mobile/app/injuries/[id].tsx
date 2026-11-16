@@ -19,7 +19,7 @@ import { injuryNumbers, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/l
 import { markPoint } from '@/lib/muscleFigure';
 import { loadMaintenance, rehabMealTargets } from '@/lib/phaseMeals';
 import { currentPhase, pauses, phaseLabel, phaseWeek } from '@/lib/phases';
-import { colors, radius, space, toneColors } from '@/theme';
+import { colors, deco, injuryNo, lbl, radius, space, toneColors } from '@/theme';
 
 /** 振り返りの結果の色（記号と文字も添える） */
 const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
@@ -140,7 +140,7 @@ export default function InjuryScreen() {
       <ScanFrame style={{ paddingHorizontal: space.l, paddingVertical: space.m, marginTop: space.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m }}>
           <View style={{ flex: 1, gap: space.xs }}>
-            <Mono color={fixing ? INJURY_AMBER : colors.accent} size={12}>{`TARGET · ${data.number}`}</Mono>
+            <Mono color={fixing ? INJURY_AMBER : colors.accent} size={12}>{lbl(`TARGET · ${data.number}`, `対象 ・ ${injuryNo(data.number)}`)}</Mono>
             <T variant="titleM">{`${label} ／ ${siteDetail(injury.site)}`}</T>
             {(injury.exerciseName || injury.phase) && (
               <T variant="bodyM" color={colors.sub}>{[injury.exerciseName, injury.phase].filter(Boolean).join(' ／ ')}</T>
@@ -153,7 +153,7 @@ export default function InjuryScreen() {
             <View style={{ alignItems: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <MuscleFigure view={at.view} width={70} height={140}
                 marks={[{ key: injury.id, site: injury.site, side: injury.side, status: injury.status }]} />
-              <Mono size={11}>{at.view === 'front' ? 'R FRONT L' : 'L BACK R'}</Mono>
+              <Mono size={11}>{at.view === 'front' ? lbl('R FRONT L', '前（右が左）') : lbl('L BACK R', '後ろ（左が左）')}</Mono>
             </View>
           )}
         </View>
@@ -248,7 +248,7 @@ function BlockHead({ title, no, strong }: { title: string; no: string; strong?: 
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: space.s }}>
       <T variant="titleS" color={strong ? colors.accent : colors.sub} accessibilityRole="header">{title}</T>
-      <Mono size={12}>{no}</Mono>
+      {deco.enLabels && <Mono size={12}>{no}</Mono>}
     </View>
   );
 }

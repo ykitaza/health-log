@@ -3,7 +3,7 @@ import { ViewStyle } from 'react-native';
 import type { Injury } from '@/db/repositories/injuries';
 import { siteLabel } from '@/lib/injuries';
 import { INJURY_RED } from '@/lib/recoveryMap';
-import { fonts } from '@/theme';
+import { fonts, injuryNo } from '@/theme';
 import { PressableScale } from './motion';
 import { T } from './Text';
 
@@ -23,7 +23,7 @@ export function HeroInjuryTag({ injury, number, align, style, onPress }: {
       accessibilityRole="button" accessibilityLabel={`${number} ${site}、直している途中。このケガを開く`} scaleTo={0.96} onPress={onPress}
       testID="hero-injury-tag" style={[{ height: HERO_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}
     >
-      <T style={[mono, { color: INJURY_RED }]}>{`${number} ▲`}</T>
+      <T style={[mono, { color: INJURY_RED }]}>{`${injuryNo(number)} ▲`}</T>
       <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{site}</T>
       <T size={11} color={INJURY_RED} numberOfLines={1}>● 直し中</T>
     </PressableScale>

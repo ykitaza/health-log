@@ -9,7 +9,7 @@ import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, CALLOUT_H, facingOf, layoutCallouts, partsFor, siteOfPart } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
-import { colors, space } from '@/theme';
+import { colors, lbl, space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
@@ -57,8 +57,8 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
     <ScanFrame strong style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
       <View accessible accessibilityLabel={`体の図。直している途中 ${active}件、直せた ${cleared}件`} style={{ gap: space.s }}>
         <View style={s.mapHead}>
-          <Mono color={colors.accent}>BODY MAP // SCAN</Mono>
-          <Mono>{`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`}</Mono>
+          <Mono color={colors.accent}>{lbl('BODY MAP // SCAN', '体の図')}</Mono>
+          <Mono>{lbl(`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`, `直している途中 ${active} ・ 直せた ${cleared}`)}</Mono>
         </View>
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: STAGE_H, marginHorizontal: -space.l }}>
           {width > 0 && (
@@ -82,7 +82,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
               <View style={StyleSheet.absoluteFill} {...scene.pan.panHandlers} />
               {pickedLabel && (
                 <Animated.View entering={reduced ? undefined : FadeIn.duration(250)} exiting={reduced ? undefined : FadeOut.duration(150)} style={s.pick} pointerEvents="none">
-                  <Mono color={colors.accent}>SELECT //</Mono>
+                  <Mono color={colors.accent}>{lbl('SELECT //', '選んだ部位')}</Mono>
                   <T variant="labelL">{pickedLabel}</T>
                 </Animated.View>
               )}
@@ -90,8 +90,8 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
           )}
         </View>
         <View style={s.mapHead}>
-          <Mono>DRAG ROTATE · TAP SELECT</Mono>
-          {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
+          <Mono>{lbl('DRAG ROTATE · TAP SELECT', 'なぞって回す ・ 押して選ぶ')}</Mono>
+          {active > 0 && <Mono color={INJURY_AMBER}>{lbl(`▲ ${active} ALERT`, `▲ 直している途中 ${active}件`)}</Mono>}
         </View>
       </View>
       {/* 出典。読み上げでリンクを選べるよう、件数をまとめて読む枠の外に置く */}

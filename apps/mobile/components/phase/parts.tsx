@@ -4,19 +4,19 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleProp, useWindowDimensions, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { addDays, addMonths, DateKey, formatJpDate, MONTH_NAMES_EN, WEEKDAY_EN, weekday, yearMonth } from '@/lib/date';
+import { addDays, addMonths, DateKey, formatJpDate, MONTH_NAMES_EN, WEEKDAY_EN, WEEKDAY_JA, weekday, yearMonth } from '@/lib/date';
 import { PHASE_LIMITS, PHASE_TICKS, PhaseTicks, tickState } from '@/lib/phases';
-import { colors } from '@/theme';
+import { accentSurface, colors, deco, lbl } from '@/theme';
 import { Input } from '../Input';
 import { MonthCalendar } from '../MonthCalendar';
 import { PressableScale, Sheet } from '../motion';
-import { hud, HudFonts, Micro, Mono, NotchChip, Panel, useMono } from '../report/hud';
+import { hud, HudFonts, Micro, Mono, NotchChip, Panel, unitLabel, useMono } from '../report/hud';
 import { T } from '../Text';
 import { IconButton } from '../ui';
 
 /** 画面の枠：近黒の地、上の段に戻る・英字の行（左 sys、右 right）、中身はスクロール、footer は下に固定 */
-export function PhaseFrame({ sys, onBack, right, footer, children, testID }: {
-  sys: string; onBack: () => void; right?: ReactNode; footer?: ReactNode; children: ReactNode; testID?: string;
+export function PhaseFrame({ sys, sysJa = 'フェーズ', onBack, right, footer, children, testID }: {
+  sys: string; sysJa?: string; onBack: () => void; right?: ReactNode; footer?: ReactNode; children: ReactNode; testID?: string;
 }) {
   const { width } = useWindowDimensions();
   const side = 12 + Math.max(0, (width - 400) / 2);
@@ -25,7 +25,7 @@ export function PhaseFrame({ sys, onBack, right, footer, children, testID }: {
       <SafeAreaView style={{ flex: 1, backgroundColor: hud.bg }} edges={['top', 'bottom']}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 48 }}>
           <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />
-          <View style={{ flex: 1, paddingHorizontal: 2 }}><Micro>{sys}</Micro></View>
+          <View style={{ flex: 1, paddingHorizontal: 2 }}><Micro ja={sysJa}>{sys}</Micro></View>
           {right ?? <View style={{ width: 48 }} />}
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingBottom: 24, gap: 8 }} keyboardShouldPersistTaps="handled" testID={testID}>
@@ -41,7 +41,7 @@ export function PhaseFrame({ sys, onBack, right, footer, children, testID }: {
 export function PhaseTitle({ en, title, note }: { en: string; title: string; note?: string }) {
   return (
     <View style={{ gap: 2, marginTop: 4, marginBottom: 4 }}>
-      <Micro green>{en}</Micro>
+      {deco.enLabels && <Micro green>{en}</Micro>}
       <T bold size={20} color={hud.ink} accessibilityRole="header" style={{ lineHeight: 28 }}>{title}</T>
       {note ? <T size={12.5} color={hud.muted} style={{ lineHeight: 19 }}>{note}</T> : null}
     </View>
@@ -102,9 +102,9 @@ export function ChoiceCard({ title, en, body, selected, onPress, testID }: {
   return (
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} aria-checked={selected} accessibilityLabel={`${title}。${body}`}
       onPress={onPress} testID={testID}>
-      <Panel border={selected ? hud.green : hud.line} bg={selected ? '#0F1C15' : hud.panel} style={{ paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Panel border={selected ? hud.green : hud.line} bg={selected ? accentSurface : hud.panel} style={{ paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1, gap: 2 }}>
-          <Micro green={selected}>{en}</Micro>
+          {deco.enLabels && <Micro green={selected}>{en}</Micro>}
           <T bold size={15} color={selected ? hud.green : hud.ink}>{title}</T>
           <T size={12} color={hud.muted} style={{ lineHeight: 18 }}>{body}</T>
         </View>
@@ -142,7 +142,7 @@ export function NumberField({ label, value, onChange, unit, placeholder, testID,
           value={value} onChangeText={onChange} keyboardType={keyboardType} placeholder={placeholder} accessibilityLabel={label} testID={testID}
           maxLength={maxLength} style={{ flex: 1, height: 46, color: hud.white, fontFamily: family, fontSize: 18 }}
         />
-        {unit ? <Mono size={11} color={hud.muted}>{unit.toUpperCase()}</Mono> : null}
+        {unit ? <Mono size={11} color={hud.muted}>{unitLabel(unit)}</Mono> : null}
       </View>
     </View>
   );
@@ -284,7 +284,7 @@ export function ModeTabs<K extends string>({ options, value, onChange }: {
         return (
           <Pressable key={o.key} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${o.title}。${o.sub}`}
             onPress={() => onChange(o.key)} style={{ flex: 1 }} testID={`phase-mode-${o.key}`}>
-            <Panel border={on ? hud.green : hud.line} bg={on ? '#0F1C15' : hud.panel2} cut={6} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 2, minHeight: 64 }}>
+            <Panel border={on ? hud.green : hud.line} bg={on ? accentSurface : hud.panel2} cut={6} style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 2, minHeight: 64 }}>
               <T bold size={13} color={on ? hud.green : hud.ink}>{o.title}</T>
               <T size={11} color={hud.muted} style={{ lineHeight: 15 }}>{o.sub}</T>
             </Panel>
@@ -345,9 +345,9 @@ export function DateField({ label, value, onChange, min, max, testID }: {
           accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} testID={testID}
           style={{ flex: 1, minHeight: 48, borderWidth: 1, borderColor: open ? hud.green : hud.line, backgroundColor: hud.panel2, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Mono size={18} color={hud.white}>{value.slice(5).replace('-', '/')}</Mono>
-          <Mono size={11} color={hud.muted}>{WEEKDAY_EN[weekday(value)]}</Mono>
+          <Mono size={11} color={hud.muted}>{lbl(WEEKDAY_EN[weekday(value)], `${WEEKDAY_JA[weekday(value)]}曜`)}</Mono>
           <View style={{ flex: 1 }} />
-          <Mono size={10} color={value === max ? hud.green : hud.muted}>{value === max ? 'TODAY' : 'CAL'}</Mono>
+          <Mono size={10} color={value === max ? hud.green : hud.muted}>{value === max ? lbl('TODAY', '今日') : lbl('CAL', 'カレンダー')}</Mono>
         </Pressable>
         <SquareButton label="1日後にする" text="›" disabled={next > max} onPress={() => onChange(next)} testID={testID ? `${testID}-next` : undefined} />
       </View>
@@ -355,7 +355,7 @@ export function DateField({ label, value, onChange, min, max, testID }: {
         <View style={{ borderWidth: 1, borderColor: hud.line2, padding: 8, gap: 6 }} testID={testID ? `${testID}-calendar` : undefined}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <SquareButton label="前の月" text="‹" disabled={firstMonth != null && month <= firstMonth} onPress={() => setMonth(addMonths(month, -1))} />
-            <Mono size={13} color={hud.ink}>{`${MONTH_NAMES_EN[m - 1]} ${year}`}</Mono>
+            <Mono size={13} color={hud.ink}>{lbl(`${MONTH_NAMES_EN[m - 1]} ${year}`, `${year}年${m}月`)}</Mono>
             <SquareButton label="次の月" text="›" disabled={month >= lastMonth} onPress={() => setMonth(addMonths(month, 1))} />
           </View>
           <MonthCalendar year={year} month={m} today={max} marked={new Set()} selected={value} maxDate={max} minDate={min} cell={40}

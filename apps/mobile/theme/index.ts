@@ -76,6 +76,9 @@ export const deco = { brackets: isHud, enLabels: isHud, trackedMono: isHud, puls
 /** 見出しの文字：HUD は英語、クラシックは日本語 */
 export const lbl = (en: string, ja: string) => (deco.enLabels ? en : ja);
 
+/** ケガの番号の見せ方。HUD は「INJ-01」、クラシックは「ケガ 1」（lib/injuries の injuryNumbers の文字から） */
+export const injuryNo = (no: string) => (deco.enLabels ? no : no.replace(/^INJ-0*(\d+)$/, 'ケガ $1'));
+
 /**
  * 筋肉の図（components/MuscleFigure）の地の色（Figma「部品案：筋肉の図」）。muscle は筋肉のパーツ、body は頭・首・手・足。
  * その日の部位の筋肉は colors.accent で塗る
@@ -177,6 +180,26 @@ export const toneColors = {
 export const onToneSub = '#C8CED8';
 /** 気をつけたいの帯の地（筋トレの入力画面の「直すこと」。caution.container より暗い。枠は caution.accent の 50%） */
 export const cautionBand = '#211A0D';
+
+/**
+ * 意味を持つ色（見た目によらず同じ）。load は回復中の橙・黄（lib/recoveryMap の LOAD_ORANGE・LOAD_YELLOW）、injury は直している途中のケガの赤、
+ * pfc は食事の P・F・C の色
+ */
+export const loadPalette = { orange: '#FF8A3D', yellow: '#F5C94A', injury: '#FF5A4F' } as const;
+export const pfcPalette = { p: HUD_COLORS.accent, f: HUD_COLORS.star, c: '#6FA8FF' } as const;
+
+/**
+ * 飾りの色（見た目で変わる。意味は持たない）。HUD は今の値。クラシックは静かな灰色の面と線にして、色は緑 1 色だけにする。
+ * Palette の外に置く（HUD の色の組は変えない）
+ */
+/** 選んだ・今の状態のパネルの地（フェーズの選択など。HUD は深い緑） */
+export const accentSurface = isHud ? '#0F1C15' : HUD_COLORS.input;
+/** ケガの画面の方眼の線 */
+export const gridLine = isHud ? '#1C2A23' : CLASSIC_COLORS.line;
+/** 回復マップの一覧で選んだ行の地 */
+export const rowOnFill = isHud ? 'rgba(91,228,155,0.08)' : 'rgba(243,245,247,0.06)';
+/** 部位のバランスの直近の線（本文の色の 85%。見た目によらず同じ） */
+export const recentStroke = 'rgba(243,245,247,0.85)';
 
 /** 部位の色（グラフ用）。部位の並び順で選ぶ */
 export const PART_COLORS = ['#5BE49B', '#6FA8FF', '#B98CFF', '#F5A524', '#FF8FB1', '#4DD4E6', '#E6D85B', '#FF7A59'];

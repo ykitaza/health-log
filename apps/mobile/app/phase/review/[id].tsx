@@ -5,18 +5,19 @@ import { useChatChooser } from '@/components/ChatSheet';
 import { LoadError } from '@/components/LoadError';
 import { ActionRow, HudButton, PhaseFrame, TextButton } from '@/components/phase/parts';
 import { MoreFold } from '@/components/report/ClosingBlocks';
-import { GoalTrack, hud, Micro, Mono, Panel, PanelHead } from '@/components/report/hud';
+import { GoalTrack, hud, Micro, Mono, Panel, PanelHead, unitLabel } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { daysBetween, formatMonthDay } from '@/lib/date';
 import { loadGrowthData } from '@/lib/growthData';
 import { DIRECTION_EN } from '@/lib/homeHero';
-import { currentPhase, pauses, pausedDays, phaseLabel, successMetrics, SuccessMetric, weeksTotal } from '@/lib/phases';
+import { currentPhase, DIRECTION_LABELS, pauses, pausedDays, phaseLabel, successMetrics, SuccessMetric, weeksTotal } from '@/lib/phases';
 import { achievement, achievementText, nextOptions, TIER_LABELS } from '@/lib/phaseReview';
 import { endMeasuresFrom, orderMetrics, phaseLastDay } from '@/lib/phaseView';
 import { formatCreated, Highlight } from '@/lib/reports';
 import { fmt1, kgToUnit } from '@/lib/units';
+import { accentSurface, deco } from '@/theme';
 
 const signed = (n: number, digits = 1) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${Math.abs(n).toFixed(digits)}`;
 const two = (n: number) => String(n).padStart(2, '0');
@@ -76,7 +77,7 @@ export default function PhaseReviewScreen() {
 
   return (
     <PhaseFrame
-      sys={`KARADA // PHASE REVIEW · ${DIRECTION_EN[dir]}`} onBack={close} testID="phase-review"
+      sys={`KARADA // PHASE REVIEW · ${DIRECTION_EN[dir]}`} sysJa="フェーズの振り返り" onBack={close} testID="phase-review"
       footer={hasCurrent ? undefined : (
         <>
           <HudButton label="次のフェーズを始める" onPress={() => router.push('/phase/new')} testID="phase-review-next" />
@@ -86,9 +87,9 @@ export default function PhaseReviewScreen() {
     >
       <T bold size={20} color={hud.ink} accessibilityRole="header" style={{ marginTop: 2 }}>フェーズの振り返り</T>
 
-      <Panel border={hud.green} bg="#0F1C15" style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 6 }} testID="phase-review-hero">
+      <Panel border={hud.green} bg={accentSurface} style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 6 }} testID="phase-review-hero">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Micro green>{`${DIRECTION_EN[dir]} // ${finished ? 'DONE' : 'IN PROGRESS'}`}</Micro>
+          <Micro green ja={`${DIRECTION_LABELS[dir]} · ${finished ? '終了' : '実施中'}`}>{`${DIRECTION_EN[dir]} // ${finished ? 'DONE' : 'IN PROGRESS'}`}</Micro>
           <T size={11.5} color={hud.muted}>
             {`${formatMonthDay(phase.startDate)}〜${formatMonthDay(last)} ・ ${finished && weeks != null && doneWeeks < weeks ? `${doneWeeks}／${weeks}週` : `${weeks ?? doneWeeks}週`}`}
           </T>
@@ -148,7 +149,7 @@ export default function PhaseReviewScreen() {
 
       {!hasCurrent && (
         <View style={{ gap: 4, marginTop: 6 }}>
-          <Micro green>NEXT PHASE</Micro>
+          {deco.enLabels && <Micro green>NEXT PHASE</Micro>}
           <T bold size={13} color={hud.green} accessibilityRole="header">次のフェーズ</T>
           <Panel style={{ paddingHorizontal: 14, paddingVertical: 2 }} testID="phase-review-options">
             {nextOptions(dir).map((o, i, list) => (
@@ -183,7 +184,7 @@ function MetricRow({ m, main, last, unit }: { m: SuccessMetric; main: boolean; l
       <T style={{ textAlign: 'right' }}>
         <Mono size={12} color={hud.muted}>{`${m.start == null ? '—' : f(m.start)} → `}</Mono>
         <Mono size={17} color={m.reference ? hud.muted : hud.white}>{m.now == null ? '—' : f(m.now)}</Mono>
-        <Mono size={10} color={hud.muted}>{` ${isKg ? unit.toUpperCase() : m.key === 'body_fat' ? '%' : ''}`}</Mono>
+        <Mono size={10} color={hud.muted}>{` ${isKg ? unitLabel(unit) : m.key === 'body_fat' ? '%' : ''}`}</Mono>
       </T>
       <Mono size={13} color={m.ok ? hud.green : hud.muted} style={{ width: 52, textAlign: 'right' }}>{delta}</Mono>
     </View>
