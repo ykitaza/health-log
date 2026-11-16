@@ -71,7 +71,7 @@ export function HomeReportsCard() {
         </View>
         {report ? (
           <>
-            <ReportCard report={report} onPress={() => router.push({ pathname: '/reports/[id]', params: { id: report.id } })} />
+            <ReportCard dense report={report} onPress={() => router.push({ pathname: '/reports/[id]', params: { id: report.id } })} />
             <Button label="チャットで作る" icon="chat" variant="text" small accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report}
               style={{ alignSelf: 'flex-end', paddingLeft: 12, paddingRight: 12, marginRight: space.s }} testID="report-chat" />
           </>

@@ -20,7 +20,7 @@ export type TagCandidate = { tag: HeroTag; need: number | null };
 export function recoveryCandidates(list: PartRecovery[]): TagCandidate[] {
   return list.map((p) => {
     const text = recoveryShortText(p);
-    return { tag: { key: p.name, part: p.name, lead: p.name, main: text, sub: '', spoken: `${p.name} ${text}` }, need: p.remaining };
+    return { tag: { key: p.name, part: p.name, lead: p.name, main: text, sub: '', spoken: `${p.name} ${text}`, stack: true }, need: p.remaining };
   });
 }
 

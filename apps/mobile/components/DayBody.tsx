@@ -30,12 +30,14 @@ export type DayBodyProps = {
   perSide?: number;
   /** 2D の図を押した（前か後ろ、図の座標の点。ホームのヒーロー。3D は onPick）。渡すと図が押せる（図の上に、札より下の面を置く） */
   onPickPoint?: (view: MuscleView, point: { x: number; y: number }) => void;
+  /** 2D の図：図の外側にある輪の内側の半径（ホームのヒーロー）。渡すと、部位の札（kicker）が輪にかからないよう、図を小さくして札の幅を確保する */
+  ringR?: number;
 } & Pick<DayBody3DProps, 'recovery' | 'idle' | 'levelColor' | 'idleColor' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
-export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, perSide, onPickPoint, ...rest }: DayBodyProps) {
+export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, perSide, onPickPoint, ringR, ...rest }: DayBodyProps) {
   const figure2D = fallback ?? (
-    <Figure2D width={width} band={band} entries={entries} parts={parts} fills={fills} perSide={perSide} onPickPoint={onPickPoint}
+    <Figure2D width={width} band={band} entries={entries} parts={parts} fills={fills} perSide={perSide} onPickPoint={onPickPoint} ringR={ringR}
       onPressEntry={rest.onPressEntry} shield={rest.shield} />
   );
   return DayBody3D ? <DayBody3D width={width} height={height} entries={entries} parts={parts} band={band} fallback={figure2D} {...rest} /> : figure2D;
@@ -80,31 +82,49 @@ export function DayBodyForDate({ date, unit, ...rest }: Omit<DayBodyProps, 'entr
 }
 
 const FIG_GAP = space.s;
+/** 部位の札の幅の目安（「背中 あと2日」「23セット」が収まる）。輪の内側の端と札のあいだの余白 */
+const TAG_NEED = 74;
+const RING_CLEAR = 12;
+/** 輪の端を測る、中心の高さからのずれ（札は中ほどに並ぶ） */
+const RING_DY = 40;
+const MIN_FIG_H = 120;
 
 /**
  * 2D の図（前と後ろ）：その日の部位を緑で塗り（fills があればその色）、種目の札を引き出し線でつなぐ（並べ方は記録の画面と同じ lib/dayCallouts.ts）。
  * onPressEntry があれば札を押せる（shield は図と札のあいだに重ねる）
  */
-function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint, onPressEntry, shield }: {
+function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint, onPressEntry, shield, ringR }: {
   width: number; band: { top: number; bottom: number }; entries: DayBodyEntry[]; parts: string[]; fills?: Partial<Record<Muscle, string>>;
-  perSide?: number; onPickPoint?: DayBodyProps['onPickPoint']; onPressEntry?: (key: string | null) => void; shield?: ReactNode;
+  perSide?: number; onPickPoint?: DayBodyProps['onPickPoint']; onPressEntry?: (key: string | null) => void; shield?: ReactNode; ringR?: number;
 }) {
-  const figH = Math.min(200, band.bottom - band.top);
+  // 輪（ホームのヒーロー）があれば札を輪の内側に収める：輪の内側の端（中心の高さから少しずれた所）から札の最小の幅を引いた分だけ、図の幅を使う。足りなければ図を小さくする
+  const ringMax = ringR != null
+    ? width / 2 + Math.sqrt(Math.max(0, (ringR - RING_CLEAR) ** 2 - RING_DY ** 2))
+    : null;
+  const bandH = band.bottom - band.top;
+  const figHMax = ringMax != null ? Math.max(MIN_FIG_H, 2 * (ringMax - width / 2 - FIG_GAP / 2 - 4 - TAG_NEED)) : 200;
+  const figH = Math.min(200, bandH, figHMax);
   const figW = figH / 2;
   const scale = figH / 200;
   const frontX = (width - (figW * 2 + FIG_GAP)) / 2;
   const backX = frontX + figW + FIG_GAP;
-  const tagW = Math.min(DAY_TAG_W, Math.max(0, frontX - 4));
+  // 札の置き場：左は図の左から、右は図の右から。輪があれば輪の内側まで（左右対称）。なければ画面の端まで
+  const leftEdge = ringMax != null ? width - ringMax : 0;
+  const rightEdge = ringMax ?? width;
+  const tagWL = Math.min(DAY_TAG_W, Math.max(0, frontX - 4 - leftEdge));
+  const tagWR = ringMax != null ? Math.min(DAY_TAG_W, Math.max(0, rightEdge - (backX + figW + 4))) : tagWL;
+  const xL = ringMax != null ? frontX - 4 : tagWL;
+  const xR = ringMax != null ? backX + figW + 4 : width - tagWR;
   const layout = layoutCallouts(entries.map((e) => ({ key: e.key, no: e.no, part: e.part })), {
     figureHeight: figH, minHeight: figH, slot: tagHeight(entries), gap: 4, perSide,
   });
   const byKey = new Map(entries.map((e) => [e.key, e]));
   const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: band.top + p.y * scale });
-  const lines = [...layout.left.map((c) => ({ c, x: tagW })), ...layout.right.map((c) => ({ c, x: width - tagW }))]
+  const lines = [...layout.left.map((c) => ({ c, x: xL })), ...layout.right.map((c) => ({ c, x: xR }))]
     .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + tagHeight(entries) / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
   const paint = musclesForParts(parts);
   const tag = (c: PlacedCallout, side: 'left' | 'right'): ReactNode => {
-    const style = { position: 'absolute', [side]: 0, top: band.top + c.top, width: tagW } as const;
+    const style = { position: 'absolute', left: side === 'left' ? xL - tagWL : xR, top: band.top + c.top, width: side === 'left' ? tagWL : tagWR } as const;
     return c.kind === 'more'
       ? <MoreTag key={`more-${side}`} nos={c.nos} style={style} onPress={onPressEntry && (() => onPressEntry(null))} />
       : <DayBodyTag key={c.key} e={byKey.get(c.key)!} align={side === 'left' ? 'right' : 'left'} style={style} onPress={onPressEntry && (() => onPressEntry(c.key))} />;

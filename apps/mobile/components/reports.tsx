@@ -86,9 +86,10 @@ const PLACEHOLDER_METRIC: Metric = { label: '\u00A0', value: 0, unit: '', delta:
  * 1つだけになったときは縮めて（名前を「…」で）収める。指標がなくても、見えない札で同じ高さを取る（カードの高さをそろえる）。
  * 高さは文字の行で決まるので、文字の大きさの設定に合わせて伸びる
  */
-function MetricRow({ metrics }: { metrics: Metric[] }) {
+function MetricRow({ metrics, hideEmpty = false }: { metrics: Metric[]; hideEmpty?: boolean }) {
   const [width, setWidth] = useState(0);
   const [ends, setEnds] = useState<Record<number, number>>({});
+  if (metrics.length === 0 && hideEmpty) return null;
   if (metrics.length === 0) {
     return (
       <View style={{ flexDirection: 'row', opacity: 0 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="report-metrics-empty">
@@ -139,7 +140,7 @@ function KindSquare({ kind }: { kind: ReportKind }) {
  * 高さは固定の数字ではなく行の数で決める（文字の大きさの設定を大きくしても、文字が切れて読めなくならない）。
  * unread（まだ開いていない）なら、題の横に「新着」の札（読み上げにも入れる）
  */
-export function ReportCard({ report, onPress, unread = false }: { report: Report; onPress: () => void; unread?: boolean }) {
+export function ReportCard({ report, onPress, unread = false, dense = false }: { report: Report; onPress: () => void; unread?: boolean; dense?: boolean }) {
   const tone = toneColors[report.tone];
   const metrics = primaryMetrics(report);
   return (
@@ -166,7 +167,7 @@ export function ReportCard({ report, onPress, unread = false }: { report: Report
         </View>
         {/* 要約がなくても1行ぶんを取る（ふつうの空白だと web で高さがなくなるので、詰めない空白） */}
         <T size={14} color={colors.sub} numberOfLines={1}>{report.headline || '\u00A0'}</T>
-        <MetricRow metrics={metrics} />
+        <MetricRow metrics={metrics} hideEmpty={dense} />
       </View>
       <View style={{ justifyContent: 'center', paddingRight: 12 }}>
         <Icon name="chevron" size={20} color={colors.sub} />

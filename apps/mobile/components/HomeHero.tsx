@@ -362,7 +362,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   const volumeText = ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}` : '';
   return (
     <>
-      <DayBody width={width} height={height} entries={tags} perSide={4} band={band} onPick={onPickMesh} onPickPoint={onPickPoint} shield={<SwipeShield width={width} rotate={rotate} />}
+      <DayBody width={width} height={height} entries={tags} perSide={4} band={band} ringR={Math.min(width, height) / 2 - 12} onPick={onPickMesh} onPickPoint={onPickPoint} shield={<SwipeShield width={width} rotate={rotate} />}
         {...(byVolume && volumeBody
           ? { parts: NO_PARTS, recovery: volumeBody.glow, idle: volumeBody.idle, injuries, fills: volumeBody.fills, levelColor: volumeGlowColor, idleColor: volumePalette.empty }
           : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
