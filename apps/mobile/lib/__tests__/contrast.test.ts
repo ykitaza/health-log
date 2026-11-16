@@ -1,5 +1,17 @@
 import { contrastRatio } from '../contrast';
-import { cautionBand, colors, hudColors, onToneSub, PART_COLORS, toneColors, volumePalette } from '@/theme';
+import {
+  cautionBand, CLASSIC_COLORS, CLASSIC_METER_COLORS, colors, HUD_COLORS, HUD_METER_COLORS, MeterPalette, onToneSub, Palette, PART_COLORS,
+  toneColors, volumePalette,
+} from '@/theme';
+
+/**
+ * 見た目ごとの色の組（HUD は今の見た目、クラシックは次の PR で Figma に合わせて直す仮の値）。
+ * gaps は、仮の値でまだ足りない組み合わせ。test.failing にして、直したら外さないと落ちるようにする
+ */
+const LOOKS: [string, Palette, MeterPalette, ReadonlySet<string>][] = [
+  ['HUD', HUD_COLORS, HUD_METER_COLORS, new Set()],
+  ['クラシック', CLASSIC_COLORS, CLASSIC_METER_COLORS, new Set(['danger on card', 'danger on input', 'meter text', 'meter mint1'])],
+];
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -13,11 +25,12 @@ describe('コントラスト比の計算', () => {
   });
 });
 
-describe('theme の色の組み合わせ（画面で文字に使っているもの）', () => {
-  const text: [keyof typeof colors, keyof typeof colors][] = [
+describe.each(LOOKS)('theme の色の組み合わせ（画面で文字に使っているもの）：%s', (_, colors, __, gaps) => {
+  const check = (name: string) => (gaps.has(name) ? test.failing : test);
+  const text: [keyof Palette, keyof Palette][] = [
     // 本文・補足・強調・エラー・注意の文字と、画面・カード・入力欄の背景
     ...(['text', 'sub', 'accent', 'danger', 'star'] as const).flatMap((fg) =>
-      (['bg', 'card'] as const).map((bg) => [fg, bg] as [keyof typeof colors, keyof typeof colors])),
+      (['bg', 'card'] as const).map((bg) => [fg, bg] as [keyof Palette, keyof Palette])),
     ['text', 'input'], ['sub', 'input'], ['accent', 'input'], ['star', 'input'],
     ['accent', 'accentDark'], ['text', 'accentDark'], // 選んだチップ、記録のある日、バッジ
     ['danger', 'dangerDark'], // 消すボタン、未来の日の知らせ
@@ -28,14 +41,16 @@ describe('theme の色の組み合わせ（画面で文字に使っているも�
     ['inverseAccent', 'text'], // スナックバーの「元に戻す」
     ['card', 'text'], // スナックバーの文（引っぱって同期の知らせ）
   ];
-  test.each(text)('%s の文字 on %s は 4.5:1 以上', (fg, bg) => {
-    expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(4.5);
-  });
+  for (const [fg, bg] of text) {
+    check(`${fg} on ${bg}`)(`${fg} の文字 on ${bg} は 4.5:1 以上`, () => {
+      expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 
   // 文字でないもの：入力欄・チップの枠、使えないアイコン、前の週の棒
   test.each([
     ['outline', 'card'], ['outline', 'bg'], ['disabled', 'card'], ['accentMuted', 'input'],
-  ] as [keyof typeof colors, keyof typeof colors][])('%s on %s は 3:1 以上', (fg, bg) => {
+  ] as [keyof Palette, keyof Palette][])('%s on %s は 3:1 以上', (fg, bg) => {
     expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(3);
   });
 
@@ -44,7 +59,7 @@ describe('theme の色の組み合わせ（画面で文字に使っているも�
   });
 });
 
-describe('レポートの調子の色', () => {
+describe.each(LOOKS)('レポートの調子の色：%s', (_, colors) => {
   const tones = Object.entries(toneColors);
   test.each(tones)('%s：ラベル・本文・補足の文字は、調子の面の上で 4.5:1 以上', (_, t) => {
     for (const fg of [t.accent, colors.text, onToneSub]) expect(contrastRatio(fg, t.container)).toBeGreaterThanOrEqual(4.5);
@@ -60,19 +75,20 @@ describe('レポートの調子の色', () => {
   });
 });
 
-describe('ホームの計器の盤の色', () => {
-  test('LOG のマスの文字（日付・部位の頭文字）は、塗りの上で 4.5:1 以上', () => {
+describe.each(LOOKS)('ホームの計器の盤の色：%s', (_, colors, hudColors, gaps) => {
+  const check = (name: string) => (gaps.has(name) ? test.failing : test);
+  check('meter text')('LOG のマスの文字（日付・部位の頭文字）は、塗りの上で 4.5:1 以上', () => {
     expect(contrastRatio(colors.text, hudColors.mint1)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.text, hudColors.empty)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.onAccent, hudColors.mint2)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.onAccent, hudColors.mint3)).toBeGreaterThanOrEqual(4.5);
   });
-  test('いちばん薄い塗り（LOG の 1 段目・PFC の C）も、空のマスとカードの上で 3:1 以上（休みの日と見分ける）', () => {
+  check('meter mint1')('いちばん薄い塗り（LOG の 1 段目・PFC の C）も、空のマスとカードの上で 3:1 以上（休みの日と見分ける）', () => {
     for (const bg of [hudColors.empty, colors.card]) expect(contrastRatio(hudColors.mint1, bg)).toBeGreaterThanOrEqual(3);
   });
 });
 
-describe('部位の量の色', () => {
+describe.each(LOOKS)('部位の量の色：%s', (_, colors) => {
   const levels = [volumePalette.empty, ...volumePalette.steps];
   test('どの段も、カードの上で 3:1 以上', () => {
     for (const c of volumePalette.steps) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);

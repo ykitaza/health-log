@@ -5,6 +5,7 @@ import { BalanceRange, parseBalanceRange } from '@/lib/partBalance';
 import { HeroBodyMode, parseHeroBodyMode } from '@/lib/partVolume';
 import type { SwipeHintKind, SwipeHintState } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
+import { LOOK_KEY, Look, mirrorLook, parseLook } from '@/theme/appearance';
 import { serializeWrites } from '../serial';
 import type { Db, Deps } from '../types';
 
@@ -73,6 +74,11 @@ const VOLUME_RANGE = 'history.volume_range';
 const BALANCE_RANGE = 'history.balance_range';
 /** ホームの 3D の体の色の見方（回復か部位の量か。lib/partVolume.ts）。端末だけに覚える（同期しない sync_meta に置く） */
 const HERO_BODY_MODE = 'home.hero_body_mode';
+/**
+ * 見た目（HUD・クラシック。theme/appearance.ts）。端末だけに覚える（同期しない sync_meta に置く）。
+ * 起動の前に theme が同期で読むので、変えたらアプリを開き直すと反映される。web は localStorage にも写す
+ */
+const APPEARANCE = LOOK_KEY;
 
 /**
  * 左右のスワイプのヒント（lib/swipe.ts）。出した回数は画面ごと、スワイプで日を動かしたかは全体で1つ。
@@ -180,6 +186,13 @@ export function settingsRepository(db: Db, deps: Deps) {
     heroBodyMode: async (): Promise<HeroBodyMode> => parseHeroBodyMode(await meta(HERO_BODY_MODE)),
     /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない */
     setHeroBodyMode: (mode: HeroBodyMode): Promise<void> => putMeta(HERO_BODY_MODE, mode),
+    /** 見た目。覚えていない・知らない値なら HUD */
+    appearance: async (): Promise<Look> => parseLook(await meta(APPEARANCE)),
+    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない。web は localStorage にも写す */
+    async setAppearance(look: Look): Promise<void> {
+      await putMeta(APPEARANCE, look);
+      mirrorLook(look);
+    },
 
     swipeHint,
     /** ヒントを1回出したことを数える。同期の対象ではないので、書き込みの列（serializeWrites）には並べない */

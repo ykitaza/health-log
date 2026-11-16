@@ -142,6 +142,21 @@ describe('設定', () => {
     expect(await r.settings.heroBodyMode()).toBe('recovery');
   });
 
+  test('見た目は端末だけに覚え、同期に載せない。初めは HUD。theme/appearance.ts が起動の前に読む sync_meta の key に置く', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.appearance()).toBe('hud');
+    await r.settings.setAppearance('classic');
+    expect(await r.settings.appearance()).toBe('classic');
+    expect(db.raw.prepare("SELECT value FROM sync_meta WHERE key = 'appearance.look'").get()).toEqual({ value: 'classic' });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    await r.settings.setAppearance('hud');
+    expect(await r.settings.appearance()).toBe('hud');
+    // 知らない値は HUD
+    db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'appearance.look'").run();
+    expect(await r.settings.appearance()).toBe('hud');
+  });
+
   test('筋トレの推移の部位のバランスの期間は端末だけに覚え、同期に載せない。初めは 2週', async () => {
     const { r, db } = await setup();
     expect(await r.settings.balanceRange()).toBe('2w');

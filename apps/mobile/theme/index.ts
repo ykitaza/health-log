@@ -1,8 +1,18 @@
+import { readLook } from './appearance';
+
 /**
- * 色。値は Figma の変数コレクション「hlog 改善案」に合わせる（括弧の中は Figma の変数の名前）。
- * 画面には色を直接書かず、ここの名前を使う
+ * 見た目（HUD・クラシック）。このファイルが最初に評価されるときに 1 回だけ読み、色と飾りを決める。
+ * 画面の StyleSheet.create や、色から作る定数は、このファイルを読み込んだあとに評価されるので、そのまま選んだ見た目になる。
+ * 見た目を変えたら、アプリを開き直すと反映される
  */
-export const colors = {
+export const look = readLook();
+export const isHud = look === 'hud';
+
+/**
+ * HUD（今の見た目）の色。値は Figma の変数コレクション「hlog 改善案」に合わせる（括弧の中は Figma の変数の名前）。
+ * 画面には色を直接書かず、colors の名前を使う
+ */
+export const HUD_COLORS = {
   /** 画面の地（color/background） */
   bg: '#0E1013',
   /** カード・シート・下のタブ（color/surface） */
@@ -44,6 +54,50 @@ export const colors = {
   scrim: 'rgba(0,0,0,0.6)',
 } as const;
 
+/** 色の名前の組（HUD とクラシックで同じ名前を持つ） */
+export type Palette = { readonly [K in keyof typeof HUD_COLORS]: string };
+
+/**
+ * クラシック（飾りの少ない見た目）の色。仮の値で、Figma のデザインに合わせて次の PR で直す。
+ * 名前の意味は HUD_COLORS と同じ
+ */
+export const CLASSIC_COLORS: Palette = {
+  bg: '#121413',
+  card: '#191B1A',
+  input: '#232625',
+  line: '#2A2D2C',
+  outline: '#6B716F',
+  text: '#ECEDEA',
+  sub: '#A2A7A3',
+  accent: '#4CC38A',
+  onAccent: '#06140C',
+  accentDark: '#183527',
+  onAccentDark: '#B5E6CC',
+  accentMuted: '#3B7F5E',
+  inverseAccent: '#1B6B43',
+  danger: '#E5484D',
+  /** danger の文字が 4.5:1 以上になる暗さ */
+  dangerDark: '#281012',
+  onDangerDark: '#FFB3B5',
+  star: '#F5A524',
+  /** text を card に 38% で混ぜた色 */
+  disabled: '#696B69',
+  disabledContainer: '#323533',
+  scrim: 'rgba(0,0,0,0.6)',
+};
+
+/** 画面で使う色。見た目（look）で HUD かクラシックを選ぶ */
+export const colors: Palette = isHud ? HUD_COLORS : CLASSIC_COLORS;
+
+/**
+ * 見た目ごとの飾り。brackets は角の切り欠き、enLabels は英語の見出し（lbl）、trackedMono は字間を広げた英数字、
+ * pulse は光の明滅、scan は走査線。HUD では全部あり、クラシックでは全部なし。画面への反映は次の PR
+ */
+export const deco = { brackets: isHud, enLabels: isHud, trackedMono: isHud, pulse: isHud, scan: isHud } as const;
+
+/** 見出しの文字：HUD は英語、クラシックは日本語 */
+export const lbl = (en: string, ja: string) => (deco.enLabels ? en : ja);
+
 /**
  * 筋肉の図（components/MuscleFigure）の地の色（Figma「部品案：筋肉の図」）。muscle は筋肉のパーツ、body は頭・首・手・足。
  * その日の部位の筋肉は colors.accent で塗る
@@ -55,27 +109,31 @@ export const figureColors = {
 
 /**
  * 回復マップの色のうち、テーマの色から取るもの（lib/recoveryMap.ts の RecoveryPalette。どの状態にどれを使うかは lib が決める）。
- * 回復中の暖色とケガの赤は lib/recoveryMap.ts の LOAD_ORANGE・LOAD_YELLOW・INJURY_RED
+ * 回復中の暖色とケガの赤は lib/recoveryMap.ts の LOAD_ORANGE・LOAD_YELLOW・INJURY_RED。
+ * 色が意味を持つので、見た目（look）によらず HUD の色にする
  */
 export const recoveryPalette = {
   /** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
-  rest: colors.accent,
+  rest: HUD_COLORS.accent,
   /**
    * 回復済み（2D の図の塗り）。平らに塗る 2D で明るい緑をいちめんに塗ると、回復中の暖色より目立つので、控えめな緑にする
    * （3D の緑は弱い縁の光なので、見た目の強さがそろう）
    */
-  restFill: colors.accentMuted,
+  restFill: HUD_COLORS.accentMuted,
   /**
    * 空いている・まだ（3D の部品の光、凡例、一覧の印）。入力欄の枠と同じ灰色。
    * まだ（一度も鍛えていない）も、いちばん長く空いている部位として同じ灰色にする（緑だと回復済みと見分けられない）。見分けは文字（「まだ」と「空いて N日」）
    */
-  idle: colors.outline,
+  idle: HUD_COLORS.outline,
   /** 空いている・まだ（2D の図の塗り）。色を付けない筋肉と同じ灰色 */
   idleFill: figureColors.muscle,
 } as const;
 
-/** その日の体で鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑）。lib/dayBody.ts の dayBodyGlow の levels に使う */
-export const TRAINED_GLOW = colors.onAccentDark;
+/**
+ * その日の体で鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑）。lib/dayBody.ts の dayBodyGlow の levels に使う。
+ * 回復マップの色と並ぶので、見た目によらず HUD の色にする
+ */
+export const TRAINED_GLOW = HUD_COLORS.onAccentDark;
 
 /** 入力のヒント（placeholder）の色 */
 export const placeholderColor = colors.sub;
@@ -95,17 +153,31 @@ export const volumePalette = {
  * ホームの計器の盤（刷新 A）の色。ミント 1 色の濃淡（LOG の負荷量の 3 段・PFC のドーナツ）と、空のマス・輪の地。
  * mint1 の上の文字は colors.text、mint2・mint3 の上の文字は colors.onAccent（どちらも 4.5:1 以上）。いちばん薄い mint1 も、空のマス・カードの上で 3:1 以上
  */
-export const hudColors = {
+export const HUD_METER_COLORS = {
   mint1: '#327D55',
   mint2: '#44A872',
-  mint3: colors.accent,
+  mint3: HUD_COLORS.accent,
   /** 空のマス・計器の棒の地 */
-  empty: colors.input,
+  empty: HUD_COLORS.input,
   /** 輪の空の目盛り・方眼の地の線 */
   ring: '#2A2F37',
   /** 角の切り欠き（ブラケット） */
-  bracket: colors.accentMuted,
+  bracket: HUD_COLORS.accentMuted,
 } as const;
+
+export type MeterPalette = { readonly [K in keyof typeof HUD_METER_COLORS]: string };
+
+/** クラシックの計器の色（仮の値。次の PR で直す）。ミントの濃淡ではなく灰色の濃淡にする */
+export const CLASSIC_METER_COLORS: MeterPalette = {
+  mint1: '#3A3F3D',
+  mint2: '#5A615E',
+  mint3: CLASSIC_COLORS.accent,
+  empty: CLASSIC_COLORS.input,
+  ring: CLASSIC_COLORS.line,
+  bracket: CLASSIC_COLORS.accentMuted,
+};
+
+export const hudColors: MeterPalette = isHud ? HUD_METER_COLORS : CLASSIC_METER_COLORS;
 
 /**
  * レポートの調子（overall_tone・highlights の tone）の色（Figma の color/tone-good・tone-good-container など）。
