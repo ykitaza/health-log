@@ -82,7 +82,7 @@ function TodoCount({ steps, done }: { steps: string[]; done: number[] }) {
 
 /**
  * ホームの今週やることから、その一歩を書いた週のまとめの詳細（締めの「来週の焦点」で同じチェックができる）を直接開く入口（押せる大きさ 48）。
- * レポートのタブを通すと、タブが裏に残るため2回目以降は詳細に着かない
+ * その1件を指すので、タブではなく /reports/[id] を開く（戻るでホームへ戻る）
  */
 function TodoAllLink({ reportId }: { reportId: string }) {
   return (

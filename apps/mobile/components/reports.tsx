@@ -178,8 +178,8 @@ export function ReportCard({ report, onPress, unread = false }: { report: Report
 
 /**
  * ホームの「最新のレポート」。いちばん新しい1件と「すべて」、その下に小さな「チャットで作る」。
- * 「すべて」は一覧がなくなったので、いちばん新しいレポートの詳細を直接開く（日・週・月は詳細の上の期間タブで切り替える。
- * レポートのタブを通すと、タブが裏に残るため2回目以降は詳細に着かない）。
+ * 「すべて」は、レポートのタブへ移る（タブが最新の詳細をそのまま出す。日・週・月は詳細の上の期間タブで切り替える。
+ * ここで /reports/[id] を重ねると、同じ詳細がタブと重なって2つになるため）。いちばん新しい1件のカードは、その詳細（/reports/[id]）を開く（戻るでホームへ戻る）。
  * まだないときは、チャットで頼む方法を短く書き、「チャットで作る」のボタンを出す
  */
 export function LatestReportCard() {
@@ -193,7 +193,7 @@ export function LatestReportCard() {
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます"
-            onPress={() => router.push({ pathname: '/reports/[id]', params: { id: data.id } })}
+            onPress={() => router.navigate('/reports')}
             style={{ minHeight: 48, minWidth: 48, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}
           >
             <T bold size={14} color={colors.accent}>すべて</T>

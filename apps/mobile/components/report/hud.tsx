@@ -1,4 +1,4 @@
-// レポート詳細画面（app/reports/[id].tsx と components/report/*）だけの見た目の部品。
+// レポート詳細画面（components/report/ReportDetail.tsx と components/report/*）だけの見た目の部品。
 // 承認済みのモック（ブランチ docs/report-mock の docs/report-mock/index.html。Issue #203）の文法：
 // 近黒のフラットなパネル＋1px の枠、角の切り欠き（左上と右下）、等幅の英字マイクロラベル、密な2段のステータス行
 // （英字の小ラベル＋和文／値は右）、色はミント（colors.accent）とモノクロだけ、装飾の効果はなし。

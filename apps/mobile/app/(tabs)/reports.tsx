@@ -1,14 +1,13 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { REPORT_CHAT_LABEL, SCHEDULE_LABEL, useChatChooser, useScheduleSheet } from '@/components/ChatSheet';
-import { LoadError } from '@/components/LoadError';
-import { ReportCard } from '@/components/reports';
+import { ReportDetail, ReportSource } from '@/components/report/ReportDetail';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Button, Card, EmptyState, Fab, TabHeader } from '@/components/ui';
-import { useFocusData } from '@/hooks/data';
-import { colors, size, space } from '@/theme';
+import { useRepos } from '@/hooks/data';
+import { size, space } from '@/theme';
 
 const EXAMPLES = ['「今週のまとめを作って」', '「10月の筋トレと食事をふり返って、レポートに残して」', '「先月のまとめを作って」'];
 
@@ -18,99 +17,63 @@ const isPeriodKind = (v: string | undefined): v is PeriodKind => v === 'daily' |
 /** 日付のパラメータ（'YYYY-MM-DD' の形だけ受ける。db/repositories/reports.ts の scheduleRequestedOn と同じ確かめ方） */
 const isDateParam = (v: string | undefined): v is string => v != null && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/** チャットの戻りリンク（torelog://reports?date=…&kind=…）から受けた、開くレポートの指定 */
-type LinkRequest = { date: string | null; kind: PeriodKind };
-
 /**
- * レポートのタブ（下のタブの5つ目）。一覧（カードの並び）と「やること」のペインは廃止し、開いたらレポートの詳細
- * （/reports/[id]）へ直行する入口だけの画面（app/workout/index.tsx の移行画面と同じ形）。行き先は：
- * - 通常は、最新の生成済みレポート（kind が 'other' のものは除く。db/repositories/reports.ts の latest）
+ * レポートのタブ（下のタブの5つ目）。最新の生成済みレポートの詳細（components/report/ReportDetail.tsx）を、タブの中にそのまま出す。
+ * 詳細へ移る入口の画面はない（以前は /reports/[id] へ1回だけ移り、戻ると入口のカードが出ていた）。
+ * - 通常は、最新の生成済みレポート（kind が 'other' のものは除く。db/repositories/reports.ts の latest）。種類の切り替えは詳細の中の期間タブで行う
  * - チャットの返事の「KARADA で見る」リンク（torelog://reports?date=…&kind=…。app/+native-intent.tsx が /reports?date=…&kind=… に変える）から
  *   開いたときは、その期間に date を含む、その種類（kind。なければ日）のレポート。なければその種類の最新、
- *   それもなければ最新の生成済みレポートに落ちる（db/repositories/reports.ts の forLink）
- * - ホームの「すべて」・新しいレポートのお知らせ・今週やることの「すべて」は、ここを通らず詳細（/reports/[id]）を直接開く
- *   （この画面はタブとして裏に残り、下の「1回だけ」の印も残るため、ここを通すと2回目以降は詳細に着かない）
- * 通常の入口は、読み込めた時点で1回だけ詳細へ移る（戻るで戻ってきたときは移り直さず、下の入口を出す。
- * 移り直すと、戻る操作が詳細との往復になってしまうため）。リンクからの指定は、その都度移る。
+ *   それもなければ最新の生成済みレポート（db/repositories/reports.ts の forLink）。そのままタブに出す（画面は増やさない）。
+ *   別のタブへ移ったら、その指定は忘れる（次に開いたときは最新）
+ * - ホームの「すべて」とお知らせの「見る」（2件以上）は、このタブへ移る。1件を指す入口（最新のカード・お知らせの1件・今週やること・
+ *   日のまとめのカード）は /reports/[id] を開く（戻るで来た画面へ戻る）
  * まだ1件もなければ、チャットで作る方法と頼み方の例を出す。
- * 右上の「自動で作る」（ChatGPT のスケジュール）と右下の「レポートを作る」（チャットのシート）は、これまでどおりこの画面に置く。
- * 種類の切り替えは詳細の中の期間タブで行う（order・view のパラメータは、もう行き先を変えない）
+ * 右上の「自動で作る」（ChatGPT のスケジュール）と右下の「レポートを作る」（チャットのシート）は、詳細の上にそのまま置く
  */
 export default function ReportsScreen() {
   const params = useLocalSearchParams<{ date?: string; kind?: string }>();
-  const [request, setRequest] = useState<LinkRequest | null>(null);
-  const [hadRequest, setHadRequest] = useState(false);
+  const [source, setSource] = useState<ReportSource>({ type: 'latest' });
   // リンクのパラメータを受けたら取り込み、URL からは消す（次に同じリンクを開いたときも動くように）
   useEffect(() => {
     if (!isDateParam(params.date) && !isPeriodKind(params.kind)) return;
-    setRequest({ date: isDateParam(params.date) ? params.date : null, kind: isPeriodKind(params.kind) ? params.kind : 'daily' });
-    setHadRequest(true);
+    setSource((s) => ({
+      type: 'link', kind: isPeriodKind(params.kind) ? params.kind : 'daily', date: isDateParam(params.date) ? params.date : null,
+      nonce: s.type === 'link' ? s.nonce + 1 : 0,
+    }));
     router.setParams({ date: undefined, kind: undefined });
   }, [params.date, params.kind]);
+  // 別のタブへ移ったら、リンクの指定は忘れる
+  useFocusEffect(useCallback(() => () => setSource((s) => (s.type === 'link' ? { type: 'latest' } : s)), []));
 
-  // 読み込み中（data が null）と、レポートがまだない（latest が null）を分けるため、latest を包んで返す
-  const { data, error, reload, repos } = useFocusData(async (r) => {
-    if (request) return { latest: await r.reports.forLink(request.kind, request.date), forRequest: true };
-    return { latest: await r.reports.latest(), forRequest: false };
-  }, request ? `link:${request.kind}:${request.date ?? ''}` : 'latest');
+  const repos = useRepos();
   const chat = useChatChooser();
   const schedule = useScheduleSheet();
-  // 通常の入口で詳細へ移ったかどうか（この画面が裏に残っているあいだは1回だけ。戻ってきたら入口を出す）
-  const moved = useRef(false);
-  const latest = data?.latest ?? null;
-  useEffect(() => {
-    if (!latest || !data) return;
-    if (data.forRequest) {
-      // リンクからの指定は、通常の入口の「1回だけ」とは別に、その都度移る
-      router.push({ pathname: '/reports/[id]', params: { id: latest.id } });
-      setRequest(null);
-      moved.current = true;
-      return;
-    }
-    if (moved.current) return;
-    moved.current = true;
-    router.push({ pathname: '/reports/[id]', params: { id: latest.id } });
-  }, [latest, data]);
   // 押したときに読む（まだ作っていないまとめがあれば、それをまとめて頼む文で開く）
   const make = async () => {
     const items = await repos.achievements.pending().catch(() => []);
     if (items.length > 0) chat.pending(items); else chat.report();
   };
-  const header = (
-    <TabHeader title="レポート"
-      actions={<Button label="自動で作る" icon="calendar" variant="text" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open}
-        style={{ paddingLeft: 12, paddingRight: 12 }} testID="report-schedule" />} />
+  const scheduleButton = (
+    <Button label="自動で作る" icon="calendar" variant="text" small accessibilityLabel={SCHEDULE_LABEL} onPress={schedule.open}
+      style={{ paddingLeft: 12, paddingRight: 12 }} testID="report-schedule" />
   );
-  const frame = (body: ReactNode) => (
+  const empty = (
+    <Screen tab fab bottomSpace={size.fab + space.l * 2}>
+      <TabHeader title="レポート" actions={scheduleButton} />
+      <EmptyState icon="chart" title="レポートはまだありません" body="チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。"
+        action={<Button label="チャットで作る" icon="chat" variant="tonal" accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report} />} />
+      <Card style={{ gap: 8 }}>
+        <T bold size={14} accessibilityRole="header">頼み方の例</T>
+        {EXAMPLES.map((e) => <T key={e} size={14}>・{e}</T>)}
+      </Card>
+    </Screen>
+  );
+  return (
     <View style={{ flex: 1 }}>
-      <Screen tab fab bottomSpace={size.fab + space.l * 2}>
-        {header}
-        {body}
-      </Screen>
+      <ReportDetail source={source} action={scheduleButton} empty={empty} />
       <Fab label="レポートを作る" onPress={make} style={{ position: 'absolute', right: space.l, bottom: space.l }} testID="report-make" />
       {chat.sheet}
       {schedule.sheet}
     </View>
-  );
-  if (error) return frame(<LoadError onRetry={reload} />);
-  if (data == null) return frame(null);
-  if (latest == null) {
-    return frame(
-      <>
-        <EmptyState icon="chart" title="レポートはまだありません" body="チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。"
-          action={<Button label="チャットで作る" icon="chat" variant="tonal" accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report} />} />
-        <Card style={{ gap: 8 }}>
-          <T bold size={14} accessibilityRole="header">頼み方の例</T>
-          {EXAMPLES.map((e) => <T key={e} size={14}>・{e}</T>)}
-        </Card>
-      </>,
-    );
-  }
-  // 詳細への入口（自動で移る前と、戻るで戻ってきたときに出る）
-  return frame(
-    <View style={{ gap: space.m, marginTop: space.l }}>
-      <T size={14} color={colors.sub}>{hadRequest ? '選んだ期間のレポートを開きます。' : '最新の生成済みレポートを開きます。'}</T>
-      <ReportCard report={latest} onPress={() => router.push({ pathname: '/reports/[id]', params: { id: latest.id } })} />
-    </View>,
   );
 }

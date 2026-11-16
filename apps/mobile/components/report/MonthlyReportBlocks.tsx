@@ -1,6 +1,6 @@
 // 月のまとめの中身（モックの「今月」のタブ）：成長スコア → 目標への進捗（節目つき） → BIG3＋スパークライン。
 // 色はミント（colors.accent）＋モノクロだけ（tone の琥珀色は使わない）。数字はアプリの記録から計算し、レポートの文章には頼らない。
-// 並びは app/reports/[id].tsx で決める（このファイルは部品だけ。Issue #192・#203）
+// 並びは components/report/ReportDetail.tsx で決める（このファイルは部品だけ。Issue #192・#203）
 import { View } from 'react-native';
 import { useFocusData, useGrowthData } from '@/hooks/data';
 import type { DateKey } from '@/lib/date';
