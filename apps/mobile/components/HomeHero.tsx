@@ -1,6 +1,7 @@
 // ホームのヒーロー（刷新 A、Figma「スタディ：フェーズ」の 6・7）：輪の上にフェーズの 1 行、外の輪（フェーズの週。過ぎた週はミント）、
 // 輪の中に 3 ページ LATEST → INJURY（直している途中のケガがあるときだけ）→ GROWTH。計算は lib/homeHero.ts。
-// LATEST の体は回復の色（からだのタブの回復マップと同じ）で塗る。RECOVERY のページはやめた（2026-11-15 ユーザーの要望）
+// LATEST の体は回復の色（からだのタブの回復マップと同じ）で塗る。RECOVERY のページはやめた（2026-11-15 ユーザーの要望）。
+// 体の下の「回復」「部位の量」の切り替えで、今週の部位ごとのセット数の色（ホームの「今週の部位」と同じ）にもできる（3D の Canvas は 1 つのまま。選んだものは端末に覚える）
 // - 横スワイプ（またはページの印を押す）で切り替える。最初のページはふだん LATEST、療養中は INJURY。前に見たページは覚えない
 // - 見えているページだけを描く（3D の体はそのページに来たときに読み込み、2 つ同時には描かない）
 // - 3D の体を回すのは輪の中の体の列の上だけ。それ以外の横スワイプはページの切り替え（縦のスクロール・引っぱって同期は止めない）
@@ -10,6 +11,7 @@ import { PanResponder, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
+import { useRepos } from '@/hooks/data';
 import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/lib/date';
 import { tonnes } from '@/lib/format';
 import {
@@ -17,11 +19,12 @@ import {
   phaseLine, PhaseRoute, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
+import { HeroBodyMode, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PartVolume, volumeGlowLevel, volumeMuscleLevels } from '@/lib/partVolume';
 import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, hudColors, recoveryPalette, size, space } from '@/theme';
+import { colors, hudColors, recoveryPalette, size, space, volumePalette } from '@/theme';
 import { DayBody } from './DayBody';
 import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { usePageSlide } from './DayPicker';
@@ -29,8 +32,10 @@ import { HeroBody } from './HeroBody';
 import { Brackets } from './homeHud';
 import { GrowthPage } from './home';
 import { Mono } from './injuries';
+import { volumeColor } from './PartVolumeCard';
 import { PressableScale } from './motion';
 import { T } from './Text';
+import { Segmented } from './ui';
 
 export type HeroLatest = {
   session: LatestSession;
@@ -50,6 +55,10 @@ export type HeroData = {
   recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[] };
   injury: { fixing: Injury[]; numbers: Map<string, string>; corners: InjuryCorners };
   growth: GrowthCorners;
+  /** 今週の部位ごとのセット数（体を部位の量の色にするとき。ホームの「今週の部位」と同じ） */
+  volume: PartVolume | null;
+  /** 覚えていた体の色の見方 */
+  bodyMode: HeroBodyMode;
 };
 
 /** 四隅の数字の高さ（札はこの内側の上下に置く） */
@@ -75,6 +84,14 @@ export function HomeHero({ today, unit, latest, ready, data }: {
   const [chosen, setChosen] = useState<HeroPage | null>(null);
   const pages = data?.pages ?? null;
   const page: HeroPage | null = !pages ? null : chosen ? keepHeroPage(chosen, pages) : initialHeroPage(pages, data!.phase.kind === 'rehab');
+  // 体の色の見方（選ぶまでは覚えていたもの。選んだら端末に覚える）
+  const repos = useRepos();
+  const [pickedMode, setPickedMode] = useState<HeroBodyMode | null>(null);
+  const mode: HeroBodyMode = pickedMode ?? data?.bodyMode ?? 'recovery';
+  const chooseMode = (m: HeroBodyMode) => {
+    setPickedMode(m);
+    repos.settings.setHeroBodyMode(m).catch(() => {});
+  };
   const [w, setW] = useState(0);
   const h = heroHeight(w);
   const r = Math.min(w, h) / 2 - 12;
@@ -130,7 +147,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
             <Animated.View style={[StyleSheet.absoluteFill, anim]} pointerEvents="box-none">
               {page === 'latest' && (
                 <LatestPage width={w} height={h} today={today} unit={unit} latest={latest} ready={ready} rotate={rotate}
-                  recovery={recovery} injuries={data?.injury.fixing ?? NO_INJURIES} />
+                  recovery={recovery} injuries={data?.injury.fixing ?? NO_INJURIES} volume={data?.volume ?? null} mode={mode} onMode={chooseMode} />
               )}
               {page === 'injury' && data && (
                 <InjuryPage width={w} height={h} band={band} rotate={rotate} data={data} />
@@ -289,6 +306,11 @@ const openTrainingDay = (date: DateKey, entry?: string | null) =>
 const openInjuries = () => router.navigate({ pathname: '/training', params: { view: 'injury' } });
 const openInjury = (id: string) => router.push(`/injuries/${id}`);
 
+/** 体の色の見方の切り替え */
+const BODY_MODES: { key: HeroBodyMode; label: string }[] = [{ key: 'recovery', label: '回復' }, { key: 'volume', label: '部位の量' }];
+/** 部位の量の色：光の明るさ k（段 ÷ 5）から段の色（theme の volumePalette）。場面を設定し直さないよう、変わらない関数にする */
+const volumeGlowColor = (k: number) => volumeColor(volumeGlowLevel(k));
+
 /** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
 const NO_PARTS: string[] = [];
 const NO_INJURIES: Injury[] = [];
@@ -300,9 +322,9 @@ const NO_INJURIES: Injury[] = [];
  * その日の部位をミントで光らせると緑のホログラムに緑が重なって分からない（2026-11-15 ユーザーの要望）。recovery が null（一度も鍛えていない）なら今までどおり。
  * 押すと：日付・種目の数・合計負荷量はその日の記録、種目の札はその日の記録のその種目、自己ベストは 1 種目ならその種目の推移、ほかは種目ごとの自己ベスト
  */
-function LatestPage({ width, height, today, unit, latest, ready, rotate, recovery, injuries }: {
+function LatestPage({ width, height, today, unit, latest, ready, rotate, recovery, injuries, volume, mode, onMode }: {
   width: number; height: number; today: DateKey; unit: WeightUnit; latest: HeroLatest | null; ready: boolean; rotate: { left: number; width: number };
-  recovery: HeroData['recovery'] | null; injuries: Injury[];
+  recovery: HeroData['recovery'] | null; injuries: Injury[]; volume: PartVolume | null; mode: HeroBodyMode; onMode: (m: HeroBodyMode) => void;
 }) {
   const band = { top: CORNER_H, bottom: height - CORNER_H };
   const ss = latest?.session ?? null;
@@ -311,6 +333,14 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   const isToday = ss?.date === today;
   const recovering = recovery?.list.filter((p) => p.remaining != null) ?? [];
   const fills = useMemo(() => (recovery ? muscleFills(recovery.list, recoveryPalette) : undefined), [recovery]);
+  // 部位の量の色（今週の部位ごとのセット数の段。データが届くまでは回復のまま）
+  const byVolume = mode === 'volume' && volume != null;
+  const volumeBody = useMemo(() => {
+    if (!volume) return null;
+    const { glow, idle } = heroVolumeGlow(heroVolumeLevels(volume));
+    const muscles = Object.fromEntries(Object.entries(volumeMuscleLevels(volume)).map(([m, l]) => [m, volumeColor(l!)]));
+    return { glow, idle, fills: muscles };
+  }, [volume]);
   const spoken = !ready ? '直近のトレーニング'
     : !ss ? '直近のトレーニング。まだ記録がありません'
     : [
@@ -318,7 +348,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
       `${ss.exercises}種目 ${ss.sets}セット ${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}`,
       ss.prs.length > 0 ? `自己ベスト ${ss.prs.length}（${latest!.prNames.join('、')}）` : '',
       entries.map((e) => `${e.no} ${e.name} ${e.set}`).join('、'),
-      recovering.length > 0 ? `回復中 ${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '',
+      byVolume ? heroVolumeSpoken(volume) : recovering.length > 0 ? `回復中 ${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '',
       'その日の記録を開く',
     ].filter(Boolean).join('。');
   const open = (entry?: string | null) => { if (ss) openTrainingDay(ss.date, entry); };
@@ -332,7 +362,21 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   return (
     <>
       <DayBody width={width} height={height} entries={entries} band={band} onPressEntry={open} shield={<SwipeShield width={width} rotate={rotate} />}
-        {...(recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
+        {...(byVolume && volumeBody
+          ? { parts: NO_PARTS, recovery: volumeBody.glow, idle: volumeBody.idle, injuries, fills: volumeBody.fills, levelColor: volumeGlowColor, idleColor: volumePalette.empty }
+          : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
+      {byVolume && (
+        <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
+          <Mono size={11} color={colors.sub}>今週の部位の量</Mono>
+        </View>
+      )}
+      {volume && (
+        <View style={s.mode} pointerEvents="box-none" testID="hero-body-mode">
+          <View style={s.modeBox}>
+            <Segmented<HeroBodyMode> options={BODY_MODES} value={mode} onChange={onMode} check={false} />
+          </View>
+        </View>
+      )}
       <CornerButton at="tl" label={spoken} onPress={() => open()} disabled={!ss} testID="home-latest">
         <Corner align="left" label="LATEST //" value={!ss ? '—' : isToday ? 'TODAY' : formatShortDate(ss.date)} sub={ss ? WEEKDAY_EN[weekday(ss.date)] : ready ? 'NO LOG' : undefined} />
       </CornerButton>
@@ -421,6 +465,9 @@ const s = StyleSheet.create({
   stage: { overflow: 'hidden' },
   corner: { position: 'absolute', minWidth: size.touch, minHeight: size.touch, padding: space.s },
   shield: { position: 'absolute', top: 0, bottom: 0 },
+  caption: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' },
+  mode: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
+  modeBox: { width: 176 },
   footer: { alignItems: 'center', marginTop: space.xs },
   pager: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   pageTab: { minHeight: size.touch, minWidth: 28, alignItems: 'center', justifyContent: 'center' },

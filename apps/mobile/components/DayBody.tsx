@@ -26,7 +26,7 @@ export type DayBodyProps = {
   fallback?: ReactNode;
   /** 2D の図の筋肉ごとの塗り（ホームの LATEST：回復の色。lib/recoveryMap.ts の muscleFills）。渡した筋肉は parts の緑より先 */
   fills?: Partial<Record<Muscle, string>>;
-} & Pick<DayBody3DProps, 'recovery' | 'idle' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
+} & Pick<DayBody3DProps, 'recovery' | 'idle' | 'levelColor' | 'idleColor' | 'injuries' | 'onPick' | 'onPressEntry' | 'shield'>;
 
 /** その日の体（親の中に width × height で重ねる。位置は親が決める） */
 export function DayBody({ width, height, entries, parts, band = { top: 0, bottom: height }, fallback, fills, ...rest }: DayBodyProps) {
