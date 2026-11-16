@@ -1,31 +1,91 @@
 import { expect, Page, test } from '@playwright/test';
-import { openApp } from './helpers';
+import { button, goTab, moveToDate, openApp, openSettings, see, TODAY } from './helpers';
+import { AT, mcp, openWith } from './seed';
 
-// 見た目（HUD・クラシック）の仕組み：theme が最初に評価されるときに見た目を読み、色を選ぶ。web は localStorage の appearance.look。
-// 設定の画面はまだない（次の PR）ので、localStorage に直接入れて再読み込みする。色の選び方は jest（theme/__tests__/appearance.test.ts）
+// 見た目（HUD・クラシック）：theme が最初に評価されるときに見た目を読み、色と飾りを選ぶ。web は localStorage の appearance.look。
+// 設定の「表示」で選ぶと、確かめてから保存し（sync_meta と localStorage）、アプリを開き直す。
+// 色の選び方は jest（theme/__tests__/appearance.test.ts）、3D の場面の強さは jest（lib/__tests__/bodyScene.test.ts）。
+// クラシックは地の色が HUD と同じ（Figma「ホーム（unslop 案）」）なので、見分けはヒーローの四隅のラベル（LATEST // と 直近）で見る
 
-const HUD_BG = 'rgb(14, 16, 19)'; // #0E1013
-const CLASSIC_BG = 'rgb(18, 20, 19)'; // #121413
+const REPORT = 'aaaaaaaa-0000-4000-8000-0000000000e1';
+const latestCorner = (page: Page) => page.getByTestId('home-latest').filter({ visible: true });
 
-/** 画面の地の色（ナビゲーションのテーマと Stack の contentStyle が colors.bg で塗る、body の上のいちばん外の面） */
-const screenBg = (page: Page) =>
-  page.evaluate(() => {
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>('body, body *'))) {
-      const bg = getComputedStyle(el).backgroundColor;
-      if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
-    }
-    return null;
-  });
-
-test('localStorage の見た目で画面の地の色が変わり、消すと HUD に戻る', async ({ page }) => {
+test('localStorage の見た目でホームの見出しが変わり、消すと HUD に戻る', async ({ page }) => {
   await openApp(page);
-  expect(await screenBg(page)).toBe(HUD_BG);
+  await expect(latestCorner(page)).toContainText('LATEST //');
 
   await page.evaluate(() => localStorage.setItem('appearance.look', 'classic'));
   await openApp(page);
-  expect(await screenBg(page)).toBe(CLASSIC_BG);
+  await expect(latestCorner(page)).toContainText('直近');
+  await expect(latestCorner(page)).not.toContainText('LATEST //');
 
   await page.evaluate(() => localStorage.removeItem('appearance.look'));
   await openApp(page);
-  expect(await screenBg(page)).toBe(HUD_BG);
+  await expect(latestCorner(page)).toContainText('LATEST //');
+});
+
+test('設定でクラシックを選ぶと、確かめてから開き直し、ホームとレポートが日本語の見出しになる。HUD に戻せる', async ({ page, context }) => {
+  // 週のまとめ（レポートのタブの表の見出しを見る）
+  await openWith(page, context, [
+    { ...mcp, change_id: crypto.randomUUID(), entity_type: 'report', entity_id: REPORT, op: 'create' as const, changed_at: AT, fields: {
+      title: '今週のまとめ', kind: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08', overall_tone: 'good', headline: '脚の日が2回に増えた',
+      highlights: [{ area: 'training', tone: 'good', text: '脚の日が2回に増えた' }], next_steps: ['脚の日を2回入れる'], body: '## 筋トレ\n- 脚が増えた',
+    } },
+  ]);
+  await goTab(page, 'レポート');
+  await expect(see(page, 'Weekly Status')).toBeVisible();
+  await goTab(page, 'ホーム');
+
+  // 設定：初めは HUD。クラシックを選ぶと確かめる（やめると何も変えない）
+  await openSettings(page);
+  await expect(see(page, '選ぶとアプリを開き直して切り替えます')).toBeVisible();
+  await expect(button(page, 'HUD')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('appearance-mismatch')).toHaveCount(0);
+  await button(page, 'クラシック').click();
+  await expect(see(page, '見た目を切り替えますか？')).toBeVisible();
+  await button(page, 'やめる').click();
+  await expect(see(page, '見た目を切り替えますか？')).toHaveCount(0);
+  await expect(button(page, 'HUD')).toHaveAttribute('aria-selected', 'true');
+
+  await button(page, 'クラシック').click();
+  await Promise.all([page.waitForEvent('load'), button(page, '切り替える').click()]);
+  expect(await page.evaluate(() => localStorage.getItem('appearance.look'))).toBe('classic');
+
+  // 開き直したあと：ホームは日本語の見出し、英字の LATEST // はない
+  await moveToDate(page, TODAY);
+  await expect(latestCorner(page)).toContainText('直近');
+  await expect(see(page, 'LATEST //')).toHaveCount(0);
+  await expect(see(page, '今日の食事')).toBeVisible();
+  // レポートのタブも日本語の見出し
+  await goTab(page, 'レポート');
+  await expect(see(page, '今週の記録', { exact: true })).toBeVisible();
+  await expect(see(page, 'Weekly Status')).toHaveCount(0);
+  await expect(see(page, 'KARADA // REPORT')).toHaveCount(0);
+  await goTab(page, 'ホーム');
+
+  // 設定はクラシックを選んだ状態。保存した値と表示が同じなので、違いの知らせは出ない
+  await openSettings(page);
+  await expect(button(page, 'クラシック')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('appearance-mismatch')).toHaveCount(0);
+
+  // HUD に戻す
+  await button(page, 'HUD').click();
+  await Promise.all([page.waitForEvent('load'), button(page, '切り替える').click()]);
+  await moveToDate(page, TODAY);
+  await expect(latestCorner(page)).toContainText('LATEST //');
+  await goTab(page, 'レポート');
+  await expect(see(page, 'Weekly Status')).toBeVisible();
+});
+
+test('保存した見た目と表示が違うとき（起動のときに読めなかったなど）は、設定でそのことを知らせる', async ({ page }) => {
+  await openApp(page);
+  // 保存はクラシック（sync_meta）のまま、表示のもとになる localStorage だけを消す
+  await openSettings(page);
+  await button(page, 'クラシック').click();
+  await Promise.all([page.waitForEvent('load'), button(page, '切り替える').click()]);
+  await page.evaluate(() => localStorage.removeItem('appearance.look'));
+  await moveToDate(page, TODAY);
+  await expect(latestCorner(page)).toContainText('LATEST //');
+  await openSettings(page);
+  await expect(page.getByTestId('appearance-mismatch')).toHaveText('保存した見た目と表示が違います（開き直してください）');
 });
