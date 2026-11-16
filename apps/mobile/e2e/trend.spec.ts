@@ -152,7 +152,7 @@ test('記録があるときの推移', async ({ page }) => {
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
   });
 
-  await test.step('部位のバランス：ホームの「今週の部位」から来ても、覚えた期間のまま（28日にしない）。タブや BIG3 から開いても同じ', async () => {
+  await test.step('部位のバランス：タブや BIG3 から開いても、覚えた期間のまま（28日にしない）', async () => {
     // 前のステップで選んだ種目を外し、開き直して「すべて」から始める
     await moveToDate(page, TODAY);
     await openTrainingTrend(page);
@@ -162,14 +162,6 @@ test('記録があるときの推移', async ({ page }) => {
     await button(page, 'これまで').click();
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
 
-    // ホームの「今週の部位」（PARTS）を押しても、覚えた期間（これまで）のまま。直近28日にはしない
-    await goTab(page, 'ホーム');
-    await home('home-parts').click();
-    await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
-    await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
-    await expect(button(page, 'これまで')).toHaveAttribute('aria-selected', 'true');
-    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'false');
-
     // 覚えた期間は書き換えない：下のタブで開き直すと、これまで
     await goTab(page, 'ホーム');
     await goTab(page, '筋トレ');
@@ -177,7 +169,7 @@ test('記録があるときの推移', async ({ page }) => {
 
     // 上の切り替えで記録 → 推移に移っても、これまで
     await goTab(page, 'ホーム');
-    await home('home-parts').click();
+    await goTab(page, '筋トレ');
     await expect(card).toHaveAttribute('aria-label', /^部位のバランス、これまでのセット数。/);
     await goPane(page, '記録');
     await goPane(page, '推移');

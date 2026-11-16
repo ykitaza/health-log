@@ -2,10 +2,10 @@ import { expect, Page, test } from '@playwright/test';
 import { goTab, moveToDate, setBodyInfo } from './helpers';
 import { AT, bulkPhase, change, EXERCISE, mcp, openWith, workout } from './seed';
 
-// ホームの並び（ヒーロー → 部位の量 → FUEL → BIG3・LOAD・SLEEP と BODY → LOG → レポート）と、
+// ホームの並び（ヒーロー → FUEL → BIG3・LOAD・SLEEP と BODY → LOG → レポート）と、
 // 「部位の量」はフェーズの累計（やる気のための見方）、「回復」は今日どこを鍛えるかを決める見方、であること。
 // 集計・札の選び方は jest（partVolume.test.ts・heroTags.test.ts）。ここは画面：ブロックの並び、ヒーローの見出しと札（両方の見方）、
-// 部位の量の一覧の行、BODY の行、レポートの 1 枚のカード。記録は偽の同期サーバーから入れる。今日は 2026-11-08（日）。
+// BODY の行、レポートの 1 枚のカード。記録は偽の同期サーバーから入れる。今日は 2026-11-08（日）。
 // スクリーンショットは SHOT_DIR を渡したときだけ撮る（このファイルの最後のテスト）
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
@@ -39,7 +39,7 @@ const seed = () => [
   } },
 ];
 
-test('ホームの並びと、部位の量（フェーズの累計）・回復・BODY・レポートの 1 枚のカード', async ({ page, context }) => {
+test('ホームの並びと、ヒーローの体（回復・部位の量）・BODY・レポートの 1 枚のカード', async ({ page, context }) => {
   test.setTimeout(150_000);
   await openWith(page, context, seed());
   await setBodyInfo(page, { goal: '80' });
@@ -48,8 +48,8 @@ test('ホームの並びと、部位の量（フェーズの累計）・回復�
 
   const y = async (id: string) => (await visible(page, id).boundingBox())!.y;
 
-  await test.step('ブロックの並び：ヒーロー → 部位の量 → FUEL → 計器の段 → BODY → LOG → レポート', async () => {
-    const ids = ['home-hero', 'home-parts', 'home-fuel', 'home-big3', 'home-body', 'home-log', 'home-reports'];
+  await test.step('ブロックの並び：ヒーロー → FUEL → 計器の段 → BODY → LOG → レポート', async () => {
+    const ids = ['home-hero', 'home-fuel', 'home-big3', 'home-body', 'home-log', 'home-reports'];
     const ys = [];
     for (const id of ids) ys.push(await y(id));
     expect([...ys].sort((a, b) => a - b)).toEqual(ys);
@@ -88,26 +88,12 @@ test('ホームの並びと、部位の量（フェーズの累計）・回復�
     await expect(tags.filter({ hasText: 'あと' })).toHaveCount(0);
     await expect(visible(page, 'home-latest')).toHaveAttribute('aria-label', /増量 8週で 80セット、10月26日から11月8日。胸 23 セット、肩 12 セット、背中 16 セット、腕 9 セット、脚 20 セット、腹 0 セット。体の色は 1 週間あたりの量/);
     await expect(visible(page, 'home-latest')).not.toHaveAttribute('aria-label', /回復中/);
-    // 部位の量の見方では、一覧の行も同じ数
     await expect(visible(page, 'home-hero')).not.toContainText('少なめ');
   });
 
-  await test.step('部位の量の一覧：図なし。四角・部位・「23セット」（主）・小さな「週12」。あと・少なめ・目安の言葉なし。ケガの ▲ は残る', async () => {
-    const card = visible(page, 'home-parts');
-    await expect(card).toContainText('増量 8週の部位');
-    await expect(card).toContainText('10/26–11/8');
-    await expect(card.getByTestId('home-parts-body-figure-front')).toHaveCount(0);
-    // 週あたり = 合計 ÷ 2 週（14 日）：胸 23 → 11.5 → 12、脚 20 → 10、背中 16 → 8、肩 12 → 6、腕 9 → 4.5 → 5、腹 0
-    const row = (part: string) => visible(page, `home-parts-body-row-${part}`);
-    await expect(row('胸')).toHaveText('胸23セット週12');
-    await expect(row('脚')).toHaveText('脚20セット週10');
-    await expect(row('背中')).toHaveText('背中16セット週8');
-    await expect(row('肩')).toHaveText('肩12セット週6');
-    await expect(row('腕')).toHaveText('腕9セット週5');
-    await expect(row('腹')).toHaveText('腹0セット週0');
-    for (const gone of ['あと', '少なめ', '目安']) await expect(card).not.toContainText(gone);
-    await expect(visible(page, 'home-parts-body-injury-肩')).toBeVisible();
-    await expect(card).toHaveAttribute('aria-label', /^増量 8週の部位、10月26日から11月8日のセット数。胸 23 セット、週 12。肩 12 セット、週 6、ケガ。/);
+  await test.step('部位の量の一覧はホームにない（体の色・見出し・札だけ）', async () => {
+    await expect(page.getByTestId('home-parts')).toHaveCount(0);
+    await expect(visible(page, 'home-latest')).toHaveAttribute('aria-label', /肩 12 セット/);
   });
 
   await test.step('体を押した部位は、0 セットでも札が出る（腹 0セット）', async () => {

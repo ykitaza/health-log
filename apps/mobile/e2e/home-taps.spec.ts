@@ -114,20 +114,6 @@ test('ホームの体の札・LATEST の四隅・計器の段を押すと、そ�
     await expect(button(page, '週')).toHaveAttribute('aria-selected', 'true');
   });
 
-  await test.step('部位の量（PARTS）：推移の部位のバランスを、覚えている期間（2週）のままで', async () => {
-    await backHome(page);
-    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^直近4週の部位、10月12日から11月8日のセット数。/);
-    await visible(page, 'home-parts').click();
-    await expect(pane(page, '推移')).toHaveAttribute('aria-selected', 'true');
-    const card = visible(page, 'trend-part-balance');
-    await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 1、背中 1、腕 0、脚 3、腹 0');
-    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
-    await expectScrolledTo(card);
-    // 期間を選ぶと、ふつうの切り替えに戻る
-    await button(page, '3か月').click();
-    await expect(card).toHaveAttribute('aria-label', /^部位のバランス、直近3か月のセット数。/);
-  });
-
   await test.step('BIG3：推移の、ホームと同じカードと BIG3 の推定1RM', async () => {
     await backHome(page);
     const home = await gaugeOf(visible(page, 'home-big3'));
