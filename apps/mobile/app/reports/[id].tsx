@@ -8,7 +8,7 @@ import { ByFieldPanel, DailyChipsBlock, DailyDetailsBlock, DailyRingsBlock, Week
 import { dotDate, dotMonthDay, hud, HudFonts, Insight, Micro, Mono, Panel, SlantFill } from '@/components/report/hud';
 import { Big3Block, GoalBarBlock, GrowthScoreBlock } from '@/components/report/MonthlyReportBlocks';
 import { ReportHero } from '@/components/report/ReportHero';
-import { InjuryReviewBlock, MetricTilesBlock, PrevTodoBlock, WeeklyGoalsBlock, WeeklyRadarBlock, WeeklyStatusBlock } from '@/components/report/WeeklyReportBlocks';
+import { InjuryReviewBlock, MetricTilesBlock, PrevTodoBlock, WeeklyGoalsBlock, WeeklyVolumeBlock, WeeklyStatusBlock } from '@/components/report/WeeklyReportBlocks';
 import { T } from '@/components/Text';
 import { ConfirmDialog, IconButton } from '@/components/ui';
 import { useTodoChecks } from '@/components/WeeklyTodo';
@@ -236,7 +236,7 @@ export default function ReportScreen() {
       {/* 週 */}
       {scope?.type === 'week' && report.periodStart && report.periodEnd && (
         <>
-          <WeeklyRadarBlock end={report.periodEnd} />
+          <WeeklyVolumeBlock start={report.periodStart} end={report.periodEnd} />
           <WeeklyStatusBlock start={report.periodStart} end={report.periodEnd} />
           <WeeklyGoalsBlock start={report.periodStart} end={report.periodEnd} />
         </>

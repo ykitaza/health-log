@@ -1,5 +1,5 @@
 import {
-  big3Gauge, fuelGauge, latestSession, loadGauge, logCellLabel, logFrom, logGrid, monthSummary, partInitial, partsRadar, partStates,
+  big3Gauge, fuelGauge, latestSession, loadGauge, logCellLabel, logFrom, logGrid, monthSummary, partInitial, partStates,
   sleepGauge, volumeLevel,
 } from '../homeHud';
 import type { PartRecovery } from '../recoveryMap';
@@ -170,26 +170,7 @@ describe('LOG：週ごとの方眼', () => {
   });
 });
 
-describe('PARTS：今の 28 日と前の 28 日', () => {
-  test('2 つの期間を同じ最大でそろえ、増減と少ない部位', () => {
-    const rows = [
-      ...Array.from({ length: 4 }, () => row('2026-11-01', 'b', 100, 5, 'chest')), // 今：胸 4
-      row('2026-11-01', 'b', 100, 5, 'back'), // 今：背中 1
-      ...Array.from({ length: 16 }, () => row('2026-10-01', 'b', 100, 5, 'chest')), // 前：胸 16（10/1 は 29〜56 日前）
-      row('2026-09-01', 'b', 100, 5, 'legs'), // 56 日より前は見ない
-    ];
-    const r = partsRadar(rows, partName, TODAY);
-    // 軸：胸・肩・背中・腕・脚・腹
-    expect(r.sets).toEqual([4, 0, 1, 0, 0, 0]);
-    expect(r.prevSets).toEqual([16, 0, 0, 0, 0, 0]);
-    expect(r.prevRatios[0]).toBe(1);
-    expect(r.ratios[0]).toBeCloseTo(0.5);
-    expect(r.trend).toEqual(['down', 'flat', 'up', 'flat', 'flat', 'flat']);
-    expect(r.low).toBe('肩');
-  });
-  test('記録がなければ low は null', () => {
-    expect(partsRadar([], partName, TODAY).low).toBeNull();
-  });
+describe('部位の状態（今週の部位のケガの印）', () => {
   test('軸ごとの状態：ケガが先、回復中は暖色', () => {
     const p = (name: string, level: number) => ({ name, level } as PartRecovery);
     const list = [p('胸', 0.5), p('上腕三頭筋', 0.3), p('背中', 0), p('脚', 0.4)];

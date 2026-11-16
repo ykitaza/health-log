@@ -1,4 +1,4 @@
-// ホームの「計器の盤」（刷新 A）の集計：LATEST（直近のトレーニング）・BIG3・LOAD・SLEEP・LOG（週ごとの方眼）・PARTS（部位のレーダー）・FUEL（今日の食事）。
+// ホームの「計器の盤」（刷新 A）の集計：LATEST（直近のトレーニング）・BIG3・LOAD・SLEEP・LOG（週ごとの方眼）・FUEL（今日の食事）。
 // 画面（components/homeHud.tsx）から切り離し、jest で確かめる。フェーズ実施中は、BIG3 の Δ をフェーズの開始から、LOG の週の番号をフェーズの週にする
 import { addDays, DateKey, daysBetween, MONTH_NAMES_EN, weekStart, yearMonth } from './date';
 import type { Big3Role } from './exercises';
@@ -6,13 +6,11 @@ import { mealGoalReached, personalBestEvents, PersonalBestEvent } from './growth
 import { average } from './health';
 import { thisWeekVolume } from './home';
 import { DaySummary, DayType, pfcRatio } from './meals';
-import { BALANCE_PARTS, BalancePart, balanceAxisOf, COMPARE_DAYS, partBalanceCompare } from './partBalance';
+import { BALANCE_PARTS, balanceAxisOf } from './partBalance';
 import { big3Totals, PhaseSnapshot } from './phases';
 import type { PartRecovery } from './recoveryMap';
 import { big3Trend, daysInMonth, focusByDate, setVolume, trainingDates, TrainingSetRow, volumeBetween } from './training';
 
-/** PARTS の期間（日）。今の 28 日と、その前の 28 日を比べる（推移の部位のバランスの 28日 と同じ lib/partBalance.ts） */
-export const PARTS_DAYS = COMPARE_DAYS;
 /** BIG3 の差の基準（日前） */
 export const BIG3_DELTA_DAYS = 28;
 /** BIG3 の線の幅（週） */
@@ -286,38 +284,9 @@ export function logCellLabel(c: LogCell, dateText: string, volumeText: string): 
   ].filter(Boolean).join('、');
 }
 
-// ---- PARTS ----
+// ---- 部位の状態（今週の部位のカードのケガの印） ----
 
 export type PartState = 'injury' | 'recovering' | null;
-
-export type PartsRadar = {
-  /** 軸ごと（BALANCE_PARTS の順）の、今の 28 日と前の 28 日のセット数 */
-  sets: number[];
-  prevSets: number[];
-  /** 頂点の長さ（2 つの期間で同じ最大にそろえ、平方根で。0〜1） */
-  ratios: number[];
-  prevRatios: number[];
-  /** 増減の向き */
-  trend: ('up' | 'down' | 'flat')[];
-  /** 今の 28 日でいちばん少ない軸（記録がなければ null） */
-  low: BalancePart | null;
-  total: number;
-};
-
-export function partsRadar(rows: TrainingSetRow[], partName: (bodyPartId: string) => string, today: DateKey): PartsRadar {
-  const { cur, prev } = partBalanceCompare(rows, partName, today);
-  let low: BalancePart | null = null;
-  if (cur.total > 0) {
-    let i = 0;
-    cur.sets.forEach((n, j) => { if (n < cur.sets[i]) i = j; });
-    low = BALANCE_PARTS[i];
-  }
-  return {
-    sets: cur.sets, prevSets: prev.sets, ratios: cur.ratios, prevRatios: prev.ratios,
-    trend: cur.sets.map((n, i) => (n > prev.sets[i] ? 'up' : n < prev.sets[i] ? 'down' : 'flat')),
-    low, total: cur.total,
-  };
-}
 
 /** 軸ごとの状態：ケガ（直している途中）があれば injury、回復中なら recovering。部位の名前を軸に寄せる（上腕二頭筋・三頭筋 → 腕） */
 export function partStates(list: PartRecovery[], hurt: (p: PartRecovery) => boolean): PartState[] {

@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { cautionBand, colors, hudColors, onToneSub, PART_COLORS, toneColors } from '@/theme';
+import { cautionBand, colors, hudColors, onToneSub, PART_COLORS, toneColors, volumePalette } from '@/theme';
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -69,5 +69,18 @@ describe('ホームの計器の盤の色', () => {
   });
   test('いちばん薄い塗り（LOG の 1 段目・PFC の C）も、空のマスとカードの上で 3:1 以上（休みの日と見分ける）', () => {
     for (const bg of [hudColors.empty, colors.card]) expect(contrastRatio(hudColors.mint1, bg)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('部位の量の色', () => {
+  const levels = [volumePalette.empty, ...volumePalette.steps];
+  test('どの段も、カードの上で 3:1 以上', () => {
+    for (const c of volumePalette.steps) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
+  });
+  test('となりの段どうしは、色の差が 1.2:1 以上（見分けがつく。0 と 1 は色相でも分かれる）', () => {
+    for (let i = 1; i < levels.length; i++) expect(contrastRatio(levels[i], levels[i - 1])).toBeGreaterThanOrEqual(1.2);
+  });
+  test('目安に近づいた差の文字は、カードの上で 4.5:1 以上', () => {
+    expect(contrastRatio(volumePalette.toward, colors.card)).toBeGreaterThanOrEqual(4.5);
   });
 });

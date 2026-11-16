@@ -5,6 +5,7 @@ import * as path from 'path';
 import { bmi, dailyBodyValues, fatMass, goalProgress, leanMass, weeklyPace } from '../body';
 import { defaultRatio, missingBodyweight, weightOn, withBodyweight } from '../bodyweight';
 import { big3Assignments, Big3Role } from '../exercises';
+import { partVolume } from '../partVolume';
 import { big3Best, big3EndSince } from '../phaseView';
 import type { RecordType } from '../sets';
 import {
@@ -170,5 +171,20 @@ describe('measures.json（振り返りの BIG3）', () => {
   test.each(data.cases as { name: string; start_date: string | null; day: string; expected: unknown }[])('$name', (c) => {
     const since = c.start_date == null ? null : big3EndSince(c.start_date, c.day);
     expect(big3Best(rows, data.assignments, c.day, since)).toEqual(c.expected);
+  });
+});
+
+// part_sets.json（部位ごとのセット数と目安）：サーバー側の agent が作るファイル。まだなければ飛ばす。
+// 入力は rows（aggregates.json と同じ形）と body_parts（部位の ID と名前。[{id, name}] か { [id]: name }）、cases は {name, start, end, today, expected}。
+// expected は partVolume の出力（from・to・previous_from・previous_to・band・parts）と同じ形
+const partSetsFile = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'training', 'part_sets.json');
+(fs.existsSync(partSetsFile) ? describe : describe.skip)('part_sets.json：部位ごとのセット数と目安', () => {
+  const data = fs.existsSync(partSetsFile) ? load('part_sets.json') : { rows: [], body_parts: [], cases: [] };
+  const rows: TrainingSetRow[] = data.rows.map(toRow);
+  const names: Record<string, string> = Array.isArray(data.body_parts)
+    ? Object.fromEntries((data.body_parts as { id: string; name: string }[]).map((p) => [p.id, p.name]))
+    : data.body_parts;
+  test.each(data.cases as { name: string; start: string; end: string; today: string; expected: unknown }[])('$name', (c) => {
+    expect(partVolume(rows, (id) => names[id] ?? '', c.start, c.end, c.today)).toEqual(c.expected);
   });
 });

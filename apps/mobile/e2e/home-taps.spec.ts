@@ -2,7 +2,7 @@ import { expect, Locator, Page, test } from '@playwright/test';
 import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, swipe, tab, TODAY } from './helpers';
 
 // ホームの押せるもの（#219）：見た目が押せるものは押せる。グラフを見せたら、行き先にもそのグラフがある。
-// - 計器の段：BIG3 は推移の BIG3、LOAD は推移の総負荷量を日ごと（今週と先週の日ごとの棒）、PARTS は推移の部位のバランスを同じ 28日で。
+// - 計器の段：BIG3 は推移の BIG3、LOAD は推移の総負荷量を日ごと（今週と先週の日ごとの棒）、今週の部位（PARTS）は推移の部位のバランスを、覚えている期間のままで。
 //   BIG3・LOAD・FUEL の行き先には、ホームと同じカードがあり、そこまでスクロールする（SLEEP は home-phase.spec.ts。睡眠を同期で入れる）
 // - LATEST の四隅：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移
 // - 種目の札（EX-01〜）：その日の記録の、その種目のカードまでスクロール（web は 2D の図。札は 3D と同じ部品）
@@ -12,7 +12,7 @@ const visible = (page: Page, testId: string) => page.getByTestId(testId).filter(
 const pane = (page: Page, name: string) => page.getByRole('tab', { name, exact: true }).filter({ visible: true });
 
 /**
- * - 10/5  スクワット 100×5（前の28日。PARTS の点線）
+ * - 10/5  スクワット 100×5（2週の外）
  * - 11/3  スクワット 100×5
  * - 11/8（今日）ベンチ 60×10 → スクワット 110×5（自己ベスト）→ デッドリフト 120×5 → ショルダープレス 30×10。EX-02 がスクワット
  */
@@ -125,18 +125,14 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     await expect(button(page, '週')).toHaveAttribute('aria-selected', 'true');
   });
 
-  await test.step('PARTS：推移の部位のバランスを、ホームと同じ 28日（前の28日を点線で）', async () => {
+  await test.step('今週の部位（PARTS）：推移の部位のバランスを、覚えている期間（2週）のままで', async () => {
     await backHome(page);
-    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^部位のバランス、直近28日のセット数。胸 3（前の28日 0）/);
+    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^今週の部位、11月2日から11月8日のセット数/);
     await visible(page, 'home-parts').click();
     await expect(pane(page, '推移')).toHaveAttribute('aria-selected', 'true');
     const card = visible(page, 'trend-part-balance');
-    await expect(card).toHaveAttribute('aria-label',
-      '部位のバランス、直近28日のセット数。胸 3、肩 1、背中 1、腕 0、脚 3、腹 0。前の28日は 胸 0、肩 0、背中 0、腕 0、脚 1、腹 0');
-    await expect(card.locator('path[stroke-dasharray]')).toHaveCount(1);
-    await expect(card.getByText('前の28日', { exact: true })).toBeVisible();
-    // 28日は切り替えに出さない（どれも選んでいない）
-    for (const k of ['2週', '3か月', 'これまで']) await expect(button(page, k)).toHaveAttribute('aria-selected', 'false');
+    await expect(card).toHaveAttribute('aria-label', '部位のバランス、直近2週のセット数。胸 3、肩 1、背中 1、腕 0、脚 3、腹 0');
+    await expect(button(page, '2週')).toHaveAttribute('aria-selected', 'true');
     await expectScrolledTo(card);
     // 期間を選ぶと、ふつうの切り替えに戻る
     await button(page, '3か月').click();
