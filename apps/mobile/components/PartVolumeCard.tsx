@@ -19,6 +19,9 @@ export const volumeColor = (level: number) => (level <= 0 ? volumePalette.empty 
 /** 図（前と後ろ）の 1 枚の大きさ（100×200 の体の縮小） */
 const FIG_W = 46;
 const FIG_H = 92;
+/** ホームの部位の量は、行が長い（セット数・週あたり・目安との差）ので、図を小さくする */
+const PH_FIG_W = 36;
+const PH_FIG_H = 72;
 
 /**
  * 部位の量の中身：前と後ろの 2D の図（筋肉を段の色で塗る）と、6 つの行（段の色の四角・部位・セット数と目安・前の期間との差）。
@@ -74,23 +77,23 @@ function PhaseVolumeBody({ volume, hurt, testID }: { volume: PhaseVolume; hurt: 
     return Object.fromEntries(Object.entries(levels).map(([m, l]) => [m, volumeColor(l!)])) as Partial<Record<Muscle, string>>;
   }, [volume]);
   return (
-    <View style={s.body} testID={testID}>
+    <View style={s.phaseBody} testID={testID}>
       <View style={s.figures}>
         {(['front', 'back'] as const).map((view) => (
-          <MuscleFigure key={view} view={view} fills={fills} width={FIG_W} height={FIG_H} testID={`${testID}-figure-${view}`} />
+          <MuscleFigure key={view} view={view} fills={fills} width={PH_FIG_W} height={PH_FIG_H} testID={`${testID}-figure-${view}`} />
         ))}
       </View>
-      <View style={s.rows}>
+      <View style={s.phaseRows}>
         {volume.parts.map((p) => (
-          <View key={p.part} style={s.row} testID={`${testID}-row-${p.part}`}>
+          <View key={p.part} style={s.phaseRow} testID={`${testID}-row-${p.part}`}>
             <View style={[s.swatch, { backgroundColor: volumeColor(p.level) }]} testID={`${testID}-swatch-${p.part}`} />
             <View style={s.name}>
               <T size={13} bold color={colors.text} numberOfLines={1}>{p.part}</T>
               {hurt.has(p.part) && <View style={s.injury} testID={`${testID}-injury-${p.part}`} />}
             </View>
-            <T size={12} color={colors.text} numberOfLines={1} style={s.sets}>{`${p.total}セット`}</T>
-            <T size={12} color={colors.sub} numberOfLines={1} style={s.week}>{`週 ${perWeekText(p.perWeek)}`}</T>
-            <T size={12} color={p.short > 0 || p.over > 0 ? colors.text : colors.sub} numberOfLines={1} style={s.band}>{phaseBandText(p)}</T>
+            <T size={11} color={colors.text} style={s.sets}>{`${p.total}セット`}</T>
+            <T size={11} color={colors.sub} style={s.week}>{`週 ${perWeekText(p.perWeek)}`}</T>
+            <T size={11} color={p.short > 0 || p.over > 0 ? colors.text : colors.sub} style={s.band}>{phaseBandText(p)}</T>
           </View>
         ))}
       </View>
@@ -132,9 +135,13 @@ const s = StyleSheet.create({
   name: { minWidth: 34, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3 },
   count: { flex: 1, minWidth: 0 },
   delta: { textAlign: 'right' },
-  sets: { flexShrink: 0, minWidth: 40 },
-  week: { flexShrink: 0, minWidth: 40 },
-  band: { flex: 1, minWidth: 0, textAlign: 'right' },
+  phaseBody: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  phaseRows: { flex: 1, minWidth: 0, gap: 5 },
+  phaseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0, minHeight: 20 },
+  sets: { flexShrink: 0 },
+  week: { flexShrink: 0 },
+  // 幅が足りないとき（3 桁のセット数など）は、目安との差だけが次の行に回る
+  band: { flexShrink: 0, marginLeft: 'auto', textAlign: 'right' },
   injury: {
     width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 7,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: INJURY_RED,

@@ -140,8 +140,9 @@ test('レポート詳細を日・週・月で撮る（モックとの見比べ�
   await shoot(page, 'monthly');
 });
 
-// 部位の量（ホームの「今週の部位」と、週のまとめの同じカード）：6 段の色が見分けられるかを見る。
-// 今週（11/9〜今日 11/12）：背中 25（5 段）、脚 18（4 段）、胸 12（3 段）、肩 6（2 段）、腕 2（1 段）、腹 0（灰色）。先週は 11/2〜11/5
+// 部位の量（ホームの「直近4週の部位」と、週のまとめの同じ形のカード）：段の色が見分けられるかを見る。
+// 週のまとめ（今週 11/9〜今日 11/12）：背中 25（5 段）、脚 18（4 段）、胸 12（3 段）、肩 6（2 段）、腕 2（1 段）、腹 0（灰色）。先週は 11/2〜11/5。
+// ホームは直近 4 週（10/16〜11/12）で、週あたり（背中は 40 セット ÷ 4 週 = 10.0）。ホームの 6 段の撮り直しは part-volume.spec.ts の最後のテスト
 test('部位の量を、ホームと週のまとめで撮る', async ({ page, context }) => {
   test.setTimeout(120_000);
   const server = seed();
@@ -175,7 +176,7 @@ test('部位の量を、ホームと週のまとめで撮る', async ({ page, co
   await button(page, '戻る').click();
   const card = page.getByTestId('home-parts').filter({ visible: true });
   await card.scrollIntoViewIfNeeded();
-  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('目安より多い');
+  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('週 10.0');
   await page.waitForTimeout(800);
   await card.screenshot({ path: `${process.env.SHOT_DIR}/home-part-volume.png` });
   await tab(page, 'レポート').click();

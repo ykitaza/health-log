@@ -5,7 +5,7 @@ import {
 } from './helpers';
 
 // ホームの計器の盤（刷新 A）。集計（LATEST・BIG3・LOAD・SLEEP・LOG・PARTS・FUEL）は jest（lib/__tests__/homeHud.test.ts）。ここは画面に出ること。
-// web では 3D の体を描かないので、LATEST は 2D の図（前と後ろ）と種目の札になる
+// web では 3D の体を描かないので、LATEST は 2D の図（前と後ろ）と、色の見方に合わせた部位の札になる
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
 const cell = (page: Page, date: string) => visible(page, `log-${date}`);
@@ -33,9 +33,9 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(cell(page, TODAY)).toHaveAccessibleName('11月8日（日） 今日、筋トレなし');
   await expect(visible(page, 'home-log')).toContainText('LOG // W1-W4');
   await expect(visible(page, 'home-log')).toContainText('NOV  0D · 0.00T');
-  // 今週の部位（PARTS）と FUEL
-  await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '今週の部位、11月2日から11月8日のセット数（目安は 1 週間 10〜20）。まだ記録がありません。筋トレの推移を開く');
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0／10 あと10先週比 ±0');
+  // 部位の量（フェーズがないので直近 4 週 = 10/12〜11/8）と FUEL
+  await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日。1 週間あたりのセット数（目安は 10〜20）。まだ記録がありません。筋トレの推移を開く');
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0セット週 0あと10');
   await expect(homeFuel(page)).toHaveAttribute('aria-label', '今日の食事 0kcal。休みの日。たんぱく質 0g、脂質 0g、炭水化物 0g。食事のタブを開く');
   // なくしたもの：カレンダー、今日のトレーニング・食事のカード、最近の流れ
   await expect(page.getByTestId('home-calendar')).toHaveCount(0);
@@ -69,13 +69,15 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   ]);
   await moveToDate(page, TODAY);
 
-  // LATEST：今日。2種目・4セット・1980kg。種目の札は 2 つ（EX-01・EX-02）。体は回復の色なので、回復中の部位も読む
+  // LATEST：今日。2種目・4セット・1980kg。体の札は種目（EX-01〜）ではなく、回復中の部位（胸 あと3日・背中 あと4日）。体は回復の色なので、回復中の部位も読む
   await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング 今日。2種目 4セット 1.98トン。1 ベンチプレス 80kg × 8、2 懸垂 10回。回復中 胸 あと3日、背中 あと4日。その日の記録を開く');
   await expect(homeLatest(page)).toContainText('TODAY');
   await expect(visible(page, 'home-latest-ex')).toContainText('SETS 4');
   await expect(visible(page, 'home-latest-load')).toContainText('1.98t');
-  await expect(visible(page, 'day-body-tag')).toHaveCount(2);
-  await expect(visible(page, 'day-body-tag').first()).toContainText('EX-01');
+  await expect(visible(page, 'day-body-tag')).toHaveCount(0);
+  await expect(visible(page, 'hero-body-tag')).toHaveCount(2);
+  await expect(visible(page, 'hero-body-tag').filter({ hasText: '胸' })).toHaveText('胸あと3日');
+  await expect(visible(page, 'hero-body-tag').filter({ hasText: '背中' })).toHaveText('背中あと4日');
 
   // LOAD：今週（11/2〜11/8）は 1980 + 1500 = 3480kg → 3.48t。先週の記録はないので比は出さない
   await expect(visible(page, 'volume-week')).toContainText('3.48t');
@@ -93,11 +95,11 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   await expect(cell(page, '2026-11-04')).toHaveAccessibleName('11月4日（水）、筋トレなし');
   await expect(visible(page, 'home-log')).toContainText('NOV  2D · 3.48T');
 
-  // 今週の部位：今週（11/2〜今日）のセット数（脚 3、胸 3。懸垂は背中 1）。先週の記録はないので、先週との差は増えた分
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3／10 あと7先週比 +3');
-  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1／10 あと9先週比 +1');
-  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3／10 あと7先週比 +3');
-  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0／10 あと10先週比 ±0');
+  // 部位の量：直近 4 週（10/12〜11/8、weeks 4）のセット数（脚 3、胸 3。懸垂は背中 1）と、1 週間あたり（3 × 7 ÷ 28 = 0.75 → 0.8）
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3セット週 0.8あと9.2');
+  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1セット週 0.3あと9.7');
+  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3セット週 0.8あと9.2');
+  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0セット週 0あと10');
 
   // LATEST の左上を押すと、筋トレのタブの記録のその日。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
   await homeLatest(page).click();
@@ -133,7 +135,7 @@ test('BIG3：28 日前との差と 16 週の線。押すと筋トレの推移', 
   await expect(tab(page, '筋トレ')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: '推移', exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true');
 
-  // 今週の部位の行・色・図は part-volume.spec.ts、押したときの行き先は home-taps.spec.ts で確かめる
+  // 部位の量の行・色・図は part-volume.spec.ts、押したときの行き先は home-taps.spec.ts で確かめる
 });
 
 test('「記録する」のシート：食事は時刻から区分を決め、体重はからだのタブで計測のシートを開く。FUEL・体重の点・目標体重まで', async ({ page }) => {

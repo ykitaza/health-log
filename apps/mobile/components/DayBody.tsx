@@ -11,7 +11,7 @@ import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { Muscle, musclesForParts, MuscleView } from '@/lib/muscleFigure';
 import { colors, space } from '@/theme';
 import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
-import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
+import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
 import { MuscleFigure } from './MuscleFigure';
 
 export type DayBodyProps = {
@@ -96,12 +96,12 @@ function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint
   const backX = frontX + figW + FIG_GAP;
   const tagW = Math.min(DAY_TAG_W, Math.max(0, frontX - 4));
   const layout = layoutCallouts(entries.map((e) => ({ key: e.key, no: e.no, part: e.part })), {
-    figureHeight: figH, minHeight: figH, slot: DAY_TAG_H, gap: 4, perSide,
+    figureHeight: figH, minHeight: figH, slot: tagHeight(entries), gap: 4, perSide,
   });
   const byKey = new Map(entries.map((e) => [e.key, e]));
   const toScreen = (view: MuscleView, p: { x: number; y: number }) => ({ x: (view === 'front' ? frontX : backX) + p.x * scale, y: band.top + p.y * scale });
   const lines = [...layout.left.map((c) => ({ c, x: tagW })), ...layout.right.map((c) => ({ c, x: width - tagW }))]
-    .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + DAY_TAG_H / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
+    .flatMap(({ c, x }) => (c.kind === 'entry' && c.anchor ? [{ key: c.key, x1: x, y1: band.top + c.top + tagHeight(entries) / 2, ...toScreen(c.anchor.view, c.anchor.point) }] : []));
   const paint = musclesForParts(parts);
   const tag = (c: PlacedCallout, side: 'left' | 'right'): ReactNode => {
     const style = { position: 'absolute', [side]: 0, top: band.top + c.top, width: tagW } as const;

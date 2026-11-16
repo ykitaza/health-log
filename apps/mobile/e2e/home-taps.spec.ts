@@ -2,10 +2,10 @@ import { expect, Locator, Page, test } from '@playwright/test';
 import { button, expectTrainingDay, goTab, moveToDate, recordOn, see, swipe, tab, TODAY } from './helpers';
 
 // ホームの押せるもの（#219）：見た目が押せるものは押せる。グラフを見せたら、行き先にもそのグラフがある。
-// - 計器の段：BIG3 は推移の BIG3、LOAD は推移の総負荷量を日ごと（今週と先週の日ごとの棒）、今週の部位（PARTS）は推移の部位のバランスを、覚えている期間のままで。
+// - 計器の段：BIG3 は推移の BIG3、LOAD は推移の総負荷量を日ごと（今週と先週の日ごとの棒）、部位の量（PARTS）は推移の部位のバランスを、覚えている期間のままで。
 //   BIG3・LOAD・FUEL の行き先には、ホームと同じカードがあり、そこまでスクロールする（SLEEP は home-phase.spec.ts。睡眠を同期で入れる）
 // - LATEST の四隅：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移
-// - 種目の札（EX-01〜）：その日の記録の、その種目のカードまでスクロール（web は 2D の図。札は 3D と同じ部品）
+// - 体の札は部位の札（回復中・目安から外れた部位。押しても何も開かない）。種目の札（EX-01〜）はヒーローの体から外した。体を押して部位の札を足すのは part-volume.spec.ts
 // INJURY・GROWTH の四隅とケガの札は home-phase.spec.ts（フェーズと療養の記録を同期で作る）
 
 const visible = (page: Page, testId: string) => page.getByTestId(testId).filter({ visible: true });
@@ -14,7 +14,7 @@ const pane = (page: Page, name: string) => page.getByRole('tab', { name, exact: 
 /**
  * - 10/5  スクワット 100×5（2週の外）
  * - 11/3  スクワット 100×5
- * - 11/8（今日）ベンチ 60×10 → スクワット 110×5（自己ベスト）→ デッドリフト 120×5 → ショルダープレス 30×10。EX-02 がスクワット
+ * - 11/8（今日）ベンチ 60×10 → スクワット 110×5（自己ベスト）→ デッドリフト 120×5 → ショルダープレス 30×10
  */
 async function seed(page: Page) {
   await recordOn(page, '2026-10-05', [{ exercise: 'スクワット', sets: [{ weight: '100', reps: '5' }] }]);
@@ -49,34 +49,24 @@ async function backHome(page: Page) {
   await expect(visible(page, 'home-latest')).toBeVisible();
 }
 
-test('ホームの札・LATEST の四隅・計器の段を押すと、その日・そのグラフへ', async ({ page }) => {
+test('ホームの体の札・LATEST の四隅・計器の段を押すと、その日・そのグラフへ', async ({ page }) => {
   await seed(page);
   const latest = visible(page, 'home-latest');
   await expect(latest).toContainText('TODAY');
 
-  await test.step('種目の札：その日の記録の、その種目のカード（下のほうでもスクロールして見せる）', async () => {
-    const tags = visible(page, 'day-body-tag');
-    await expect(tags).toHaveCount(4);
-    const squat = tags.filter({ hasText: 'スクワット' });
-    await expect(squat).toHaveAccessibleName('EX-02 スクワット 110kg × 5。この種目の記録を開く');
-    await squat.click();
-    await expectTrainingDay(page, '11月8日（日）');
-    await expectScrolledTo(visible(page, 'entry-card-2'));
-    await expect(visible(page, 'entry-card-2')).toContainText('スクワット');
-    // 着いたカードだけが、少し光って、どの記録かを見せる（光らせは覆うだけで、押せなくしない）
-    await expect(visible(page, 'entry-card-2').getByTestId('scroll-glow')).toBeVisible();
-    await expect(page.getByTestId('scroll-glow').filter({ visible: true })).toHaveCount(1);
-    await expect(page.getByTestId('scroll-glow')).toHaveCount(0);
-    // 最後の種目の札も（いちばん下までスクロールして、カードの全体が見える）
-    await backHome(page);
-    await visible(page, 'day-body-tag').filter({ hasText: 'ショルダープレス' }).click();
-    await expectTrainingDay(page, '11月8日（日）');
-    await expect(visible(page, 'entry-card-4')).toBeInViewport({ ratio: 0.9 });
+  await test.step('体の札は種目の札ではない（EX-01〜は出ない）。部位の札は押しても記録を開かない', async () => {
+    await expect(visible(page, 'day-body-tag')).toHaveCount(0);
+    const tags = visible(page, 'hero-body-tag');
+    await expect(tags).toHaveCount(3); // 回復中の 4 部位（脚 あと4日・背中 あと4日・胸 あと3日・肩 あと3日）のうち、あと日数の大きい 3 つ
+    await expect(tags.filter({ hasText: '脚' })).toHaveText('脚あと4日');
+    await tags.first().click({ force: true });
+    await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
+    await expect(latest).toBeVisible();
   });
 
   await test.step('札や四隅からの横のなぞりは、押したことにならず、ヒーローのページの切り替え（押すのは短いタップだけ）', async () => {
     await backHome(page);
-    for (const from of [visible(page, 'day-body-tag').filter({ hasText: 'スクワット' }), visible(page, 'home-latest-ex')]) {
+    for (const from of [visible(page, 'hero-body-tag').first(), visible(page, 'home-latest-ex')]) {
       await expect(visible(page, 'hero-page-latest')).toHaveAttribute('aria-selected', 'true');
       await swipe(from, 'next');
       await expect(visible(page, 'hero-page-growth')).toHaveAttribute('aria-selected', 'true');
@@ -125,9 +115,9 @@ test('ホームの札・LATEST の四隅・計器の段を押すと、その日�
     await expect(button(page, '週')).toHaveAttribute('aria-selected', 'true');
   });
 
-  await test.step('今週の部位（PARTS）：推移の部位のバランスを、覚えている期間（2週）のままで', async () => {
+  await test.step('部位の量（PARTS）：推移の部位のバランスを、覚えている期間（2週）のままで', async () => {
     await backHome(page);
-    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^今週の部位、11月2日から11月8日のセット数/);
+    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^直近4週の部位、10月12日から11月8日。/);
     await visible(page, 'home-parts').click();
     await expect(pane(page, '推移')).toHaveAttribute('aria-selected', 'true');
     const card = visible(page, 'trend-part-balance');

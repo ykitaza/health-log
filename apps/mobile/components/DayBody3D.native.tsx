@@ -14,7 +14,7 @@ import { colors, recoveryPalette, TRAINED_GLOW } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
 import type { DayBody3DProps } from './DayBody3D';
-import { DayBodyTag, DAY_TAG_H, DAY_TAG_W, MoreTag } from './dayBodyTag';
+import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
 
 const PER_SIDE = 3;
 const GAP = 4;
@@ -27,7 +27,7 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
   const [scene] = useState(() => new BodyScene());
   const layout = useMemo(() => dayBodyCallouts(
     entries.map((e) => ({ key: e.key, no: e.no, part: e.part })), width, height,
-    { perSide: PER_SIDE, height: DAY_TAG_H, gap: GAP, top: band.top, bottom: band.bottom },
+    { perSide: PER_SIDE, height: tagHeight(entries), gap: GAP, top: band.top, bottom: band.bottom },
   ), [entries, width, height, band.top, band.bottom]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
   const glow = useMemo(() => dayBodyGlow(parts, recovery), [parts, recovery]);
