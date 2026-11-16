@@ -1,15 +1,12 @@
-import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Muscle } from '@/lib/muscleFigure';
 import type { BalancePart } from '@/lib/partBalance';
 import {
-  PartVolume, PhaseVolume, phaseVolumeLabel, PrevWord, setsText, volumeDeltaText, volumeLevel, volumeMuscleLevels, volumeRowText, weekRoundedText,
+  PartVolume, PrevWord, volumeDeltaText, volumeLevel, volumeMuscleLevels, volumeRowText,
 } from '@/lib/partVolume';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { colors, volumePalette } from '@/theme';
-import { Panel } from './homeHud';
-import { Mono } from './injuries';
 import { MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
 
@@ -64,55 +61,7 @@ export function PartVolumeBody({ volume, hurt = new Set(), ink = colors.text, mu
 const md = (k: string) => `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}`;
 export const volumeRange = (v: PartVolume) => `${md(v.from)}–${md(v.to)}`;
 
-/**
- * ホームの「部位の量」の中身：6 つの行（段の色の四角・部位・「23セット」・小さな「週18」）。図は付けない（ヒーローの体がその図）。
- * 主な数は期間のセット数の合計（やった量）。週あたりは四捨五入の整数で添える。足りない・少ないなどの言葉は使わない。凡例も付けない。
- * hurt の部位（ケガ）には赤の ▲
- */
-function PhaseVolumeBody({ volume, hurt, testID }: { volume: PhaseVolume; hurt: ReadonlySet<BalancePart>; testID: string }) {
-  return (
-    <View style={s.phaseRows} testID={testID}>
-      {volume.parts.map((p) => (
-        <View key={p.part} style={s.phaseRow} testID={`${testID}-row-${p.part}`}>
-          <View style={[s.swatch, { backgroundColor: volumeColor(p.level) }]} testID={`${testID}-swatch-${p.part}`} />
-          <View style={s.name}>
-            <T size={13} bold color={colors.text} numberOfLines={1}>{p.part}</T>
-            {hurt.has(p.part) && <View style={s.injury} testID={`${testID}-injury-${p.part}`} />}
-          </View>
-          <T size={15} bold color={colors.text} numberOfLines={1} style={s.sets}>{setsText(p.total)}</T>
-          <T size={11} color={colors.sub} numberOfLines={1} style={s.week}>{weekRoundedText(p.perWeek)}</T>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-/** 期間の文字（11/8–11/16） */
-export const phaseRange = (v: PhaseVolume) => `${md(v.from)}–${md(v.to)}`;
-
-/**
- * ホームの「部位の量」：宣言したフェーズ（なければ直近 4 週）で、部位ごとにどれだけやったか（セット数の合計と、週あたり）。
- * ヒーローの体の下に置く、やる気のための一覧（lib/partVolume.ts の phasePartVolume。体の色・札と同じ数字）。見出しは「増量 8週の部位」と期間。
- * 押すと筋トレの推移の部位のバランス（覚えている期間のまま）
- */
-export function PhaseVolumeCard({ volume, hurt }: { volume: PhaseVolume | null; hurt: ReadonlySet<BalancePart> }) {
-  const label = volume ? phaseVolumeLabel(volume, hurt) : '部位の量';
-  return (
-    <Panel testID="home-parts" label={`${label}。筋トレの推移を開く`} style={s.card}
-      onPress={() => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'parts' } })}>
-      <View style={s.head}>
-        <T size={13} bold color={colors.text} accessibilityRole="header" numberOfLines={1} style={s.title}>{volume?.title ?? '部位の量'}</T>
-        {volume && <Mono size={11}>{phaseRange(volume)}</Mono>}
-      </View>
-      {volume && <PhaseVolumeBody volume={volume} hurt={hurt} testID="home-parts-body" />}
-    </Panel>
-  );
-}
-
 const s = StyleSheet.create({
-  card: { flex: 1, minWidth: 0, gap: 6 },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 },
-  title: { flexShrink: 1, minWidth: 0 },
   body: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   figures: { flexDirection: 'row', gap: 2 },
   rows: { flex: 1, minWidth: 0, gap: 5 },
@@ -121,10 +70,6 @@ const s = StyleSheet.create({
   name: { minWidth: 34, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3 },
   count: { flex: 1, minWidth: 0 },
   delta: { textAlign: 'right' },
-  phaseRows: { gap: 4 },
-  phaseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 24 },
-  sets: { marginLeft: 'auto', textAlign: 'right' },
-  week: { width: 40, textAlign: 'right' },
   injury: {
     width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 7,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: INJURY_RED,

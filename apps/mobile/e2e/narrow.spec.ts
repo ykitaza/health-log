@@ -5,7 +5,7 @@ import { bulkPhase, EXERCISE, openWith, workout } from './seed';
 // 412 より狭い画面（360×800 など）での崩れ
 test.use({ viewport: { width: 360, height: 800 } });
 
-test('360 の幅でも、ホームの計器の段・LOG・部位の量の文字がはみ出さない', async ({ page }) => {
+test('360 の幅でも、ホームの計器の段・LOG の文字がはみ出さない', async ({ page }) => {
   await openApp(page);
   // 計器の段の 3 つは横に並び、重ならない
   const [big3, load, sleep] = await Promise.all(['home-big3', 'volume-week', 'home-sleep'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
@@ -19,42 +19,21 @@ test('360 の幅でも、ホームの計器の段・LOG・部位の量の文字�
   const log = (await page.getByTestId('home-log').boundingBox())!;
   const sunday = (await page.getByTestId('log-2026-11-08').boundingBox())!;
   expect(sunday.x + sunday.width).toBeLessThanOrEqual(log.x + log.width);
-  // 部位の量：6 つの行（部位・セット数・週あたり・目安との差）が枠の中に収まり、どの文字も省略されない
-  const parts = (await page.getByTestId('home-parts').boundingBox())!;
-  for (const name of ['胸', '肩', '背中', '腕', '脚', '腹']) {
-    const row = page.getByTestId(`home-parts-body-row-${name}`);
-    const box = (await row.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(parts.x);
-    expect(box.x + box.width).toBeLessThanOrEqual(parts.x + parts.width);
-    const clipped = await row.evaluate((el) => [...el.querySelectorAll('div')].some((d) => d.children.length === 0 && d.textContent !== '' && d.scrollWidth > d.clientWidth));
-    expect(clipped, `${name} の行の文字が省略されている`).toBe(false);
-  }
 });
 
-test('360 の幅でも、部位の量の行は、いちばん長い文字（3 桁のセット数と週あたり）と長いフェーズの名前でも収まり、体の札は 4 つでも四隅と重ならない', async ({ page, context }) => {
+test('360 の幅でも、長いフェーズの名前と 3 桁のセット数でも、体の見出しは枠に収まり、体の札は 4 つでも四隅と重ならない', async ({ page, context }) => {
   test.setTimeout(150_000);
   await openWith(page, context, [
     bulkPhase('ffffffff-0000-4000-8000-000000000031', '2026-10-12', '2026-12-06', { name: '夏までに体を作る長い名前の増量フェーズ（第 2 期）' }),
     ...workout('2026-10-20', EXERCISE.curl, 120), ...workout('2026-11-07', EXERCISE.pullUp, 1), ...workout('2026-11-06', EXERCISE.bench, 20),
     ...workout('2026-11-08', EXERCISE.squat, 3),
   ]);
-  const card = page.getByTestId('home-parts').filter({ visible: true });
-  const parts = (await card.boundingBox())!;
-  expect(parts.x + parts.width).toBeLessThanOrEqual(360);
-  // 長いフェーズの名前は見出しで 1 行に縮む（…）。行の文字は省略されない
-  await expect(card.getByRole('heading')).toContainText('夏までに');
-  for (const name of ['胸', '肩', '背中', '腕', '脚', '腹']) {
-    const row = card.getByTestId(`home-parts-body-row-${name}`);
-    const box = (await row.boundingBox())!;
-    expect(box.x + box.width).toBeLessThanOrEqual(parts.x + parts.width);
-    const clipped = await row.evaluate((el) => [...el.querySelectorAll('div')].some((d) => d.children.length === 0 && d.textContent !== '' && d.scrollWidth > d.clientWidth));
-    const info = await row.evaluate((el) => [...el.querySelectorAll('div')].filter((d) => d.children.length === 0 && d.textContent !== '').map((d) => `${d.textContent}:${d.scrollWidth}/${d.clientWidth}`).join(' '));
-    expect(clipped, `${name} の行の文字が省略されている ${info}`).toBe(false);
-  }
-  await expect(card.getByTestId('home-parts-body-row-腕')).toHaveText('腕120セット週30');
   // 体の札：部位の量にして、1 つ押して足しても（4 つ）、四隅の数字・切り替えと重ならない
   const mode = page.getByTestId('hero-body-mode').filter({ visible: true });
   await mode.getByRole('button', { name: '部位の量', exact: true }).click();
+  const caption = (await page.getByTestId('hero-body-caption').filter({ visible: true }).boundingBox())!;
+  expect(caption.x).toBeGreaterThanOrEqual(0);
+  expect(caption.x + caption.width).toBeLessThanOrEqual(360);
   const press = page.getByTestId('day-body-2d-press-front').filter({ visible: true });
   const figure = (await press.boundingBox())!;
   await press.click({ position: { x: figure.width * 0.5, y: figure.height * 0.36 } }); // 腹（先頭の 3 つは腕・胸・脚）

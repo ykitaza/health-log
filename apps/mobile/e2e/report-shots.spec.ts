@@ -176,11 +176,6 @@ test('部位の量を、ホームと週のまとめで撮る', async ({ page, co
   await expect(page.getByTestId('sync-last').filter({ visible: true })).toHaveText(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
   await button(page, '戻る').click();
   await button(page, '戻る').click();
-  const card = page.getByTestId('home-parts').filter({ visible: true });
-  await card.scrollIntoViewIfNeeded();
-  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('週10');
-  await page.waitForTimeout(800);
-  await card.screenshot({ path: `${process.env.SHOT_DIR}/home-part-volume.png` });
   await tab(page, 'レポート').click();
   const tabs = page.getByTestId('report-period-tabs').filter({ visible: true });
   await settle(tabs);

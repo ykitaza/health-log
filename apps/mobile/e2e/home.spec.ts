@@ -33,11 +33,8 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(cell(page, TODAY)).toHaveAccessibleName('11月8日（日） 今日、筋トレなし');
   await expect(visible(page, 'home-log')).toContainText('LOG // W1-W4');
   await expect(visible(page, 'home-log')).toContainText('NOV  0D · 0.00T');
-  // 部位の量（フェーズがないので直近 4 週 = 10/12〜11/8）と FUEL。あと・少なめ・目安の言葉は出さない
-  await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日のセット数。まだ記録がありません。筋トレの推移を開く');
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0セット週0');
-  await expect(visible(page, 'home-parts')).not.toContainText('あと');
-  await expect(visible(page, 'home-parts')).not.toContainText('少なめ');
+  // 部位の量の一覧はホームにない（体の色・札だけ）。FUEL
+  await expect(page.getByTestId('home-parts')).toHaveCount(0);
   await expect(homeFuel(page)).toHaveAttribute('aria-label', '今日の食事 0kcal。休みの日。たんぱく質 0g、脂質 0g、炭水化物 0g。食事のタブを開く');
   // なくしたもの：カレンダー、今日のトレーニング・食事のカード、最近の流れ
   await expect(page.getByTestId('home-calendar')).toHaveCount(0);
@@ -99,13 +96,6 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   await expect(cell(page, TODAY)).toHaveAccessibleName('11月8日（日） 今日、筋トレ 1.98トン 胸');
   await expect(cell(page, '2026-11-04')).toHaveAccessibleName('11月4日（水）、筋トレなし');
   await expect(visible(page, 'home-log')).toContainText('NOV  2D · 3.48T');
-
-  // 部位の量：直近 4 週（10/12〜11/8、weeks 4）のセット数（脚 3、胸 3。懸垂は背中 1）と、1 週間あたり（3 × 7 ÷ 28 = 0.75 → 0.8）
-  // （合計がいちばん大きい数。週あたりは四捨五入の整数で小さく添える）
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3セット週1');
-  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1セット週0');
-  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3セット週1');
-  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0セット週0');
 
   // LATEST の左上を押すと、筋トレのタブの記録のその日。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
   await homeLatest(page).click();
@@ -207,6 +197,6 @@ test('タブを移ってホームに戻ると、数え上げをやり直して�
   await goTab(page, 'ホーム');
   // 0 から数え直したあと、最後の値になる（動きの途中は web の確認では捉えない）
   await expect(visible(page, 'volume-week')).toContainText('0.64t');
-  await expect(visible(page, 'home-parts')).toBeVisible();
+  await expect(visible(page, 'home-hero')).toBeVisible();
   expect(errors).toEqual([]);
 });

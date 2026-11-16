@@ -7,7 +7,6 @@ import { BodyPanel, Big3Panel, FuelPanel, LoadPanel, LogPanel, SleepPanel } from
 import { HomeReportsCard } from '@/components/HomeReports';
 import { LoadError } from '@/components/LoadError';
 import { loadPartDays, todaySuggestion } from '@/components/partDay';
-import { PhaseVolumeCard } from '@/components/PartVolumeCard';
 import { Screen } from '@/components/Screen';
 import { SyncAlertLine } from '@/components/SyncStatus';
 import { T } from '@/components/Text';
@@ -23,18 +22,17 @@ import {
 } from '@/lib/homeHero';
 import { goalLine } from '@/lib/home';
 import {
-  big3Gauge, fuelGauge, latestSession, loadGauge, logFrom, logGrid, monthSummary, partStates, sleepGauge,
+  big3Gauge, fuelGauge, latestSession, loadGauge, logFrom, logGrid, monthSummary, sleepGauge,
 } from '@/lib/homeHud';
 import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweight';
 import { injuryNumbers } from '@/lib/injuries';
-import { BALANCE_PARTS } from '@/lib/partBalance';
 import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
-import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
+import { fixingOn, idleMeshes, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
 import { colors, size, space } from '@/theme';
 
 /**
  * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド。体の色は回復／部位の量）、
- * 部位の量（フェーズの累計の一覧）、FUEL、計器の段（BIG3・LOAD・SLEEP）とその下の BODY の 1 行、LOG（直近 4 週の方眼）、
+ * FUEL、計器の段（BIG3・LOAD・SLEEP）とその下の BODY の 1 行、LOG（直近 4 週の方眼）、
  * レポートのカード（最新のレポート・お知らせ・今週やること）。集計は lib/homeHud.ts と lib/homeHero.ts
  */
 export default function HomeScreen() {
@@ -112,10 +110,6 @@ export default function HomeScreen() {
     const list = partRecoveries(rows, partName, data.partDays.names, today);
     return { list, fixing: fixingOn(data.injuries, today) };
   }, [data, rows, partName, today]);
-  const hurt = useMemo(() => {
-    const states = recovery ? partStates(recovery.list, (p) => injuriesForPart(p, recovery.fixing).length > 0) : [];
-    return new Set(BALANCE_PARTS.filter((_, i) => states[i] === 'injury'));
-  }, [recovery]);
   const heroData = useMemo<HeroData | null>(() => {
     if (!data || !phase || !recovery) return null;
     const { list, fixing } = recovery;
@@ -144,9 +138,6 @@ export default function HomeScreen() {
       <SyncAlertLine />
       <HomeHero today={today} unit={unit} latest={hero} ready={ready} data={heroData} />
 
-      <View style={s.row}>
-        <PhaseVolumeCard volume={volume} hurt={hurt} />
-      </View>
       <View style={s.row}>
         <FuelPanel fuel={fuel} date={today} />
       </View>
