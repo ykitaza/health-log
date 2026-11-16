@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { BodyScene, Mark } from '@/components/bodyScene';
+import { BodyScene, Mark, sceneLook } from '@/components/bodyScene';
 import { anchorFor, CAMERA, facingOf, partsFor } from '@/lib/bodyModel';
 import { colors, toneColors } from '@/theme';
 
@@ -275,5 +275,58 @@ describe('3D の体の場面', () => {
     expect(scene.idle()).toBe(true);
     inner.dragging = true;
     expect(scene.idle()).toBe(false);
+  });
+
+  test('見た目の場面の強さ：HUD は今までの値のまま（走査 1・回復マップの走査 0.35・印の脈 1 と 0.5・光と線は 1 倍・円盤と走査の輪あり）', () => {
+    expect(sceneLook('hud')).toEqual({
+      scan: 1, quietScan: 0.35, scanRing: true, markPulse: 1, quietPulse: 0.5, glow: 1, deck: 1, skinWire: 1, disc: true,
+    });
+  });
+
+  test('見た目で場面の値だけが変わる：HUD は今の値、クラシックは走査・脈なし・光 0.7 倍・線 0.4 倍・円盤なし。何度変えても掛け重ねない', async () => {
+    const scene = new BodyScene();
+    scene.setModel(await loadBody());
+    const all = meshesIn(scene.body);
+    const u = (name: string) => (all.find((m) => m.name === name)!.material as THREE.ShaderMaterial).uniforms;
+    const lines: THREE.LineBasicMaterial[] = [];
+    scene.deck.traverse((o) => { const m = (o as THREE.Line).material; if (m instanceof THREE.LineBasicMaterial) lines.push(m); });
+    const disc = meshesIn(scene.deck)[0];
+    const skin = all.find((m) => m.name === 'skin')!.children.find((c) => c instanceof THREE.LineSegments) as THREE.LineSegments;
+    const wire = skin.material as THREE.LineBasicMaterial;
+    const marks = [mark('a', 'shoulder_front', 'right', true)];
+    const base = { marks, reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {} };
+
+    // HUD（初期値。jest の見た目は HUD）：今までの値
+    scene.configure(base);
+    expect(u('biceps_l').uBase.value).toBeCloseTo(0.13);
+    expect(u('biceps_l').uRim.value).toBeCloseTo(1.2);
+    expect(u('delt_front_r').uPulse.value).toBe(1);
+    expect(scene.shared.uScanAmp.value).toBe(1);
+    expect(lines.map((m) => m.opacity)).toEqual([0.35, 0.5, 0.25, 0.45, 0.4, 0.4, 0.4, 0.4]);
+    expect(wire.opacity).toBeCloseTo(0.012);
+    expect(disc.visible).toBe(true);
+    expect(scene.scanRing.visible).toBe(true);
+
+    // クラシック（2 回渡しても同じ）
+    scene.configure({ ...base, look: 'classic' });
+    scene.configure({ ...base, look: 'classic' });
+    expect(u('biceps_l').uBase.value).toBeCloseTo(0.13 * 0.7);
+    expect(u('biceps_l').uRim.value).toBeCloseTo(1.2 * 0.7);
+    expect(u('delt_front_r').uPulse.value).toBe(0);
+    expect(scene.shared.uScanAmp.value).toBe(0);
+    expect(lines.map((m) => m.opacity)).toEqual([0.35, 0.5, 0.25, 0.45, 0.4, 0.4, 0.4, 0.4].map((v) => v * 0.4));
+    expect(wire.opacity).toBeCloseTo(0.012 * 0.4);
+    expect(disc.visible).toBe(false);
+    expect(scene.scanRing.visible).toBe(false);
+    // 回復マップの控えめな印も脈打たず、走査もない
+    scene.configure({ ...base, look: 'classic', quietMarks: true });
+    expect(u('delt_front_r').uPulse.value).toBe(0);
+    expect(scene.shared.uScanAmp.value).toBe(0);
+
+    // HUD に戻すと元の値
+    scene.configure(base);
+    expect(lines.map((m) => m.opacity)).toEqual([0.35, 0.5, 0.25, 0.45, 0.4, 0.4, 0.4, 0.4]);
+    expect(wire.opacity).toBeCloseTo(0.012);
+    expect(u('biceps_l').uBase.value).toBeCloseTo(0.13);
   });
 });
