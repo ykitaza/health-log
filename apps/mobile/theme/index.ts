@@ -45,16 +45,6 @@ export const colors = {
 } as const;
 
 /**
- * 記録で育つ形（components/growth）の色。点は training を主に、中心に近い部分は sleep。
- * 衛星は内側から training（丸）・food（ひし形）・sleep（輪）
- */
-export const growthColors = {
-  training: '#5EE6A0',
-  food: '#5ED4E6',
-  sleep: '#B79CF0',
-} as const;
-
-/**
  * 筋肉の図（components/MuscleFigure）の地の色（Figma「部品案：筋肉の図」）。muscle は筋肉のパーツ、body は頭・首・手・足。
  * その日の部位の筋肉は colors.accent で塗る
  */

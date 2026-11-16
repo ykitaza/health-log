@@ -1,4 +1,4 @@
-// 部位のバランス：部位ごとのセット数を、6軸（BALANCE_PARTS）に寄せて数える（筋トレの推移の六角形のレーダー、成長の形、lib/partVolume.ts）
+// 部位のバランス：部位ごとのセット数を、6軸（BALANCE_PARTS）に寄せて数える（筋トレの推移の六角形のレーダー、lib/partVolume.ts）
 import { addDays, addMonths, DateKey } from './date';
 import type { TrainingSetRow } from './training';
 
@@ -98,4 +98,21 @@ export function partBalanceRangeLabel(range: BalanceRange, b: PartBalance, recen
 /** i 番目の軸の向き（ラジアン）。胸が左上（−120°）で、60° ずつ時計回り */
 export function axisAngle(i: number): number {
   return ((-120 + 60 * i) * Math.PI) / 180;
+}
+
+/** それぞれの期間でいちばん多い部位の名前（同じ数なら並びの先）。記録がなければ null */
+export function topPart(b: PartBalance): string | null {
+  if (b.total === 0) return null;
+  const max = Math.max(...b.sets);
+  return BALANCE_PARTS[b.sets.indexOf(max)];
+}
+
+/** ⑤の下の一言（「外周は、その期間でいちばん多い部位（これまでは胸、直近2週は脚）」）。記録がなければ null */
+export function partsNote(all: PartBalance, recent: PartBalance): string | null {
+  const names = { all: 'これまで', recent: '直近2週' };
+  const a = topPart(all);
+  if (a == null) return null;
+  const r = topPart(recent);
+  const which = r == null ? `${names.all}は${a}。${names.recent}は記録なし` : a === r ? `どちらも${a}` : `${names.all}は${a}、${names.recent}は${r}`;
+  return `外周は、その期間でいちばん多い部位（${which}）`;
 }

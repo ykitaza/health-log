@@ -1,6 +1,6 @@
 import {
   axisAngle, BALANCE_PARTS, BALANCE_RANGES, balanceAxisOf, balanceRangeFrom, parseBalanceRange, partBalance,
-  partBalanceBetween, partBalanceForRange, partBalanceRangeLabel,
+  partBalanceBetween, partBalanceForRange, partBalanceRangeLabel, partsNote, topPart,
 } from '../partBalance';
 import type { TrainingSetRow } from '../training';
 
@@ -145,5 +145,25 @@ describe('期間を指定した部位のバランス（partBalanceBetween）', (
     expect(b.total).toBe(6);
     expect(b.ratios[2]).toBe(1);
     expect(b.ratios[0]).toBeCloseTo(Math.sqrt(2 / 4));
+  });
+});
+
+describe('外周の部位と一言', () => {
+  const data = [
+    ...rows('2026-06-07', 'chest', 10),
+    ...rows('2026-11-05', 'legs', 4),
+    row('2026-11-06', 'abs'),
+  ];
+  test('それぞれの期間でいちばん多い部位。記録がなければ一言なし', () => {
+    const TODAY = '2026-11-11';
+    const all = partBalanceBetween(data, nameOf, null, TODAY);
+    const recent = partBalance(data, nameOf, TODAY);
+    expect(topPart(all)).toBe('胸');
+    expect(topPart(recent)).toBe('脚');
+    expect(partsNote(all, recent)).toBe('外周は、その期間でいちばん多い部位（これまでは胸、直近2週は脚）');
+    expect(partsNote(all, all)).toBe('外周は、その期間でいちばん多い部位（どちらも胸）');
+    const none = partBalance([], nameOf, TODAY);
+    expect(partsNote(all, none)).toBe('外周は、その期間でいちばん多い部位（これまでは胸。直近2週は記録なし）');
+    expect(partsNote(none, none)).toBeNull();
   });
 });
