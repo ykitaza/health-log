@@ -1,5 +1,5 @@
 // レポートの部品（一覧とホームのカード、中身の画面の帯・タイル・カード・本文）。デザインは Figma の「改善 1-3〜1-6」と
-// コンポーネント（改善案）の ReportCard・LatestReportCard。調子は色だけでなく、アイコンとラベルでも伝える（WCAG 1.4.1）。
+// コンポーネント（改善案）の ReportCard。ホームのカードは components/HomeReports.tsx。調子は色だけでなく、アイコンとラベルでも伝える（WCAG 1.4.1）。
 // 本文はモデルが書いた文なので、すべて文字として表示する（リンクや HTML を開く処理は入れない）
 import { router } from 'expo-router';
 import { ReactNode, useEffect, useState } from 'react';
@@ -14,12 +14,11 @@ import {
 } from '@/lib/reports';
 import { colors, onToneSub, radius, space, toneColors } from '@/theme';
 import { duration, HOLD_MS, springs, staggerDelay } from '@/theme/motion';
-import { REPORT_CHAT_LABEL, useChatChooser } from './ChatSheet';
 import { CountUpText } from './charts';
 import { Icon, IconName } from './Icon';
 import { easeOut, PressableScale } from './motion';
 import { T } from './Text';
-import { Badge, Button } from './ui';
+import { Badge } from './ui';
 
 const TONE_ICON: Record<Tone, IconName> = { good: 'trendUp', steady: 'trendFlat', caution: 'caution' };
 export const AREA_ICON: Record<Area, IconName> = { training: 'dumbbell', meals: 'meal', body: 'scale', sleep: 'moon' };
@@ -173,47 +172,6 @@ export function ReportCard({ report, onPress, unread = false }: { report: Report
         <Icon name="chevron" size={20} color={colors.sub} />
       </View>
     </PressableScale>
-  );
-}
-
-/**
- * ホームの「最新のレポート」。いちばん新しい1件と「すべて」、その下に小さな「チャットで作る」。
- * 「すべて」は、レポートのタブへ移る（タブが最新の詳細をそのまま出す。日・週・月は詳細の上の期間タブで切り替える。
- * ここで /reports/[id] を重ねると、同じ詳細がタブと重なって2つになるため）。いちばん新しい1件のカードは、その詳細（/reports/[id]）を開く（戻るでホームへ戻る）。
- * まだないときは、チャットで頼む方法を短く書き、「チャットで作る」のボタンを出す
- */
-export function LatestReportCard() {
-  const { data } = useFocusData((r) => r.reports.latest());
-  const chat = useChatChooser();
-  return (
-    <View style={{ marginTop: 16 }} testID="latest-report">
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
-        <T bold size={17} accessibilityRole="header">最新のレポート</T>
-        {data && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます"
-            onPress={() => router.navigate('/reports')}
-            style={{ minHeight: 48, minWidth: 48, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <T bold size={14} color={colors.accent}>すべて</T>
-          </PressableScale>
-        )}
-      </View>
-      {data ? (
-        <>
-          <ReportCard report={data} onPress={() => router.push({ pathname: '/reports/[id]', params: { id: data.id } })} />
-          <Button label="チャットで作る" icon="chat" variant="text" small accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report}
-            style={{ alignSelf: 'flex-end', paddingLeft: 12, paddingRight: 12, marginRight: -12 }} testID="report-chat" />
-        </>
-      ) : (
-        <View style={{ backgroundColor: colors.card, borderRadius: radius.card, padding: 16, gap: 12 }}>
-          <T size={14} color={colors.sub}>まだありません。チャット（Claude・ChatGPT）で「今週のまとめを作って」と頼むと、ここに出ます。</T>
-          <Button label="チャットで作る" icon="chat" variant="tonal" small accessibilityLabel={REPORT_CHAT_LABEL} onPress={chat.report} testID="report-chat" />
-        </View>
-      )}
-      {chat.sheet}
-    </View>
   );
 }
 

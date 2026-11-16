@@ -17,6 +17,9 @@ export function goalLine(weightKg: number | null, goalKg: number | null, unit: W
 /** 設定の「今週の目標」の欄を開く道（settings?section=weekly-goals） */
 export const WEEKLY_GOALS_SECTION = 'weekly-goals';
 
+/** ホームの今週やることに出す数の上限（次の一歩は多くても 3 つ。番号は元のまま先頭から数える） */
+export const TODO_MAX = 3;
+
 /**
  * 今週やること：最新の週のまとめ（kind が weekly で、期間の終わりが先週の月曜〜今週の日曜のもの）の次の一歩。
  * reports は新しい順（db の reports.list）。いちばん新しい週のまとめに次の一歩がなければ null（カードを出さない）。
@@ -31,7 +34,7 @@ export function weeklyTodo(
     const last = r.periodEnd ?? r.periodStart;
     return r.kind === 'weekly' && last != null && last >= from && last <= end;
   });
-  return latest && latest.nextSteps.length > 0 ? { reportId: latest.id, steps: latest.nextSteps, done: latest.nextStepsDone } : null;
+  return latest && latest.nextSteps.length > 0 ? { reportId: latest.id, steps: latest.nextSteps.slice(0, TODO_MAX), done: latest.nextStepsDone } : null;
 }
 
 /** 済んだ数（次の一歩にある番号だけ数える） */

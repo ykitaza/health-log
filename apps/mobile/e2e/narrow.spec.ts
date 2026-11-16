@@ -12,6 +12,9 @@ test('360 の幅でも、ホームの計器の段・LOG・部位の量の文字�
   expect(big3.x + big3.width).toBeLessThanOrEqual(load.x);
   expect(load.x + load.width).toBeLessThanOrEqual(sleep.x);
   expect(sleep.x + sleep.width).toBeLessThanOrEqual(360);
+  // BODY の 1 行は 360 の中（体重がなくても）
+  const bodyLine = (await page.getByTestId('home-body').boundingBox())!;
+  expect(bodyLine.x + bodyLine.width).toBeLessThanOrEqual(360);
   // LOG の日曜のマスは方眼の中
   const log = (await page.getByTestId('home-log').boundingBox())!;
   const sunday = (await page.getByTestId('log-2026-11-08').boundingBox())!;
@@ -28,7 +31,7 @@ test('360 の幅でも、ホームの計器の段・LOG・部位の量の文字�
   }
 });
 
-test('360 の幅でも、部位の量の行は、いちばん長い文字（3 桁のセット数・「目安より多い」・「あと9.7」）と長いフェーズの名前でも収まり、体の札は 4 つでも四隅と重ならない', async ({ page, context }) => {
+test('360 の幅でも、部位の量の行は、いちばん長い文字（3 桁のセット数と週あたり）と長いフェーズの名前でも収まり、体の札は 4 つでも四隅と重ならない', async ({ page, context }) => {
   test.setTimeout(150_000);
   await openWith(page, context, [
     bulkPhase('ffffffff-0000-4000-8000-000000000031', '2026-10-12', '2026-12-06', { name: '夏までに体を作る長い名前の増量フェーズ（第 2 期）' }),
@@ -48,13 +51,13 @@ test('360 の幅でも、部位の量の行は、いちばん長い文字（3 �
     const info = await row.evaluate((el) => [...el.querySelectorAll('div')].filter((d) => d.children.length === 0 && d.textContent !== '').map((d) => `${d.textContent}:${d.scrollWidth}/${d.clientWidth}`).join(' '));
     expect(clipped, `${name} の行の文字が省略されている ${info}`).toBe(false);
   }
-  await expect(card.getByTestId('home-parts-body-row-腕')).toContainText('目安より多い');
+  await expect(card.getByTestId('home-parts-body-row-腕')).toHaveText('腕120セット週30');
   // 体の札：部位の量にして、1 つ押して足しても（4 つ）、四隅の数字・切り替えと重ならない
   const mode = page.getByTestId('hero-body-mode').filter({ visible: true });
   await mode.getByRole('button', { name: '部位の量', exact: true }).click();
   const press = page.getByTestId('day-body-2d-press-front').filter({ visible: true });
   const figure = (await press.boundingBox())!;
-  await press.click({ position: { x: figure.width * 0.42, y: figure.height * 0.225 } }); // 胸（先頭の 3 つは肩・腕・腹）
+  await press.click({ position: { x: figure.width * 0.5, y: figure.height * 0.36 } }); // 腹（先頭の 3 つは腕・胸・脚）
   const tags = page.getByTestId('hero-body-tag').filter({ visible: true });
   await expect(tags).toHaveCount(4);
   const corners = await Promise.all(['home-latest', 'home-latest-ex', 'home-latest-load', 'home-latest-pr', 'hero-body-mode'].map(async (id) => (await page.getByTestId(id).filter({ visible: true }).boundingBox())!));

@@ -195,8 +195,8 @@ export const homeLatest = (page: Page) => page.getByTestId('home-latest').filter
 /** ホームの FUEL（今日の食事。読み上げに kcal と PFC） */
 export const homeFuel = (page: Page) => page.getByTestId('home-fuel').filter({ visible: true });
 
-/** ホームの体調のカード */
-export const homeCard = (page: Page, which: 'condition') => page.getByTestId(`home-${which}`).filter({ visible: true });
+/** ホームの BODY の行（体重と目標まで） */
+export const homeCard = (page: Page, which: 'body') => page.getByTestId(`home-${which}`).filter({ visible: true });
 
 /** タブの中の切り替え（筋トレの「記録」「推移」「ケガ」、食事の「記録」「推移」、からだの「今日」「推移」） */
 export async function goPane(page: Page, name: '今日' | '記録' | '推移' | 'ケガ') {

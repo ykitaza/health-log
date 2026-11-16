@@ -690,7 +690,7 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   await openApp(page);
   await signInAndSync(page);
 
-  const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
+  const banner = page.getByTestId('home-report-new').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 2 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ・10月31日のまとめ', { exact: true })).toBeVisible();
   // 2件のときの「見る」は、レポートのタブへ移る（いちばん新しいレポートの詳細が、タブの中に出る）
@@ -710,17 +710,17 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   await button(page, '戻る').click();
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
-  await expect(page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
+  await expect(page.getByTestId('home-report-new').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
 });
 
 test('新しいレポートのお知らせの「×」：今の分を全部見たことにする', async ({ page, context }) => {
   await connect(page, context, serverWithReport());
   await openApp(page);
   await signInAndSync(page);
-  const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
+  const banner = page.getByTestId('home-report-new').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await button(banner, 'お知らせを閉じる。今出ている分は、見たことにします').click();
-  await expect(page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
+  await expect(page.getByTestId('home-report-new').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
   // レポートのタブは詳細をそのまま出す（新着の札つきの一覧はない）
   await openReportsTab(page);
   await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
@@ -756,17 +756,17 @@ test('レポートのタブにお知らせの帯はない（帯はホームだ�
   const shown = (l: Locator) => l.filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
 
   // ホームには帯が出る
-  const banner = shown(page.getByTestId('new-report-banner'));
+  const banner = shown(page.getByTestId('home-report-new'));
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ', { exact: true })).toBeVisible();
 
   // レポートのタブは詳細をそのまま出し、帯は出ない
   await openReportsTab(page);
-  await expect(shown(page.getByTestId('new-report-banner'))).toHaveCount(0);
+  await expect(shown(page.getByTestId('home-report-new'))).toHaveCount(0);
   await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
 
   // 詳細を開いたので見たことになり、ホームに戻っても帯は出ない
   await goTab(page, 'ホーム');
   await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
-  await expect(shown(page.getByTestId('new-report-banner'))).toHaveCount(0);
+  await expect(shown(page.getByTestId('home-report-new'))).toHaveCount(0);
 });

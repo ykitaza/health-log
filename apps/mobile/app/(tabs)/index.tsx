@@ -3,27 +3,21 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { HomeHeader, ReceivedNotice, RecordSheet } from '@/components/home';
 import { HeroData, HomeHero, HeroLatest } from '@/components/HomeHero';
-import { Big3Panel, FuelPanel, LoadPanel, LogPanel, SleepPanel } from '@/components/homeHud';
-import { WeeklyTodoCard } from '@/components/WeeklyTodo';
-import { Icon } from '@/components/Icon';
+import { BodyPanel, Big3Panel, FuelPanel, LoadPanel, LogPanel, SleepPanel } from '@/components/homeHud';
+import { HomeReportsCard } from '@/components/HomeReports';
 import { LoadError } from '@/components/LoadError';
 import { loadPartDays, todaySuggestion } from '@/components/partDay';
 import { PhaseVolumeCard } from '@/components/PartVolumeCard';
-import { PressableScale } from '@/components/motion';
-import { LatestReportCard } from '@/components/reports';
-import { ReportSuggestion } from '@/components/ReportSuggestion';
 import { Screen } from '@/components/Screen';
 import { SyncAlertLine } from '@/components/SyncStatus';
 import { T } from '@/components/Text';
 import { Button, Fab } from '@/components/ui';
-import type { HeartRateDay, SleepDay } from '@/db/repositories/health';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, formatMonthDay, pickedDayOrToday, weekStart, yearMonth } from '@/lib/date';
 import { dayBodyEntries } from '@/lib/dayBody';
 import { big3Assignments } from '@/lib/exercises';
-import { formatMinutes } from '@/lib/health';
 import {
   heroPages, heroPhase, injuryCorners, normalPhaseOf, phaseRing,
 } from '@/lib/homeHero';
@@ -36,13 +30,12 @@ import { injuryNumbers } from '@/lib/injuries';
 import { BALANCE_PARTS } from '@/lib/partBalance';
 import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
 import { fixingOn, idleMeshes, injuriesForPart, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
-import { fmt1, kgToUnit } from '@/lib/units';
-import { colors, radius, size, space } from '@/theme';
+import { colors, size, space } from '@/theme';
 
 /**
- * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド）、
- * 計器の段（BIG3・LOAD・SLEEP）、LOG（直近 4 週の方眼）、部位の量（フェーズの週あたり）と FUEL、レポートのおすすめ、体調、今週やること、最新のレポート。
- * 集計は lib/homeHud.ts と lib/homeHero.ts
+ * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド。体の色は回復／部位の量）、
+ * 部位の量（フェーズの累計の一覧）、FUEL、計器の段（BIG3・LOAD・SLEEP）とその下の BODY の 1 行、LOG（直近 4 週の方眼）、
+ * レポートのカード（最新のレポート・お知らせ・今週やること）。集計は lib/homeHud.ts と lib/homeHero.ts
  */
 export default function HomeScreen() {
   // 開いたまま日をまたいでも、前の日を「今日」として出さない（前の日に記録を足してしまうため）
@@ -51,16 +44,15 @@ export default function HomeScreen() {
   const [picked, setPicked] = useState<DateKey | null>(null);
   const selected = pickedDayOrToday(picked, today);
   const isToday = selected === today;
-  const dayLabel = isToday ? '今日' : formatMonthDay(selected);
   // 過去の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(isToday, () => setPicked(null));
   const [recording, setRecording] = useState(false);
   const { year, month } = yearMonth(today);
   const { data, error, reload } = useFocusData(async (r) => {
     const from = logFrom(today);
-    const [rows, settings, meals, daily, sleep, sleepSel, heart, exercises, injuries, phases, heroBodyMode] = await Promise.all([
+    const [rows, settings, meals, daily, sleep, exercises, injuries, phases, heroBodyMode] = await Promise.all([
       r.workouts.allSetRows(), r.settings.get(), r.meals.summaries(from, today), r.body.listDaily(),
-      r.health.sleepDays(addDays(today, -6), today), r.health.sleepDay(selected), r.health.heartRateDay(selected),
+      r.health.sleepDays(addDays(today, -6), today),
       // BIG3 の割り当て（筋トレの推移のグラフと同じく、非表示の種目も）
       r.catalog.listExercises({ includeHidden: true }),
       r.injuries.list(),
@@ -73,7 +65,7 @@ export default function HomeScreen() {
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     return {
       rows, settings, meals: meals.days, daily, sleep, partDays, latest, entries, injuries, phases, big3: big3Assignments(exercises),
-      day: selected, weightKg, sleepSel, heart, heroBodyMode,
+      day: selected, weightKg, heroBodyMode,
     };
   }, `${selected}|${today}`);
 
@@ -140,7 +132,7 @@ export default function HomeScreen() {
   }, [data, phase, recovery, weights, today, volume]);
   const todayMeal = data?.meals.find((d) => d.date === today) ?? null;
   const fuel = todayMeal ? fuelGauge(todayMeal) : null;
-  const condition = data?.day === selected ? data : null;
+  const body = data?.day === selected ? data : null;
 
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
@@ -153,43 +145,45 @@ export default function HomeScreen() {
       <HomeHero today={today} unit={unit} latest={hero} ready={ready} data={heroData} />
 
       <View style={s.row}>
+        <PhaseVolumeCard volume={volume} hurt={hurt} />
+      </View>
+      <View style={s.row}>
+        <FuelPanel fuel={fuel} date={today} />
+      </View>
+      <View style={s.row}>
         <Big3Panel gauge={big3} unit={unit} ready={ready} />
         <LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready={ready} />
         <SleepPanel gauge={sleep} today={today} />
+      </View>
+      {/* BODY：体重と目標まで（その日。LOG で選んだ日）。睡眠は SLEEP だけ、安静時心拍はホームに出さない */}
+      <View style={{ marginTop: space.s }}>
+        <BodyPanel
+          label={isToday ? 'BODY' : `BODY // ${formatMonthDay(selected)}`}
+          weightKg={body?.weightKg ?? null}
+          goal={body ? goalLine(body.weightKg, body.settings.goalWeightKg ?? null, unit) : null}
+          unit={unit}
+          onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
+        />
       </View>
       {log && (
         <View style={{ marginTop: space.s }}>
           <LogPanel weeks={log} month={monthSum} selected={selected} unit={unit} onPressDay={(d) => setPicked(d === today ? null : d)} />
         </View>
       )}
-      {/* LOG で選んだ日（体調のカードと「記録する」がその日になる）。押した所の近くに出す */}
+      {/* LOG で選んだ日（BODY と「記録する」がその日になる）。押した所の近くに出す */}
       {!isToday && (
         <View style={s.pickedRow}>
           <T variant="bodyM" color={colors.sub}>{formatJpDate(selected)}を表示しています</T>
           <Button label="今日に戻る" icon="calendar" variant="text" small onPress={() => setPicked(null)} style={{ paddingLeft: 12, paddingRight: 12 }} />
         </View>
       )}
-      <View style={s.row}>
-        <PhaseVolumeCard volume={volume} hurt={hurt} />
-      </View>
-      <View style={s.row}>
-        <FuelPanel fuel={fuel} date={today} />
-      </View>
-      <ReportSuggestion />
 
       {data != null && recentMissingBodyweight(rows, today) && (
         <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
       )}
-      <View style={{ gap: space.l, marginTop: space.l }}>
-        <ConditionCard
-          title={`${dayLabel}の体調`}
-          body={condition ? conditionLine(condition.weightKg, condition.sleepSel, condition.heart, unit) : ''}
-          sub={condition ? goalLine(condition.weightKg, condition.settings.goalWeightKg ?? null, unit) ?? undefined : undefined}
-          onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
-        />
-        <WeeklyTodoCard today={today} />
+      <View style={{ marginTop: space.l }}>
+        <HomeReportsCard />
       </View>
-      <LatestReportCard />
     </Screen>
     <Fab label="記録する" onPress={() => setRecording(true)} style={s.fab} testID="home-record" />
     <ReceivedNotice bottom={size.fab + space.l * 2} />
@@ -198,35 +192,8 @@ export default function HomeScreen() {
   );
 }
 
-/** 体調のカードの1行：体重・睡眠・安静時心拍（ない値は出さない） */
-function conditionLine(weightKg: number | null, sleep: SleepDay | null, heart: HeartRateDay | null, unit: 'kg' | 'lb'): string {
-  const parts = [
-    weightKg != null ? `体重 ${fmt1(kgToUnit(weightKg, unit))} ${unit}` : null,
-    sleep ? `睡眠 ${formatMinutes(sleep.asleepMin)}` : null,
-    heart?.restingBpm != null ? `安静時 ${Math.round(heart.restingBpm)} 拍/分` : null,
-  ].filter(Boolean);
-  return parts.length === 0 ? 'まだ記録がありません' : parts.join(' ・ ');
-}
-
-/** 体調のカード（その日の体重・睡眠・安静時心拍と、目標体重まで）。押すとからだのタブ */
-function ConditionCard({ title, body, sub, onPress }: { title: string; body: string; sub?: string; onPress: () => void }) {
-  return (
-    <PressableScale testID="home-condition" accessibilityRole="button" accessibilityLabel={`${title}を開く。${[body, sub].filter(Boolean).join('。')}`} scaleTo={0.98} onPress={onPress} style={s.summary}>
-      <View style={s.summaryIcon}><Icon name="scale" size={24} color={colors.onAccentDark} /></View>
-      <View style={{ flex: 1, gap: space.xs }}>
-        <T variant="titleM" numberOfLines={1}>{title}</T>
-        <T variant="bodyM" color={colors.sub}>{body}</T>
-        {sub && <T variant="bodyM" color={colors.sub}>{sub}</T>}
-      </View>
-      <Icon name="chevron" size={24} color={colors.sub} />
-    </PressableScale>
-  );
-}
-
 const s = StyleSheet.create({
   row: { flexDirection: 'row', gap: space.s, marginTop: space.s },
   pickedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: space.l, backgroundColor: colors.card, borderRadius: radius.l, padding: space.l, minHeight: 80 },
-  summaryIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
   fab: { position: 'absolute', right: space.l, bottom: space.l },
 });
