@@ -11,10 +11,10 @@ import { addDays, formatMonthDay, todayKey, weekday } from '@/lib/date';
 import { DaySummary, Gap, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, pfcPalette } from '@/theme';
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土'];
-const PFC_COLORS = { p: colors.accent, f: colors.star, c: '#6FA8FF' };
+const PFC_COLORS = pfcPalette;
 
 /** 食事の週のふり返り（MCP の weekly_review と同じ：最後の日までの7日。平均は記録した日だけ） */
 export function MealWeekly() {

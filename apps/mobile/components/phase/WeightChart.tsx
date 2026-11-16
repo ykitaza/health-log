@@ -7,6 +7,7 @@ import { PACE_BAND_CENTS } from '@/lib/phases';
 import type { WeightChart as Chart } from '@/lib/phaseView';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
 import { hud, Micro, useMono } from '../report/hud';
+import { lbl } from '@/theme';
 
 const H = 180;
 const PAD = { l: 30, r: 8, t: 18, b: 22 };
@@ -62,7 +63,7 @@ export function WeightChart({ chart, unit, accessibilityLabel }: { chart: Chart;
             ))}
             {weekTicks(chart.weeks).map((wk) => (
               <SvgText key={`w${wk}`} x={x(wk * 7)} y={H - 6} fontSize={9} fill={hud.faint} fontFamily={mono}
-                textAnchor={wk === 0 ? 'start' : wk === chart.weeks ? 'end' : 'middle'}>{wk === 0 ? 'START' : `W${wk}`}</SvgText>
+                textAnchor={wk === 0 ? 'start' : wk === chart.weeks ? 'end' : 'middle'}>{wk === 0 ? lbl('START', '開始') : lbl(`W${wk}`, `${wk}週`)}</SvgText>
             ))}
             {current && current.points.length >= 2 && (
               <Polygon

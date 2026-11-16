@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, goTab, moveToDate, openApp, openSettings, see, TODAY } from './helpers';
-import { AT, mcp, openWith } from './seed';
+import { button, goPane, goTab, moveToDate, openApp, openSettings, see, TODAY } from './helpers';
+import { AT, bulkPhase, change, EXERCISE, mcp, openWith } from './seed';
 
 // 見た目（HUD・クラシック）：theme が最初に評価されるときに見た目を読み、色と飾りを選ぶ。web は localStorage の appearance.look。
 // 設定の「表示」で選ぶと、確かめてから保存し（sync_meta と localStorage）、アプリを開き直す。
@@ -88,4 +88,47 @@ test('保存した見た目と表示が違うとき（起動のときに読め�
   await expect(latestCorner(page)).toContainText('LATEST //');
   await openSettings(page);
   await expect(page.getByTestId('appearance-mismatch')).toHaveText('保存した見た目と表示が違います（開き直してください）');
+});
+
+test('クラシックのフェーズとケガの画面は日本語の見出しで、英字の見出しは出ない。HUD は英字のまま', async ({ page, context }) => {
+  const changes = [
+    bulkPhase('ffffffff-0000-4000-8000-0000000000e1', '2026-10-12', '2026-12-06'),
+    change('injury', 'cccccccc-0000-4000-8000-0000000000e1', {
+      occurred_on: '2026-11-06', site: 'shoulder_joint', side: 'right', exercise_id: EXERCISE.bench, phase: 'ラックアップ', symptom: '肩の前に違和感', cause: '', fix: '',
+      status: 'fixing', fixed_on: null,
+    }),
+  ];
+  const phaseLine = page.getByTestId('hero-phase').filter({ visible: true });
+
+  // HUD：英字の見出し
+  await openWith(page, context, changes);
+  await phaseLine.click();
+  await expect(see(page, 'KARADA // PHASE · BULK 04/08')).toBeVisible();
+  await expect(see(page, 'START 10/12')).toBeVisible();
+  await button(page, '戻る').click();
+  await goTab(page, '筋トレ');
+  await goPane(page, 'ケガ');
+  await expect(see(page, 'BODY MAP // SCAN')).toBeVisible();
+  await expect(see(page, 'ACTIVE 01 / CLEARED 00')).toBeVisible();
+
+  // クラシック：同じ画面が日本語の見出し
+  await page.evaluate(() => localStorage.setItem('appearance.look', 'classic'));
+  await openApp(page);
+  await expect(latestCorner(page)).toContainText('直近');
+  await phaseLine.click();
+  await expect(see(page, 'フェーズ · 増量 4/8週')).toBeVisible();
+  await expect(see(page, '開始 10/12')).toBeVisible();
+  await expect(see(page, '直近3週', { exact: false })).toBeVisible();
+  await expect(see(page, 'いまどこ', { exact: true })).toBeVisible();
+  for (const en of ['KARADA // PHASE', 'START 10/12', '1 TICK', 'PLAN', 'ACTIONS', 'NOW //']) await expect(see(page, en, { exact: false })).toHaveCount(0);
+  await button(page, '戻る').click();
+  await goTab(page, '筋トレ');
+  await goPane(page, 'ケガ');
+  await expect(see(page, '体の図', { exact: true })).toBeVisible();
+  await expect(see(page, 'ケガ 1 ▲')).toBeVisible();
+  for (const en of ['BODY MAP // SCAN', 'ACTIVE 01', 'CLEARED', 'R FRONT L', 'INJ-01']) await expect(see(page, en, { exact: false })).toHaveCount(0);
+  // 1件の画面
+  await page.getByRole('button', { name: /^右肩.*直している途中/ }).filter({ visible: true }).click();
+  await expect(see(page, '対象 ・ ケガ 1')).toBeVisible();
+  for (const en of ['TARGET', '01 / WHERE', 'R FRONT L', 'L BACK R']) await expect(see(page, en, { exact: false })).toHaveCount(0);
 });

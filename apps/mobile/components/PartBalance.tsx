@@ -3,7 +3,7 @@ import { useLayoutEffect } from 'react';
 import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { axisAngle, BALANCE_PARTS, PartBalance } from '@/lib/partBalance';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, recentStroke } from '@/theme';
 import { duration } from '@/theme/motion';
 import { easeOut } from './motion';
 
@@ -20,7 +20,7 @@ const SIN = BALANCE_PARTS.map((_, i) => Math.sin(axisAngle(i)));
 const BIG_PAD_X = 64;
 const BIG_PAD_Y = 22;
 /** 直近2週の点線の色（白の約85%） */
-const RECENT_COLOR = 'rgba(243,245,247,0.85)';
+const RECENT_COLOR = recentStroke;
 
 /**
  * 大きなレーダー（Figma 筋トレ 1-4-2）。all（緑の実線・放射状の面・点）と、recent（白の点線）を重ねる。

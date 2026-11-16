@@ -23,7 +23,7 @@ import {
 } from '@/lib/injuries';
 import { INJURY_LIMITS } from '@/lib/limits';
 import { FigureTarget, MuscleView, targetsNear } from '@/lib/muscleFigure';
-import { colors, fonts, radius, space, toneColors } from '@/theme';
+import { colors, deco, fonts, lbl, radius, space, toneColors } from '@/theme';
 
 
 const EMPTY = (today: string): InjuryInput => ({ occurredOn: today, site: '', side: null, exerciseId: null, phase: '', symptom: '', cause: '', fix: '' });
@@ -127,24 +127,24 @@ export default function InjuryFormScreen() {
       <ScanFrame style={{ padding: space.l, marginTop: space.s }} testID="injury-site">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <T variant="titleS" color={colors.sub}>部位</T>
-          <Mono>TAP TO SELECT</Mono>
+          <Mono>{lbl('TAP TO SELECT', '押して選ぶ')}</Mono>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: space.s, gap: space.l }}>
           <View style={{ alignItems: 'center' }}>
             <MuscleFigure view="front" width={figW} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
               onPick={onPick('front')} testID="injury-figure-front" />
-            <Mono size={11}>R FRONT L</Mono>
+            <Mono size={11}>{lbl('R FRONT L', '前（右が左）')}</Mono>
           </View>
           <View style={{ alignItems: 'center' }}>
             <MuscleFigure view="back" width={figW} height={FIG_H} selected={form.site ? { site: form.site, side: form.side } : null}
               onPick={onPick('back')} testID="injury-figure-back" />
-            <Mono size={11}>L BACK R</Mono>
+            <Mono size={11}>{lbl('L BACK R', '後ろ（左が左）')}</Mono>
           </View>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.m, rowGap: space.xs, marginTop: space.s, minHeight: 48 }}>
           {label ? (
             <>
-              <Mono color={INJURY_AMBER} size={11}>SELECTED</Mono>
+              <Mono color={INJURY_AMBER} size={11}>{lbl('SELECTED', '選んだ部位')}</Mono>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel={`${label}を外す`}
@@ -243,7 +243,7 @@ function Label({ title, en }: { title: string; en: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, marginTop: space.l, marginBottom: space.s }}>
       <T variant="titleS" color={colors.sub}>{title}</T>
-      <Mono size={11}>{en}</Mono>
+      {deco.enLabels && <Mono size={11}>{en}</Mono>}
     </View>
   );
 }

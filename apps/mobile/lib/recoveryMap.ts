@@ -5,6 +5,7 @@ import { addDays, DateKey, daysBetween } from './date';
 import { anchorFor, boxOf, facingOf, partsFor, Vec3 } from './bodyModel';
 import { isSiteCode, SiteCode } from './injuries';
 import type { Muscle } from './muscleFigure';
+import { loadPalette } from '@/theme';
 import { BALANCE_DAYS } from './partBalance';
 import type { TrainingSetRow } from './training';
 
@@ -61,11 +62,11 @@ export type RecoveryPalette = {
   idleFill: string;
 };
 /** 回復中（鍛えた日・次の日） */
-export const LOAD_ORANGE = '#FF8A3D';
+export const LOAD_ORANGE : string = loadPalette.orange;
 /** 回復中（最後の日のあたり） */
-export const LOAD_YELLOW = '#F5C94A';
+export const LOAD_YELLOW : string = loadPalette.yellow;
 /** ケガ（直している途中）。ケガの画面の琥珀色（INJURY_AMBER）とは別 */
-export const INJURY_RED = '#FF5A4F';
+export const INJURY_RED : string = loadPalette.injury;
 /** 明るさ k（0〜1）と色の点。間は HSL で混ぜる。0 は回復済みの緑（palette.rest） */
 const stops = (rest: string): [number, string][] => [[0, rest], [0.25, LOAD_YELLOW], [0.75, LOAD_ORANGE], [1, LOAD_ORANGE]];
 

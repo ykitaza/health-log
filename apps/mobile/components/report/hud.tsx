@@ -265,6 +265,8 @@ export function JaVal({ children, weight = 'bold', size = 13, color = hud.ink }:
 }
 
 /** クラシックの単位：英字の大文字の単位を小文字に、日数は日本語に */
+/** 単位の字（HUD は大文字の「KG」、クラシックは小文字の「kg」） */
+export const unitLabel = (unit: string) => (isHud ? unit.toUpperCase() : unit.toLowerCase());
 const unitJa = (unit: string) => (unit === 'DAYS' ? '日' : unit === 'TIMES' ? '回' : unit.toLowerCase());
 
 /** 解釈の文（.insight）：一段暗い面に、少し大きな文 */

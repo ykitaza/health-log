@@ -15,7 +15,7 @@ import {
   recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
-import { colors, deco, lbl, recoveryPalette, space } from '@/theme';
+import { colors, deco, lbl, recoveryPalette, rowOnFill, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
 import { RecoveryFigure2D } from './DayRecovery';
 import { RecoveryCallout, RecoveryMap3D } from './RecoveryMap3D';
@@ -200,7 +200,7 @@ const s = StyleSheet.create({
     minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: 6, paddingHorizontal: space.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  rowOn: { backgroundColor: 'rgba(91,228,155,0.08)' },
+  rowOn: { backgroundColor: rowOnFill },
   rowPressed: { backgroundColor: 'rgba(255,255,255,0.04)' },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: space.s },
   rowBottom: { flexDirection: 'row', alignItems: 'center', gap: space.s },

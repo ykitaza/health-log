@@ -10,7 +10,7 @@ import { addDays, formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { dotDate, injuryNumbers, InjuryStatus, RESULT_KEYS, ReviewResult, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
 import { INJURY_LIMITS } from '@/lib/limits';
 import { markPoint, MuscleView } from '@/lib/muscleFigure';
-import { colors, deco, fonts, radius, space, toneColors } from '@/theme';
+import { colors, deco, fonts, gridLine, injuryNo, lbl, radius, space, toneColors } from '@/theme';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
@@ -25,7 +25,7 @@ import { Button, Chip, EmptyState, ListRow, Segmented } from './ui';
 /** 走査の枠の線（控えめな緑） */
 const SCAN_LINE = colors.accentMuted;
 /** 方眼の線 */
-const GRID = '#1C2A23';
+const GRID = gridLine;
 
 /** 英字の小さな見出し（「BODY MAP // SCAN」）。数字の字体で字間を空ける。11sp 以上 */
 export function Mono({ children, color = colors.sub, size = 12 }: { children: ReactNode; color?: string; size?: number }) {
@@ -149,11 +149,11 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
     <ScanFrame strong style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
       <View accessible accessibilityLabel={`体の図。直している途中 ${active}件、直せた ${cleared}件`} style={{ gap: space.s }}>
         <View style={[s.mapHead, { alignItems: 'flex-start' }]}>
-          <Mono color={colors.accent}>BODY MAP // SCAN</Mono>
+          <Mono color={colors.accent}>{lbl('BODY MAP // SCAN', '体の図')}</Mono>
           {/* ALERT は件数の下（図の下の行に置くと、360 の幅で「L BACK R」と重なる） */}
           <View style={{ alignItems: 'flex-end' }}>
-            <Mono>{`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`}</Mono>
-            {active > 0 && <Mono color={INJURY_AMBER}>{`▲ ${active} ALERT`}</Mono>}
+            <Mono>{lbl(`ACTIVE ${String(active).padStart(2, '0')} / CLEARED ${String(cleared).padStart(2, '0')}`, `直している途中 ${active} ・ 直せた ${cleared}`)}</Mono>
+            {active > 0 && <Mono color={INJURY_AMBER}>{lbl(`▲ ${active} ALERT`, `▲ 直している途中 ${active}件`)}</Mono>}
           </View>
         </View>
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: figH + FIG_LABEL_H }}>
@@ -163,8 +163,8 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
                 <MuscleFigure view="front" width={figW} height={figH} marks={marks} />
                 <MuscleFigure view="back" width={figW} height={figH} marks={marks} />
               </View>
-              <View style={[s.figLabel, { left, width: figW, top: figH }]}><Mono>R FRONT L</Mono></View>
-              <View style={[s.figLabel, { left: backLeft, width: figW, top: figH }]}><Mono>L BACK R</Mono></View>
+              <View style={[s.figLabel, { left, width: figW, top: figH }]}><Mono>{lbl('R FRONT L', '前（右が左）')}</Mono></View>
+              <View style={[s.figLabel, { left: backLeft, width: figW, top: figH }]}><Mono>{lbl('L BACK R', '後ろ（左が左）')}</Mono></View>
               {/* 札と印をつなぐ線 */}
               <Svg width={width} height={figH} style={StyleSheet.absoluteFill} pointerEvents="none">
                 {[...leftOnes.map((p) => ({ p, from: lineFrom(p, space.l) })), ...rightOnes.map((p) => ({ p, from: lineFrom(p, width - space.l) }))].map(({ p, from }) => (
@@ -192,7 +192,7 @@ function Callout({ injury, number, style }: { injury: Injury; number: string; st
   const tone = fixing ? INJURY_AMBER : colors.sub;
   return (
     <View style={[s.callout, { borderColor: tone }, style]} testID="injury-callout">
-      <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
+      <Mono color={tone} size={11}>{`${injuryNo(number)}${fixing ? ' ▲' : ''}`}</Mono>
       <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)}</T>
     </View>
   );
@@ -207,7 +207,7 @@ export function SideCallout({ injury, number, align, style }: { injury: Injury; 
   const tone = fixing ? INJURY_AMBER : colors.sub;
   return (
     <View style={[{ position: 'absolute', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
-      <Mono color={tone} size={11}>{`${number}${fixing ? ' ▲' : ''}`}</Mono>
+      <Mono color={tone} size={11}>{`${injuryNo(number)}${fixing ? ' ▲' : ''}`}</Mono>
       <T variant="labelL" numberOfLines={1}>{siteLabel(injury.site, injury.side)} <T num size={13} color={colors.sub}>{dotDate(injury.occurredOn)}</T></T>
       {whereText(injury) !== '' && <T size={11} color={colors.sub} numberOfLines={1} align={align}>{whereText(injury)}</T>}
       {/* 図の横は狭い（360 の幅で 90 ほど）ので、状態は短く 1 行。札と読み上げは正式な名前 */}
@@ -281,7 +281,7 @@ export function InjurySectionTitle({ title, en, count }: { title: string; en: st
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s, marginTop: space.xl, marginBottom: space.s }}>
       <T variant="titleS" color={colors.sub} accessibilityRole="header">{title}</T>
-      <Mono>{`${en} · ${count}`}</Mono>
+      <Mono>{lbl(`${en} · ${count}`, `${count}件`)}</Mono>
     </View>
   );
 }

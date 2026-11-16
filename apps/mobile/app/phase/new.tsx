@@ -4,7 +4,7 @@ import { BackHandler, View } from 'react-native';
 import { MealFields } from '@/components/phase/MealFields';
 import { Sheet } from '@/components/motion';
 import { ChoiceCard, DateField, HudButton, HudChip, NumberField, PhaseFrame, PhaseTitle, SheetBody, StepBars, TextButton, TextField } from '@/components/phase/parts';
-import { hud, Micro, Mono, Panel, StatusRow } from '@/components/report/hud';
+import { hud, Micro, Mono, Panel, StatusRow, unitLabel } from '@/components/report/hud';
 import { T } from '@/components/Text';
 import { ConfirmDialog } from '@/components/ui';
 import { PhaseError } from '@/db/repositories/phases';
@@ -204,7 +204,7 @@ export default function PhaseNewScreen() {
   );
 
   return (
-    <PhaseFrame sys={`KARADA // PHASE SETUP · ${STEP_EN[step - 1]}`} onBack={back} right={later} footer={footer} testID="phase-new">
+    <PhaseFrame sys={`KARADA // PHASE SETUP · ${STEP_EN[step - 1]}`} sysJa={`フェーズを始める · ${step}/4`} onBack={back} right={later} footer={footer} testID="phase-new">
       <T size={11.5} color={hud.muted}>{`${step}／${STEPS}`}</T>
       <T bold size={18} color={hud.ink} accessibilityRole="header">フェーズを始める</T>
       <StepBars step={step} total={STEPS} />
@@ -350,7 +350,7 @@ function Val({ v, unit }: { v: string | null; unit?: string }) {
   return (
     <T style={{ textAlign: 'right' }}>
       <Mono size={16} color={v == null ? hud.faint : hud.white}>{v ?? '—'}</Mono>
-      {unit && v != null ? <Mono size={10} color={hud.muted}>{` ${unit.toUpperCase()}`}</Mono> : null}
+      {unit && v != null ? <Mono size={10} color={hud.muted}>{` ${unitLabel(unit)}`}</Mono> : null}
     </T>
   );
 }

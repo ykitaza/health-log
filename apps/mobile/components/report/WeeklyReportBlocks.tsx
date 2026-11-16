@@ -22,6 +22,7 @@ import { partVolume, volumeLabel } from '@/lib/partVolume';
 import { achievementRowLabel, AREA_LABELS, deltaLook, formatDelta, formatMetricValue, Highlight, Metric, metricLabel, weeklyAchievementRows, weekStreakText } from '@/lib/reports';
 import { periodPartSequence, periodVolumeKg, uniqueInjuryEntries } from '@/lib/reportView';
 import { fmt1, kgToUnit } from '@/lib/units';
+import { injuryNo } from '@/theme';
 import { PartVolumeBody } from '../PartVolumeCard';
 import { T } from '../Text';
 import { dotMonthDay, hud, JaVal, Micro, Mono, Panel, PanelHead, StatusRow, TableHead, ValUnit } from './hud';
@@ -176,7 +177,7 @@ function InjuryGroup({ entry, showReviews }: { entry: InjuryReportEntry; showRev
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: hud.line2 }}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingTop: 9, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: hud.line2 }}>
-        <Mono size={11} spacing={1.5} color={hud.green}>{entry.number}</Mono>
+        <Mono size={11} spacing={1.5} color={hud.green}>{injuryNo(entry.number)}</Mono>
         <Mono size={12} color={hud.muted}>{dotMonthDay(entry.occurredOn)}</Mono>
       </View>
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
