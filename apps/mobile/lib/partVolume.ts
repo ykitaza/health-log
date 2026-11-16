@@ -5,7 +5,7 @@
 import { addDays, DateKey, daysBetween, formatMonthDay } from './date';
 import type { Muscle } from './muscleFigure';
 import { BALANCE_PARTS, BalancePart, partBalanceBetween } from './partBalance';
-import { recoveryMusclesFor } from './recoveryMap';
+import { recoveryMeshesFor, recoveryMusclesFor } from './recoveryMap';
 import type { TrainingSetRow } from './training';
 
 /** 1週間のセット数の目安（部位ごと） */
@@ -146,4 +146,51 @@ export function volumeMuscleLevels(v: PartVolume): Partial<Record<Muscle, number
     for (const m of AXIS_PARTS[p.part].flatMap(recoveryMusclesFor)) levels[m] = Math.max(levels[m] ?? 0, level);
   }
   return levels;
+}
+
+/** 段（0〜5）のいちばん上（21 セット以上）。theme の volumePalette.steps の数と同じ */
+export const VOLUME_MAX_LEVEL = 5;
+
+/** ホームの 3D の体の色：回復（ふだん）か、部位の量（今週の部位）か */
+export type HeroBodyMode = 'recovery' | 'volume';
+
+/** 覚えていた値を色の見方に。知らない値・覚えていないときは回復 */
+export function parseHeroBodyMode(v: string | null): HeroBodyMode {
+  return v === 'volume' ? 'volume' : 'recovery';
+}
+
+/**
+ * ホームの 3D の体の部品ごとの段（0〜5）。6 つの軸の部品（recoveryMeshesFor）に、その軸のセット数の段を入れる。
+ * 0 セットの軸の部品も 0 で入れる（空の色にするため）。知らない部位は部品がないので入らない。
+ * いくつかの軸にある部品は高いほう。色は持たない（画面が theme の volumePalette から取る）
+ */
+export function heroVolumeLevels(v: PartVolume): Record<string, number> {
+  const levels: Record<string, number> = {};
+  for (const p of v.parts) {
+    const level = volumeLevel(p.sets);
+    for (const m of recoveryMeshesFor(p.part)) levels[m] = Math.max(levels[m] ?? 0, level);
+  }
+  return levels;
+}
+
+/**
+ * 3D の体の場面に渡す形：部品ごとの光の明るさ k（段 ÷ 5。0 の部品は入れない）と、空の部品（段 0。灰色にする）。
+ * 色は段 = round(k × 5) で引く（volumeGlowLevel）
+ */
+export function heroVolumeGlow(levels: Record<string, number>): { glow: Record<string, number>; idle: string[] } {
+  const glow: Record<string, number> = {};
+  const idle: string[] = [];
+  for (const [m, l] of Object.entries(levels)) {
+    if (l > 0) glow[m] = l / VOLUME_MAX_LEVEL;
+    else idle.push(m);
+  }
+  return { glow, idle };
+}
+
+/** 光の明るさ k から段に戻す */
+export const volumeGlowLevel = (k: number): number => Math.round(Math.min(1, Math.max(0, k)) * VOLUME_MAX_LEVEL);
+
+/** ホームの体を部位の量の色にしているときの読み上げ：「今週の部位の量、11月2日から11月8日のセット数。胸 10、…」 */
+export function heroVolumeSpoken(v: PartVolume): string {
+  return `今週の部位の量、${formatMonthDay(v.from)}から${formatMonthDay(v.to)}のセット数。${v.parts.map((p) => `${p.part} ${p.sets}`).join('、')}`;
 }

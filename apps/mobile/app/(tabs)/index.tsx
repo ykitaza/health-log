@@ -59,13 +59,13 @@ export default function HomeScreen() {
   const { year, month } = yearMonth(today);
   const { data, error, reload } = useFocusData(async (r) => {
     const from = logFrom(today);
-    const [rows, settings, meals, daily, sleep, sleepSel, heart, exercises, injuries, phases] = await Promise.all([
+    const [rows, settings, meals, daily, sleep, sleepSel, heart, exercises, injuries, phases, heroBodyMode] = await Promise.all([
       r.workouts.allSetRows(), r.settings.get(), r.meals.summaries(from, today), r.body.listDaily(),
       r.health.sleepDays(addDays(today, -6), today), r.health.sleepDay(selected), r.health.heartRateDay(selected),
       // BIG3 の割り当て（筋トレの推移のグラフと同じく、非表示の種目も）
       r.catalog.listExercises({ includeHidden: true }),
       r.injuries.list(),
-      r.phases.list(),
+      r.phases.list(), r.settings.heroBodyMode(),
     ]);
     const partDays = await loadPartDays(r, rows);
     // 直近のトレーニングの日の種目（ヒーローの札）
@@ -74,7 +74,7 @@ export default function HomeScreen() {
     const weightKg = daily.find((d) => d.date === selected)?.weightKg ?? null;
     return {
       rows, settings, meals: meals.days, daily, sleep, partDays, latest, entries, injuries, phases, big3: big3Assignments(exercises),
-      day: selected, weightKg, sleepSel, heart,
+      day: selected, weightKg, sleepSel, heart, heroBodyMode,
     };
   }, `${selected}|${today}`);
 
@@ -135,9 +135,11 @@ export default function HomeScreen() {
       pages: heroPages(fixing.length > 0),
       recovery: { list, levels: recoveryLevels(list), idle: idleMeshes(list) },
       injury: { fixing, numbers: injuryNumbers(data.injuries), corners: injuryCorners(fixing, rehab, today) },
+      volume,
+      bodyMode: data.heroBodyMode,
       growth: growthCorners(phase, weekAverageKg(weights, today), effectiveGoalWeight(data.phases, data.settings.goalWeightKg ?? null, today).kg),
     };
-  }, [data, phase, recovery, weights, today]);
+  }, [data, phase, recovery, weights, today, volume]);
   const todayMeal = data?.meals.find((d) => d.date === today) ?? null;
   const fuel = todayMeal ? fuelGauge(todayMeal) : null;
   const condition = data?.day === selected ? data : null;

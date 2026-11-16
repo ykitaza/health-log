@@ -20,6 +20,10 @@ export type DayBody3DProps = {
   recovery?: Record<string, number>;
   /** 空いている部品（回復済みの期限を過ぎた・一度も鍛えていない部位。灰色。lib/recoveryMap.ts の idleMeshes）。記録のない日 */
   idle?: string[];
+  /** recovery の明るさ（0〜1）を色にする関数（省くと回復の色）。ホームの体を部位の量の色にするとき。変わらない関数を渡す */
+  levelColor?: (k: number, mesh: string) => string;
+  /** 空いている部品（idle）の色（省くと回復の空の灰色） */
+  idleColor?: string;
   /** 直している途中のケガ（赤で脈打つ）。記録のない日 */
   injuries?: Injury[];
   /** 体を押した（押した部品の名前。同じ部品・皮膚・外を押して選ぶのをやめたら null） */

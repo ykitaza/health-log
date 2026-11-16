@@ -1,5 +1,9 @@
 import { BALANCE_PARTS } from '../partBalance';
-import { partVolume, volumeDeltaText, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText } from '../partVolume';
+import {
+  heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, parseHeroBodyMode, partVolume, volumeDeltaText, volumeGlowLevel, volumeLabel, volumeLevel,
+  volumeMuscleLevels, volumeRowText,
+} from '../partVolume';
+import { recoveryMeshesFor } from '../recoveryMap';
 import type { TrainingSetRow } from '../training';
 
 const NAMES: Record<string, string> = {
@@ -176,5 +180,59 @@ describe('volumeMuscleLevels：2D の図の筋肉ごとの段', () => {
     expect(levels.glutes).toBe(5);
     expect(levels.abs).toBe(0);
     expect(levels.deltoid).toBe(0);
+  });
+});
+
+describe('heroVolumeLevels：ホームの 3D の体の部品ごとの段', () => {
+  const v = partVolume(
+    [...rows('2026-11-03', 'chest', 12), ...rows('2026-11-03', 'biceps', 3), ...rows('2026-11-03', 'triceps', 3), ...rows('2026-11-03', 'legs', 25)],
+    nameOf, '2026-11-02', '2026-11-08', '2026-11-04',
+  );
+
+  test('どの軸の部品も、その軸の段になる（左右の部品は両方）', () => {
+    const levels = heroVolumeLevels(v);
+    const expected: Record<string, number> = { 胸: 3, 腕: 2, 脚: 5, 肩: 0, 背中: 0, 腹: 0 };
+    for (const [part, level] of Object.entries(expected)) {
+      const meshes = recoveryMeshesFor(part);
+      expect(meshes.length).toBeGreaterThan(0);
+      for (const m of meshes) expect(levels[m]).toBe(level);
+    }
+    expect(levels.pec_r).toBe(3);
+    expect(levels.pec_l).toBe(3);
+    expect(levels.abs).toBe(0);
+  });
+
+  test('0 セットの軸の部品も 0 で入る（空の色にする）', () => {
+    const levels = heroVolumeLevels(partVolume([], nameOf, '2026-11-02', '2026-11-08', '2026-11-04'));
+    expect(Object.keys(levels).length).toBeGreaterThan(0);
+    expect(Object.values(levels).every((l) => l === 0)).toBe(true);
+  });
+
+  test('知らない部位は部品がないので入らない', () => {
+    const odd = { ...v, parts: [...v.parts, { part: '首' as never, sets: 30, previous: 0, delta: 30 }] };
+    expect(heroVolumeLevels(odd)).toEqual(heroVolumeLevels(v));
+  });
+});
+
+describe('heroVolumeGlow：場面に渡す形', () => {
+  test('段 ÷ 5 の明るさ。0 の部品は明るさに入れず、空の部品に回す。段に戻せる', () => {
+    const { glow, idle } = heroVolumeGlow({ pec_r: 3, quad_r: 5, abs: 0, delt_mid_l: 1 });
+    expect(glow).toEqual({ pec_r: 0.6, quad_r: 1, delt_mid_l: 0.2 });
+    expect(idle).toEqual(['abs']);
+    expect(Object.values(glow).map(volumeGlowLevel)).toEqual([3, 5, 1]);
+  });
+});
+
+describe('heroVolumeSpoken・parseHeroBodyMode', () => {
+  test('読み上げは期間と、6 軸のセット数', () => {
+    const v = partVolume(rows('2026-11-03', 'chest', 12), nameOf, '2026-11-02', '2026-11-08', '2026-11-04');
+    expect(heroVolumeSpoken(v)).toBe('今週の部位の量、11月2日から11月4日のセット数。胸 12、肩 0、背中 0、腕 0、脚 0、腹 0');
+  });
+
+  test('覚えていた値：volume 以外（知らない値・覚えていないとき）は回復', () => {
+    expect(parseHeroBodyMode('volume')).toBe('volume');
+    expect(parseHeroBodyMode('recovery')).toBe('recovery');
+    expect(parseHeroBodyMode('x')).toBe('recovery');
+    expect(parseHeroBodyMode(null)).toBe('recovery');
   });
 });

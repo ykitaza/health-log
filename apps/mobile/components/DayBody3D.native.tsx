@@ -22,7 +22,7 @@ const NO_RECOVERY: Record<string, number> = {};
 const NO_INJURIES: Injury[] = [];
 const NO_IDLE: string[] = [];
 
-function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, idle = NO_IDLE, injuries = NO_INJURIES, onPick, onPressEntry, shield }: Omit<DayBody3DProps, 'fallback'>) {
+function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, idle = NO_IDLE, levelColor, idleColor, injuries = NO_INJURIES, onPick, onPressEntry, shield }: Omit<DayBody3DProps, 'fallback'>) {
   const reduced = useReducedMotion();
   const [scene] = useState(() => new BodyScene());
   const layout = useMemo(() => dayBodyCallouts(
@@ -44,10 +44,10 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
     const tipMarks: Mark[] = layout.placed.map((p) => ({ id: p.key, parts: [], anchor: p.anchor, facing: p.facing, fixing: false }));
     scene.configure({
       marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
-      baseColor: recoveryPalette.rest, levelColor: (k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k, recoveryPalette) : TRAINED_GLOW), injuryColor: INJURY_RED,
-      idle, idleColor: recoveryPalette.idle,
+      baseColor: recoveryPalette.rest, levelColor: levelColor ?? ((k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k, recoveryPalette) : TRAINED_GLOW)), injuryColor: INJURY_RED,
+      idle, idleColor: idleColor ?? recoveryPalette.idle,
     });
-  }, [scene, reduced, layout, glow, idle, marks, tips]);
+  }, [scene, reduced, layout, glow, idle, levelColor, idleColor, marks, tips]);
   const tags = (
     <>
       {layout.placed.map((p) => (

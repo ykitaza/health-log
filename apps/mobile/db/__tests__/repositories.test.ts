@@ -130,6 +130,18 @@ describe('設定', () => {
     expect(await r.settings.volumeRange()).toBe('week');
   });
 
+  test('ホームの 3D の体の色の見方は端末だけに覚え、同期に載せない。初めは回復', async () => {
+    const { r, db } = await setup();
+    expect(await r.settings.heroBodyMode()).toBe('recovery');
+    await r.settings.setHeroBodyMode('volume');
+    expect(await r.settings.heroBodyMode()).toBe('volume');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    // 知らない値は回復
+    db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'home.hero_body_mode'").run();
+    expect(await r.settings.heroBodyMode()).toBe('recovery');
+  });
+
   test('筋トレの推移の部位のバランスの期間は端末だけに覚え、同期に載せない。初めは 2週', async () => {
     const { r, db } = await setup();
     expect(await r.settings.balanceRange()).toBe('2w');

@@ -112,3 +112,54 @@ test('月曜は先週の月曜どうしで比べる：今日が月曜なら、�
   // 今週は 11/2 だけの胸 2。前は 10/26 の 3（11/1 の 1 は先週の月曜〜同じ曜日（月曜）の外）
   await expect(row(page, '胸')).toHaveText('胸2／10 あと8先週比 −1');
 });
+
+test('ホームの体：「回復」と「部位の量」の切り替え。部位の量では体を今週のセット数の段の色にし、キャプションと読み上げが変わる。選んだものは覚える', async ({ page }) => {
+  test.setTimeout(120_000);
+  const sets = (n: number) => Array.from({ length: n }, () => ({ weight: '60', reps: '10' }));
+  // 今週：胸 10（3 段）、脚 4（1 段）。肩・背中・腕・腹は 0
+  await recordOn(page, '2026-11-05', [{ exercise: 'ベンチプレス', sets: sets(10) }]);
+  await recordOn(page, TODAY, [{ exercise: 'スクワット', sets: sets(4) }]);
+  await moveToDate(page, TODAY);
+
+  const hero = visible(page, 'home-hero');
+  const mode = visible(page, 'hero-body-mode');
+  const body = hero.getByTestId('day-body-2d');
+  const latest = visible(page, 'home-latest');
+  const caption = page.getByTestId('hero-body-caption');
+  const tab = (name: string) => mode.getByRole('button', { name, exact: true });
+
+  await test.step('初めは「回復」：回復の色、キャプションなし、読み上げは回復中', async () => {
+    await expect(tab('回復')).toHaveAttribute('aria-selected', 'true');
+    await expect(tab('部位の量')).toHaveAttribute('aria-selected', 'false');
+    await expect(caption).toHaveCount(0);
+    await expect(latest).toHaveAttribute('aria-label', /回復中/);
+    await expect(latest).not.toHaveAttribute('aria-label', /今週の部位の量/);
+    for (const c of ['#63BDF5', '#3A9AD9', '#2A78AD']) await expect(body.locator(`path[fill="${c}"]`)).toHaveCount(0);
+  });
+
+  await test.step('「部位の量」：胸は 3 段、脚は 1 段、ほかは 0 段の灰色。キャプションと読み上げ', async () => {
+    await tab('部位の量').click();
+    await expect(tab('部位の量')).toHaveAttribute('aria-selected', 'true');
+    await expect(caption).toHaveText('今週の部位の量');
+    await expect(latest).toHaveAttribute('aria-label', /今週の部位の量、11月2日から11月8日のセット数。胸 10、肩 0、背中 0、腕 0、脚 4、腹 0。/);
+    await expect(latest).not.toHaveAttribute('aria-label', /回復中/);
+    await expect(body.locator('path[fill="#63BDF5"]').first()).toBeAttached(); // 胸
+    await expect(body.locator('path[fill="#2A78AD"]').first()).toBeAttached(); // 脚
+    await expect(body.locator('path[fill="#4A515D"]').first()).toBeAttached(); // 0 段
+    // 回復の色（緑・黄・橙・赤）は使わない
+    for (const c of ['#5BE49B', '#A6F2C8', '#FF8A3D', '#F5C94A', '#FF5A4F']) await expect(body.locator(`path[fill="${c}"]`)).toHaveCount(0);
+  });
+
+  await test.step('覚える：開き直しても「部位の量」。「回復」に戻すと元の色と読み上げ', async () => {
+    await moveToDate(page, TODAY);
+    await expect(tab('部位の量')).toHaveAttribute('aria-selected', 'true');
+    await expect(caption).toHaveText('今週の部位の量');
+    await tab('回復').click();
+    await expect(caption).toHaveCount(0);
+    await expect(latest).toHaveAttribute('aria-label', /回復中/);
+    await expect(body.locator('path[fill="#63BDF5"]')).toHaveCount(0);
+    await page.waitForTimeout(500); // 覚える書き込みは裏で走る。終わる前に開き直さない
+    await moveToDate(page, TODAY);
+    await expect(tab('回復')).toHaveAttribute('aria-selected', 'true');
+  });
+});
