@@ -8,7 +8,8 @@ import { fakeCognito, fakeLoginPopup } from './login';
 // サーバーは偽物（test-utils/fakeSyncServer.ts）。MCP で保存したものを偽のサーバーに入れ、同期で受け取って画面に出ることと、
 // 消すとサーバーに delete が届くことを確かめる。読み方・消し方・積み直さない決まりは jest（db/__tests__/reports.test.ts）
 //
-// 新IA（#192）：レポートのタブは一覧ではなく、最新の生成済みレポートの詳細（app/reports/[id].tsx）へ直行する。
+// 新IA（#192）：レポートのタブは一覧ではなく、最新の生成済みレポートの詳細（components/report/ReportDetail.tsx）をタブの中にそのまま出す
+// （詳細へ移る入口の画面はない。タブには戻るがない）。/reports/[id] は同じ詳細をスタックで開き、戻るで来た画面へ戻る。
 // 詳細の中に 日・週・月 の期間タブ（testID report-period-tabs）があり、種類ごとの最新に切り替わる。一覧画面と
 // 「やること」ペインはない（次の一歩は各期間ビューの締めブロック。日のまとめは詳細でチェックでき、週の分はホームの
 // 「今週やること」でチェックする）。kind=other のレポートはアプリのどこにも出さない。
@@ -57,7 +58,7 @@ const periodTabs = (page: Page) => page.getByTestId('report-period-tabs').filter
 const periodTab = (page: Page, label: '日' | '週' | '月') =>
   periodTabs(page).getByRole('button', { name: label, exact: true });
 
-/** レポートのタブを開き、最新の詳細へ直行するのを待つ（レポートがある前提） */
+/** レポートのタブを開き、最新の詳細が出るのを待つ（レポートがある前提） */
 async function openReportsTab(page: Page) {
   await tab(page, 'レポート').click();
   await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
@@ -105,7 +106,7 @@ test('レポートがないときは、ホームのカードにチャットで�
   await expect(button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます')).toHaveCount(0);
 });
 
-test('レポートのタブは最新のレポートの詳細へ直行する。中身が出て、消すとサーバーに届く', async ({ page, context }) => {
+test('レポートのタブは最新のレポートの詳細をそのまま出す。ホームの「すべて」はそのタブへ。中身が出て、消すとサーバーに届く', async ({ page, context }) => {
   const server = serverWithReport();
   await connect(page, context, server);
   await openApp(page);
@@ -115,15 +116,17 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   const card = page.getByRole('button', { name: /^気をつけたい、今週のまとめ、睡眠が短い日が多かった、/ }).filter({ visible: true });
   await expect(card).toBeVisible();
   await expect(card).toHaveAccessibleName(/睡眠（平均） 5\.8 時間、前より 0\.6 減った、気をつけたい変化/);
-  // 「すべて」は一覧ではなく、最新の詳細を直接開く（日・週・月は詳細の期間タブで切り替える）
+  // 「すべて」は、レポートのタブへ移る（タブが最新の詳細を出す。日・週・月は詳細の期間タブで切り替える。詳細を重ねない）
   await button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect(periodTabs(page)).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
   const latestLine = page.getByTestId('report-latest-line').filter({ visible: true });
   await expect(latestLine).toContainText('11月2日（月）〜11月8日（日）のレポート');
   // その種類の最新なので「最新の生成済み」と書く
   await expect(latestLine).toContainText('最新の生成済みレポートを表示しています');
-  // 2回目も詳細に着く（レポートのタブを通さないので、タブが裏に残っていても止まらない）
-  await button(page, '戻る').click();
+  // 2回目も同じ（タブへ移るだけなので、往復しても止まらない・画面が増えない）
+  await goTab(page, 'ホーム');
   await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
   await button(page, 'すべてのレポート。最新のレポートを開き、日・週・月のタブで切り替えます').click();
   await expect(periodTabs(page)).toBeVisible();
@@ -170,15 +173,15 @@ test('レポートのタブは最新のレポートの詳細へ直行する。�
   await expect.poll(() => server.state('report', REPORT)?.fields.next_steps_done, { timeout: 15_000 }).toEqual([0]);
 
   // ホームの「今週やること」にも、同じチェックが反映される（全部できて1行にたたまれる）
-  await button(page, '戻る').click();
   await goTab(page, 'ホーム');
   const todo = page.getByTestId('weekly-todo').filter({ visible: true });
   await expect(todo.getByRole('button', { name: '今週やることを全部できた。1つのうち1つ済み' })).toBeVisible();
 
-  // ホームの最新のレポートのカードから、詳細を開き直す
+  // ホームの最新のレポートのカードから、詳細（/reports/[id]）を開き直す。こちらには戻るがある
   await page.getByTestId('latest-report').filter({ visible: true })
     .getByRole('button', { name: /^気をつけたい、今週のまとめ、/ }).click();
   await expect(see(band(page), '11月2日（月）〜11月8日（日）')).toBeVisible();
+  await expect(button(page, '戻る')).toBeVisible();
 
   // 消す：確認のダイアログ → サーバーにも delete が届く。レポートのタブは空の状態になる
   await button(page, 'メニュー').click();
@@ -444,6 +447,35 @@ test('月のまとめ：つながりのカードと、目標の見直しの「�
   await expect(page).toHaveURL(/\/meals\/goal$/);
 });
 
+test('レポートのタブは、開いてすぐ詳細が出る（戻るなし・自動で作る・レポートを作る）。ホームから重ねた詳細は、戻るでホームへ戻る', async ({ page, context }) => {
+  await connect(page, context, serverWithReport());
+  await openApp(page);
+  await signInAndSync(page);
+
+  // タブを開くとすぐ詳細：入口の画面（「最新の生成済みレポートを開きます。」）も戻るもない。右上と右下の入口は詳細の上に残る
+  await openReportsTab(page);
+  await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
+  await expect(see(page, '最新の生成済みレポートを開きます。')).toHaveCount(0);
+  await expect(button(page, '戻る')).toHaveCount(0);
+  await expect(button(page, '自動で作る。ChatGPT のスケジュールに、まとめを作る予定を入れます')).toBeVisible();
+  await expect(page.getByTestId('report-make').filter({ visible: true })).toBeVisible();
+  // 別のタブへ行って戻っても、同じ詳細のまま（移り直さない）
+  await goTab(page, 'ホーム');
+  await goTab(page, 'レポート');
+  await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
+
+  // ホームの最新のカードは /reports/[id] を重ねる。戻るでホームへ戻り、往復にならない
+  await goTab(page, 'ホーム');
+  await page.getByTestId('latest-report').filter({ visible: true })
+    .getByRole('button', { name: /^気をつけたい、今週のまとめ、/ }).click();
+  await expect(see(band(page), '11月2日（月）〜11月8日（日）')).toBeVisible();
+  await button(page, '戻る').click();
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
+});
+
 test('詳細の期間タブ（日・週・月）：種類ごとの最新のレポートに切り替わる', async ({ page, context }) => {
   const server = createFakeSyncServer({ clock: () => '2026-11-08T12:00:00.000Z' });
   const mk = (id: string, changedAt: string, fields: Record<string, unknown>) => ({
@@ -612,7 +644,7 @@ test('kind=other のレポートは出さない：新しくても、タブは最
   await expect(see(page, 'ベンチプレスの分析')).toHaveCount(0);
 });
 
-test('戻りリンク（/reports?date=…）は、その日を含む期間のタブで詳細を開く。kind 指定も同じ', async ({ page, context }) => {
+test('戻りリンク（/reports?date=…）は、その日を含む期間の詳細をレポートのタブに出す。kind 指定も同じ', async ({ page, context }) => {
   const server = serverWithReport(); // 今週のまとめ（11月2日〜8日）
   server.append([{
     parent_id: null, changed_at: '2026-11-05T12:00:00.000Z', origin: 'mcp', device_id: null,
@@ -627,9 +659,11 @@ test('戻りリンク（/reports?date=…）は、その日を含む期間のタ
   // 同期で届いていること（ホームの最新のレポート）
   await expect(page.getByRole('button', { name: /^気をつけたい、今週のまとめ、/ }).filter({ visible: true })).toBeVisible();
 
-  // date だけ：その日の日のまとめを、日タブで開く
+  // date だけ：その日の日のまとめを、日タブで開く（タブの中にそのまま出す。画面を重ねないので戻るはない）
   await page.goto('/reports?date=2026-11-05');
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect(periodTabs(page)).toBeVisible();
+  await expect(button(page, '戻る')).toHaveCount(0);
   await expect(periodTab(page, '日')).toHaveAttribute('aria-selected', 'true');
   await expect(see(band(page), '11月5日（木）', { exact: true })).toBeVisible();
 
@@ -659,12 +693,13 @@ test('新しいレポートのお知らせ：届いた件数と中身。「見�
   const banner = page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'));
   await expect(see(banner, '新しいレポートが 2 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ・10月31日のまとめ', { exact: true })).toBeVisible();
-  // 2件のときの「見る」は、いちばん新しいレポートの詳細を直接開く（一覧はない）
+  // 2件のときの「見る」は、レポートのタブへ移る（いちばん新しいレポートの詳細が、タブの中に出る）
   await button(banner, 'いちばん新しいレポートを見る').click();
+  await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect(periodTabs(page)).toBeVisible();
   await expect(periodTab(page, '日')).toHaveAttribute('aria-selected', 'true');
   await expect(see(band(page), '10月31日（土）', { exact: true })).toBeVisible();
-  await button(page, '戻る').click();
+  await expect(button(page, '戻る')).toHaveCount(0);
   await goTab(page, 'ホーム');
 
   // ホーム：残りの1件。「見る」でそのレポートを開き、戻るとお知らせは消える
@@ -686,7 +721,7 @@ test('新しいレポートのお知らせの「×」：今の分を全部見た
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await button(banner, 'お知らせを閉じる。今出ている分は、見たことにします').click();
   await expect(page.getByTestId('new-report-banner').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
-  // レポートのタブは詳細へ直行する（新着の札つきの一覧はない）
+  // レポートのタブは詳細をそのまま出す（新着の札つきの一覧はない）
   await openReportsTab(page);
   await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
 });
@@ -705,7 +740,7 @@ test('レポートは下のタブの5つ目。空のときは作り方を出し�
   await expect(tab(page, 'レポート')).toHaveAttribute('aria-selected', 'true');
   await expect(see(page, 'レポートはまだありません')).toBeVisible();
 
-  // 中身の URL を直接開いたときは、戻るでホームへ（レポートのタブへ戻すと、最新の詳細へ直行して同じ画面に戻ってしまうため）
+  // 中身の URL を直接開いたときは、戻るでホームへ（戻る先がないので。レポートのタブの詳細と同じものが重なって見えないように）
   await page.goto('/reports/no-such-report');
   await expect(see(page, 'レポートが見つかりません')).toBeVisible();
   await button(page, '戻る').click();
@@ -725,13 +760,12 @@ test('レポートのタブにお知らせの帯はない（帯はホームだ�
   await expect(see(banner, '新しいレポートが 1 件', { exact: true })).toBeVisible();
   await expect(see(banner, '今週のまとめ', { exact: true })).toBeVisible();
 
-  // レポートのタブは詳細へ直行し、帯は出ない
+  // レポートのタブは詳細をそのまま出し、帯は出ない
   await openReportsTab(page);
   await expect(shown(page.getByTestId('new-report-banner'))).toHaveCount(0);
   await expect(see(band(page), '今週のまとめ', { exact: true })).toBeVisible();
 
   // 詳細を開いたので見たことになり、ホームに戻っても帯は出ない
-  await button(page, '戻る').click();
   await goTab(page, 'ホーム');
   await expect(page.getByTestId('latest-report').filter({ visible: true })).toBeVisible();
   await expect(shown(page.getByTestId('new-report-banner'))).toHaveCount(0);

@@ -135,6 +135,8 @@ test('レポート詳細を日・週・月で撮る（モックとの見比べ�
   await tabs.getByRole('button', { name: '週', exact: true }).click();
   await expect(page.getByTestId('report-weekly-volume').filter({ visible: true })).toBeVisible();
   await shoot(page, 'weekly');
+  // レポートのタブの中の見え方（上の段の「自動で作る」・設定の歯車、右下の「レポートを作る」、下のタブ）。画面の大きさのまま 1 枚
+  await page.screenshot({ path: `${process.env.SHOT_DIR}/report-tab-weekly.png` });
   await tabs.getByRole('button', { name: '月', exact: true }).click();
   await expect(page.getByTestId('report-big3').filter({ visible: true })).toBeVisible();
   await shoot(page, 'monthly');

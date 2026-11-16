@@ -38,7 +38,8 @@ export function ReportSuggestion() {
     await unread.reload();
   };
   // unread は新しい順（作った時刻）なので、先頭がいちばん新しいもの
-  const open = () => router.push({ pathname: '/reports/[id]', params: { id: fresh[0].id } });
+  // 1件ならそのレポート（戻るでホームへ）、2件以上はレポートのタブ（最新の詳細。新しい順に期間タブで見られる）
+  const open = () => (fresh.length === 1 ? router.push({ pathname: '/reports/[id]', params: { id: fresh[0].id } }) : router.navigate('/reports'));
   const entering = still ? undefined : FadeInDown.duration(duration.enter).easing(easeOut);
   const exiting = still ? undefined : FadeOut.duration(duration.exit);
   const newTitle = `新しいレポートが ${fresh.length} 件`;
