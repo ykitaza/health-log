@@ -116,7 +116,7 @@ test('ホームの体の札・LATEST の四隅・計器の段を押すと、そ�
 
   await test.step('部位の量（PARTS）：推移の部位のバランスを、覚えている期間（2週）のままで', async () => {
     await backHome(page);
-    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^直近4週の部位、10月12日から11月8日。/);
+    await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', /^直近4週の部位、10月12日から11月8日のセット数。/);
     await visible(page, 'home-parts').click();
     await expect(pane(page, '推移')).toHaveAttribute('aria-selected', 'true');
     const card = visible(page, 'trend-part-balance');

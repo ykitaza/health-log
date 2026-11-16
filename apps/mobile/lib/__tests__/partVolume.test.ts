@@ -1,7 +1,7 @@
 import { BALANCE_PARTS } from '../partBalance';
 import {
-  heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, parseHeroBodyMode, partVolume, phaseBandText, phaseLevel, phasePartVolume, phaseVolumeLabel,
-  phaseWindowOf, volumeDeltaText, volumeGlowLevel, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText, volumeWindow,
+  heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, parseHeroBodyMode, partVolume, phaseLevel, phasePartVolume, phaseTotalSets, phaseVolumeLabel,
+  phaseWindowOf, setsText, volumeDeltaText, volumeGlowLevel, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText, volumeWindow, weekRoundedText,
 } from '../partVolume';
 import { endDateFor, Phase } from '../phases';
 import { recoveryMeshesFor } from '../recoveryMap';
@@ -225,10 +225,10 @@ describe('heroVolumeGlow：場面に渡す形', () => {
 });
 
 describe('heroVolumeSpoken・parseHeroBodyMode', () => {
-  test('読み上げは期間と、6 軸の 1 週間あたり', () => {
-    const w = { kind: 'recent' as const, title: '直近4週の部位', from: '2026-10-20', to: '2026-11-16', rehab: [] };
+  test('読み上げは、見出し（期間の合計）と 6 軸のセット数。色は週あたりと添える', () => {
+    const w = { kind: 'recent' as const, title: '直近4週の部位', label: '直近4週', from: '2026-10-20', to: '2026-11-16', rehab: [] };
     const v = phasePartVolume(rows('2026-11-03', 'chest', 28), nameOf, w);
-    expect(heroVolumeSpoken(v)).toBe('直近4週の部位の量、10月20日から11月16日の 1 週間あたりのセット数。胸 7.0、肩 0、背中 0、腕 0、脚 0、腹 0');
+    expect(heroVolumeSpoken(v)).toBe('直近4週で 28セット、10月20日から11月16日。胸 28 セット、肩 0 セット、背中 0 セット、腕 0 セット、脚 0 セット、腹 0 セット。体の色は 1 週間あたりの量');
   });
 
   test('覚えていた値：volume 以外（知らない値・覚えていないとき）は回復', () => {
@@ -253,12 +253,12 @@ const chestRows = (date: string, n: number) => rows(date, 'chest', n);
 describe('volumeWindow：数える期間', () => {
   test('今のフェーズ：始まりから今日まで。見出しはフェーズの名前（なければ「増量 8週」）', () => {
     const w = volumeWindow([phase()], '2026-11-16');
-    expect(w).toEqual({ kind: 'phase', title: '増量 8週の部位', from: '2026-11-02', to: '2026-11-16', rehab: [] });
+    expect(w).toEqual({ kind: 'phase', title: '増量 8週の部位', label: '増量 8週', from: '2026-11-02', to: '2026-11-16', rehab: [] });
     expect(volumeWindow([phase({ name: '夏の増量' })], '2026-11-16').title).toBe('夏の増量の部位');
   });
 
   test('フェーズがない：今日までの 28 日（今日を含む）。見出しは「直近4週の部位」', () => {
-    expect(volumeWindow([], '2026-11-16')).toEqual({ kind: 'recent', title: '直近4週の部位', from: '2026-10-20', to: '2026-11-16', rehab: [] });
+    expect(volumeWindow([], '2026-11-16')).toEqual({ kind: 'recent', title: '直近4週の部位', label: '直近4週', from: '2026-10-20', to: '2026-11-16', rehab: [] });
   });
 
   test('終えたフェーズだけで、次がない：28 日。始まる前のフェーズも選ばない', () => {
@@ -286,18 +286,18 @@ describe('volumeWindow：数える期間', () => {
 
   test('療養中：止めた通常のフェーズの期間（療養の日は、今日まで止まっている）。見出しは止めたフェーズのもの', () => {
     const w = volumeWindow([phase(), rehabPhase()], '2026-11-16');
-    expect(w).toEqual({ kind: 'phase', title: '増量 8週の部位', from: '2026-11-02', to: '2026-11-16', rehab: [['2026-11-09', '2026-11-17']] });
+    expect(w).toEqual({ kind: 'phase', title: '増量 8週の部位', label: '増量 8週', from: '2026-11-02', to: '2026-11-16', rehab: [['2026-11-09', '2026-11-17']] });
   });
 
   test('療養中で止めたフェーズが見つからない：28 日（療養の日は引かない）', () => {
     const w = volumeWindow([rehabPhase({ pausedPhaseId: null })], '2026-11-16');
-    expect(w).toEqual({ kind: 'recent', title: '直近4週の部位', from: '2026-10-20', to: '2026-11-16', rehab: [] });
+    expect(w).toEqual({ kind: 'recent', title: '直近4週の部位', label: '直近4週', from: '2026-10-20', to: '2026-11-16', rehab: [] });
   });
 });
 
 describe('phasePartVolume：週あたり', () => {
   const window = (over: Partial<Parameters<typeof phasePartVolume>[2]> = {}) =>
-    ({ kind: 'phase' as const, title: '増量 8週の部位', from: '2026-11-02', to: '2026-11-16', rehab: [], ...over });
+    ({ kind: 'phase' as const, title: '増量 8週の部位', label: '増量 8週', from: '2026-11-02', to: '2026-11-16', rehab: [], ...over });
   const chest = (v: ReturnType<typeof phasePartVolume>) => v.parts.find((p) => p.part === '胸')!;
 
   test('期間の外の記録は数えない。数え方は部位のバランスと同じ（1 行 1 セット、回数だけも数える）', () => {
@@ -320,7 +320,6 @@ describe('phasePartVolume：週あたり', () => {
     const long = phasePartVolume(chestRows('2026-11-05', 64), nameOf, window({ from: '2026-09-22', to: '2026-11-16' }));
     expect(long.weeks).toBe(8);
     expect(chest(long)).toMatchObject({ perWeek: 8, short: 2, over: 0, level: 2 });
-    expect(phaseBandText(chest(long))).toBe('あと2');
   });
 
   test('7 日の下限：始まったばかりでも、週あたりは 7 日でならす', () => {
@@ -376,7 +375,7 @@ describe('phaseLevel：0.1 単位の値（10 倍した整数）で段を決め�
 
   test('丸めたあとで決める：端の値', () => {
     // 28 日（weeks 4）：セット数 × 2.5 が 0.1 単位の値
-    const w = { kind: 'recent' as const, title: '', from: '2026-10-20', to: '2026-11-16', rehab: [] };
+    const w = { kind: 'recent' as const, title: '', label: '', from: '2026-10-20', to: '2026-11-16', rehab: [] };
     const at = (n: number) => phasePartVolume(chestRows('2026-11-05', n), nameOf, w).parts[0];
     expect(at(2)).toMatchObject({ perWeek: 0.5, level: 1 });
     expect(at(19)).toMatchObject({ perWeek: 4.8, level: 1 }); // 4.75 → 4.8
@@ -391,24 +390,28 @@ describe('phaseLevel：0.1 単位の値（10 倍した整数）で段を決め�
   });
 });
 
-describe('phaseBandText・phaseVolumeLabel', () => {
-  const w = { kind: 'phase' as const, title: '増量 8週の部位', from: '2026-11-02', to: '2026-11-16', rehab: [] };
+describe('phaseVolumeLabel・heroVolumeCaption：セット数が主で、目安の言葉は使わない', () => {
+  const w = { kind: 'phase' as const, title: '増量 8週の部位', label: '増量 8週', from: '2026-11-02', to: '2026-11-16', rehab: [] };
   const v = phasePartVolume([...chestRows('2026-11-05', 16), ...rows('2026-11-05', 'legs', 60)], nameOf, w);
 
-  test('目安との差の文字：あと N（整数はそのまま、小数は 1 桁）・目安内・目安より多い', () => {
-    const by = (part: string) => v.parts.find((p) => p.part === part)!;
-    expect(phaseBandText(by('胸'))).toBe('あと2.5');
-    expect(phaseBandText(by('腹'))).toBe('あと10');
-    expect(phaseBandText(by('脚'))).toBe('目安より多い');
-    expect(phaseBandText({ ...by('胸'), short: 0, over: 0 })).toBe('目安内');
+  test('読み上げ：期間・部位ごとのセット数と週あたり（整数）・ケガ。あと・目安は言わない', () => {
+    const text = phaseVolumeLabel(v, new Set(['胸'] as const));
+    expect(text).toBe(
+      '増量 8週の部位、11月2日から11月16日のセット数。'
+      + '胸 16 セット、週 8、ケガ。肩 0 セット、週 0。背中 0 セット、週 0。腕 0 セット、週 0。脚 60 セット、週 28。腹 0 セット、週 0',
+    );
+    for (const gone of ['あと', '目安', '少なめ']) expect(text).not.toContain(gone);
+    expect(phaseVolumeLabel(phasePartVolume([], nameOf, w))).toContain('まだ記録がありません');
   });
 
-  test('読み上げ：期間・目安・部位ごとのセット数と週あたり・目安との差・ケガ', () => {
-    expect(phaseVolumeLabel(v, new Set(['胸'] as const))).toBe(
-      '増量 8週の部位、11月2日から11月16日。1 週間あたりのセット数（目安は 10〜20）。'
-      + '胸 16 セット、週 7.5、あと2.5、ケガ。肩 0 セット、週 0、あと10。背中 0 セット、週 0、あと10。腕 0 セット、週 0、あと10。'
-      + '脚 60 セット、週 28.0、目安より多い。腹 0 セット、週 0、あと10',
-    );
-    expect(phaseVolumeLabel(phasePartVolume([], nameOf, w))).toContain('まだ記録がありません');
+  test('ヒーローの見出し：期間の名前と、部位ぜんぶの合計', () => {
+    expect(phaseTotalSets(v)).toBe(76);
+    expect(heroVolumeCaption(v)).toBe('増量 8週で 76セット');
+    expect(heroVolumeCaption(phasePartVolume([], nameOf, { ...w, kind: 'recent', title: '直近4週の部位', label: '直近4週' }))).toBe('直近4週で 0セット');
+  });
+
+  test('行の文字：「23セット」と、四捨五入の「週18」', () => {
+    expect(setsText(23)).toBe('23セット');
+    expect([0, 0.4, 17.5, 18.4, 22.5].map(weekRoundedText)).toEqual(['週0', '週0', '週18', '週18', '週23']);
   });
 });

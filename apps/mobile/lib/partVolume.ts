@@ -207,8 +207,10 @@ const MIN_WEEK_DAYS = 7;
 export type VolumeWindow = {
   /** phase：通常のフェーズの期間、recent：フェーズがなく、直近 4 週 */
   kind: 'phase' | 'recent';
-  /** カードの見出し：「増量 16週の部位」「直近4週の部位」 */
+  /** 見出し：「増量 16週の部位」「直近4週の部位」 */
   title: string;
+  /** 期間の呼び方：「増量 16週」「直近4週」（title から「の部位」を除いたもの） */
+  label: string;
   from: DateKey;
   to: DateKey;
   /** 療養で止まった日（[始め, 終わり)。数えない） */
@@ -224,7 +226,7 @@ export function phaseWindowOf(p: Phase, phases: Phase[], today: DateKey): Volume
   const last = p.endedOn != null ? addDays(p.endedOn, -1) : today;
   const to = [last, today].reduce((a, b) => (a < b ? a : b));
   const from = p.startDate;
-  return { kind: 'phase', title: `${phaseLabel(p)}の部位`, from, to: to < from ? from : to, rehab: pauses(p, phases, to) };
+  return { kind: 'phase', title: `${phaseLabel(p)}の部位`, label: phaseLabel(p), from, to: to < from ? from : to, rehab: pauses(p, phases, to) };
 }
 
 /**
@@ -236,7 +238,7 @@ export function volumeWindow(phases: Phase[], today: DateKey): VolumeWindow {
   const { current, paused } = currentPhase(phases, today);
   const normal = current?.kind === 'normal' ? current : paused;
   if (normal) return phaseWindowOf(normal, phases, today);
-  return { kind: 'recent', title: '直近4週の部位', from: addDays(today, -(RECENT_DAYS - 1)), to: today, rehab: [] };
+  return { kind: 'recent', title: '直近4週の部位', label: '直近4週', from: addDays(today, -(RECENT_DAYS - 1)), to: today, rehab: [] };
 }
 
 export type PhaseVolumeRow = {
@@ -256,6 +258,7 @@ export type PhaseVolumeRow = {
 export type PhaseVolume = {
   kind: VolumeWindow['kind'];
   title: string;
+  label: string;
   from: DateKey;
   to: DateKey;
   /** 期間の日数（今日を含む。療養の日も含む） */
@@ -303,35 +306,39 @@ export function phasePartVolume(rows: TrainingSetRow[], partName: (bodyPartId: s
       short: Math.max(0, VOLUME_BAND.min * 10 - tenths) / 10, over: Math.max(0, tenths - VOLUME_BAND.max * 10) / 10,
     };
   });
-  return { kind: w.kind, title: w.title, from: w.from, to: w.to, days, effectiveDays, weeks: divisor / 7, parts };
+  return { kind: w.kind, title: w.title, label: w.label, from: w.from, to: w.to, days, effectiveDays, weeks: divisor / 7, parts };
 }
 
-/** 週あたりの文字：0 は「0」、ほかは小数 1 桁（「8.0」「3.5」） */
+/** 週あたりの文字：0 は「0」、ほかは小数 1 桁（「8.0」「3.5」）。ヒーローの札・ホームの行は整数（weekRoundedText） */
 export const perWeekText = (n: number): string => (n === 0 ? '0' : n.toFixed(1));
 
-/** 目安との差の数：整数は「7」、小数は 1 桁（「1.4」）。短い・多いは perWeek（0.1 単位）から出すので 1 桁で足りる */
-export const gapText = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+/** ホームの行の 1 週間あたり：四捨五入の整数（「週18」。0 は「週0」） */
+export const weekRoundedText = (perWeek: number): string => `週${Math.round(perWeek)}`;
 
-/** カードの行の、目安との差：「あと2」「目安内」「目安より多い」 */
-export function phaseBandText(r: PhaseVolumeRow): string {
-  return r.short > 0 ? `あと${gapText(r.short)}` : r.over > 0 ? '目安より多い' : '目安内';
-}
+/** ホームの行の主な数：期間のセット数（「23セット」） */
+export const setsText = (total: number): string => `${total}セット`;
+
+/** 期間の、部位ぜんぶのセット数の合計（ヒーローの見出し） */
+export const phaseTotalSets = (v: Pick<PhaseVolume, 'parts'>): number => v.parts.reduce((n, p) => n + p.total, 0);
+
+/** ヒーローの「部位の量」の見出し：「増量 8週で 61セット」「直近4週で 12セット」。数えた期間の合計を、頑張りとして見せる */
+export const heroVolumeCaption = (v: Pick<PhaseVolume, 'label' | 'parts'>): string => `${v.label}で ${setsText(phaseTotalSets(v))}`;
 
 /** 読み上げの、期間の言い方：「11月8日から11月16日」 */
 const spanSpoken = (v: PhaseVolume) => `${formatMonthDay(v.from)}から${formatMonthDay(v.to)}`;
 
 /**
- * ホームのカードの読み上げ：「増量 16週の部位、11月8日から11月16日。1 週間あたりのセット数（目安は 10〜20）。胸 16 セット、週 8.0、あと2、…」。
- * hurt はケガ（直している途中）の部位。記録がまったくなければそのことを
+ * ホームの「部位の量」の読み上げ：「増量 8週の部位、11月8日から11月16日のセット数。胸 23 セット、週 18、…」（合計の数を主に、週あたりは添える。
+ * 目安との差は言わない）。hurt はケガ（直している途中）の部位。記録がまったくなければそのことを
  */
 export function phaseVolumeLabel(v: PhaseVolume, hurt: ReadonlySet<BalancePart> = new Set()): string {
-  const head = `${v.title}、${spanSpoken(v)}。1 週間あたりのセット数（目安は ${VOLUME_BAND.min}〜${VOLUME_BAND.max}）。`;
+  const head = `${v.title}、${spanSpoken(v)}のセット数。`;
   if (v.parts.every((p) => p.total === 0)) return `${head}まだ記録がありません`;
-  return head + v.parts.map((p) => [`${p.part} ${p.total} セット`, `週 ${perWeekText(p.perWeek)}`, phaseBandText(p), hurt.has(p.part) ? 'ケガ' : '']
+  return head + v.parts.map((p) => [`${p.part} ${p.total} セット`, `週 ${Math.round(p.perWeek)}`, hurt.has(p.part) ? 'ケガ' : '']
     .filter(Boolean).join('、')).join('。');
 }
 
-/** ホームの体を部位の量の色にしているときの読み上げ：「増量 16週の部位の量、11月8日から11月16日の 1 週間あたりのセット数。胸 8.0、…」 */
+/** ホームの体を部位の量の色にしているときの読み上げ：「増量 8週で 61セット、11月8日から11月16日。胸 23 セット、…。体の色は 1 週間あたりの量」 */
 export function heroVolumeSpoken(v: PhaseVolume): string {
-  return `${v.title}の量、${spanSpoken(v)}の 1 週間あたりのセット数。${v.parts.map((p) => `${p.part} ${perWeekText(p.perWeek)}`).join('、')}`;
+  return `${heroVolumeCaption(v)}、${spanSpoken(v)}。${v.parts.map((p) => `${p.part} ${p.total} セット`).join('、')}。体の色は 1 週間あたりの量`;
 }

@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import type { Muscle } from '@/lib/muscleFigure';
 import type { BalancePart } from '@/lib/partBalance';
 import {
-  perWeekText, PartVolume, PhaseVolume, phaseBandText, phaseVolumeLabel, PrevWord, volumeDeltaText, volumeLevel, volumeMuscleLevels, volumeRowText,
+  PartVolume, PhaseVolume, phaseVolumeLabel, PrevWord, setsText, volumeDeltaText, volumeLevel, volumeMuscleLevels, volumeRowText, weekRoundedText,
 } from '@/lib/partVolume';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { colors, volumePalette } from '@/theme';
@@ -19,9 +19,6 @@ export const volumeColor = (level: number) => (level <= 0 ? volumePalette.empty 
 /** 図（前と後ろ）の 1 枚の大きさ（100×200 の体の縮小） */
 const FIG_W = 46;
 const FIG_H = 92;
-/** ホームの部位の量は、行が長い（セット数・週あたり・目安との差）ので、図を小さくする */
-const PH_FIG_W = 36;
-const PH_FIG_H = 72;
 
 /**
  * 部位の量の中身：前と後ろの 2D の図（筋肉を段の色で塗る）と、6 つの行（段の色の四角・部位・セット数と目安・前の期間との差）。
@@ -68,35 +65,24 @@ const md = (k: string) => `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}`;
 export const volumeRange = (v: PartVolume) => `${md(v.from)}–${md(v.to)}`;
 
 /**
- * ホームの「部位の量」の中身：前と後ろの 2D の図（筋肉を 1 週間あたりの段の色で塗る）と、6 つの行
- * （段の色の四角・部位・「16セット」・「週 8.0」・目安との差）。凡例は付けない。hurt の部位（ケガ）には赤の ▲
+ * ホームの「部位の量」の中身：6 つの行（段の色の四角・部位・「23セット」・小さな「週18」）。図は付けない（ヒーローの体がその図）。
+ * 主な数は期間のセット数の合計（やった量）。週あたりは四捨五入の整数で添える。足りない・少ないなどの言葉は使わない。凡例も付けない。
+ * hurt の部位（ケガ）には赤の ▲
  */
 function PhaseVolumeBody({ volume, hurt, testID }: { volume: PhaseVolume; hurt: ReadonlySet<BalancePart>; testID: string }) {
-  const fills = useMemo(() => {
-    const levels = volumeMuscleLevels(volume);
-    return Object.fromEntries(Object.entries(levels).map(([m, l]) => [m, volumeColor(l!)])) as Partial<Record<Muscle, string>>;
-  }, [volume]);
   return (
-    <View style={s.phaseBody} testID={testID}>
-      <View style={s.figures}>
-        {(['front', 'back'] as const).map((view) => (
-          <MuscleFigure key={view} view={view} fills={fills} width={PH_FIG_W} height={PH_FIG_H} testID={`${testID}-figure-${view}`} />
-        ))}
-      </View>
-      <View style={s.phaseRows}>
-        {volume.parts.map((p) => (
-          <View key={p.part} style={s.phaseRow} testID={`${testID}-row-${p.part}`}>
-            <View style={[s.swatch, { backgroundColor: volumeColor(p.level) }]} testID={`${testID}-swatch-${p.part}`} />
-            <View style={s.name}>
-              <T size={13} bold color={colors.text} numberOfLines={1}>{p.part}</T>
-              {hurt.has(p.part) && <View style={s.injury} testID={`${testID}-injury-${p.part}`} />}
-            </View>
-            <T size={11} color={colors.text} style={s.sets}>{`${p.total}セット`}</T>
-            <T size={11} color={colors.sub} style={s.week}>{`週 ${perWeekText(p.perWeek)}`}</T>
-            <T size={11} color={p.short > 0 || p.over > 0 ? colors.text : colors.sub} style={s.band}>{phaseBandText(p)}</T>
+    <View style={s.phaseRows} testID={testID}>
+      {volume.parts.map((p) => (
+        <View key={p.part} style={s.phaseRow} testID={`${testID}-row-${p.part}`}>
+          <View style={[s.swatch, { backgroundColor: volumeColor(p.level) }]} testID={`${testID}-swatch-${p.part}`} />
+          <View style={s.name}>
+            <T size={13} bold color={colors.text} numberOfLines={1}>{p.part}</T>
+            {hurt.has(p.part) && <View style={s.injury} testID={`${testID}-injury-${p.part}`} />}
           </View>
-        ))}
-      </View>
+          <T size={15} bold color={colors.text} numberOfLines={1} style={s.sets}>{setsText(p.total)}</T>
+          <T size={11} color={colors.sub} numberOfLines={1} style={s.week}>{weekRoundedText(p.perWeek)}</T>
+        </View>
+      ))}
     </View>
   );
 }
@@ -105,8 +91,8 @@ function PhaseVolumeBody({ volume, hurt, testID }: { volume: PhaseVolume; hurt: 
 export const phaseRange = (v: PhaseVolume) => `${md(v.from)}–${md(v.to)}`;
 
 /**
- * ホームの「部位の量」：宣言したフェーズ（なければ直近 4 週）の、部位ごとのセット数と 1 週間あたり、1 週間 10〜20 セットの目安との差
- * （lib/partVolume.ts の phasePartVolume。体の「部位の量」の色と同じ数字）。見出しは「増量 8週の部位」と期間。
+ * ホームの「部位の量」：宣言したフェーズ（なければ直近 4 週）で、部位ごとにどれだけやったか（セット数の合計と、週あたり）。
+ * ヒーローの体の下に置く、やる気のための一覧（lib/partVolume.ts の phasePartVolume。体の色・札と同じ数字）。見出しは「増量 8週の部位」と期間。
  * 押すと筋トレの推移の部位のバランス（覚えている期間のまま）
  */
 export function PhaseVolumeCard({ volume, hurt }: { volume: PhaseVolume | null; hurt: ReadonlySet<BalancePart> }) {
@@ -135,13 +121,10 @@ const s = StyleSheet.create({
   name: { minWidth: 34, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3 },
   count: { flex: 1, minWidth: 0 },
   delta: { textAlign: 'right' },
-  phaseBody: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  phaseRows: { flex: 1, minWidth: 0, gap: 5 },
-  phaseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0, minHeight: 20 },
-  sets: { flexShrink: 0 },
-  week: { flexShrink: 0 },
-  // 幅が足りないとき（3 桁のセット数など）は、目安との差だけが次の行に回る
-  band: { flexShrink: 0, marginLeft: 'auto', textAlign: 'right' },
+  phaseRows: { gap: 4 },
+  phaseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 24 },
+  sets: { marginLeft: 'auto', textAlign: 'right' },
+  week: { width: 40, textAlign: 'right' },
   injury: {
     width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 7,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: INJURY_RED,

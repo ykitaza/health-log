@@ -1,8 +1,9 @@
 // ホームのヒーロー（刷新 A、Figma「スタディ：フェーズ」の 6・7）：輪の上にフェーズの 1 行、外の輪（フェーズの週。過ぎた週はミント）、
 // 輪の中に 2 ページ LATEST → INJURY（直している途中のケガがあるときだけ）。計算は lib/homeHero.ts。
 // LATEST の体は回復の色（からだのタブの回復マップと同じ）で塗る。RECOVERY のページはやめた（2026-11-15 ユーザーの要望）。
-// 体の下の「回復」「部位の量」の切り替えで、フェーズの 1 週間あたりのセット数の色（ホームの「部位の量」のカードと同じ）にもできる（3D の Canvas は 1 つのまま。選んだものは端末に覚える）。
-// 体の札は、色の見方に合わせる（lib/heroTags.ts）：回復は回復中の部位、部位の量は目安（10〜20）から外れた部位を、多くても 3 つ。なければ札なし。体を押すと、その部位の札を足す。
+// 体の下の「回復」「部位の量」の切り替えで、フェーズの 1 週間あたりのセット数の色（体のすぐ下の「部位の量」の一覧と同じ）にもできる（3D の Canvas は 1 つのまま。選んだものは端末に覚える）。
+// 体の札は、色の見方に合わせる（lib/heroTags.ts）：回復は回復中の部位（今日どこを鍛えるか決める）、部位の量はフェーズで多くやった部位（やる気のため。セット数の多い順）を、多くても 3 つ。なければ札なし。体を押すと、その部位の札を足す。
+// 部位の量のキャプションは、フェーズの名前と合計（「増量 8週で 61セット」）。体の色は 1 週間あたりの量の段のまま（合計だと、フェーズの終わりに近づくほど全部が同じ色になるため）
 // 直近のトレーニング（種目）は、四隅の数字（日付・種目の数・合計負荷量・自己ベスト）と読み上げに残し、体の札には使わない
 // - 横スワイプ（またはページの印を押す）で切り替える。最初のページはふだん LATEST、療養中は INJURY。前に見たページは覚えない
 // - 見えているページだけを描く（3D の体はそのページに来たときに読み込み、2 つ同時には描かない）
@@ -23,7 +24,7 @@ import {
 import type { LatestSession } from '@/lib/homeHud';
 import { recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
 import { MuscleView, partsAt } from '@/lib/muscleFigure';
-import { HeroBodyMode, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeGlowLevel, volumeMuscleLevels } from '@/lib/partVolume';
+import { HeroBodyMode, heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeGlowLevel, volumeMuscleLevels } from '@/lib/partVolume';
 import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
@@ -57,7 +58,7 @@ export type HeroData = {
   /** 部位ごとの回復（LATEST の体の色）。levels は部品ごとの明るさ、idle は空いている部品（3D） */
   recovery: { list: PartRecovery[]; levels: Record<string, number>; idle: string[] };
   injury: { fixing: Injury[]; numbers: Map<string, string>; corners: InjuryCorners };
-  /** フェーズの部位ごとの 1 週間あたりのセット数（体を部位の量の色にするとき。ホームの「部位の量」のカードと同じ） */
+  /** フェーズの部位ごとのセット数と 1 週間あたり（体を部位の量の色にするとき。体の下の「部位の量」の一覧と同じ） */
   volume: PhaseVolume | null;
   /** 覚えていた体の色の見方 */
   bodyMode: HeroBodyMode;
@@ -299,7 +300,7 @@ type BodyPick = { mesh: string } | { names: string[] } | null;
  * 合計負荷量・自己ベストの数。Android は 3D の体、web と 3D が描けないときは 2D の図（前と後ろ）。
  * 体は今日の時点の回復の色で塗る（回復済みは緑、回復中は暖色、空いている・まだは灰色、ケガは赤。からだのタブの回復マップと同じ）。
  * その日の部位をミントで光らせると緑のホログラムに緑が重なって分からない（2026-11-15 ユーザーの要望）。recovery が null（一度も鍛えていない）なら今までどおり。
- * 体の札は種目ではなく、色の見方に合わせた部位の札（lib/heroTags.ts。押しても何も開かない）。体を押すと、その部位の札を足す。もう一度押す・ほかを押すと消える。
+ * 体の札は種目ではなく、色の見方に合わせた部位の札（lib/heroTags.ts。回復は「あと3日」、部位の量は「23セット」。押しても何も開かない）。体を押すと、その部位の札を足す。もう一度押す・ほかを押すと消える。
  * 四隅を押すと：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移、ほかは種目ごとの自己ベスト
  */
 function LatestPage({ width, height, today, unit, latest, ready, rotate, recovery, injuries, volume, mode, onMode }: {
@@ -328,7 +329,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   );
   const pickedKey = pick == null ? null : 'mesh' in pick ? pickByMesh(cands, pick.mesh) : pickByNames(cands, pick.names);
   const tags = useMemo<DayBodyEntry[]>(
-    () => selectHeroTags(cands, pickedKey).map((t, i) => ({ key: t.key, no: i + 1, name: t.main, set: t.sub, part: t.part, kicker: t.lead })),
+    () => selectHeroTags(cands, pickedKey).map((t, i) => ({ key: t.key, no: i + 1, name: t.main, set: t.sub, part: t.part, kicker: t.lead, stack: t.stack })),
     [cands, pickedKey],
   );
   const onPickMesh = useCallback((mesh: string | null) => setPick(mesh ? { mesh } : null), []);
@@ -367,7 +368,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
           : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
       {byVolume && (
         <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
-          <Mono size={11} color={colors.sub}>{`${volume!.title}（1週あたり）`}</Mono>
+          <View style={s.captionText}><Mono size={11} color={colors.sub}>{heroVolumeCaption(volume!)}</Mono></View>
         </View>
       )}
       {volume && (
@@ -439,6 +440,8 @@ const s = StyleSheet.create({
   corner: { position: 'absolute', minWidth: size.touch, minHeight: size.touch, padding: space.s },
   shield: { position: 'absolute', top: 0, bottom: 0 },
   caption: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' },
+  // 外の輪の上の弧と重なるので、文字の後ろは地の色で抜く
+  captionText: { backgroundColor: colors.bg, paddingHorizontal: 8, paddingVertical: 1 },
   mode: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
   modeBox: { width: 176 },
   footer: { alignItems: 'center', marginTop: space.xs },

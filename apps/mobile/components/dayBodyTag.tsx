@@ -36,7 +36,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
     return (
       <TagFrame testID="hero-body-tag" onPress={onPress} label={`${e.kicker} ${e.name} ${e.set}`}
         style={[{ height: PART_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+        <View style={e.stack ? { alignItems: align === 'right' ? 'flex-end' : 'flex-start' } : { flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
           <T style={[mono, { color: colors.accent }]}>{e.kicker}</T>
           <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
         </View>
