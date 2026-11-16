@@ -1,6 +1,6 @@
 // 成長スコアの計算（フェーズの記録・振り返り・月のまとめが使う）と、食事の目標に届いた日・自己ベストの更新の数え方。
 // どれも純粋な関数で、DB は読まない（読むのは lib/growthData.ts。画面からは hooks/data.ts の useGrowthData）
-import { addDays, DateKey, daysBetween } from './date';
+import { addDays, DateKey } from './date';
 import { LONG_SLEEP_MIN } from './health';
 import type { DaySummary } from './meals';
 import { estimated1RM, TrainingSetRow } from './training';
