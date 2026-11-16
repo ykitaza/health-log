@@ -1,5 +1,5 @@
 // ホームのヒーロー（刷新 A のその 2）の計算：フェーズの 1 行・外の輪（16 の目盛り）と内の輪（主な指標の進み）・白い線（予定の位置）、
-// 横スライドのページの並びと最初のページ、INJURY・GROWTH の四隅。画面（components/HomeHero.tsx）から切り離し、jest で確かめる。
+// 横スライドのページの並びと最初のページ、INJURY の四隅。画面（components/HomeHero.tsx）から切り離し、jest で確かめる。
 // フェーズの決まり（何週目・ペース・止まった日）は lib/phases.ts のまま使い、ここで数え方を作り直さない
 import { addDays, DateKey, daysBetween } from './date';
 import { average } from './health';
@@ -166,16 +166,16 @@ export function ringSegment(ring: PhaseRing | null, i: number): 'done' | 'curren
 
 // ---- ページ ----
 
-export type HeroPage = 'latest' | 'injury' | 'growth';
-export const HERO_PAGE_EN: Record<HeroPage, string> = { latest: 'LATEST', injury: 'INJURY', growth: 'GROWTH' };
-export const HERO_PAGE_JA: Record<HeroPage, string> = { latest: '直近のトレーニング', injury: 'ケガ', growth: '成長の形' };
+export type HeroPage = 'latest' | 'injury';
+export const HERO_PAGE_EN: Record<HeroPage, string> = { latest: 'LATEST', injury: 'INJURY' };
+export const HERO_PAGE_JA: Record<HeroPage, string> = { latest: '直近のトレーニング', injury: 'ケガ' };
 
 /**
- * ページの並び：LATEST → INJURY（直している途中のケガがあるときだけ）→ GROWTH。
+ * ページの並び：LATEST → INJURY（直している途中のケガがあるときだけ）。
  * RECOVERY のページはやめた（2026-11-15 ユーザーの要望：LATEST の体を回復の色で塗るので、回復の体を別に出さない）
  */
 export function heroPages(hasInjury: boolean): HeroPage[] {
-  return hasInjury ? ['latest', 'injury', 'growth'] : ['latest', 'growth'];
+  return hasInjury ? ['latest', 'injury'] : ['latest'];
 }
 
 /** 最初のページ：療養中で INJURY があれば INJURY、ほかは LATEST（前に見たページは覚えない） */
@@ -229,30 +229,5 @@ export function injuryCorners(fixing: HeroInjury[], rehab: Phase | null, today: 
     } : null,
     since: sinceDate ? { date: sinceDate, day: Math.max(1, daysBetween(sinceDate, today) + 1), injuryId: rehab ? null : oldest?.id ?? null } : null,
     alert: fixing.filter((i) => daysBetween(i.lastReview?.date ?? i.occurredOn, today) >= REVIEW_DUE_DAYS).length,
-  };
-}
-
-// ---- GROWTH の四隅 ----
-
-export type GrowthCorners = {
-  /** PHASE：向き（増量・減量・維持・療養）と週（「06/16W」）か療養の日（「DAY 03」）。なければ null */
-  phase: { value: string; sub: string } | null;
-  /** PACE：日本語と英字。判定しないときは value が null（英字は NO DATA） */
-  pace: { value: string | null; sub: string } | null;
-  /** WEIGHT：週平均と目標（kg） */
-  weekAvgKg: number | null;
-  goalKg: number | null;
-};
-
-export function growthCorners(h: HeroPhase, weekAvgKg: number | null, goalKg: number | null): GrowthCorners {
-  const base = { weekAvgKg, goalKg };
-  if (h.kind === 'none') return { ...base, phase: null, pace: null };
-  if (h.kind === 'rehab') return { ...base, phase: { value: '療養', sub: `DAY ${two(h.rehabDays)}` }, pace: { value: null, sub: 'PAUSED' } };
-  const { phase, progress } = h;
-  const status = progress.pace?.status ?? null;
-  return {
-    ...base,
-    phase: { value: DIRECTION_LABELS[phase.direction!], sub: `${two(progress.week)}/${two(progress.weeksTotal ?? progress.week)}W` },
-    pace: { value: status ? PACE_LABELS[status] : null, sub: status ? PACE_EN[status] : NO_PACE },
   };
 }

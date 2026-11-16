@@ -1,5 +1,5 @@
 import {
-  growthCorners, heroPages, heroPhase, initialHeroPage, injuryCorners, keepHeroPage, nextHeroPage, phaseLine, phaseRing,
+  heroPages, heroPhase, initialHeroPage, injuryCorners, keepHeroPage, nextHeroPage, phaseLine, phaseRing,
   REVIEW_DUE_DAYS, ringFooter, ringSegment, weekAverageKg,
 } from '../homeHero';
 import { big3Gauge, logGrid, logWeekLabels, logWeekRange } from '../homeHud';
@@ -108,9 +108,9 @@ describe('輪', () => {
 });
 
 describe('ページ', () => {
-  test('並び：LATEST → INJURY（ケガがあるときだけ）→ GROWTH', () => {
-    expect(heroPages(true)).toEqual(['latest', 'injury', 'growth']);
-    expect(heroPages(false)).toEqual(['latest', 'growth']);
+  test('並び：LATEST → INJURY（ケガがあるときだけ）', () => {
+    expect(heroPages(true)).toEqual(['latest', 'injury']);
+    expect(heroPages(false)).toEqual(['latest']);
   });
   test('最初のページ：ふだんは LATEST、療養中は INJURY（ケガがなければ LATEST）', () => {
     expect(initialHeroPage(heroPages(true), false)).toBe('latest');
@@ -119,14 +119,13 @@ describe('ページ', () => {
   });
   test('INJURY を見ている間にケガがなくなったら LATEST に戻す', () => {
     expect(keepHeroPage('injury', heroPages(false))).toBe('latest');
-    expect(keepHeroPage('growth', heroPages(false))).toBe('growth');
   });
   test('スワイプで隣へ。端では動かない', () => {
     const pages = heroPages(true);
     expect(nextHeroPage('latest', pages, 'next')).toBe('injury');
-    expect(nextHeroPage('growth', pages, 'prev')).toBe('injury');
+    expect(nextHeroPage('injury', pages, 'prev')).toBe('latest');
     expect(nextHeroPage('latest', pages, 'prev')).toBeNull();
-    expect(nextHeroPage('growth', pages, 'next')).toBeNull();
+    expect(nextHeroPage('injury', pages, 'next')).toBeNull();
   });
 });
 
@@ -148,21 +147,6 @@ describe('INJURY の四隅', () => {
   });
   test('ケガがなければ空', () => {
     expect(injuryCorners([], null, TODAY)).toEqual({ count: 0, fix: null, since: null, alert: 0 });
-  });
-});
-
-describe('GROWTH の四隅', () => {
-  test('実施中：増量 06/16W、順調 ON TRACK、週平均 → 目標', () => {
-    expect(growthCorners(heroPhase([phase()], WEIGHTS, TODAY), 76.25, 80)).toEqual({
-      phase: { value: '増量', sub: '06/16W' }, pace: { value: '順調', sub: 'ON TRACK' }, weekAvgKg: 76.25, goalKg: 80,
-    });
-  });
-  test('判定しないときは NO DATA、療養中は療養と日、未設定は null', () => {
-    expect(growthCorners(heroPhase([phase()], [], TODAY), null, 80).pace).toEqual({ value: null, sub: 'NO DATA' });
-    expect(growthCorners(heroPhase([phase(), rehab()], WEIGHTS, TODAY), 76, 80)).toMatchObject({
-      phase: { value: '療養', sub: 'DAY 03' }, pace: { value: null, sub: 'PAUSED' },
-    });
-    expect(growthCorners(heroPhase([], WEIGHTS, TODAY), 76, 72)).toEqual({ phase: null, pace: null, weekAvgKg: 76, goalKg: 72 });
   });
 });
 
