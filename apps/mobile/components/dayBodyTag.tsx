@@ -28,11 +28,11 @@ function TagFrame({ testID, style, onPress, label, children }: { testID: string;
 
 export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; align: 'left' | 'right'; style: ViewStyle; onPress?: () => void }) {
   return (
-    <TagFrame testID="day-body-tag" onPress={onPress} label={`${exerciseNumber(e.no)} ${e.name} ${e.set}。この種目の記録を開く`}
+    <TagFrame testID={e.kicker ? 'hero-body-tag' : 'day-body-tag'} onPress={onPress} label={`${exerciseNumber(e.no)} ${e.name} ${e.set}。この種目の記録を開く`}
       style={[{ height: DAY_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
-      <T style={[mono, { color: colors.accent }]}>{exerciseNumber(e.no)}</T>
+      <T style={[mono, { color: colors.accent }]}>{e.kicker ?? exerciseNumber(e.no)}</T>
       <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
-      <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>
+      {e.set !== '' && <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>}
     </TagFrame>
   );
 }
