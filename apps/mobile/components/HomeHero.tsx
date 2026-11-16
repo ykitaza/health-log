@@ -241,7 +241,8 @@ function Corner({ label, value, sub, align, labelColor = colors.accent, valueCol
   label: string; value: string; sub?: string; align: 'left' | 'right'; labelColor?: string; valueColor?: string; subColor?: string;
 }) {
   if (!deco.enLabels) {
-    const n = /[^\x20-\x7E]/.test(value) ? valueSize(value) : 32;
+    // 英数字は 32 にそろえる。長い値（「12.50 t」）だけ、HUD と同じく小さくして輪の下の切り替えにかからないようにする
+    const n = /[^\x20-\x7E]/.test(value) ? valueSize(value) : value.replace(/ /g, '').length <= 5 ? 32 : 26;
     const tone = labelColor === colors.accent ? colors.sub : labelColor;
     return (
       <View style={{ alignItems: align === 'left' ? 'flex-start' : 'flex-end' }}>

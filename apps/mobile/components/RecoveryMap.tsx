@@ -15,7 +15,7 @@ import {
   recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
-import { colors, recoveryPalette, space } from '@/theme';
+import { colors, deco, lbl, recoveryPalette, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
 import { RecoveryFigure2D } from './DayRecovery';
 import { RecoveryCallout, RecoveryMap3D } from './RecoveryMap3D';
@@ -103,8 +103,8 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
       {/* 見出しをまとめて読む。出典のリンクは図の下（まとめて読む枠の外） */}
       <View accessible accessibilityLabel={spoken} style={{ gap: space.xs }}>
         <View style={s.head}>
-          <Mono color={colors.accent}>RECOVERY MAP // LIVE</Mono>
-          {injuries.length > 0 && <Mono color={INJURY_RED}>{`▲ ${injuries.length} ALERT`}</Mono>}
+          {deco.enLabels ? <Mono color={colors.accent}>RECOVERY MAP // LIVE</Mono> : <T variant="labelL">回復マップ</T>}
+          {injuries.length > 0 && <Mono color={INJURY_RED}>{lbl(`▲ ${injuries.length} ALERT`, `ケガ ${injuries.length}件`)}</Mono>}
         </View>
       </View>
       {RecoveryMap3D
@@ -131,7 +131,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
               <View style={[s.mark, { backgroundColor: color }]} />
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                 <View style={s.rowTop}>
-                  <View style={{ width: 84 }}><Mono color={en} size={11}>{partEnglish(p.name)}</Mono></View>
+                  {deco.enLabels && <View style={{ width: 84 }}><Mono color={en} size={11}>{partEnglish(p.name)}</Mono></View>}
                   <T variant="labelL" numberOfLines={1} style={{ flexShrink: 1 }}>{p.name}</T>
                   {hurt > 0 && <T variant="labelM" color={INJURY_RED}>▲</T>}
                   {/* 一度もなければ下の状態に「まだ」と出すので、ここは出さない */}
@@ -151,7 +151,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
             accessibilityRole="button" accessibilityState={{ expanded: all }} accessibilityLabel={all ? '回復中だけにする' : `すべての部位（${list.length}）`}
             onPress={() => setAll(!all)} style={s.more} testID="recovery-all"
           >
-            <Mono color={colors.accent}>{all ? '▲ CLOSE' : '▼ ALL'}</Mono>
+            {deco.enLabels && <Mono color={colors.accent}>{all ? '▲ CLOSE' : '▼ ALL'}</Mono>}
             <T variant="labelL" color={colors.accent}>{all ? '回復中だけにする' : `すべての部位（${list.length}）`}</T>
           </Pressable>
         )}
@@ -163,7 +163,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
           accessible accessibilityLiveRegion="polite"
         >
           <View style={s.pickHead}>
-            <Mono color={colors.accent}>SELECT //</Mono>
+            {deco.enLabels && <Mono color={colors.accent}>SELECT //</Mono>}
             <T variant="labelL">{part ? part.name : meshLabel(mesh!)}</T>
           </View>
           {part ? (
