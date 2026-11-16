@@ -208,6 +208,27 @@ export function SleepPanel({ gauge, today, link = true, testID = 'home-sleep' }:
   );
 }
 
+/**
+ * BODY：計器の段の下の細い 1 行。その日の体重と、目標体重まで（「目標まで あと 3.4 kg」。目標がないときは出さない）。
+ * 体重がなければ「—」。押すとからだのタブ（その日）。睡眠・安静時心拍は出さない（睡眠は SLEEP だけ）
+ */
+export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home-body' }: {
+  weightKg: number | null; goal: string | null; unit: WeightUnit; label: string; onPress: () => void; testID?: string;
+}) {
+  const value = weightKg != null ? fmt1(kgToUnit(weightKg, unit)) : '—';
+  const spoken = weightKg != null ? `体重 ${value} ${unit}${goal ? `。${goal}` : ''}` : '体重 記録なし';
+  return (
+    <Panel testID={testID} label={`${spoken}。からだのタブを開く`} onPress={onPress} style={s.bodyPanel}>
+      <Mono color={colors.accent} size={11}>{label}</Mono>
+      <View style={s.big}>
+        <T num bold size={18} style={{ lineHeight: 22 }}>{value}</T>
+        <Mono size={11}>{unit.toUpperCase()}</Mono>
+      </View>
+      {goal ? <T size={12} color={colors.sub} numberOfLines={1} style={s.bodyGoal}>{goal}</T> : null}
+    </Panel>
+  );
+}
+
 const CELL_BG = [hudColors.empty, hudColors.mint1, hudColors.mint2, hudColors.mint3];
 const onCell = (level: number) => (level >= 2 ? colors.onAccent : colors.text);
 
@@ -332,6 +353,9 @@ const s = StyleSheet.create({
   panel: { backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 10, gap: 2 },
   gauge: { flex: 1, minHeight: 148, minWidth: 0 },
   half: { flex: 1, minWidth: 0, gap: 4 },
+  // BODY：ラベル・体重・目標までを 1 行に（ガジェットの行より低い）
+  bodyPanel: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 8 },
+  bodyGoal: { flex: 1, minWidth: 0, textAlign: 'right' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 4 },
   big: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   bigText: { lineHeight: 26 },

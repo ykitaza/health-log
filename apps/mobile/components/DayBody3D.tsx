@@ -8,6 +8,8 @@ export type DayBodyEntry = {
   key: string; no: number; name: string; set: string; part: string;
   /** EX-01 の代わりに出す見出し（ホームのヒーローの、部位の札。lib/heroTags.ts）。あれば札は部位の札（testID は hero-body-tag） */
   kicker?: string;
+  /** 部位の札を 2 行（見出しの下に中身）に積む（「23セット」のように中身が長いとき。右の札で折り返さない） */
+  stack?: boolean;
 };
 
 export type DayBody3DProps = {

@@ -66,10 +66,10 @@ test('今週やること：チェックすると取り消し線と件数。サ�
   await expect(see(card, '1／3', { exact: true })).toBeVisible();
   await expect(see(card, '脚の日を2回入れる', { exact: true })).toHaveCSS('text-decoration-line', 'line-through');
 
-  // 最新のレポートの上に出る
+  // 同じカードの中で、最新のレポートの下に出る
   const todoBox = await card.boundingBox();
   const reportBox = await page.getByTestId('latest-report').filter({ visible: true }).boundingBox();
-  expect(todoBox!.y).toBeLessThan(reportBox!.y);
+  expect(todoBox!.y).toBeGreaterThan(reportBox!.y);
 
   // チェックはレポートの next_steps_done として、同期でサーバーに届く（次の週のまとめで Claude・ChatGPT が読む）
   const REPORT = 'aaaaaaaa-0000-4000-8000-000000000001';

@@ -54,6 +54,13 @@ describe('今週やること', () => {
     expect(weeklyTodo([r('w', 'weekly', null, ['a'], '2026-11-09')], TODAY)?.reportId).toBe('w');
   });
 
+  test('出すのは多くても 3 つ（先頭から。済んだ番号は元のまま）', () => {
+    const t = weeklyTodo([r('w', 'weekly', '2026-11-08', ['a', 'b', 'c', 'd', 'e'], null, [0, 3])], TODAY)!;
+    expect(t.steps).toEqual(['a', 'b', 'c']);
+    expect(t.done).toEqual([0, 3]);
+    expect(todoCount(t.steps, t.done)).toBe(1);
+  });
+
   test('週のまとめがない・古い・次の一歩がないときは出さない', () => {
     expect(weeklyTodo([], TODAY)).toBeNull();
     expect(weeklyTodo([r('m', 'monthly', '2026-11-08', ['a'])], TODAY)).toBeNull();

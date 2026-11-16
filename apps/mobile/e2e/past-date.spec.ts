@@ -11,7 +11,7 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await day(page, '2026-11-03').click();
   await expect(day(page, '2026-11-03')).toHaveAttribute('aria-selected', 'true');
   await expect(see(page, '11月3日（火）を表示しています')).toBeVisible();
-  await expect(homeCard(page, 'condition')).toContainText('11月3日の体調');
+  await expect(homeCard(page, 'body')).toContainText('BODY // 11月3日');
   await expect(day(page, '2026-11-03')).toHaveAccessibleName('11月3日（火）、筋トレなし');
 
   // 「記録する」のシートは、選んだ日の記録
@@ -36,13 +36,13 @@ test('過去の日を選んで記録すると、その日に出て、今日に�
   await goTab(page, 'ホーム');
 
   // ホーム：LOG のその日のマスに出て、ヒーローの LATEST（直近のトレーニング）もその日
-  await expect(homeCard(page, 'condition')).toContainText('11月3日の体調');
+  await expect(homeCard(page, 'body')).toContainText('BODY // 11月3日');
   await expect(day(page, '2026-11-03')).toHaveAccessibleName('11月3日（火）、筋トレ 0.64トン 胸');
   await expect(homeLatest(page)).toHaveAttribute('aria-label', /^直近のトレーニング 11月3日（火）。1種目 1セット 0\.64トン/);
 
   // 今日に戻ると、今日の記録には出ない
   await button(page, '今日に戻る').click();
-  await expect(homeCard(page, 'condition')).toContainText('今日の体調');
+  await expect(homeCard(page, 'body')).toContainText('BODY');
   await expect(day(page, TODAY)).toHaveAttribute('aria-selected', 'true');
   await expect(day(page, TODAY)).not.toHaveAccessibleName(/筋トレ 0/);
 
@@ -66,7 +66,7 @@ test('未来の日は選べず、URL で開いても記録できない', async (
   // 右下の「記録する」に重ならない高さまでスクロールしてから押す
   await day(page, '2026-11-06').evaluate((e) => e.scrollIntoView({ block: 'center' }));
   await day(page, '2026-11-06').click({ force: true });
-  await expect(homeCard(page, 'condition')).toContainText('今日の体調');
+  await expect(homeCard(page, 'body')).toContainText('BODY');
   // 「記録する」は今日の記録のまま
   await button(page, '記録する').click();
   await expect(see(page, '11月5日（木）の記録', { exact: true })).toBeVisible();

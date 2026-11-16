@@ -2,9 +2,9 @@ import { expect, Locator, Page, test } from '@playwright/test';
 import { goTab, moveToDate } from './helpers';
 import { bulkPhase, change, EXERCISE, openWith, workout } from './seed';
 
-// ホームの「部位の量」：宣言したフェーズ（なければ直近 4 週）の、部位ごとのセット数・1 週間あたり・1 週間 10〜20 セットの目安との差。
+// ホームの「部位の量」：宣言したフェーズ（なければ直近 4 週）で、部位ごとにどれだけやったか（セット数の合計が主、週あたりは整数で小さく）。体のすぐ下の一覧で、図はない。目安・あと・少なめの言葉は出さない。
 // 集計・段・文字・読み上げ・札の選び方は jest（lib/__tests__/partVolume.test.ts・heroTags.test.ts）。ここは画面に出ること：行の文字、読み上げ、行の四角と 2D の図の塗り、
-// ホームの体の「回復」「部位の量」の切り替えと、色の見方ごとの札（気にしたい部位が多くても 3 つ。体を押すと、その部位の札を足す）。
+// ホームの体の「回復」「部位の量」の切り替えと、色の見方ごとの札（回復は回復中の部位、部位の量は合計の多い 3 つ。体を押すと、その部位の札を足す）。
 // 記録は偽の同期サーバーから入れる（40 セットなどを画面で 1 つずつ記録しない。e2e/seed.ts）。今日は 2026-11-08（日）なので、フェーズなしの直近 4 週は 10/12〜11/8。
 // 週のまとめの同じ形のカード（月曜〜日曜。report-weekly-volume）は reports.spec.ts。色の見分けのスクリーンショットは SHOT_DIR（このファイルの最後のテスト）
 
@@ -31,7 +31,7 @@ const noPhase = () => [
   ...workout('2026-10-11', EXERCISE.squat, 30),
 ];
 
-test('フェーズなし：「直近4週の部位」。6 つの行（セット数・週あたり・目安との差）、行の四角と図の塗り、読み上げ。押すと筋トレの推移の部位のバランス', async ({ page, context }) => {
+test('フェーズなし：「直近4週の部位」。6 つの行（セット数・週あたり）、行の四角、読み上げ。押すと筋トレの推移の部位のバランス', async ({ page, context }) => {
   test.setTimeout(150_000);
   await openWith(page, context, noPhase());
   const card = visible(page, 'home-parts');
@@ -39,20 +39,23 @@ test('フェーズなし：「直近4週の部位」。6 つの行（セット�
   await test.step('見出しと期間。先週比と凡例は出さない。FUEL は全幅で、下の別の段', async () => {
     await expect(card).toContainText('直近4週の部位');
     await expect(card).toContainText('10/12–11/8');
-    for (const gone of ['今週', '先週比', '凡例', 'PARTS']) await expect(card).not.toContainText(gone);
+    for (const gone of ['今週', '先週比', '凡例', 'PARTS', 'あと', '少なめ', '目安']) await expect(card).not.toContainText(gone);
+    // 体の下に全幅で置き、FUEL はその下の別の段
+    const hero = (await visible(page, 'home-hero').boundingBox())!;
     const parts = (await card.boundingBox())!;
     const fuel = (await visible(page, 'home-fuel').boundingBox())!;
+    expect(parts.y).toBeGreaterThanOrEqual(hero.y + hero.height);
     expect(fuel.y).toBeGreaterThanOrEqual(parts.y + parts.height);
     expect(Math.abs(fuel.width - parts.width)).toBeLessThan(2);
   });
 
-  await test.step('6 つの行：セット数・週あたり・目安との差', async () => {
-    await expect(row(page, '胸')).toHaveText('胸40セット週 10.0目安内');
-    await expect(row(page, '肩')).toHaveText('肩20セット週 5.0あと5');
-    await expect(row(page, '背中')).toHaveText('背中4セット週 1.0あと9');
-    await expect(row(page, '腕')).toHaveText('腕90セット週 22.5目安より多い');
-    await expect(row(page, '脚')).toHaveText('脚8セット週 2.0あと8');
-    await expect(row(page, '腹')).toHaveText('腹0セット週 0あと10');
+  await test.step('6 つの行：セット数（主）と、四捨五入の週あたり（22.5 は 23）', async () => {
+    await expect(row(page, '胸')).toHaveText('胸40セット週10');
+    await expect(row(page, '肩')).toHaveText('肩20セット週5');
+    await expect(row(page, '背中')).toHaveText('背中4セット週1');
+    await expect(row(page, '腕')).toHaveText('腕90セット週23');
+    await expect(row(page, '脚')).toHaveText('脚8セット週2');
+    await expect(row(page, '腹')).toHaveText('腹0セット週0');
   });
 
   await test.step('行の四角：週あたりの段（0 は灰色、1〜4 は 1 段、5〜9 は 2 段、10〜14 は 3 段、21 以上は 5 段）', async () => {
@@ -64,23 +67,16 @@ test('フェーズなし：「直近4週の部位」。6 つの行（セット�
     await expect(swatch(page, '腕')).toHaveCSS('background-color', RGB.level5);
   });
 
-  await test.step('2D の図（前と後ろ）：胸は 3 段、肩は 2 段、脚と背中は 1 段、腹は灰色。回復の色・赤は使わない', async () => {
-    const front = visible(page, 'home-parts-body-figure-front');
-    const back = visible(page, 'home-parts-body-figure-back');
-    await expect(front.locator(`path[fill="${FILL.level3}"]`).first()).toBeAttached();
-    await expect(front.locator(`path[fill="${FILL.level2}"]`).first()).toBeAttached();
-    await expect(front.locator(`path[fill="${FILL.level1}"]`).first()).toBeAttached();
-    await expect(front.locator(`path[fill="${FILL.level5}"]`).first()).toBeAttached(); // 腕
-    await expect(back.locator(`path[fill="${FILL.level1}"]`).first()).toBeAttached();
-    await expect(front.locator(`path[fill="${FILL.empty}"]`).first()).toBeAttached();
+  await test.step('一覧に図はない（体はヒーローの体）。回復の色・赤の塗りも出ない', async () => {
+    await expect(card.getByTestId('home-parts-body-figure-front')).toHaveCount(0);
+    await expect(card.getByTestId('home-parts-body-figure-back')).toHaveCount(0);
     for (const c of RECOVERY_COLORS) await expect(card.locator(`path[fill="${c}"]`)).toHaveCount(0);
     await expect(card.locator('[data-testid^="home-parts-body-injury-"]')).toHaveCount(0);
   });
 
-  await test.step('読み上げ：期間・目安・部位ごとのセット数と週あたりと目安との差', async () => {
-    await expect(card).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日。1 週間あたりのセット数（目安は 10〜20）。'
-      + '胸 40 セット、週 10.0、目安内。肩 20 セット、週 5.0、あと5。背中 4 セット、週 1.0、あと9。'
-      + '腕 90 セット、週 22.5、目安より多い。脚 8 セット、週 2.0、あと8。腹 0 セット、週 0、あと10。筋トレの推移を開く');
+  await test.step('読み上げ：期間・部位ごとのセット数と週あたり（あと・目安は言わない）', async () => {
+    await expect(card).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日のセット数。'
+      + '胸 40 セット、週 10。肩 20 セット、週 5。背中 4 セット、週 1。腕 90 セット、週 23。脚 8 セット、週 2。腹 0 セット、週 0。筋トレの推移を開く');
   });
 
   await test.step('押すと筋トレの推移の部位のバランス（覚えている期間のまま。28日にしない）', async () => {
@@ -99,7 +95,7 @@ async function pressFigure(press: Locator, x: number, y: number) {
   await press.click({ position: { x: box.width * x, y: box.height * y } });
 }
 
-test('ホームの体：「回復」と「部位の量」の切り替え。色・キャプション・読み上げ・札が見方に合わせて変わり、種目の札は出ない。選んだものは覚える', async ({ page, context }) => {
+test('ホームの体：「回復」と「部位の量」の切り替え。色・見出し・読み上げ・札が見方に合わせて変わり、種目の札は出ない。選んだものは覚える', async ({ page, context }) => {
   test.setTimeout(150_000);
   await openWith(page, context, noPhase());
   const hero = visible(page, 'home-hero');
@@ -130,55 +126,56 @@ test('ホームの体：「回復」と「部位の量」の切り替え。色�
     await expect(page.getByTestId('hero-body-tag')).toHaveCount(2);
   });
 
-  await test.step('「部位の量」：週あたりの段の色。キャプションと読み上げ。札は目安から外れた部位を外れ方の大きい順に 3 つ（腹・背中・脚）', async () => {
+  await test.step('「部位の量」：色は週あたりの段のまま。見出しは期間の合計（162 セット）。札は合計の多い 3 つ（腕・胸・肩）で、部位の名前と「90セット」の 2 行', async () => {
     await tab('部位の量').click();
     await expect(tab('部位の量')).toHaveAttribute('aria-selected', 'true');
-    await expect(caption).toHaveText('直近4週の部位（1週あたり）');
-    await expect(latest).toHaveAttribute('aria-label', /直近4週の部位の量、10月12日から11月8日の 1 週間あたりのセット数。胸 10.0、肩 5.0、背中 1.0、腕 22.5、脚 2.0、腹 0。/);
+    await expect(caption).toHaveText('直近4週で 162セット');
+    await expect(latest).toHaveAttribute('aria-label', /直近4週で 162セット、10月12日から11月8日。胸 40 セット、肩 20 セット、背中 4 セット、腕 90 セット、脚 8 セット、腹 0 セット。体の色は 1 週間あたりの量/);
     await expect(latest).not.toHaveAttribute('aria-label', /回復中/);
     await expect(body.locator(`path[fill="${FILL.level3}"]`).first()).toBeAttached(); // 胸
     await expect(body.locator(`path[fill="${FILL.level5}"]`).first()).toBeAttached(); // 腕
     await expect(body.locator(`path[fill="${FILL.empty}"]`).first()).toBeAttached(); // 腹
     for (const c of RECOVERY_COLORS) await expect(body.locator(`path[fill="${c}"]`)).toHaveCount(0);
     await expect(tags).toHaveCount(3);
-    await expect(tags.filter({ hasText: '腹' })).toHaveText('腹週0あと10');
-    await expect(tags.filter({ hasText: '背中' })).toHaveText('背中週1.0あと9');
-    await expect(tags.filter({ hasText: '脚' })).toHaveText('脚週2.0あと8');
-    // 目安の中の胸・あと5 の肩・多い腕は、先頭 3 つに入らない
-    await expect(tags.filter({ hasText: '胸' })).toHaveCount(0);
+    await expect(tags.filter({ hasText: '腕' })).toHaveText('腕90セット');
+    await expect(tags.filter({ hasText: '胸' })).toHaveText('胸40セット');
+    await expect(tags.filter({ hasText: '肩' })).toHaveText('肩20セット');
+    // 背中 4・脚 8・腹 0 は先頭 3 つに入らない。あとの言葉は出さない
+    await expect(tags.filter({ hasText: '背中' })).toHaveCount(0);
+    await expect(tags.filter({ hasText: 'あと' })).toHaveCount(0);
     await expect(page.getByTestId('day-body-tag')).toHaveCount(0);
   });
 
   const pressFront = visible(page, 'day-body-2d-press-front');
   await test.step('体を押すと、その部位の札を足す（先頭 3 つの外でも）。もう一度押す・体の外を押すと消える', async () => {
-    await pressFigure(pressFront, 0.42, 0.225); // 胸
+    await pressFigure(pressFront, 0.4, 0.7); // 脚（8 セット）
     await expect(tags).toHaveCount(4);
-    await expect(tags.filter({ hasText: '胸' })).toHaveText('胸週10.0目安内');
-    await pressFigure(pressFront, 0.42, 0.225);
+    await expect(tags.filter({ hasText: '脚' })).toHaveText('脚8セット');
+    await pressFigure(pressFront, 0.4, 0.7);
     await expect(tags).toHaveCount(3);
-    await pressFigure(pressFront, 0.42, 0.225);
+    await pressFigure(pressFront, 0.4, 0.7);
     await expect(tags).toHaveCount(4);
     await pressFigure(pressFront, 0.02, 0.98); // 体の外
     await expect(tags).toHaveCount(3);
-    // 先頭 3 つに入っている部位（脚）を押しても、札は増えない
-    await pressFigure(pressFront, 0.4, 0.7);
+    // 先頭 3 つに入っている部位（胸）を押しても、札は増えない
+    await pressFigure(pressFront, 0.42, 0.225);
     await expect(tags).toHaveCount(3);
   });
 
-  await test.step('押した部位は、見方を変えても残る（回復では胸は回復済み）。覚えた見方で開き直す', async () => {
-    await pressFigure(pressFront, 0.42, 0.225);
+  await test.step('押した部位は、見方を変えても残る（回復では腹は「まだ」）。覚えた見方で開き直す', async () => {
+    await pressFigure(pressFront, 0.5, 0.36); // 腹
     await expect(tags).toHaveCount(4);
+    await expect(tags.filter({ hasText: '腹' })).toHaveText('腹0セット');
     await tab('回復').click();
     await expect(caption).toHaveCount(0);
     await expect(tags).toHaveCount(3);
-    await expect(tags.filter({ hasText: '胸' })).toHaveText('胸回復済み');
     await expect(latest).toHaveAttribute('aria-label', /回復中/);
     await expect(body.locator(`path[fill="${FILL.level3}"]`)).toHaveCount(0);
     await tab('部位の量').click();
     await page.waitForTimeout(500); // 覚える書き込みは裏で走る。終わる前に開き直さない
     await moveToDate(page, '2026-11-08');
     await expect(tab('部位の量')).toHaveAttribute('aria-selected', 'true');
-    await expect(caption).toHaveText('直近4週の部位（1週あたり）');
+    await expect(caption).toHaveText('直近4週で 162セット');
     await expect(tags).toHaveCount(3);
   });
 });
@@ -203,14 +200,14 @@ test('フェーズ：「増量 8週の部位」。始まりから今日まで、
   const card = visible(page, 'home-parts');
   await expect(card).toContainText('増量 8週の部位');
   await expect(card).toContainText('10/26–11/8');
-  await expect(row(page, '胸')).toHaveText('胸20セット週 14.0目安内');
-  await expect(row(page, '脚')).toHaveText('脚10セット週 7.0あと3');
-  await expect(row(page, '背中')).toHaveText('背中1セット週 0.7あと9.3');
-  await expect(row(page, '腹')).toHaveText('腹0セット週 0あと10');
+  await expect(row(page, '胸')).toHaveText('胸20セット週14');
+  await expect(row(page, '脚')).toHaveText('脚10セット週7');
+  await expect(row(page, '背中')).toHaveText('背中1セット週1');
+  await expect(row(page, '腹')).toHaveText('腹0セット週0');
   await expect(swatch(page, '胸')).toHaveCSS('background-color', RGB.level3);
   await expect(swatch(page, '脚')).toHaveCSS('background-color', RGB.level2);
   await expect(swatch(page, '背中')).toHaveCSS('background-color', RGB.level1);
-  await expect(card).toHaveAttribute('aria-label', /^増量 8週の部位、10月26日から11月8日。1 週間あたりのセット数（目安は 10〜20）。胸 20 セット、週 14.0、目安内。/);
+  await expect(card).toHaveAttribute('aria-label', /^増量 8週の部位、10月26日から11月8日のセット数。胸 20 セット、週 14。/);
 });
 
 test('療養中：止めた増量のフェーズの期間で数える（療養の日は今日まで除く）', async ({ page, context }) => {
@@ -230,7 +227,7 @@ test('療養中：止めた増量のフェーズの期間で数える（療養�
   const card = visible(page, 'home-parts');
   await expect(card).toContainText('増量 8週の部位');
   await expect(card).toContainText('10/26–11/8');
-  await expect(row(page, '胸')).toHaveText('胸22セット週 14.0目安内');
+  await expect(row(page, '胸')).toHaveText('胸22セット週14');
 });
 
 // 色の見分け（スクリーンショット）：SHOT_DIR を渡したときだけ撮る。ホームのカードと、体の「回復」「部位の量」の 2 つ。412 の幅

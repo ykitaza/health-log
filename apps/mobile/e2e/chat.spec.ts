@@ -121,8 +121,8 @@ test('レポートの「チャットで作る」：期間を選んでから開�
   expect(q).toContain('save_report(kind=monthly, period_start=2026-11-01, period_end=2026-11-08)で保存してください。');
 });
 
-// おすすめの帯（components/ReportSuggestion.tsx）はホームだけに出る（新IAのレポートのタブは詳細へ直行し、帯は置かない）。
-// 記録を画面で作るのに時間がかかるので、1回作ってホームの帯とレポートのタブの「レポートを作る」を確かめる
+// おすすめの行（components/HomeReports.tsx）はホームだけに出る（新IAのレポートのタブは詳細へ直行し、行は置かない）。
+// 記録を画面で作るのに時間がかかるので、1回作ってホームの行とレポートのタブの「レポートを作る」を確かめる
 test('まだ作っていないまとめのおすすめ：ホームの帯と、レポートのタブの右下の「レポートを作る」。閉じると出ない', async ({ page }) => {
   // 11月6日（金）・7日（土）に記録し、火曜の11月10日に開く：先週（11月2日〜8日）の週のまとめと、6日・7日の日のまとめがまだ
   await openApp(page, '2026-11-06');
@@ -131,7 +131,8 @@ test('まだ作っていないまとめのおすすめ：ホームの帯と、�
   await moveToDate(page, '2026-11-10');
 
   await test.step('ホームのおすすめ：件数と中身。「作る」でまとめて頼む文を開く', async () => {
-    const banner = page.getByTestId('report-suggestion').filter({ visible: true });
+    const banner = page.getByTestId('home-report-pending').filter({ visible: true });
+    await expect(page.getByTestId('home-reports').filter({ visible: true }).getByTestId('home-report-pending')).toBeVisible(); // レポートのカードの中の行
     await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
     await expect(see(banner, '先週の分と、11月6日・7日の分', { exact: true })).toBeVisible();
 
@@ -156,7 +157,7 @@ test('まだ作っていないまとめのおすすめ：ホームの帯と、�
     // レポートはまだ1件もないので、タブは空の状態（直行する詳細がない）。帯はホームだけなので、ここには出ない
     // 後ろに重なったホームのタブ（aria-hidden）の帯は数えない
     await expect(see(page, 'レポートはまだありません')).toBeVisible();
-    await expect(page.getByTestId('report-suggestion').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
+    await expect(page.getByTestId('home-report-pending').filter({ visible: true }).and(page.locator(':not([aria-hidden="true"] *)'))).toHaveCount(0);
 
     // 右下の「レポートを作る」：まだのまとめがあれば、それをまとめて頼む文で開く
     await button(page, 'レポートを作る').click();
@@ -171,7 +172,8 @@ test('まだ作っていないまとめのおすすめ：ホームの帯と、�
 
   await test.step('ホームでおすすめを閉じると、レポートのタブの「レポートを作る」も期間を選ぶシートになる。開き直しても出ない', async () => {
     await goTab(page, 'ホーム');
-    const banner = page.getByTestId('report-suggestion').filter({ visible: true });
+    const banner = page.getByTestId('home-report-pending').filter({ visible: true });
+    await expect(page.getByTestId('home-reports').filter({ visible: true }).getByTestId('home-report-pending')).toBeVisible(); // レポートのカードの中の行
     await expect(see(banner, 'まとめがまだ 3 件あります', { exact: true })).toBeVisible();
     await button(banner, 'おすすめを閉じる。今出ている分は、もう出しません').click();
     await expect(banner).toHaveCount(0);
@@ -183,11 +185,11 @@ test('まだ作っていないまとめのおすすめ：ホームの帯と、�
     await expect(sheet(page)).toBeHidden();
     await goTab(page, 'ホーム');
     await expect(homeLatest(page)).toBeVisible();
-    await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
+    await expect(page.getByTestId('home-report-pending').filter({ visible: true })).toHaveCount(0);
     // 開き直しても出ない
     await moveToDate(page, '2026-11-10');
     await expect(homeLatest(page)).toBeVisible();
-    await expect(page.getByTestId('report-suggestion').filter({ visible: true })).toHaveCount(0);
+    await expect(page.getByTestId('home-report-pending').filter({ visible: true })).toHaveCount(0);
   });
 });
 

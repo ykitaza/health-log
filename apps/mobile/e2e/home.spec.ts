@@ -33,9 +33,11 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(cell(page, TODAY)).toHaveAccessibleName('11月8日（日） 今日、筋トレなし');
   await expect(visible(page, 'home-log')).toContainText('LOG // W1-W4');
   await expect(visible(page, 'home-log')).toContainText('NOV  0D · 0.00T');
-  // 部位の量（フェーズがないので直近 4 週 = 10/12〜11/8）と FUEL
-  await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日。1 週間あたりのセット数（目安は 10〜20）。まだ記録がありません。筋トレの推移を開く');
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0セット週 0あと10');
+  // 部位の量（フェーズがないので直近 4 週 = 10/12〜11/8）と FUEL。あと・少なめ・目安の言葉は出さない
+  await expect(visible(page, 'home-parts')).toHaveAttribute('aria-label', '直近4週の部位、10月12日から11月8日のセット数。まだ記録がありません。筋トレの推移を開く');
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸0セット週0');
+  await expect(visible(page, 'home-parts')).not.toContainText('あと');
+  await expect(visible(page, 'home-parts')).not.toContainText('少なめ');
   await expect(homeFuel(page)).toHaveAttribute('aria-label', '今日の食事 0kcal。休みの日。たんぱく質 0g、脂質 0g、炭水化物 0g。食事のタブを開く');
   // なくしたもの：カレンダー、今日のトレーニング・食事のカード、最近の流れ
   await expect(page.getByTestId('home-calendar')).toHaveCount(0);
@@ -46,16 +48,19 @@ test('記録がないときのホーム（まっさらなデータから始ま�
   await expect(visible(page, 'weekly-goals')).toHaveCount(0);
   await expect(visible(page, 'weekly-todo')).toHaveCount(0);
   await expect(button(page, 'RM計算機')).toHaveCount(0);
-  // 体調のカードは残す
-  await expect(homeCard(page, 'condition')).toContainText('今日の体調');
-  await expect(homeCard(page, 'condition')).toContainText('まだ記録がありません');
+  // 体の 1 行（BODY）：体重がなければ「—」。体調のカードと安静時心拍はホームにない
+  await expect(homeCard(page, 'body')).toContainText('BODY');
+  await expect(homeCard(page, 'body')).toContainText('—');
+  await expect(homeCard(page, 'body')).toHaveAttribute('aria-label', '体重 記録なし。からだのタブを開く');
+  await expect(page.getByTestId('home-condition')).toHaveCount(0);
+  await expect(visible(page, 'home-reports')).not.toContainText('安静時');
   await expect(button(page, '記録する')).toBeVisible();
 
-  // FUEL は食事のタブ、体調のカードはからだのタブ、SLEEP は睡眠の推移を開く
+  // FUEL は食事のタブ、BODY の行はからだのタブ、SLEEP は睡眠の推移を開く
   await homeFuel(page).click();
   await expect(tab(page, '食事')).toHaveAttribute('aria-selected', 'true');
   await goTab(page, 'ホーム');
-  await homeCard(page, 'condition').click();
+  await homeCard(page, 'body').click();
   await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
 });
 
@@ -96,10 +101,11 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   await expect(visible(page, 'home-log')).toContainText('NOV  2D · 3.48T');
 
   // 部位の量：直近 4 週（10/12〜11/8、weeks 4）のセット数（脚 3、胸 3。懸垂は背中 1）と、1 週間あたり（3 × 7 ÷ 28 = 0.75 → 0.8）
-  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3セット週 0.8あと9.2');
-  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1セット週 0.3あと9.7');
-  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3セット週 0.8あと9.2');
-  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0セット週 0あと10');
+  // （合計がいちばん大きい数。週あたりは四捨五入の整数で小さく添える）
+  await expect(visible(page, 'home-parts-body-row-胸')).toHaveText('胸3セット週1');
+  await expect(visible(page, 'home-parts-body-row-背中')).toHaveText('背中1セット週0');
+  await expect(visible(page, 'home-parts-body-row-脚')).toHaveText('脚3セット週1');
+  await expect(visible(page, 'home-parts-body-row-肩')).toHaveText('肩0セット週0');
 
   // LATEST の左上を押すと、筋トレのタブの記録のその日。推定1RM は 80 ×（1 ＋ 8 ÷ 30）= 101.33 → 101.3kg。メモも出る。懸垂は回数だけ
   await homeLatest(page).click();
@@ -163,7 +169,7 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await expect(homeFuel(page)).toContainText('312KCAL');
   await expect(page.getByTestId(`log-meal-${TODAY}`)).toHaveCount(0);
 
-  // 体重 → からだのタブで計測のシートが開く。保存すると、体調のカードに目標体重までが出る
+  // 体重 → からだのタブで計測のシートが開く。保存すると、BODY の行に体重と目標体重までが出る
   await setBodyInfo(page, { goal: '65' });
   await recordFromHome(page, 'body');
   await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
@@ -172,10 +178,10 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await button(page, '保存').click();
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'condition')).toContainText('体重 68.4 kg');
+  await expect(homeCard(page, 'body')).toHaveAttribute('aria-label', /^体重 68.4 kg/);
   // LOG の今日のマスに、体重を測った点
   await expect(visible(page, `log-weighed-${TODAY}`)).toBeVisible();
-  await expect(homeCard(page, 'condition')).toContainText('目標まで あと 3.4 kg');
+  await expect(homeCard(page, 'body')).toContainText('目標まで あと 3.4 kg');
 
   // もう一度開いても、その日の値を入れた計測のシートが開く（からだのタブで前の日を見ていても、その日に戻す）
   await goTab(page, 'からだ');
@@ -188,7 +194,7 @@ test('「記録する」のシート：食事は時刻から区分を決め、�
   await button(page, '保存').click();
   await expect(page.getByRole('textbox', { name: '体重', exact: true })).toBeHidden();
   await goTab(page, 'ホーム');
-  await expect(homeCard(page, 'condition')).toContainText('目標に届きました');
+  await expect(homeCard(page, 'body')).toContainText('目標に届きました');
 });
 
 test('タブを移ってホームに戻ると、数え上げをやり直して最後の値に着く', async ({ page }) => {

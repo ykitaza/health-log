@@ -113,12 +113,13 @@ function Chevron({ open }: { open: boolean }) {
 const COLLAPSE_AFTER_DRAW = duration.enter + HOLD_MS;
 
 /**
- * ホームの「今週やること」：最新の週のまとめの次の一歩をチェックの一覧で。週のまとめがなければ出さない。
+ * ホームの「レポート」のカード（components/HomeReports.tsx）の中の「今週やること」：最新の週のまとめの次の一歩（多くても 3 つ）をチェックの一覧で。
+ * 週のまとめがなければ出さない。自分の枠は持たない（カードの中の段。上に細い線）。
  * 全部できたら1行にたたむ（［✓］今週やることを全部できた［3／3］［⌄］）。押すと一覧を開き、見直し・チェックを外せる。
  * 最後の1つをチェックした瞬間だけ、✓ が線を描くように出てから、たたむ（250ms。開くのも同じ）。動きを減らす設定なら動かさない。
  * 右上（たたんだ行の右）の「すべて」で、その一歩を書いた週のまとめの詳細を開く
  */
-export function WeeklyTodoCard({ today }: { today: DateKey }) {
+export function WeeklyTodoSection({ today }: { today: DateKey }) {
   const { data } = useFocusData(async (r) => weeklyTodo(await r.reports.list(), today), today);
   const { done, toggle } = useTodoChecks(data?.reportId, data?.done ?? []);
   const [expanded, setExpanded] = useState(false);
@@ -141,7 +142,7 @@ export function WeeklyTodoCard({ today }: { today: DateKey }) {
   };
   const countLabel = `${total}つのうち${count}つ済み`;
   return (
-    <View style={s.card} testID="weekly-todo">
+    <View style={s.section} testID="weekly-todo">
       {allDone ? (
         <View style={s.head}>
           <PressableScale
@@ -199,6 +200,7 @@ export function PreviousTodoCard({ week }: { week: TodoWeek }) {
 
 const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l },
+  section: { marginTop: space.s, paddingHorizontal: space.l, paddingTop: space.s, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
   doneRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 48, marginVertical: -space.s },
   todoRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, minHeight: 48, paddingVertical: space.xs },

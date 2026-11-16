@@ -178,7 +178,7 @@ test('部位の量を、ホームと週のまとめで撮る', async ({ page, co
   await button(page, '戻る').click();
   const card = page.getByTestId('home-parts').filter({ visible: true });
   await card.scrollIntoViewIfNeeded();
-  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('週 10.0');
+  await expect(card.getByTestId('home-parts-body-row-背中')).toContainText('週10');
   await page.waitForTimeout(800);
   await card.screenshot({ path: `${process.env.SHOT_DIR}/home-part-volume.png` });
   await tab(page, 'レポート').click();
