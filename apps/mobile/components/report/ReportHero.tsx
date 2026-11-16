@@ -14,8 +14,9 @@ import { addDays, DateKey, formatMonthDay, todayKey } from '@/lib/date';
 import { formatSigned, isFlat } from '@/lib/format';
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { goalProgress } from '@/lib/goalBar';
-import { bodyChange, formatPeriod, Report, TONE_LABELS, Tone } from '@/lib/reports';
+import { bodyChange, formatPeriod, KIND_LABELS, Report, TONE_LABELS, Tone } from '@/lib/reports';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
+import { deco } from '@/theme';
 import { T } from '../Text';
 import { dotDate, dotMonthDay, GoalTrack, hud, kgLabel, pace2, Micro, Mono, NotchChip, OutlineTag, Panel, Ring, Spark } from './hud';
 
@@ -46,7 +47,7 @@ export function ReportHero({ report, scope }: { report: Report; scope: Scope }) 
   const good = report.tone === 'good';
   return (
     <Panel style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 9 }} testID="report-band">
-      <Micro>{kindMicro}</Micro>
+      <Micro ja={KIND_LABELS[report.kind]}>{kindMicro}</Micro>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 4 }}>
         <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap' }}>
           {period && <T bold size={12.5} color={hud.label}>{period}</T>}
@@ -59,7 +60,7 @@ export function ReportHero({ report, scope }: { report: Report; scope: Scope }) 
         </View>
       </View>
       <T bold size={15} color={hud.ink} style={{ marginTop: 5, letterSpacing: 0.6 }} accessibilityRole="header">{report.title}</T>
-      <Mono size={9.5} spacing={1.7} color={hud.faint} style={{ marginTop: 2 }}>{`STATUS: ${TONE_EN[report.tone]} — ${second}`}</Mono>
+      {deco.enLabels && <Mono size={9.5} spacing={1.7} color={hud.faint} style={{ marginTop: 2 }}>{`STATUS: ${TONE_EN[report.tone]} — ${second}`}</Mono>}
       {scope?.type === 'day' && <DailyHeroBody date={scope.date} />}
       {scope?.type === 'week' && report.periodStart && report.periodEnd && <WeeklyHeroBody start={report.periodStart} end={report.periodEnd} note={report.headline} />}
       {scope?.type === 'month' && <MonthlyHeroBody start={scope.start} end={scope.end} />}
@@ -117,7 +118,7 @@ function DailyHeroBody({ date }: { date: DateKey }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
         <View accessible accessibilityLabel={ringLabel}>
           <Ring size={112} stroke={5} ratio={ringRatio}>
-            <Micro>Body Mass</Micro>
+            <Micro ja="体重">Body Mass</Micro>
             <T>
               <Mono size={29} color={hud.white}>{fmt1(u(day))}</Mono>
               <Mono size={14} color={hud.muted}>{unit}</Mono>
@@ -137,11 +138,11 @@ function DailyHeroBody({ date }: { date: DateKey }) {
               {'円は次の節目'}<T bold size={12} color={hud.note}>{`${kgLabel(u(p.milestoneKg))}${unit}`}</T>{'までの進み具合です。'}
             </T>
           )}
-          {p && !p.reached && <Micro>{`Next: ${fmt1(u(p.milestoneKg))}${unit}`}</Micro>}
+          {p && !p.reached && deco.enLabels && <Micro>{`Next: ${fmt1(u(p.milestoneKg))}${unit}`}</Micro>}
           {pace != null && (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, borderWidth: 1, borderColor: hud.line, backgroundColor: hud.panel2, paddingHorizontal: 7, paddingVertical: 4 }}>
-              <Mono size={9} spacing={1.3} color={hud.faint}>28D TREND</Mono>
-              <Mono size={10} spacing={0.8} color={hud.label}>{`${pace2(u(pace))} ${unit.toUpperCase()}/W`}</Mono>
+              {deco.enLabels ? <Mono size={9} spacing={1.3} color={hud.faint}>28D TREND</Mono> : <T size={11} color={hud.faint}>28日の傾向</T>}
+              <Mono size={10} spacing={0.8} color={hud.label}>{deco.enLabels ? `${pace2(u(pace))} ${unit.toUpperCase()}/W` : `${pace2(u(pace))} ${unit}／週`}</Mono>
             </View>
           )}
         </View>
@@ -149,7 +150,7 @@ function DailyHeroBody({ date }: { date: DateKey }) {
       {spark.length >= 2 && <View style={{ marginTop: 6 }}><Spark values={spark} height={28} /></View>}
       {p && goal != null && (
         <GoalBlock
-          micro={`Goal Progress — ${fmt1(u(goal))}${unit}`}
+          micro={deco.enLabels ? `Goal Progress — ${fmt1(u(goal))}${unit}` : `目標 ${fmt1(u(goal))} ${unit} まで`}
           ratio={p.ratio}
           tick={p.reached || p.milestoneKg === goal ? null : p.milestoneRatio}
           left={<GoalLabel goal={u(goal)} remaining={u(p.remainingKg)} reached={p.reached} unit={unit} />}
@@ -180,7 +181,7 @@ function WeeklyHeroBody({ start, end, note }: { start: DateKey; end: DateKey; no
     <View testID="report-hero-weekly">
       {avg != null && (
         <>
-          <Micro style={{ marginTop: 8 }}>Weekly Avg // Body Mass</Micro>
+          <Micro style={{ marginTop: 8 }} ja="週の平均体重">Weekly Avg // Body Mass</Micro>
           <T accessible accessibilityLabel={`週の平均の体重 ${fmt1(u(avg))} ${unit}`} style={{ marginTop: 4 }}>
             <Mono size={42} color={hud.white} style={{ lineHeight: 46 }}>{fmt1(u(avg))}</Mono>
             <Mono size={20} color={hud.muted}>{unit}</Mono>
@@ -216,7 +217,7 @@ function MonthlyHeroBody({ start, end }: { start: DateKey; end: DateKey }) {
   const p = goalProgress({ currentKg: c.last.value, goalKg: goal, startKg: c.first.value });
   return (
     <View testID="report-hero-monthly">
-      <Micro style={{ marginTop: 8 }}>{`Goal Progress // ${fmt1(u(goal))}${unit}`}</Micro>
+      <Micro style={{ marginTop: 8 }} ja={`目標 ${fmt1(u(goal))} ${unit} まで`}>{`Goal Progress // ${fmt1(u(goal))}${unit}`}</Micro>
       <T style={{ marginTop: 4 }} accessible accessibilityLabel={`現在 ${fmt1(u(c.last.value))} ${unit}`}>
         <Mono size={42} color={hud.white} style={{ lineHeight: 46 }}>{fmt1(u(c.last.value))}</Mono>
         <Mono size={20} color={hud.muted}>{unit}</Mono>

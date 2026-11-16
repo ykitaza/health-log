@@ -74,7 +74,7 @@ export function WeeklyStatusBlock({ start, end }: { start: DateKey; end: DateKey
   const U = data.unit.toUpperCase();
   return (
     <Panel testID="report-weekly-status">
-      <TableHead left="Weekly Status" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
+      <TableHead left="Weekly Status" leftJa="今週の記録" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
         <StatusRow en="Week Avg" ja="週間平均体重" value={data.avg != null ? <ValUnit value={fmt1(kgToUnit(data.avg, data.unit))} unit={U} /> : '—'} />
         <StatusRow en="Training" ja="筋トレ" value={<ValUnit value={String(w.training.days)} unit="DAYS" />} accessibilityLabel={`筋トレ ${w.training.days}日`} />
@@ -102,7 +102,7 @@ export function WeeklyGoalsBlock({ start, end }: { start: DateKey; end: DateKey 
   const status = [achieved && '設定の目標をすべて達成', streakText].filter(Boolean).join('。');
   return (
     <Panel testID="report-achievement">
-      <TableHead left="Weekly Goals" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
+      <TableHead left="Weekly Goals" leftJa="今週の目標" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
         {rows.map((r, i) => (
           <StatusRow
@@ -212,7 +212,7 @@ export function InjuryReviewBlock({ start, end }: { start: DateKey; end: DateKey
   const entries = uniqueInjuryEntries(data);
   return (
     <Panel testID="report-injury-review" accessibilityLabel="ケガの振り返り">
-      <TableHead left="Injury Review" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
+      <TableHead left="Injury Review" leftJa="ケガの振り返り" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
       <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
         {counts.map((c, i) => (
           <StatusRow key={c.en} en={c.en} ja={c.ja} last={i === counts.length - 1} accessibilityLabel={`${c.ja} ${c.n}件`}
@@ -262,7 +262,7 @@ export function MetricTilesBlock({ tiles, vs }: { tiles: (Highlight & { metric: 
         const look = deltaLook(m);
         return (
           <Panel key={i} style={{ flexBasis: '45%', flexGrow: 1, paddingHorizontal: 12, paddingVertical: 10 }} accessible accessibilityLabel={`${AREA_LABELS[h.area]}、${metricLabel(m)}`}>
-            <Micro green={look?.quality === 'good'}>{AREA_EN[h.area]}</Micro>
+            <Micro green={look?.quality === 'good'} ja={AREA_LABELS[h.area]}>{AREA_EN[h.area]}</Micro>
             <T style={{ marginTop: 4 }}>
               <Mono size={24} color={look?.quality === 'good' ? hud.green : hud.white}>{formatMetricValue(m.value)}</Mono>
               {m.unit !== '' && <T size={12} color={hud.muted}>{m.unit}</T>}

@@ -8,7 +8,7 @@ import { ReactNode, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useDailyAchievement, useFocusData, useWeeklyAchievement } from '@/hooks/data';
 import { weekAverage, weeklyPace } from '@/lib/body';
-import { addDays, DateKey, todayKey, WEEKDAY_EN, weekday } from '@/lib/date';
+import { addDays, DateKey, todayKey, WEEKDAY_EN, WEEKDAY_JA, weekday } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { weekOf } from '@/lib/goals';
 import { formatClock, formatSteps } from '@/lib/health';
@@ -18,6 +18,7 @@ import {
   Highlight, KCAL_TOLERANCE, TONE_SHORT, Tone,
 } from '@/lib/reports';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
+import { deco } from '@/theme';
 import { T } from '../Text';
 import { hud, Micro, pace2, Mono, NotchChip, Panel, PanelHead, Ring, StatusRow, ValUnit } from './hud';
 
@@ -72,7 +73,7 @@ export function DailyRingsBlock({ date }: { date: DateKey }) {
               {r.goal != null && <Mono size={10} color={hud.muted}>{`/ ${r.goal}${r.unit ? ` ${r.unit}` : ''}`}</Mono>}
             </Ring>
             <T bold size={12.5} color={hud.ink} style={{ marginTop: 4 }}>{name}</T>
-            <Micro>{en}</Micro>
+            {deco.enLabels && <Micro>{en}</Micro>}
             <T bold size={11} color={r.mark === 'reached' ? hud.green : hud.muted} style={{ marginTop: 2 }}>{status}</T>
           </View>
         );
@@ -107,7 +108,7 @@ export function WeekRhythmBlock({ date, anchor, large = false }: { date: DateKey
           const label = `${WEEKDAY_EN[weekday(d.date)]} ${future ? '' : d.trained ? '筋トレ' : '休み'}`;
           return (
             <View key={d.date} style={{ flex: 1, alignItems: 'center', gap: 5 }} accessible accessibilityLabel={`${d.date.slice(5).replace('-', '月')}日 ${isAnchor ? anchorName : ''} ${label}`}>
-              <Mono size={10} color={hud.muted} style={{ fontWeight: '700' }}>{WEEKDAY_EN[weekday(d.date)]}</Mono>
+              <Mono size={10} color={hud.muted} style={{ fontWeight: '700' }}>{deco.enLabels ? WEEKDAY_EN[weekday(d.date)] : WEEKDAY_JA[weekday(d.date)]}</Mono>
               {d.trained ? (
                 <NotchChip fill={hud.green} style={{ width: dot, height: dot }}><T bold size={large ? 14 : 11} color={hud.onGreen}>✓</T></NotchChip>
               ) : isAnchor ? (
@@ -167,7 +168,7 @@ export function ByFieldList({ highlights, metricVs }: { highlights: Highlight[];
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
               <T bold size={12.5} color={hud.label}>
-                <Mono size={9} spacing={1.3} color={hud.faint}>{`${AREA_EN[h.area].toUpperCase()}  `}</Mono>
+                {deco.enLabels && <Mono size={9} spacing={1.3} color={hud.faint}>{`${AREA_EN[h.area].toUpperCase()}  `}</Mono>}
                 {AREA_LABELS[h.area]}
               </T>
               <View style={{ borderWidth: 1, borderColor: hud.line, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -198,7 +199,7 @@ export function ByFieldList({ highlights, metricVs }: { highlights: Highlight[];
 function FieldHead({ right }: { right: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 9, paddingBottom: 4 }}>
-      <T><Micro green>By Field // </Micro><T bold size={9} color={hud.microGreen}>解釈</T></T>
+      {deco.enLabels ? <T><Micro green>By Field // </Micro><T bold size={9} color={hud.microGreen}>解釈</T></T> : <T bold size={13} color={hud.ink}>分野ごとの解釈</T>}
       <Micro>{right}</Micro>
     </View>
   );
@@ -282,7 +283,7 @@ export function DailyDetailsBlock({ date, highlights }: { date: DateKey; highlig
         style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>DETAILS</Mono>
+          {deco.enLabels && <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>DETAILS</Mono>}
           <T bold size={13.5} color={hud.ink} accessibilityRole="header">くわしく — ステータス</T>
         </View>
         <T size={13} color={hud.green}>{open ? '▾' : '▸'}</T>
