@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 import { migrate } from '@/db';
+import { DB_NAME } from '@/db/name';
 import { AuthProvider } from '@/hooks/auth';
 import { HealthConnectProvider } from '@/hooks/healthConnect';
 import { SyncProvider } from '@/hooks/sync';
@@ -50,7 +51,7 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <SQLiteProvider databaseName="torelog.db" onInit={onInit}>
+    <SQLiteProvider databaseName={DB_NAME} onInit={onInit}>
       <AuthProvider>
         <SyncProvider>
           <HealthConnectProvider>
