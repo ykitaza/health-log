@@ -1,5 +1,5 @@
 // 部位のバランス：部位ごとのセット数を、6軸（BALANCE_PARTS）に寄せて数える（筋トレの推移の六角形のレーダー、成長の形、lib/partVolume.ts）
-import { addDays, addMonths, DateKey, formatMonthDay } from './date';
+import { addDays, addMonths, DateKey } from './date';
 import type { TrainingSetRow } from './training';
 
 /**
