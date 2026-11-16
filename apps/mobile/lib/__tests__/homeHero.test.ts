@@ -25,7 +25,7 @@ describe('フェーズの 1 行と輪の下', () => {
   test('実施中：BULK 06/16 · ON TRACK、残り 10週。押すと進み具合', () => {
     const h = heroPhase([phase()], WEIGHTS, TODAY);
     expect(phaseLine(h)).toEqual({
-      text: 'BULK 06/16 · ON TRACK', route: '/phase',
+      text: 'BULK 06/16 · ON TRACK', ja: '増量 6 / 16週 · 順調', route: '/phase',
       spoken: '増量 16週のうち6週目。ペース 順調。フェーズの進み具合を開く',
     });
     expect(ringFooter(h)).toBe('残り 10週');
@@ -39,7 +39,7 @@ describe('フェーズの 1 行と輪の下', () => {
   });
   test('療養中：REHAB DAY 03 · BULK PAUSED、輪の下は止めたフェーズ。止めたフェーズがなければ REHAB DAY だけ', () => {
     const h = heroPhase([phase(), rehab()], WEIGHTS, TODAY);
-    expect(phaseLine(h)).toEqual({ text: 'REHAB DAY 03 · BULK PAUSED', route: '/phase', spoken: '療養 3日目。増量は止めています。フェーズの進み具合を開く' });
+    expect(phaseLine(h)).toEqual({ text: 'REHAB DAY 03 · BULK PAUSED', ja: '療養 3日目 · 増量は停止中', route: '/phase', spoken: '療養 3日目。増量は止めています。フェーズの進み具合を開く' });
     expect(ringFooter(h)).toBe('増量 06/16 · 停止中');
     const alone = heroPhase([rehab({ pausedPhaseId: null })], WEIGHTS, TODAY);
     expect(phaseLine(alone).text).toBe('REHAB DAY 03');
@@ -49,14 +49,14 @@ describe('フェーズの 1 行と輪の下', () => {
   test('未設定：NO PHASE · + START。押すとフェーズの設定。中断したフェーズ・これから始まるフェーズは未設定', () => {
     for (const list of [[], [phase({ status: 'aborted', endedOn: '2026-11-01' })], [phase({ startDate: '2026-11-09' })]]) {
       const h = heroPhase(list, WEIGHTS, TODAY);
-      expect(phaseLine(h)).toEqual({ text: 'NO PHASE · + START', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' });
+      expect(phaseLine(h)).toEqual({ text: 'NO PHASE · + START', ja: 'フェーズは未設定 · 始める', spoken: 'フェーズは未設定。フェーズを始める', route: '/phase/new' });
       expect(ringFooter(h)).toBeNull();
       expect(phaseRing(h, WEIGHTS, TODAY)).toBeNull();
     }
   });
   test('フェーズを終えて次が未設定：BULK DONE · REVIEW。押すとその振り返り', () => {
     const h = heroPhase([phase({ status: 'ended', endedOn: '2026-11-01' })], WEIGHTS, TODAY);
-    expect(phaseLine(h)).toEqual({ text: 'BULK DONE · REVIEW', spoken: '増量 16週を終えました。次のフェーズは未設定。振り返りを開く', route: '/phase/review/p1' });
+    expect(phaseLine(h)).toEqual({ text: 'BULK DONE · REVIEW', ja: '増量を終えました · 振り返り', spoken: '増量 16週を終えました。次のフェーズは未設定。振り返りを開く', route: '/phase/review/p1' });
     expect(ringFooter(h)).toBeNull();
     expect(phaseRing(h, WEIGHTS, TODAY)).toBeNull();
   });

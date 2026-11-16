@@ -10,7 +10,7 @@ import { addDays, formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { dotDate, injuryNumbers, InjuryStatus, RESULT_KEYS, ReviewResult, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
 import { INJURY_LIMITS } from '@/lib/limits';
 import { markPoint, MuscleView } from '@/lib/muscleFigure';
-import { colors, fonts, radius, space, toneColors } from '@/theme';
+import { colors, deco, fonts, radius, space, toneColors } from '@/theme';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
@@ -29,11 +29,14 @@ const GRID = '#1C2A23';
 
 /** 英字の小さな見出し（「BODY MAP // SCAN」）。数字の字体で字間を空ける。11sp 以上 */
 export function Mono({ children, color = colors.sub, size = 12 }: { children: ReactNode; color?: string; size?: number }) {
+  // クラシックは字間を開けず、ふつうの字（Noto Sans JP）にする
+  if (!deco.trackedMono) return <T style={{ fontFamily: fonts.regular, fontSize: size, color }}>{children}</T>;
   return <T style={{ fontFamily: fonts.num, fontSize: size, letterSpacing: 1.5, color }}>{children}</T>;
 }
 
 /**
- * 走査の枠：角の括弧と方眼の地。strong は緑の枠（一覧の体の図）。中身は children
+ * 走査の枠：角の括弧と方眼の地。strong は緑の枠（一覧の体の図）。中身は children。
+ * クラシック（deco.brackets がない）は、括弧と方眼をやめて区切りの線の枠だけにする
  */
 export function ScanFrame({ children, strong, style, testID }: { children: ReactNode; strong?: boolean; style?: object; testID?: string }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -41,9 +44,9 @@ export function ScanFrame({ children, strong, style, testID }: { children: React
     <View
       testID={testID}
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-      style={[s.frame, { borderColor: strong ? SCAN_LINE : colors.line }, style]}
+      style={[s.frame, { borderColor: strong && deco.brackets ? SCAN_LINE : colors.line }, style]}
     >
-      {size && (
+      {size && deco.brackets && (
         <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill} pointerEvents="none">
           {strong && (
             <>

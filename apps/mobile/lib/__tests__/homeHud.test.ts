@@ -166,7 +166,7 @@ describe('LOG：週ごとの方眼', () => {
 
   test('今月の日数と合計負荷量', () => {
     const rows = [row('2026-11-01', 'b', 100, 10), row('2026-11-01', 'b', 100, 10), row('2026-11-06', 'b', 100, 5), row('2026-10-31', 'b', 100, 10)];
-    expect(monthSummary(rows, TODAY)).toEqual({ month: 'NOV', days: 2, volumeKg: 2500 });
+    expect(monthSummary(rows, TODAY)).toEqual({ month: 'NOV', monthJa: '11月', days: 2, volumeKg: 2500 });
   });
 });
 

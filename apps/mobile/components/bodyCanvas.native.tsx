@@ -15,7 +15,7 @@ import { useOnScreen } from '@/hooks/useOnScreen';
 import { CAMERA } from '@/lib/bodyModel';
 import { bodyRunning } from '@/lib/onScreen';
 import { ensureTextDecoder } from '@/lib/utf8';
-import { colors, space } from '@/theme';
+import { colors, deco, lbl, space } from '@/theme';
 import { BodyScene } from './bodyScene';
 import { Mono } from './injuries';
 import { T } from './Text';
@@ -134,10 +134,10 @@ const SWEEP = 48;
 /**
  * 読み込み中の表示（LOADING // BODY MODEL）。図の高さのまん中で、緑の細い走査の線が上下に動く（1.2 秒で片道、ease-in-out）。
  * 画面に出す文字は英字の1行だけ（日本語の行は出さない。読み上げでは日本語で、読み込み中であることを読む）。
- * 動きを減らす設定では線を出さず、文だけ。消えるときは 150ms で薄く消える
+ * 動きを減らす設定とクラシックの見た目（deco.scan）では線を出さず、文だけ（クラシックは日本語）。消えるときは 150ms で薄く消える
  */
 function BodyLoading() {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion() || !deco.scan;
   const y = useSharedValue(-SWEEP);
   useEffect(() => {
     if (reduced) return;
@@ -151,7 +151,7 @@ function BodyLoading() {
       accessible accessibilityLabel="体の図を読み込んでいます" accessibilityLiveRegion="polite" testID="body-loading"
     >
       {!reduced && <Animated.View style={[s.sweep, line]} />}
-      <Mono color={colors.accent}>LOADING // BODY MODEL</Mono>
+      <Mono color={deco.enLabels ? colors.accent : colors.sub}>{lbl('LOADING // BODY MODEL', '体の図を読み込んでいます')}</Mono>
     </Animated.View>
   );
 }

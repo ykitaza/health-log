@@ -15,7 +15,7 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Line, Path } from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { useRepos } from '@/hooks/data';
-import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, weekday } from '@/lib/date';
+import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, WEEKDAY_JA, weekday } from '@/lib/date';
 import { tonnes } from '@/lib/format';
 import {
   HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
@@ -29,7 +29,7 @@ import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
-import { colors, hudColors, recoveryPalette, size, space, volumePalette } from '@/theme';
+import { colors, deco, hudColors, isHud, lbl, recoveryPalette, size, space, volumePalette } from '@/theme';
 import { DayBody } from './DayBody';
 import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { usePageSlide } from './DayPicker';
@@ -139,7 +139,9 @@ export function HomeHero({ today, unit, latest, ready, data }: {
         accessibilityRole="button" accessibilityLabel={line?.spoken ?? 'フェーズ'} scaleTo={0.97} disabled={!line}
         onPress={() => { if (line) router.push(line.route); }} style={s.phaseLine} testID="hero-phase"
       >
-        <Mono size={11} color={colors.accent}>{line?.text ?? ' '}</Mono>
+        {deco.enLabels
+          ? <Mono size={11} color={colors.accent}>{line?.text ?? ' '}</Mono>
+          : <T size={13} color={colors.sub}>{line?.ja ?? ' '}</T>}
       </PressableScale>
       <View style={[s.stage, { height: h }]} onLayout={(e) => setW(e.nativeEvent.layout.width)} {...pan} testID="hero-swipe">
         {w > 0 && (
@@ -176,7 +178,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
             </PressableScale>
           );
         })}
-        {page && pages && (
+        {page && pages && deco.enLabels && (
           <View style={s.pageLabel} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             <Mono size={11} color={colors.sub}>{`${String(pages.indexOf(page) + 1).padStart(2, '0')}/${String(pages.length).padStart(2, '0')} ${HERO_PAGE_EN[page]}`}</Mono>
           </View>
@@ -195,7 +197,8 @@ const arcPath = (cx: number, cy: number, rr: number, a0: number, a1: number) => 
 /**
  * 外の輪：フェーズの進み具合の 16 の目盛り（期間に比例して進む。8 週なら 1 週で 2 つ。過ぎた目盛りはミント、今の目盛りは濃いミント、
  * これからは灰色。療養で止めているあいだは過ぎた目盛りも灰色）と、外側の細かい刻み。
- * フェーズがなければ灰色の枠だけ
+ * フェーズがなければ灰色の枠だけ。
+ * クラシックは 16 の目盛りだけ（外側の刻みはやめる）で、今の週だけミント、過ぎた目盛りは入力欄の枠の灰色（Figma「ホーム（unslop 案）」）
  */
 function Ring({ width, height, r, ring }: { width: number; height: number; r: number; ring: PhaseRing | null }) {
   const cx = width / 2, cy = height / 2;
@@ -205,6 +208,7 @@ function Ring({ width, height, r, ring }: { width: number; height: number; r: nu
     const k = ringSegment(ring, i);
     if (k === 'todo') return hudColors.ring;
     if (ring?.paused) return colors.outline;
+    if (!isHud) return k === 'done' ? colors.outline : colors.accent;
     return k === 'done' ? colors.accent : colors.accentMuted;
   };
   const top = -Math.PI / 2;
@@ -213,7 +217,7 @@ function Ring({ width, height, r, ring }: { width: number; height: number; r: nu
       {Array.from({ length: PHASE_TICKS }, (_, i) => (
         <Path key={i} d={arcPath(cx, cy, r - RING_W / 2, top + i * step + gap, top + (i + 1) * step - gap)} stroke={color(i)} strokeWidth={RING_W} fill="none" />
       ))}
-      {Array.from({ length: 48 }, (_, i) => {
+      {deco.brackets && Array.from({ length: 48 }, (_, i) => {
         const a = (i / 48) * 2 * Math.PI;
         const r0 = r + 4, r1 = r + (i % 3 === 0 ? 10 : 7);
         return <Line key={`t${i}`} x1={cx + r0 * Math.cos(a)} y1={cy + r0 * Math.sin(a)} x2={cx + r1 * Math.cos(a)} y2={cy + r1 * Math.sin(a)} stroke={colors.line} strokeWidth={1} />;
@@ -229,10 +233,24 @@ function valueSize(v: string): number {
   return n <= 5 ? 34 : 26;
 }
 
-/** 四隅の数字：英字のラベル・大きな数字・小さな補足。align は寄せる側 */
+/**
+ * 四隅の数字：英字のラベル・大きな数字・小さな補足。align は寄せる側。
+ * クラシックはラベルと補足を補足の色の日本語にし、英数字の数字は 32 にそろえる（Figma「ホーム（unslop 案）」）。ラベルの色（ケガの赤）はそのまま
+ */
 function Corner({ label, value, sub, align, labelColor = colors.accent, valueColor = colors.text, subColor }: {
   label: string; value: string; sub?: string; align: 'left' | 'right'; labelColor?: string; valueColor?: string; subColor?: string;
 }) {
+  if (!deco.enLabels) {
+    const n = /[^\x20-\x7E]/.test(value) ? valueSize(value) : 32;
+    const tone = labelColor === colors.accent ? colors.sub : labelColor;
+    return (
+      <View style={{ alignItems: align === 'left' ? 'flex-start' : 'flex-end' }}>
+        <T size={12} color={tone} numberOfLines={1}>{label}</T>
+        <T num size={n} color={valueColor} numberOfLines={1} style={{ lineHeight: Math.round(n * 1.15) }}>{value}</T>
+        {sub ? <T size={12} color={subColor ?? colors.sub} numberOfLines={1}>{sub}</T> : null}
+      </View>
+    );
+  }
   const fs = valueSize(value);
   return (
     <View style={{ alignItems: align === 'left' ? 'flex-start' : 'flex-end' }}>
@@ -379,16 +397,17 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
         </View>
       )}
       <CornerButton at="tl" label={spoken} onPress={() => open()} disabled={!ss} testID="home-latest">
-        <Corner align="left" label="LATEST //" value={!ss ? '—' : isToday ? 'TODAY' : formatShortDate(ss.date)} sub={ss ? WEEKDAY_EN[weekday(ss.date)] : ready ? 'NO LOG' : undefined} />
+        <Corner align="left" label={lbl('LATEST //', '直近')} value={!ss ? '—' : isToday ? lbl('TODAY', '今日') : formatShortDate(ss.date)}
+          sub={ss ? lbl(WEEKDAY_EN[weekday(ss.date)], `${WEEKDAY_JA[weekday(ss.date)]}曜`) : ready ? lbl('NO LOG', '記録なし') : undefined} />
       </CornerButton>
       <CornerButton at="tr" label={ss ? `${ss.exercises}種目 ${ss.sets}セット。その日の記録を開く` : '種目の数'} onPress={() => open()} disabled={!ss} testID="home-latest-ex">
-        <Corner align="right" label="EX //" value={ss ? String(ss.exercises) : '—'} sub={ss ? `SETS ${ss.sets}` : undefined} />
+        <Corner align="right" label={deco.enLabels ? 'EX //' : ss ? `種目 · ${ss.sets}セット` : '種目'} value={ss ? String(ss.exercises) : '—'} sub={ss && deco.enLabels ? `SETS ${ss.sets}` : undefined} />
       </CornerButton>
       <CornerButton at="bl" label={ss ? `合計負荷量 ${volumeText}。その日の記録を開く` : '合計負荷量'} onPress={() => open()} disabled={!ss} testID="home-latest-load">
-        <Corner align="left" label="LOAD" value={ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 't' : 'k'}` : '—'} sub="TOTAL" />
+        <Corner align="left" label={lbl('LOAD', '合計負荷量')} value={ss ? `${tonnes(ss.volumeKg, unit)}${lbl('', ' ')}${unit === 'kg' ? 't' : 'k'}` : '—'} sub={lbl('TOTAL', '')} />
       </CornerButton>
       <CornerButton at="br" label={prSpoken} onPress={openPr} disabled={!ss} testID="home-latest-pr">
-        <Corner align="right" label="PR //" value={ss ? String(ss.prs.length) : '—'} sub={prSub} />
+        <Corner align="right" label={lbl('PR //', '自己ベスト')} value={ss ? String(ss.prs.length) : '—'} sub={deco.enLabels ? prSub : latest?.prNames[0]} />
       </CornerButton>
     </>
   );
@@ -415,20 +434,22 @@ function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
       <HeroBody width={width} height={height} band={band}
         injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
       <CornerButton at="tl" label={spoken} testID="hero-injury" onPress={openInjuries}>
-        <Corner align="left" label="INJURY //" labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub="ACTIVE" />
+        <Corner align="left" label={lbl('INJURY //', 'ケガ')} labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub={lbl('ACTIVE', '直している途中')} />
       </CornerButton>
       <CornerButton at="tr" label={c.fix ? `直している部位 ${c.fix.label}。このケガを開く` : '直している部位はありません。ケガの一覧を開く'} testID="hero-injury-fix"
         onPress={() => (c.fix ? openInjury(c.fix.id) : openInjuries())}>
-        <Corner align="right" label="FIX //" value={c.fix?.label ?? '—'} sub={c.fix ? (c.fix.review ? `${formatShortDate(c.fix.review.date)} ${c.fix.review.mark}` : 'NO REVIEW') : undefined} />
+        <Corner align="right" label={lbl('FIX //', '直している部位')} value={c.fix?.label ?? '—'}
+          sub={c.fix ? (c.fix.review ? `${formatShortDate(c.fix.review.date)} ${c.fix.review.mark}` : lbl('NO REVIEW', '振り返りはまだ')) : undefined} />
       </CornerButton>
       <CornerButton at="bl" testID="hero-injury-since"
         label={!since ? 'いつから。ケガの一覧を開く' : `${formatJpDate(since.date)}から ${since.day}日目。${since.injuryId ? 'このケガを開く' : 'フェーズの進み具合を開く'}`}
         onPress={() => (since?.injuryId ? openInjury(since.injuryId) : since ? router.push('/phase') : openInjuries())}>
-        <Corner align="left" label="SINCE" value={since ? formatShortDate(since.date) : '—'} sub={since ? `DAY ${String(since.day).padStart(2, '0')}` : undefined} />
+        <Corner align="left" label={lbl('SINCE', 'いつから')} value={since ? formatShortDate(since.date) : '—'}
+          sub={since ? lbl(`DAY ${String(since.day).padStart(2, '0')}`, `${since.day}日目`) : undefined} />
       </CornerButton>
       <CornerButton at="br" label={`振り返りが1週間以上ないケガ ${c.alert}件。ケガの一覧を開く`} testID="hero-injury-alert" onPress={openInjuries}>
-        <Corner align="right" label="ALERT" labelColor={c.alert > 0 ? INJURY_RED : colors.accent} value={c.alert > 0 ? `▲ ${c.alert}` : '0'}
-          valueColor={c.alert > 0 ? INJURY_RED : colors.text} sub="REVIEW" />
+        <Corner align="right" label={lbl('ALERT', '振り返りが遅れ')} labelColor={c.alert > 0 ? INJURY_RED : colors.accent} value={c.alert > 0 ? lbl(`▲ ${c.alert}`, String(c.alert)) : '0'}
+          valueColor={c.alert > 0 ? INJURY_RED : colors.text} sub={lbl('REVIEW', '1週間以上')} />
       </CornerButton>
     </View>
   );

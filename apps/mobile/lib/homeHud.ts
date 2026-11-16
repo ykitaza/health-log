@@ -264,12 +264,12 @@ export function logGrid(input: LogInput, today: DateKey): LogWeek[] {
   }));
 }
 
-/** 方眼の右上：今月の英字（NOV）、今月の筋トレの日数、今月の合計負荷量（kg） */
-export function monthSummary(rows: TrainingSetRow[], today: DateKey): { month: string; days: number; volumeKg: number } {
+/** 方眼の右上：今月の英字（NOV）と日本語（11月。クラシック）、今月の筋トレの日数、今月の合計負荷量（kg） */
+export function monthSummary(rows: TrainingSetRow[], today: DateKey): { month: string; monthJa: string; days: number; volumeKg: number } {
   const { year, month } = yearMonth(today);
   const first = `${year}-${String(month).padStart(2, '0')}-01`;
   const dates = trainingDates(rows.filter((r) => r.date <= today));
-  return { month: MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase(), days: daysInMonth(dates, year, month), volumeKg: volumeBetween(rows, first, today) };
+  return { month: MONTH_NAMES_EN[month - 1].slice(0, 3).toUpperCase(), monthJa: `${month}月`, days: daysInMonth(dates, year, month), volumeKg: volumeBetween(rows, first, today) };
 }
 
 /** マスの読み上げ：「11月6日 金曜、筋トレ 2.4トン 胸、食事の目標を達成、体重を測った、ケガ」 */

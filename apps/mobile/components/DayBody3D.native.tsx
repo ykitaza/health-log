@@ -10,7 +10,7 @@ import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
 import { dayBodyCallouts, dayBodyGlow } from '@/lib/dayBody';
 import { INJURY_RED, recoveryColor } from '@/lib/recoveryMap';
-import { colors, recoveryPalette, TRAINED_GLOW } from '@/theme';
+import { colors, isHud, recoveryPalette, TRAINED_GLOW } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { BodyScene, Mark } from './bodyScene';
 import type { DayBody3DProps } from './DayBody3D';
@@ -65,7 +65,7 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
       <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
         {layout.placed.map((p, i) => {
           const x = p.side === 'left' ? DAY_TAG_W + 4 : width - DAY_TAG_W - 4;
-          return <Leader key={p.key} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={colors.accent} />;
+          return <Leader key={p.key} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={isHud ? colors.accent : colors.sub} />;
         })}
       </Svg>
       {!onPressEntry && tags}
