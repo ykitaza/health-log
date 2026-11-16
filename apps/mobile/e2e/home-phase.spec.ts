@@ -1,6 +1,6 @@
-import { BrowserContext, expect, Page, test } from '@playwright/test';
-import { button, goTab, openApp, openSettings, swipe, tab } from './helpers';
-import { AT, change, Change, mcp, openWith } from './seed';
+import { expect, Page, test } from '@playwright/test';
+import { button, goTab, openApp, swipe, tab } from './helpers';
+import { change, openWith } from './seed';
 
 // ホームのヒーロー（刷新 A のその 2）：フェーズの 1 行と輪、横スライドの 3 ページ（LATEST・INJURY・GROWTH）、BIG3 の Δ PHASE、LOG のフェーズの週。
 // フェーズ・体重・筋トレ・ケガは偽の同期サーバーから入れる（フェーズを画面で始める流れは phase.spec.ts）。計算は jest（lib/__tests__/homeHero.test.ts）。
