@@ -16,7 +16,7 @@ import {
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { fmt1, fmtInt, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, deco, fonts, hudColors, isHud, lbl, radius, space } from '@/theme';
+import { colors, deco, fonts, hairline, hudColors, isHud, lbl, radius, space } from '@/theme';
 import { CountToText } from './charts';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
@@ -55,8 +55,8 @@ export function Panel({ children, onPress, label, testID, style }: { children: R
   );
 }
 
-/** クラシックの枠：切り欠きの代わりに、本文の色を 8% にした細い線と丸い角 */
-const PANEL_LOOK: ViewStyle | null = isHud ? null : { borderWidth: 1, borderColor: 'rgba(243,245,247,0.08)', borderRadius: radius.card, padding: space.m };
+/** クラシックの枠：切り欠きの代わりに、細い線（theme の hairline）と丸い角。先週比は Figma のとおり、増えても減っても補足の色 */
+const PANEL_LOOK: ViewStyle | null = isHud ? null : { borderWidth: 1, borderColor: hairline, borderRadius: radius.card, padding: space.m };
 
 /**
  * 見出しの行：左に英字のラベル、右に小さな数字。クラシックは日本語のラベル（ja）を、strong なら本文の色の太字で、ほかは補足の色で
@@ -208,7 +208,7 @@ export function LoadPanel({ gauge, dates, today, unit, ready, link = true, testI
         <CountToText value={ready ? gauge.totalKg : null} format={(v) => tonnes(v ?? 0, unit)} num bold size={BIG} style={s.bigText} />
         <Unit>{tUnit}</Unit>
       </View>
-      <Note color={pct != null ? trendColor(pct) : colors.sub}>{`${lbl('vs LW', '先週比')} ${pct != null ? `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` : '—'}`}</Note>
+      <Note color={pct != null && isHud ? trendColor(pct) : colors.sub}>{`${lbl('vs LW', '先週比')} ${pct != null ? `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` : '—'}`}</Note>
       <View style={[s.bars, { marginTop: 'auto' }]}>
         {gauge.thisWeek.map((v, i) => (
           <View key={i} style={s.barCell}>

@@ -159,6 +159,9 @@ export const CLASSIC_METER_COLORS: MeterPalette = {
   bracket: CLASSIC_COLORS.accentMuted,
 };
 
+/** クラシックのカードの細い枠（本文の色 #F3F5F7 の 8%。Figma「ホーム（unslop 案）」の枠）。Palette の外に置く（HUD の色の組は変えない） */
+export const hairline = 'rgba(243,245,247,0.08)';
+
 export const hudColors: MeterPalette = isHud ? HUD_METER_COLORS : CLASSIC_METER_COLORS;
 
 /**
