@@ -42,12 +42,14 @@ test('ホームの体：「回復」と「部位の量」の切り替え。色�
   const tags = visible(page, 'hero-body-tag');
   const tab = (name: string) => mode.getByRole('button', { name, exact: true });
 
-  await test.step('初めは「回復」：回復中の部位の札だけ（背中はあと3日、脚はあと4日）。種目の札（EX-）は出ない', async () => {
+  await test.step('初めは「回復」：回復中の部位の札（背中はあと3日、脚はあと4日）が先、そのあとに回復済みの部位の札（胸・肩）。種目の札（EX-）は出ない', async () => {
     await expect(tab('回復')).toHaveAttribute('aria-selected', 'true');
     await expect(caption).toHaveCount(0);
-    await expect(tags).toHaveCount(2);
+    await expect(tags).toHaveCount(4);
     await expect(tags.filter({ hasText: '脚' })).toHaveText('脚あと4日');
     await expect(tags.filter({ hasText: '背中' })).toHaveText('背中あと3日');
+    await expect(tags.filter({ hasText: '胸' })).toHaveText('胸回復済み');
+    await expect(tags.filter({ hasText: '肩' })).toHaveText('肩回復済み');
     await expect(page.getByTestId('day-body-tag')).toHaveCount(0);
     await expect(hero).not.toContainText('EX-0');
     await expect(latest).toHaveAttribute('aria-label', /回復中 背中 あと3日、脚 あと4日/);
@@ -59,7 +61,7 @@ test('ホームの体：「回復」と「部位の量」の切り替え。色�
     await expect(visible(page, 'home-latest-ex')).toContainText('SETS 3');
     await tags.nth(0).click({ force: true });
     await expect(visible(page, 'home-hero')).toBeVisible();
-    await expect(page.getByTestId('hero-body-tag')).toHaveCount(2);
+    await expect(page.getByTestId('hero-body-tag')).toHaveCount(4);
   });
 
   await test.step('「部位の量」：色は週あたりの段。見出しは期間の合計（162 セット）。札は合計の多い 3 つ（腕・胸・肩）で、部位の名前と「90セット」の 2 行', async () => {
@@ -104,7 +106,7 @@ test('ホームの体：「回復」と「部位の量」の切り替え。色�
     await expect(tags.filter({ hasText: '腹' })).toHaveText('腹0セット');
     await tab('回復').click();
     await expect(caption).toHaveCount(0);
-    await expect(tags).toHaveCount(3);
+    await expect(tags).toHaveCount(5);
     await expect(latest).toHaveAttribute('aria-label', /回復中/);
     await expect(body.locator(`path[fill="${FILL.level3}"]`)).toHaveCount(0);
     await tab('部位の量').click();

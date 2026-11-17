@@ -69,12 +69,16 @@ test('ホームの並びと、ヒーローの体（回復・部位の量）・BO
   const tags = visible(page, 'hero-body-tag');
   const tab = (name: string) => mode.getByRole('button', { name, exact: true });
 
-  await test.step('回復：札は回復中の部位の「あと N 日」（今日どこを鍛えるか）。見出しは出さない', async () => {
+  await test.step('回復：札は回復中の部位の「あと N 日」が先、そのあとに回復済みの部位の「回復済み」（全部で 4 つまで）。見出しは出さない', async () => {
     await expect(tab('回復')).toHaveAttribute('aria-selected', 'true');
     await expect(caption).toHaveCount(0);
     await expect(tags.first()).toBeVisible();
-    expect(await tags.count()).toBeLessThanOrEqual(3);
-    for (const t of await tags.allTextContents()) expect(t).toMatch(/あと\d+日$/);
+    expect(await tags.count()).toBeLessThanOrEqual(4);
+    const texts = await tags.allTextContents();
+    for (const t of texts) expect(t).toMatch(/(あと\d+日|回復済み)$/);
+    // 回復中の脚・背中が残り、回復済みの部位が足される
+    expect(texts.filter((t) => /あと\d+日$/.test(t)).length).toBeGreaterThanOrEqual(1);
+    expect(texts.some((t) => t.endsWith('回復済み'))).toBe(true);
     await expect(visible(page, 'home-latest')).toHaveAttribute('aria-label', /回復中/);
   });
 

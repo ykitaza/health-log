@@ -71,13 +71,14 @@ test('記録したあとの LATEST・LOAD・BIG3・LOG・PARTS', async ({ page }
   ]);
   await moveToDate(page, TODAY);
 
-  // LATEST：今日。2種目・4セット・1980kg。体の札は種目（EX-01〜）ではなく、回復中の部位（胸 あと3日・背中 あと4日）。体は回復の色なので、回復中の部位も読む
+  // LATEST：今日。2種目・4セット・1980kg。体の札は種目（EX-01〜）ではなく、回復中の部位（胸 あと3日・背中 あと4日）と、回復済みの部位（脚）。体は回復の色なので、回復中の部位も読む
   await expect(homeLatest(page)).toHaveAttribute('aria-label', '直近のトレーニング 今日。2種目 4セット 1.98トン。1 ベンチプレス 80kg × 8、2 懸垂 10回。回復中 胸 あと3日、背中 あと4日。その日の記録を開く');
   await expect(homeLatest(page)).toContainText('TODAY');
   await expect(visible(page, 'home-latest-ex')).toContainText('SETS 4');
   await expect(visible(page, 'home-latest-load')).toContainText('1.98t');
   await expect(visible(page, 'day-body-tag')).toHaveCount(0);
-  await expect(visible(page, 'hero-body-tag')).toHaveCount(2);
+  await expect(visible(page, 'hero-body-tag')).toHaveCount(3);
+  await expect(visible(page, 'hero-body-tag').filter({ hasText: '脚' })).toHaveText('脚回復済み');
   await expect(visible(page, 'hero-body-tag').filter({ hasText: '胸' })).toHaveText('胸あと3日');
   await expect(visible(page, 'hero-body-tag').filter({ hasText: '背中' })).toHaveText('背中あと4日');
 
