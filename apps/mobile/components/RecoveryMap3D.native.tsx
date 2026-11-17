@@ -7,9 +7,9 @@ import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import { anchorFor, facingOf, layoutCallouts, partsFor } from '@/lib/bodyModel';
-import { INJURY_RED, recoveryColor } from '@/lib/recoveryMap';
 import { colors, recoveryPalette, space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
+import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
 import { Mono } from './injuries';
 import type { RecoveryCallout, RecoveryMap3DProps } from './RecoveryMap3D';
@@ -47,7 +47,7 @@ function Stage({ levels, idle, injuries, selected, onPick, callouts }: Omit<Reco
     });
     scene.configure({
       marks, reduced, tipMarks, onPick, onTips: (v) => tips.set(v), levels, quietMarks: true,
-      baseColor: recoveryPalette.rest, levelColor: (k) => recoveryColor(k, recoveryPalette), injuryColor: INJURY_RED, idle, idleColor: recoveryPalette.idle,
+      baseColor: bodyColors.rest, levelColor: bodyColors.recovering, injuryColor: bodyColors.injury, idle, idleColor: bodyColors.idle,
     });
   }, [scene, marks, reduced, onPick, levels, idle, places, byId, tips]);
   const selKey = selected.join(',');

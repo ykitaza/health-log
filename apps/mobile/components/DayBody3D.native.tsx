@@ -9,9 +9,9 @@ import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
 import { dayBodyCallouts, dayBodyGlow } from '@/lib/dayBody';
-import { INJURY_RED, recoveryColor } from '@/lib/recoveryMap';
-import { colors, isHud, recoveryPalette, TRAINED_GLOW } from '@/theme';
+import { colors, isHud } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
+import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
 import type { DayBody3DProps } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
@@ -44,10 +44,12 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
     const tipMarks: Mark[] = layout.placed.map((p) => ({ id: p.key, parts: [], anchor: p.anchor, facing: p.facing, fixing: false }));
     scene.configure({
       marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
-      baseColor: recoveryPalette.rest, levelColor: levelColor ?? ((k, mesh) => (glow.warm.has(mesh) ? recoveryColor(k, recoveryPalette) : TRAINED_GLOW)), injuryColor: INJURY_RED,
-      idle, idleColor: idleColor ?? recoveryPalette.idle,
+      // 色の意味がない体（その日の部位だけ）は、つや消しでは石膏（ホログラムは回復済みと同じ緑）
+      baseColor: levelColor || idle.length > 0 || Object.keys(recovery).length > 0 ? bodyColors.rest : bodyColors.neutral,
+      levelColor: levelColor ?? ((k, mesh) => (glow.warm.has(mesh) ? bodyColors.recovering(k) : bodyColors.trained)), injuryColor: bodyColors.injury,
+      idle, idleColor: idleColor ?? bodyColors.idle,
     });
-  }, [scene, reduced, layout, glow, idle, levelColor, idleColor, marks, tips]);
+  }, [scene, reduced, layout, glow, idle, levelColor, idleColor, marks, tips, recovery]);
   const tags = (
     <>
       {layout.placed.map((p) => (

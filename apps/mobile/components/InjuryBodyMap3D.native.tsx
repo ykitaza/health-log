@@ -13,6 +13,7 @@ import { colors, lbl, space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
+import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
 import { T } from './Text';
 
@@ -48,6 +49,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
     scene.configure({
       marks, reduced, tipMarks: places.map((p) => marks.find((m) => m.id === p.id)!),
       onPick: setPicked, onTips: (v) => tips.set(v),
+      baseColor: bodyColors.neutral, fixedColor: bodyColors.fixed, fixingColor: bodyColors.fixing,
     });
   }, [scene, marks, places, reduced, tips]);
 

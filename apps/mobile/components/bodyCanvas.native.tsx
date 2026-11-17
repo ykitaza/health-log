@@ -56,6 +56,8 @@ function Scene({ scene }: { scene: BodyScene }) {
       <primitive object={scene.deck} />
       <primitive object={scene.scanRing} />
       <primitive object={scene.glowGroup} />
+      {/* つや消しの体の光と足元の影（ホログラムのときは見せない） */}
+      <primitive object={scene.matteStage} />
     </>
   );
 }
@@ -71,6 +73,8 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
   const view = useOnScreen(box);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   useEffect(() => { scene.onFirstFrame(() => setReady(true)); }, [scene]);
+  // 閉じるとき、つや消しの材質とケガの印を捨てる
+  useEffect(() => () => scene.dispose(), [scene]);
   const running = bodyRunning(focused, view.onScreen, ready);
   // GL が例外を出さずに描けないとき、読み込み中のまま残らないよう、しばらく描けなければ 2D の図へ戻す（外の Fallback が受ける）
   const [timedOut, setTimedOut] = useState(false);
