@@ -72,12 +72,19 @@ describe('つや消しの体（クラシック）', () => {
       expect(mat.flatShading).toBe(true);
       expect(mat.side).toBe(THREE.DoubleSide);
       expect(mat.toneMapped).toBe(false);
-      expect(mat.transparent).toBe(false);
+      expect(mat.transparent).toBe(m.name === 'skin');
       for (const c of m.children) expect(c.visible).toBe(false);
     }
     // 皮膚は奥へ押す（頂点のシェーダーに差し込む）
     const skin = parts.find((m) => m.name === 'skin')!.material as THREE.MeshStandardMaterial;
     expect(skin.customProgramCacheKey()).toBe('matte-skin-push');
+    // 皮膚だけ半透明（筋肉のあとに描く。奥行きは書かない）。筋肉は不透明で奥行きを書く
+    const skinMesh = parts.find((m) => m.name === 'skin')!;
+    expect([skin.transparent, skin.opacity, skin.depthWrite, skinMesh.renderOrder]).toEqual([true, 0.35, false, 2]);
+    for (const m of parts.filter((p) => p.name !== 'skin')) {
+      const mm = m.material as THREE.MeshStandardMaterial;
+      expect([mm.transparent, mm.opacity, mm.depthWrite, m.renderOrder]).toEqual([false, 1, true, 1]);
+    }
     const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: 'void main(){\n#include <project_vertex>\n}' } as unknown as THREE.WebGLProgramParametersWithUniforms;
     skin.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.uPush.value).toBe(0.035);
@@ -151,6 +158,8 @@ describe('つや消しの体（クラシック）', () => {
     scene.tapAt(174, 150);
     scene.frame(cam, 348, 380, 0.1, 1 / 60);
     expect(typeof picked).toBe('string');
+    // 半透明の皮膚は選べる部品に入らない（筋肉を選ぶ邪魔にならない）
+    expect((scene as unknown as { pickables: THREE.Mesh[] }).pickables.some((m) => m.name === 'skin')).toBe(false);
   });
 
   test('部位の量の見方：段のない部品は石膏で、回復済みの緑にならない', async () => {

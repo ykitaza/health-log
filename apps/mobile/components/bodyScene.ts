@@ -210,10 +210,15 @@ export const SKIN_PUSH_GLSL = '#include <project_vertex>\n  gl_Position = projec
 
 /**
  * 皮膚のつや消しの材質：皮膚を奥へ MATTE.skinPush（m）押して描く（頂点のシェーダーで、カメラから遠ざける）。
- * 皮膚のすぐ下の筋肉が奥行きの比べで勝ち、色が見える。頭・手・足・関節は皮膚のまま
+ * 皮膚のすぐ下の筋肉が奥行きの比べで勝ち、色が見える。頭・手・足・関節は皮膚のまま。
+ * さらに皮膚だけ半透明（MATTE.skinOpacity。奥行きは書かない）にして、深い所の筋肉を淡く透かす。筋肉は不透明のまま（皮膚の mesh の renderOrder 2 が筋肉の 1 のあと）。
+ * 皮膚は選べる部品（pickables）に入っていないので、半透明でも筋肉を選ぶ邪魔にならない
  */
 function matteSkin() {
   const m = matteMat(MATTE.plaster);
+  m.transparent = true;
+  m.opacity = MATTE.skinOpacity;
+  m.depthWrite = false;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uPush = { value: MATTE.skinPush };
     shader.vertexShader = 'uniform float uPush;\n' + shader.vertexShader.replace('#include <project_vertex>', SKIN_PUSH_GLSL);
