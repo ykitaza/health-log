@@ -30,7 +30,7 @@ import { calloutSet, dayFigureLabel, layoutCallouts, partAnchor, PlacedCallout }
 import { exerciseNumber } from './dayBodyTag';
 import { MuscleView, musclesForParts } from '@/lib/muscleFigure';
 import { bestSet, dayFocus, entryCardLabel, SetValues, totalVolume } from '@/lib/training';
-import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
+import { fmt1, kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
 import { colors, fonts, isHud, space } from '@/theme';
 
 /** 「種目を追加」のボタン（画面の下に固定する）。未来の日は押せない */
@@ -396,7 +396,7 @@ function SetLedger({ weightKg, reps, unit }: { weightKg: number | null; reps: nu
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }} accessible accessibilityLabel={formatSetLong(weightKg, reps, unit)}>
       {weightKg != null && (
         <>
-          <T num bold size={22} style={{ lineHeight: 26 }}>{fmt1(kgToUnit(weightKg, unit))}</T>
+          <T num bold size={22} style={{ lineHeight: 26 }}>{trimNumber(kgToUnit(weightKg, unit))}</T>
           <T size={12} color={colors.sub}>{`${unit} ×`}</T>
         </>
       )}

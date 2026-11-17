@@ -279,7 +279,8 @@ export function PrimaryTabs<K extends string>({ options, value, onChange }: { op
             onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
             style={s.tabItem}
           >
-            {o.icon && <Icon name={o.icon} size={24} color={active ? TAB_ON : colors.sub} />}
+            {/* クラシックはアイコンを付けず、文字と墨の下線だけ */}
+            {o.icon && isHud && <Icon name={o.icon} size={24} color={active ? TAB_ON : colors.sub} />}
             <T variant="titleS" color={active ? TAB_ON : colors.sub}>{o.label}</T>
             {active && !mark && <View style={[s.tabMark, { left: 16, right: 16 }]} />}
           </Pressable>

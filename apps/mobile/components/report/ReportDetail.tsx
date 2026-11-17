@@ -39,7 +39,10 @@ function Frame({ sys, onBack, menu, action, children }: { sys: string | null; on
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 44, zIndex: 2 }}>
           {onBack && <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-            <Micro ja="レポート">KARADA // REPORT</Micro>
+            {isHud || onBack
+              ? <Micro ja="レポート">KARADA // REPORT</Micro>
+              // クラシックのタブ：ほかのタブと同じ大きさの題（Figma「クラシック（大胆版）」のレポート）
+              : <T variant="headlineS" accessibilityRole="header">レポート</T>}
             {sys && onBack && <Micro>{sys}</Micro>}
           </View>
           {action}

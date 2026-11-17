@@ -9,7 +9,7 @@ import { addDays, addMonths, DateKey, MONTH_NAMES_EN, yearMonth } from '@/lib/da
 import {
   claimsSwipe, dragOffset, hintNudgeDx, releaseDirection, showsSwipeHint, slideSign, SwipeDirection, SwipeHintKind, swipeHintText,
 } from '@/lib/swipe';
-import { colors, space } from '@/theme';
+import { colors, isHud, space } from '@/theme';
 import { duration, HOLD_MS, motionDuration } from '@/theme/motion';
 import { Icon } from './Icon';
 import { MonthCalendar } from './MonthCalendar';
@@ -32,7 +32,8 @@ export function DateSwitcher({ label, prevLabel, nextLabel, onPrev, onNext, canN
     </View>
   );
   return (
-    <Card style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs }, style]}>
+    // クラシックは枠を付けず、紙の上に日付と前後の矢印だけを置く（Figma「クラシック（大胆版）」の筋トレ）
+    <Card style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs }, !isHud && { borderWidth: 0, paddingHorizontal: 0 }, style]}>
       <IconButton name="prev" label={prevLabel} onPress={onPrev} />
       {onPick ? (
         <PressableScale
