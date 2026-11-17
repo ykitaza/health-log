@@ -7,7 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import { anchorFor, facingOf, layoutCallouts, partsFor } from '@/lib/bodyModel';
-import { colors, recoveryPalette, space } from '@/theme';
+import { colors, isHud, overlayFill, recoveryPalette, space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
@@ -107,7 +107,7 @@ export function RecoveryMap3D({ fallback, ...props }: RecoveryMap3DProps) {
 
 const s = StyleSheet.create({
   tag: {
-    position: 'absolute', backgroundColor: 'rgba(14,16,19,0.72)', borderLeftWidth: 0, borderRightWidth: 0, borderTopWidth: 1, borderBottomWidth: 0,
+    position: 'absolute', backgroundColor: isHud ? 'rgba(14,16,19,0.72)' : overlayFill, borderLeftWidth: 0, borderRightWidth: 0, borderTopWidth: 1, borderBottomWidth: 0,
     paddingHorizontal: 4, paddingVertical: 2,
   },
 });

@@ -16,7 +16,7 @@ import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { goalProgress } from '@/lib/goalBar';
 import { bodyChange, formatPeriod, KIND_LABELS, Report, TONE_LABELS, Tone } from '@/lib/reports';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
-import { deco } from '@/theme';
+import { deco, isHud, toneColors } from '@/theme';
 import { T } from '../Text';
 import { dotDate, dotMonthDay, GoalTrack, hud, kgLabel, pace2, Micro, Mono, NotchChip, OutlineTag, Panel, Ring, Spark } from './hud';
 
@@ -54,12 +54,19 @@ export function ReportHero({ report, scope }: { report: Report; scope: Scope }) 
           {dayType && <T bold size={12.5} color={hud.label}>{`・${DAY_TYPE_LABELS[dayType]}`}</T>}
         </View>
         <View accessible accessibilityLabel={`全体の調子、${TONE_LABELS[report.tone]}`}>
-          <NotchChip fill={good ? hud.green : undefined} border={good ? undefined : hud.line} style={{ paddingHorizontal: 8, paddingVertical: 3 }}>
-            <T bold size={11} color={good ? hud.onGreen : hud.ink}>{TONE_LABELS[report.tone]}</T>
-          </NotchChip>
+          {isHud ? (
+            <NotchChip fill={good ? hud.green : undefined} border={good ? undefined : hud.line} style={{ paddingHorizontal: 8, paddingVertical: 3 }}>
+              <T bold size={11} color={good ? hud.onGreen : hud.ink}>{TONE_LABELS[report.tone]}</T>
+            </NotchChip>
+          ) : (
+            // クラシック：調子の色の枠と文字の札（塗らない）
+            <NotchChip border={toneColors[report.tone].accent} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+              <T bold size={13} color={toneColors[report.tone].accent}>{TONE_LABELS[report.tone]}</T>
+            </NotchChip>
+          )}
         </View>
       </View>
-      <T bold size={15} color={hud.ink} style={{ marginTop: 5, letterSpacing: 0.6 }} accessibilityRole="header">{report.title}</T>
+      <T bold size={isHud ? 15 : 28} color={hud.ink} style={isHud ? { marginTop: 5, letterSpacing: 0.6 } : { marginTop: 6, lineHeight: 36 }} accessibilityRole="header">{report.title}</T>
       {deco.enLabels && <Mono size={9.5} spacing={1.7} color={hud.faint} style={{ marginTop: 2 }}>{`STATUS: ${TONE_EN[report.tone]} — ${second}`}</Mono>}
       {scope?.type === 'day' && <DailyHeroBody date={scope.date} />}
       {scope?.type === 'week' && report.periodStart && report.periodEnd && <WeeklyHeroBody start={report.periodStart} end={report.periodEnd} note={report.headline} />}
@@ -183,7 +190,7 @@ function WeeklyHeroBody({ start, end, note }: { start: DateKey; end: DateKey; no
         <>
           <Micro style={{ marginTop: 8 }} ja="週の平均体重">Weekly Avg // Body Mass</Micro>
           <T accessible accessibilityLabel={`週の平均の体重 ${fmt1(u(avg))} ${unit}`} style={{ marginTop: 4 }}>
-            <Mono size={42} color={hud.white} style={{ lineHeight: 46 }}>{fmt1(u(avg))}</Mono>
+            <Mono size={isHud ? 42 : 72} color={hud.white} style={{ lineHeight: isHud ? 46 : 76 }}>{fmt1(u(avg))}</Mono>
             <Mono size={20} color={hud.muted}>{unit}</Mono>
           </T>
           {last && (
