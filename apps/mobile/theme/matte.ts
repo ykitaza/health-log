@@ -13,6 +13,8 @@ export const MATTE = {
   plaster: '#EAE3D4',
   /** 皮膚を奥へ押す量（m）。皮膚の下 3.5cm までの筋肉が、奥行きの比べで皮膚に勝って色が見える。頭・手・足・関節は皮膚のまま */
   skinPush: 0.035,
+  /** 皮膚の不透明度（皮膚だけ半透明。筋肉は不透明のまま、皮膚は筋肉のあとに描く（renderOrder 2、奥行きは書かない））。下の筋肉が淡く透ける */
+  skinOpacity: 0.35,
   /** 光（世界の座標。体が回っても光は動かない）。影の地図は使わない */
   hemi: { sky: '#FFFDF7', ground: '#B9AE98', intensity: 2.0 },
   key: { color: '#FFF6E8', intensity: 2.6, position: [-0.9, 4.5, 1.4] as [number, number, number] },

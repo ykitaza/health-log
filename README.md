@@ -196,5 +196,3 @@ for s in authorization meals sync training app_api mcp; do (cd services/$s && uv
 - 元のデータ：BodyParts3D 4.0（DOI：[10.18908/lsdba.nbdc00837-000](https://doi.org/10.18908/lsdba.nbdc00837-000)）
 - 公式のライセンスのページ：<https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html>
 - 筋肉の部品へのまとめ、頂点の削減、皮膚の手直しなどの改変をしています（[apps/mobile/assets/models/README.md](apps/mobile/assets/models/README.md)）。アプリでは、ケガの画面に出典とリンクを出しています
-
-このリポジトリのコードのライセンスは、まだ決めていません（`LICENSE` ファイルはありません）。
