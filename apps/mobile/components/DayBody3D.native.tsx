@@ -9,7 +9,7 @@ import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, facingOf, partsFor } from '@/lib/bodyModel';
 import { dayBodyCallouts, dayBodyGlow } from '@/lib/dayBody';
-import { colors, isHud } from '@/theme';
+import { colors, isHud, stageColors } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
@@ -67,7 +67,7 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
       <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
         {layout.placed.map((p, i) => {
           const x = p.side === 'left' ? DAY_TAG_W + 4 : width - DAY_TAG_W - 4;
-          return <Leader key={p.key} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={isHud ? colors.accent : colors.sub} />;
+          return <Leader key={p.key} tips={tips} index={i} from={{ x, y: p.top + 9 }} toRight={p.side === 'left'} color={isHud ? colors.accent : stageColors.outline} />;
         })}
       </Svg>
       {!onPressEntry && tags}

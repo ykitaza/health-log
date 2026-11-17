@@ -28,7 +28,7 @@ import { MISSING_BODYWEIGHT_NOTE, recentMissingBodyweight } from '@/lib/bodyweig
 import { injuryNumbers } from '@/lib/injuries';
 import { phasePartVolume, volumeWindow } from '@/lib/partVolume';
 import { fixingOn, idleMeshes, partRecoveries, recoveryLevels } from '@/lib/recoveryMap';
-import { colors, lbl, size, space } from '@/theme';
+import { colors, isHud, lbl, size, space } from '@/theme';
 
 /**
  * ホーム（刷新 A「計器の盤」）：見出しの行、ヒーロー（フェーズの 1 行と輪、LATEST・INJURY の横スライド。体の色は回復／部位の量）、
@@ -128,6 +128,16 @@ export default function HomeScreen() {
   const fuel = todayMeal ? fuelGauge(todayMeal) : null;
   const body = data?.day === selected ? data : null;
 
+  const bodyPanel = (
+    <BodyPanel
+      label={isToday ? lbl('BODY', '体重') : lbl(`BODY // ${formatMonthDay(selected)}`, `体重 ${formatMonthDay(selected)}`)}
+      weightKg={body?.weightKg ?? null}
+      goal={body ? goalLine(body.weightKg, body.settings.goalWeightKg ?? null, unit) : null}
+      unit={unit}
+      onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
+    />
+  );
+
   if (error) return <Screen tab><LoadError onRetry={reload} /></Screen>;
 
   return (
@@ -138,26 +148,21 @@ export default function HomeScreen() {
       <SyncAlertLine />
       <HomeHero today={today} unit={unit} latest={hero} ready={ready} data={heroData} />
 
-      <View style={s.row}>
+      <View style={[s.row, CLASSIC_SECTION]}>
         <FuelPanel fuel={fuel} date={today} />
       </View>
-      <View style={s.row}>
+      {/* クラシックは数字の帳：BIG3・今週の負荷量・昨夜の睡眠・体重を同じ高さの行に縦に並べ、上に墨の罫（「クラシックの決まり」） */}
+      <View style={[isHud ? s.row : s.ledger, CLASSIC_SECTION]}>
         <Big3Panel gauge={big3} unit={unit} ready={ready} />
         <LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready={ready} />
         <SleepPanel gauge={sleep} today={today} />
+        {!isHud && bodyPanel}
+        {!isHud && <View style={s.ledgerRule} pointerEvents="none" />}
       </View>
       {/* BODY：体重と目標まで（その日。LOG で選んだ日）。睡眠は SLEEP だけ、安静時心拍はホームに出さない */}
-      <View style={{ marginTop: space.s }}>
-        <BodyPanel
-          label={isToday ? lbl('BODY', '体重') : lbl(`BODY // ${formatMonthDay(selected)}`, `体重 ${formatMonthDay(selected)}`)}
-          weightKg={body?.weightKg ?? null}
-          goal={body ? goalLine(body.weightKg, body.settings.goalWeightKg ?? null, unit) : null}
-          unit={unit}
-          onPress={() => router.navigate({ pathname: '/body', params: { date: selected } })}
-        />
-      </View>
+      {isHud && <View style={{ marginTop: space.s }}>{bodyPanel}</View>}
       {log && (
-        <View style={{ marginTop: space.s }}>
+        <View style={[{ marginTop: space.s }, CLASSIC_SECTION]}>
           <LogPanel weeks={log} month={monthSum} selected={selected} unit={unit} onPressDay={(d) => setPicked(d === today ? null : d)} />
         </View>
       )}
@@ -172,7 +177,7 @@ export default function HomeScreen() {
       {data != null && recentMissingBodyweight(rows, today) && (
         <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
       )}
-      <View style={{ marginTop: space.l }}>
+      <View style={[{ marginTop: space.l }, CLASSIC_SECTION]}>
         <HomeReportsCard />
       </View>
     </Screen>
@@ -183,8 +188,13 @@ export default function HomeScreen() {
   );
 }
 
+/** クラシックの段の間（「クラシックの決まり」の段の間 48） */
+const CLASSIC_SECTION = isHud ? null : { marginTop: 48 };
+
 const s = StyleSheet.create({
   row: { flexDirection: 'row', gap: space.s, marginTop: space.s },
+  ledger: { marginTop: space.s },
+  ledgerRule: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: colors.text },
   pickedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s },
   fab: { position: 'absolute', right: space.l, bottom: space.l },
 });

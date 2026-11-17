@@ -18,18 +18,19 @@ import { useRepos } from '@/hooks/data';
 import { DateKey, formatJpDate, formatShortDate, WEEKDAY_EN, WEEKDAY_JA, weekday } from '@/lib/date';
 import { tonnes } from '@/lib/format';
 import {
-  HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, PhaseRing,
+  HERO_PAGE_EN, HERO_PAGE_JA, HeroPage, HeroPhase, InjuryCorners, initialHeroPage, keepHeroPage, nextHeroPage, phaseHead, PhaseRing,
   phaseLine, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
 import { recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
 import { MuscleView, partsAt } from '@/lib/muscleFigure';
-import { HeroBodyMode, heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeGlowLevel, volumeMuscleLevels } from '@/lib/partVolume';
+import { HeroBodyMode, heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeMuscleLevels } from '@/lib/partVolume';
 import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
-import { colors, deco, hudColors, isHud, lbl, recoveryPalette, size, space, volumePalette } from '@/theme';
+import { bodyColors } from '@/lib/bodyColors';
+import { colors, deco, hudColors, isHud, lbl, matteBody, recoveryPalette, size, space, stageColors } from '@/theme';
 import { DayBody } from './DayBody';
 import { DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { usePageSlide } from './DayPicker';
@@ -132,6 +133,76 @@ export function HomeHero({ today, unit, latest, ready, data }: {
   const rotate = rotateColumn(w);
   // 回復の色で塗るのは、回復マップに出る部位を一度でも鍛えたときだけ（まっさらなときに体じゅうを灰色にしない）
   const recovery = data && data.recovery.list.some((p) => p.last != null) ? data.recovery : null;
+
+  if (!isHud) {
+    // クラシック（紙の記録帳）：フェーズの行 → 紙の上の体と 16 の目盛り → 切り替えとページの行 → 帳の 1 行（四隅の数字を体の外へ下ろした）
+    const latestCells = latestCorners({ latest, today, unit, ready, recovery, volume: data?.volume ?? null, mode });
+    const injuryCells = page === 'injury' && data ? injuryPageCorners(data) : null;
+    const head = data ? phaseHead(data.phase) : null;
+    return (
+      <View testID="home-hero">
+        <PressableScale
+          accessibilityRole="button" accessibilityLabel={line?.spoken ?? 'フェーズ'} scaleTo={0.98} disabled={!line}
+          onPress={() => { if (line) router.push(line.route); }} style={c.phase} testID="hero-phase"
+        >
+          <View style={{ flexShrink: 1 }}>
+            <T size={12} color={colors.sub}>{head?.kicker ?? ' '}</T>
+            {head?.big != null
+              ? (
+                <View style={c.phaseBig}>
+                  <T num bold size={48} style={{ lineHeight: 52 }}>{head.big}</T>
+                  <T size={14} color={colors.sub}>{head.of}</T>
+                </View>
+              )
+              : <T bold size={22} style={{ lineHeight: 30, marginTop: space.xs }} numberOfLines={1}>{head?.title ?? ' '}</T>}
+          </View>
+          <View style={{ alignItems: 'flex-end', flexShrink: 0, marginLeft: space.s }}>
+            {head?.status ? <T bold size={14}>{head.status}</T> : null}
+            {head?.sub ? <T size={12} color={colors.sub} testID="hero-ring-footer">{head.sub}</T> : null}
+          </View>
+        </PressableScale>
+        <View style={[s.stage, c.stage, { height: h }]} onLayout={(e) => setW(e.nativeEvent.layout.width)} {...pan} testID="hero-swipe">
+          {w > 0 && (
+            <>
+              <Ring width={w} height={h} r={r} ring={data?.ring ?? null} />
+              <Animated.View style={[StyleSheet.absoluteFill, anim]} pointerEvents="box-none">
+                {page === 'latest' && (
+                  <LatestPage width={w} height={h} today={today} unit={unit} latest={latest} ready={ready} rotate={rotate}
+                    recovery={recovery} injuries={data?.injury.fixing ?? NO_INJURIES} volume={data?.volume ?? null} mode={mode} onMode={chooseMode} />
+                )}
+                {page === 'injury' && data && (
+                  <InjuryPage width={w} height={h} band={CLASSIC_BAND(h)} rotate={rotate} data={data} />
+                )}
+              </Animated.View>
+            </>
+          )}
+        </View>
+        <View style={c.modeRow}>
+          {page === 'latest' && data?.volume ? (
+            <View style={c.modeBox} testID="hero-body-mode">
+              <Segmented<HeroBodyMode> options={BODY_MODES} value={mode} onChange={chooseMode} check={false} />
+            </View>
+          ) : <View />}
+          <View style={c.pages} testID="hero-pages" accessibilityRole="tablist">
+            {(pages ?? ['latest' as const]).map((p) => {
+              const on = p === page;
+              return (
+                <PressableScale
+                  key={p} accessibilityRole="tab" aria-selected={on} accessibilityLabel={HERO_PAGE_JA[p]}
+                  scaleTo={0.94} onPress={() => pick(p)} style={c.pageTab} testID={`hero-page-${p}`}
+                >
+                  <T size={13} bold={on} color={on ? colors.text : colors.sub}>{PAGE_TAB[p]}</T>
+                  <View style={[c.pageMark, { backgroundColor: on ? colors.text : 'transparent' }]} />
+                </PressableScale>
+              );
+            })}
+          </View>
+        </View>
+        <Ledger cells={injuryCells ?? latestCells} narrow={w > 0 && w < 380} />
+        {(page === 'latest' || page === 'injury') && DayBodyAttribution && <DayBodyAttribution />}
+      </View>
+    );
+  }
 
   return (
     <View testID="home-hero">
@@ -304,8 +375,6 @@ const openInjury = (id: string) => router.push(`/injuries/${id}`);
 
 /** 体の色の見方の切り替え */
 const BODY_MODES: { key: HeroBodyMode; label: string }[] = [{ key: 'recovery', label: '回復' }, { key: 'volume', label: '部位の量' }];
-/** 部位の量の色：光の明るさ k（段 ÷ 5）から段の色（theme の volumePalette）。場面を設定し直さないよう、変わらない関数にする */
-const volumeGlowColor = (k: number) => volumeColor(volumeGlowLevel(k));
 
 /** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
 const NO_PARTS: string[] = [];
@@ -327,11 +396,7 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   recovery: HeroData['recovery'] | null; injuries: Injury[]; volume: PhaseVolume | null; mode: HeroBodyMode; onMode: (m: HeroBodyMode) => void;
 }) {
   const band = { top: CORNER_H, bottom: height - CORNER_H };
-  const ss = latest?.session ?? null;
-  const entries = latest?.entries ?? [];
   const parts = latest?.parts ?? [];
-  const isToday = ss?.date === today;
-  const recovering = recovery?.list.filter((p) => p.remaining != null) ?? [];
   const fills = useMemo(() => (recovery ? muscleFills(recovery.list, recoveryPalette) : undefined), [recovery]);
   // 部位の量の色（フェーズの 1 週間あたりのセット数の段。データが届くまでは回復のまま）
   const byVolume = mode === 'volume' && volume != null;
@@ -361,6 +426,59 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
       return key == null || key === curKey ? null : { names };
     });
   }, [cands]);
+  const corners = latestCorners({ latest, today, unit, ready, recovery, volume, mode });
+  return (
+    <>
+      <DayBody width={width} height={height} entries={tags} perSide={4} band={isHud ? band : CLASSIC_BAND(height)} ringR={Math.min(width, height) / 2 - 12} onPick={onPickMesh} onPickPoint={onPickPoint} shield={<SwipeShield width={width} rotate={rotate} />}
+        {...(byVolume && volumeBody
+          ? { parts: NO_PARTS, recovery: volumeBody.glow, idle: volumeBody.idle, injuries, fills: volumeBody.fills, levelColor: bodyColors.volume, idleColor: bodyColors.volume(0) }
+          : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
+      {byVolume && (
+        <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
+          <View style={s.captionText}>
+            {isHud ? <Mono size={11} color={colors.sub}>{heroVolumeCaption(volume!)}</Mono> : <T size={12} color={stageColors.sub}>{heroVolumeCaption(volume!)}</T>}
+          </View>
+        </View>
+      )}
+      {/* クラシックは、切り替えと四隅の数字を体の外（紙の帳）へ下ろす（HomeHero） */}
+      {volume && isHud && (
+        <View style={s.mode} pointerEvents="box-none" testID="hero-body-mode">
+          <View style={s.modeBox}>
+            <Segmented<HeroBodyMode> options={BODY_MODES} value={mode} onChange={onMode} check={false} />
+          </View>
+        </View>
+      )}
+      {isHud && corners.map((k) => (
+        <CornerButton key={k.testID} at={k.at} label={k.label} onPress={k.onPress} disabled={k.disabled} testID={k.testID}>
+          <Corner {...k.hud} />
+        </CornerButton>
+      ))}
+    </>
+  );
+}
+
+/** 四隅の数字の 1 つ：HUD は体の四隅（Corner）、クラシックは体の下の帳の 1 マス（Ledger）。押すと行き先へ */
+type CornerSpec = {
+  at: keyof typeof AT; testID: string; label: string; onPress: () => void; disabled?: boolean;
+  hud: Parameters<typeof Corner>[0];
+  ledger: LedgerCell;
+};
+
+/** 帳のマス：小さな見出し・大きな数字・小さな単位（クラシック） */
+type LedgerCell = { label: string; value: string; unit?: string; labelColor?: string; valueColor?: string };
+
+/**
+ * 直近のトレーニングの四隅：日付（今日なら TODAY）・種目の数（セット数）・合計負荷量・自己ベストの数。
+ * 押すと：日付・種目の数・合計負荷量はその日の記録、自己ベストは 1 種目ならその種目の推移、ほかは種目ごとの自己ベスト
+ */
+function latestCorners({ latest, today, unit, ready, recovery, volume, mode }: {
+  latest: HeroLatest | null; today: DateKey; unit: WeightUnit; ready: boolean; recovery: HeroData['recovery'] | null; volume: PhaseVolume | null; mode: HeroBodyMode;
+}): CornerSpec[] {
+  const ss = latest?.session ?? null;
+  const entries = latest?.entries ?? [];
+  const isToday = ss?.date === today;
+  const byVolume = mode === 'volume' && volume != null;
+  const recovering = recovery?.list.filter((p) => p.remaining != null) ?? [];
   const spoken = !ready ? '直近のトレーニング'
     : !ss ? '直近のトレーニング。まだ記録がありません'
     : [
@@ -379,38 +497,65 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
     : `自己ベスト ${ss.prs.length}${ss.prs.length > 0 ? `（${latest!.prNames.join('、')}）` : ''}。種目ごとの自己ベストを開く`;
   const prSub = latest && latest.prNames.length > 0 ? PR_EN[latest.prNames[0]] ?? 'BEST' : undefined;
   const volumeText = ss ? `${tonnes(ss.volumeKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}` : '';
+  return [
+    {
+      at: 'tl', label: spoken, onPress: open, disabled: !ss, testID: 'home-latest',
+      hud: {
+        align: 'left', label: lbl('LATEST //', '直近'), value: !ss ? '—' : isToday ? lbl('TODAY', '今日') : formatShortDate(ss.date),
+        sub: ss ? lbl(WEEKDAY_EN[weekday(ss.date)], `${WEEKDAY_JA[weekday(ss.date)]}曜`) : ready ? lbl('NO LOG', '記録なし') : undefined,
+      },
+      ledger: { label: '直近', value: !ss ? '—' : isToday ? '今日' : formatShortDate(ss.date), unit: ss ? `${WEEKDAY_JA[weekday(ss.date)]}曜` : ready ? '記録なし' : undefined },
+    },
+    {
+      at: 'tr', label: ss ? `${ss.exercises}種目 ${ss.sets}セット。その日の記録を開く` : '種目の数', onPress: open, disabled: !ss, testID: 'home-latest-ex',
+      hud: { align: 'right', label: deco.enLabels ? 'EX //' : ss ? `種目 · ${ss.sets}セット` : '種目', value: ss ? String(ss.exercises) : '—', sub: ss && deco.enLabels ? `SETS ${ss.sets}` : undefined },
+      ledger: { label: ss ? `種目 · ${ss.sets}セット` : '種目', value: ss ? String(ss.exercises) : '—' },
+    },
+    {
+      at: 'bl', label: ss ? `合計負荷量 ${volumeText}。その日の記録を開く` : '合計負荷量', onPress: open, disabled: !ss, testID: 'home-latest-load',
+      hud: { align: 'left', label: lbl('LOAD', '合計負荷量'), value: ss ? `${tonnes(ss.volumeKg, unit)}${lbl('', ' ')}${unit === 'kg' ? 't' : 'k'}` : '—', sub: lbl('TOTAL', '') },
+      ledger: { label: '合計負荷量', value: ss ? tonnes(ss.volumeKg, unit) : '—', unit: ss ? (unit === 'kg' ? 't' : 'k lb') : undefined },
+    },
+    {
+      at: 'br', label: prSpoken, onPress: openPr, disabled: !ss, testID: 'home-latest-pr',
+      hud: { align: 'right', label: lbl('PR //', '自己ベスト'), value: ss ? String(ss.prs.length) : '—', sub: deco.enLabels ? prSub : latest?.prNames[0] },
+      ledger: { label: '自己ベスト', value: ss ? String(ss.prs.length) : '—', unit: latest?.prNames[0] },
+    },
+  ];
+}
+
+/** クラシックのページの切り替えの短い名前（Figma の「直近」「ケガ」。読み上げは HERO_PAGE_JA） */
+const PAGE_TAB: Record<HeroPage, string> = { latest: '直近', injury: 'ケガ' };
+
+/** クラシックの体の札を置ける高さ（四隅の数字は体の外なので、上の見出しの下から下の端まで） */
+const CLASSIC_BAND = (h: number) => ({ top: 28, bottom: h - 8 });
+
+/**
+ * クラシックの帳の 1 行（Figma「クラシック（大胆版）」の直近の帳）：4 つのマスを罫で区切り、小さな見出し・大きな数字・小さな単位。
+ * マスを押すと四隅と同じ行き先（読み上げも同じ）
+ */
+function Ledger({ cells, narrow }: { cells: CornerSpec[]; narrow: boolean }) {
+  const big = narrow ? 26 : 30;
   return (
-    <>
-      <DayBody width={width} height={height} entries={tags} perSide={4} band={band} ringR={Math.min(width, height) / 2 - 12} onPick={onPickMesh} onPickPoint={onPickPoint} shield={<SwipeShield width={width} rotate={rotate} />}
-        {...(byVolume && volumeBody
-          ? { parts: NO_PARTS, recovery: volumeBody.glow, idle: volumeBody.idle, injuries, fills: volumeBody.fills, levelColor: volumeGlowColor, idleColor: volumePalette.empty }
-          : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
-      {byVolume && (
-        <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
-          <View style={s.captionText}><Mono size={11} color={colors.sub}>{heroVolumeCaption(volume!)}</Mono></View>
-        </View>
-      )}
-      {volume && (
-        <View style={s.mode} pointerEvents="box-none" testID="hero-body-mode">
-          <View style={s.modeBox}>
-            <Segmented<HeroBodyMode> options={BODY_MODES} value={mode} onChange={onMode} check={false} />
-          </View>
-        </View>
-      )}
-      <CornerButton at="tl" label={spoken} onPress={() => open()} disabled={!ss} testID="home-latest">
-        <Corner align="left" label={lbl('LATEST //', '直近')} value={!ss ? '—' : isToday ? lbl('TODAY', '今日') : formatShortDate(ss.date)}
-          sub={ss ? lbl(WEEKDAY_EN[weekday(ss.date)], `${WEEKDAY_JA[weekday(ss.date)]}曜`) : ready ? lbl('NO LOG', '記録なし') : undefined} />
-      </CornerButton>
-      <CornerButton at="tr" label={ss ? `${ss.exercises}種目 ${ss.sets}セット。その日の記録を開く` : '種目の数'} onPress={() => open()} disabled={!ss} testID="home-latest-ex">
-        <Corner align="right" label={deco.enLabels ? 'EX //' : ss ? `種目 · ${ss.sets}セット` : '種目'} value={ss ? String(ss.exercises) : '—'} sub={ss && deco.enLabels ? `SETS ${ss.sets}` : undefined} />
-      </CornerButton>
-      <CornerButton at="bl" label={ss ? `合計負荷量 ${volumeText}。その日の記録を開く` : '合計負荷量'} onPress={() => open()} disabled={!ss} testID="home-latest-load">
-        <Corner align="left" label={lbl('LOAD', '合計負荷量')} value={ss ? `${tonnes(ss.volumeKg, unit)}${lbl('', ' ')}${unit === 'kg' ? 't' : 'k'}` : '—'} sub={lbl('TOTAL', '')} />
-      </CornerButton>
-      <CornerButton at="br" label={prSpoken} onPress={openPr} disabled={!ss} testID="home-latest-pr">
-        <Corner align="right" label={lbl('PR //', '自己ベスト')} value={ss ? String(ss.prs.length) : '—'} sub={deco.enLabels ? prSub : latest?.prNames[0]} />
-      </CornerButton>
-    </>
+    <View style={c.ledger} testID="hero-ledger">
+      {cells.map((k, i) => {
+        const v = k.ledger;
+        const ascii = !/[^\x20-\x7E]/.test(v.value);
+        const size = ascii ? big : [...v.value].length <= 2 ? 22 : 14;
+        return (
+          <PressableScale
+            key={k.testID} accessibilityRole="button" accessibilityLabel={k.label} scaleTo={0.97} onPress={k.onPress} disabled={k.disabled}
+            style={[c.cell, i === 0 ? c.cellFirst : c.cellRule]} testID={k.testID}
+          >
+            <T size={12} color={v.labelColor ?? colors.sub} numberOfLines={1}>{v.label}</T>
+            <View style={c.cellValue}>
+              <T num={ascii} bold={!ascii} size={size} color={v.valueColor ?? colors.text} numberOfLines={ascii ? 1 : 2} style={{ lineHeight: Math.round(size * 1.15), flexShrink: ascii ? 0 : 1 }}>{v.value}</T>
+              {v.unit ? <T size={12} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{v.unit}</T> : null}
+            </View>
+          </PressableScale>
+        );
+      })}
+    </View>
   );
 }
 
@@ -422,39 +567,89 @@ type BodyPageProps = { width: number; height: number; band: { top: number; botto
  */
 function InjuryPage({ width, height, band, rotate, data }: BodyPageProps) {
   const c = data.injury.corners;
-  const spoken = [
+  const spoken = injurySpoken(c);
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <HeroBody width={width} height={height} band={band}
+        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
+      {isHud && injuryPageCorners(data, spoken).map((k) => (
+        <CornerButton key={k.testID} at={k.at} label={k.label} testID={k.testID} onPress={k.onPress}>
+          <Corner {...k.hud} />
+        </CornerButton>
+      ))}
+    </View>
+  );
+}
+
+/** INJURY の読み上げ */
+function injurySpoken(c: InjuryCorners) {
+  return [
     `ケガ。直している途中 ${c.count}件`,
     c.fix ? `直している部位 ${c.fix.label}${c.fix.review ? `、最後の振り返り ${formatJpDate(c.fix.review.date)}` : '、振り返りはまだ'}` : '',
     c.since ? `${formatJpDate(c.since.date)}から ${c.since.day}日目` : '',
     c.alert > 0 ? `振り返りが1週間以上ないケガ ${c.alert}件` : '',
     'ケガの一覧を開く',
   ].filter(Boolean).join('。');
-  const since = c.since;
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <HeroBody width={width} height={height} band={band}
-        injuries={data.injury.fixing} numbers={data.injury.numbers} rotate={rotate} shield={<SwipeShield width={width} rotate={rotate} />} onPressInjury={openInjury} />
-      <CornerButton at="tl" label={spoken} testID="hero-injury" onPress={openInjuries}>
-        <Corner align="left" label={lbl('INJURY //', 'ケガ')} labelColor={INJURY_RED} value={String(c.count)} valueColor={INJURY_RED} sub={lbl('ACTIVE', '直している途中')} />
-      </CornerButton>
-      <CornerButton at="tr" label={c.fix ? `直している部位 ${c.fix.label}。このケガを開く` : '直している部位はありません。ケガの一覧を開く'} testID="hero-injury-fix"
-        onPress={() => (c.fix ? openInjury(c.fix.id) : openInjuries())}>
-        <Corner align="right" label={lbl('FIX //', '直している部位')} value={c.fix?.label ?? '—'}
-          sub={c.fix ? (c.fix.review ? `${formatShortDate(c.fix.review.date)} ${c.fix.review.mark}` : lbl('NO REVIEW', '振り返りはまだ')) : undefined} />
-      </CornerButton>
-      <CornerButton at="bl" testID="hero-injury-since"
-        label={!since ? 'いつから。ケガの一覧を開く' : `${formatJpDate(since.date)}から ${since.day}日目。${since.injuryId ? 'このケガを開く' : 'フェーズの進み具合を開く'}`}
-        onPress={() => (since?.injuryId ? openInjury(since.injuryId) : since ? router.push('/phase') : openInjuries())}>
-        <Corner align="left" label={lbl('SINCE', 'いつから')} value={since ? formatShortDate(since.date) : '—'}
-          sub={since ? lbl(`DAY ${String(since.day).padStart(2, '0')}`, `${since.day}日目`) : undefined} />
-      </CornerButton>
-      <CornerButton at="br" label={`振り返りが1週間以上ないケガ ${c.alert}件。ケガの一覧を開く`} testID="hero-injury-alert" onPress={openInjuries}>
-        <Corner align="right" label={lbl('ALERT', '振り返りが遅れ')} labelColor={c.alert > 0 ? INJURY_RED : colors.accent} value={c.alert > 0 ? lbl(`▲ ${c.alert}`, String(c.alert)) : '0'}
-          valueColor={c.alert > 0 ? INJURY_RED : colors.text} sub={lbl('REVIEW', '1週間以上')} />
-      </CornerButton>
-    </View>
-  );
 }
+
+/** INJURY の四隅：INJURY・FIX・SINCE・ALERT（クラシックは帳の 1 行）。spoken は INJURY の読み上げ */
+function injuryPageCorners(data: HeroData, spoken = injurySpoken(data.injury.corners)): CornerSpec[] {
+  const c = data.injury.corners;
+  const since = c.since;
+  return [
+    {
+      at: 'tl', label: spoken, testID: 'hero-injury', onPress: openInjuries,
+      hud: { align: 'left', label: lbl('INJURY //', 'ケガ'), labelColor: INJURY_RED, value: String(c.count), valueColor: INJURY_RED, sub: lbl('ACTIVE', '直している途中') },
+      ledger: { label: 'ケガ', labelColor: INJURY_RED, value: String(c.count), valueColor: INJURY_RED, unit: '件' },
+    },
+    {
+      at: 'tr', label: c.fix ? `直している部位 ${c.fix.label}。このケガを開く` : '直している部位はありません。ケガの一覧を開く', testID: 'hero-injury-fix',
+      onPress: () => (c.fix ? openInjury(c.fix.id) : openInjuries()),
+      hud: {
+        align: 'right', label: lbl('FIX //', '直している部位'), value: c.fix?.label ?? '—',
+        sub: c.fix ? (c.fix.review ? `${formatShortDate(c.fix.review.date)} ${c.fix.review.mark}` : lbl('NO REVIEW', '振り返りはまだ')) : undefined,
+      },
+      ledger: { label: '直している', value: c.fix?.label ?? '—' },
+    },
+    {
+      at: 'bl', testID: 'hero-injury-since',
+      label: !since ? 'いつから。ケガの一覧を開く' : `${formatJpDate(since.date)}から ${since.day}日目。${since.injuryId ? 'このケガを開く' : 'フェーズの進み具合を開く'}`,
+      onPress: () => (since?.injuryId ? openInjury(since.injuryId) : since ? router.push('/phase') : openInjuries()),
+      hud: {
+        align: 'left', label: lbl('SINCE', 'いつから'), value: since ? formatShortDate(since.date) : '—',
+        sub: since ? lbl(`DAY ${String(since.day).padStart(2, '0')}`, `${since.day}日目`) : undefined,
+      },
+      ledger: { label: 'いつから', value: since ? formatShortDate(since.date) : '—', unit: since ? `${since.day}日目` : undefined },
+    },
+    {
+      at: 'br', label: `振り返りが1週間以上ないケガ ${c.alert}件。ケガの一覧を開く`, testID: 'hero-injury-alert', onPress: openInjuries,
+      hud: {
+        align: 'right', label: lbl('ALERT', '振り返りが遅れ'), labelColor: c.alert > 0 ? INJURY_RED : colors.accent, value: c.alert > 0 ? lbl(`▲ ${c.alert}`, String(c.alert)) : '0',
+        valueColor: c.alert > 0 ? INJURY_RED : colors.text, sub: lbl('REVIEW', '1週間以上'),
+      },
+      ledger: { label: '振り返り遅れ', value: String(c.alert), valueColor: c.alert > 0 ? INJURY_RED : colors.text, unit: '件' },
+    },
+  ];
+}
+
+/** クラシックの形（紙の記録帳） */
+const c = StyleSheet.create({
+  phase: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: size.touch, marginTop: space.l },
+  phaseBig: { flexDirection: 'row', alignItems: 'baseline', gap: space.s },
+  // 体の面：つや消しの体は紙の上にじかに立つ。ホログラムに戻したときは、体の面だけ暗い地にする（theme の stageColors）
+  stage: matteBody ? { marginTop: space.l } : { marginTop: space.l, backgroundColor: stageColors.bg, borderRadius: 20 },
+  modeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m },
+  modeBox: { width: 178 },
+  pages: { flexDirection: 'row', gap: space.m },
+  pageTab: { minHeight: size.touch, minWidth: size.touch - 8, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  pageMark: { height: 2, alignSelf: 'stretch' },
+  ledger: { flexDirection: 'row', marginTop: space.l, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  cell: { flex: 1, minWidth: 0, minHeight: 78, paddingVertical: space.m, paddingHorizontal: space.s, justifyContent: 'space-between' },
+  // 直近のマスは日付と曜日が並ぶので少し広く、紙の端にそろえる（Figma の直近の帳）
+  cellFirst: { flex: 1.25, paddingLeft: 0 },
+  cellRule: { borderLeftWidth: 1, borderLeftColor: colors.line },
+  cellValue: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+});
 
 const s = StyleSheet.create({
   phaseLine: { minHeight: size.touch, alignItems: 'center', justifyContent: 'center', marginTop: -space.s, marginBottom: -space.s },
@@ -463,7 +658,7 @@ const s = StyleSheet.create({
   shield: { position: 'absolute', top: 0, bottom: 0 },
   caption: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' },
   // 外の輪の上の弧と重なるので、文字の後ろは地の色で抜く
-  captionText: { backgroundColor: colors.bg, paddingHorizontal: 8, paddingVertical: 1 },
+  captionText: { backgroundColor: stageColors.bg, paddingHorizontal: 8, paddingVertical: 1 },
   mode: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
   modeBox: { width: 176 },
   footer: { alignItems: 'center', marginTop: space.xs },

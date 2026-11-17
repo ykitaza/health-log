@@ -8,7 +8,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 import { useFocusData, useRepos } from '@/hooks/data';
 import { DateKey } from '@/lib/date';
 import { TodoWeek, todoAllDone, todoCount, toggleTodo, weekRangeLabel, weeklyTodo } from '@/lib/home';
-import { colors, radius, space } from '@/theme';
+import { colors, isHud, radius, space } from '@/theme';
 import { duration, HOLD_MS, motionDuration } from '@/theme/motion';
 import { Icon } from './Icon';
 import { CheckPop, Collapse, DrawCheck, easeOut, PressableScale } from './motion';
@@ -93,7 +93,7 @@ function TodoAllLink({ reportId }: { reportId: string }) {
       style={s.allLink}
       testID="weekly-todo-all"
     >
-      <T bold size={14} color={colors.accent}>すべて</T>
+      <T bold={isHud} size={isHud ? 14 : 12} color={isHud ? colors.accent : colors.text}>すべて</T>
     </PressableScale>
   );
 }

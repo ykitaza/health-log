@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 import { View, ViewStyle } from 'react-native';
 import { exerciseNumber } from '@/lib/dayCallouts';
-import { colors, deco, fonts, isHud } from '@/theme';
+import { deco, fonts, isHud, stageColors as colors } from '@/theme';
 import type { DayBodyEntry } from './DayBody3D';
 import { PressableScale } from './motion';
 import { T } from './Text';
@@ -42,7 +42,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
         style={[{ height: PART_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
         <View style={e.stack ? { alignItems: align === 'right' ? 'flex-end' : 'flex-start' } : { flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
           <T style={[mono, { color: KICKER }]}>{e.kicker}</T>
-          <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
+          <T bold size={13} color={colors.text} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
         </View>
         {e.set !== '' && <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>}
       </TagFrame>
@@ -52,7 +52,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
     <TagFrame testID="day-body-tag" onPress={onPress} label={`${exerciseNumber(e.no)} ${e.name} ${e.set}。この種目の記録を開く`}
       style={[{ height: DAY_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
       <T style={[mono, { color: KICKER }]}>{exerciseNumber(e.no)}</T>
-      <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
+      <T bold size={13} color={colors.text} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
       <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>
     </TagFrame>
   );

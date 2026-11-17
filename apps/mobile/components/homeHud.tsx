@@ -16,8 +16,9 @@ import {
 import { DAY_TYPE_LABELS } from '@/lib/meals';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { fmt1, fmtInt, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, deco, fonts, hairline, hudColors, isHud, lbl, radius, space } from '@/theme';
+import { colors, deco, fonts, hudColors, isHud, lbl, paper, space } from '@/theme';
 import { CountToText } from './charts';
+import { Big3Mini, FuelLedger, LedgerHead, LedgerRow, LedgerValue, WeekMini } from './homeLedger';
 import { Mono } from './injuries';
 import { PressableScale } from './motion';
 import { T } from './Text';
@@ -55,17 +56,18 @@ export function Panel({ children, onPress, label, testID, style }: { children: R
   );
 }
 
-/** クラシックの枠：切り欠きの代わりに、細い線（theme の hairline）と丸い角。先週比は Figma のとおり、増えても減っても補足の色 */
-const PANEL_LOOK: ViewStyle | null = isHud ? null : { borderWidth: 1, borderColor: hairline, borderRadius: radius.card, padding: space.m };
+/** クラシックの枠：紙の記録帳なので塗りも枠も作らない（段の見出しの罫と行の罫で区切る）。先週比は Figma のとおり、増えても減っても補足の色 */
+const PANEL_LOOK: ViewStyle | null = isHud ? null : { paddingHorizontal: 0, paddingVertical: 0 };
 
 /**
  * 見出しの行：左に英字のラベル、右に小さな数字。クラシックは日本語のラベル（ja）を、strong なら本文の色の太字で、ほかは補足の色で
  */
 function Head({ left, ja, strong = false, right, rightColor = colors.sub }: { left: string; ja: string; strong?: boolean; right?: string | null; rightColor?: string }) {
   if (!deco.enLabels) {
+    if (strong) return <LedgerHead title={ja} right={right} />;
     return (
       <View style={s.head}>
-        {strong ? <T variant="labelL">{ja}</T> : <T size={12} color={colors.sub}>{ja}</T>}
+        <T size={12} color={colors.sub}>{ja}</T>
         {right ? <T size={12} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{right}</T> : null}
       </View>
     );
@@ -128,6 +130,14 @@ export function Big3Panel({ gauge, unit, ready, link = true, testID = 'home-big3
       gauge.deltaKg != null ? `${deltaWord} ${formatSigned(u(gauge.deltaKg))}${unit}` : '',
       gauge.lifts.map((l) => `${BIG3_LABELS[l.role]} ${l.kg == null ? 'まだ' : `${fmt1(u(l.kg))}${unit}`}`).join('、'),
     ].filter(Boolean).join('。');
+  if (!isHud) {
+    return (
+      <LedgerRow name="BIG3" testID={testID} label={link ? `${label}。筋トレの推移を開く` : label}
+        note={gauge?.deltaKg != null ? `${DELTA_JA[gauge.deltaBase]} ${formatSigned(u(gauge.deltaKg))} ${unit}` : ready && !gauge ? '記録なし' : null}
+        chart={<Big3Mini gauge={gauge} />} value={<LedgerValue value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} />} unit={unit}
+        onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } }) : undefined} />
+    );
+  }
   return (
     <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'big3' } }) : undefined}>
@@ -200,6 +210,15 @@ export function LoadPanel({ gauge, dates, today, unit, ready, link = true, testI
   const pct = gauge.vsLastWeekPct;
   const tUnit = unit === 'kg' ? 't' : 'k lb';
   const label = `今週の合計負荷量 ${tonnes(gauge.totalKg, unit)}${unit === 'kg' ? 'トン' : '千ポンド'}${pct != null ? `。先週の同じ曜日までより ${pct >= 0 ? `${pct}% 多い` : `${-pct}% 少ない`}` : ''}`;
+  if (!isHud) {
+    return (
+      <LedgerRow name="今週の負荷量" testID={testID} label={link ? `${label}。筋トレの推移を開く` : label}
+        note={`先週比 ${pct != null ? `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` : '—'}`}
+        chart={<WeekMini dates={dates} values={gauge.thisWeek} today={today} mark={today} dashed={gauge.lastWeek.reduce((a, b) => a + b, 0) / 7} />}
+        value={<LedgerValue value={ready ? gauge.totalKg : null} format={(v) => tonnes(v, unit)} />} unit={tUnit}
+        onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } }) : undefined} />
+    );
+  }
   return (
     <Panel testID={testID} label={link ? `${label}。筋トレの推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.navigate({ pathname: '/training', params: { view: 'trend', focus: 'load' } }) : undefined}>
@@ -227,6 +246,15 @@ export function SleepPanel({ gauge, today, link = true, testID = 'home-sleep' }:
   const max = Math.max(gauge.goalMin * 1.25, ...gauge.days.map((d) => d.min ?? 0));
   const goalY = (gauge.goalMin / max) * BAR_H;
   const label = `睡眠。昨夜 ${gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '記録なし'}${gauge.averageMin != null ? `。7日の平均 ${formatHM(gauge.averageMin)}` : ''}。目標 7時間`;
+  if (!isHud) {
+    return (
+      <LedgerRow name="昨夜の睡眠" testID={testID} label={link ? `${label}。睡眠の推移を開く` : label}
+        note={`平均 ${gauge.averageMin != null ? formatHM(gauge.averageMin) : '—'}`}
+        chart={<WeekMini dates={gauge.days.map((d) => d.date)} values={gauge.days.map((d) => d.min)} today={today} mark={today} />}
+        value={<LedgerValue text={gauge.lastNightMin != null ? formatHM(gauge.lastNightMin) : '—'} />} unit="時間"
+        onPress={link ? () => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } }) : undefined} />
+    );
+  }
   return (
     <Panel testID={testID} label={link ? `${label}。睡眠の推移を開く` : label} style={s.gauge}
       onPress={link ? () => router.push({ pathname: '/health-trend', params: { kind: 'sleep' } }) : undefined}>
@@ -260,6 +288,12 @@ export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home
 }) {
   const value = weightKg != null ? fmt1(kgToUnit(weightKg, unit)) : '—';
   const spoken = weightKg != null ? `体重 ${value} ${unit}${goal ? `。${goal}` : ''}` : '体重 記録なし';
+  if (!isHud) {
+    return (
+      <LedgerRow name={label} note={goal} testID={testID} label={`${spoken}。からだのタブを開く`} onPress={onPress}
+        value={<LedgerValue text={value} />} unit={unit} />
+    );
+  }
   return (
     <Panel testID={testID} label={`${spoken}。からだのタブを開く`} onPress={onPress} style={s.bodyPanel}>
       {deco.enLabels ? <Mono color={colors.accent} size={11}>{label}</Mono> : <T size={13} color={colors.sub}>{label}</T>}
@@ -273,8 +307,8 @@ export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home
 }
 
 const CELL_BG = [hudColors.empty, hudColors.mint1, hudColors.mint2, hudColors.mint3];
-/** マスの上の文字の色。クラシックの塗りは落ち着いた濃淡なので、どの段でも本文の色 */
-const onCell = (level: number) => (isHud && level >= 2 ? colors.onAccent : colors.text);
+/** マスの上の文字の色。クラシックは墨の濃淡なので、1 段・2 段は墨、3 段（濃い墨）は紙の色 */
+const onCell = (level: number) => (isHud ? (level >= 2 ? colors.onAccent : colors.text) : level >= 3 ? colors.bg : colors.text);
 
 /**
  * LOG：直近 4 週の方眼（月曜始まり、今週がいちばん下）。塗りの濃さは負荷量（3 段）、右下に部位の頭文字、下線は食事の目標を達成、
@@ -285,14 +319,14 @@ export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
   weeks: LogWeek[]; month: { month: string; monthJa: string; days: number; volumeKg: number } | null; selected: DateKey; unit: WeightUnit; onPressDay: (d: DateKey) => void;
 }) {
   return (
-    <Panel testID="home-log" style={{ paddingHorizontal: space.m }}>
+    <Panel testID="home-log" style={isHud ? { paddingHorizontal: space.m } : undefined}>
       <Head left={`LOG // ${logWeekRange(weeks.map((w) => w.label))}`} ja="直近4週" strong
         right={month ? lbl(`${month.month}  ${month.days}D · ${tonnes(month.volumeKg, unit)}${unit === 'kg' ? 'T' : 'K LB'}`, `${month.monthJa} 筋トレ ${month.days}日 · ${tonnes(month.volumeKg, unit)} ${unit === 'kg' ? 't' : 'k lb'}`) : null} />
       <View style={[s.logRow, { marginTop: space.xs }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={s.weekLabel} />
         {(weeks[0]?.cells ?? []).map((c) => (
           <View key={c.date} style={s.logHead}>
-            {deco.enLabels ? <Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono> : <T size={11} color={colors.sub}>{WEEKDAY_JA[weekday(c.date)]}</T>}
+            {deco.enLabels ? <Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono> : <T size={11} color={paper.muted}>{WEEKDAY_JA[weekday(c.date)]}</T>}
           </View>
         ))}
       </View>
@@ -324,7 +358,7 @@ function LogDay({ c, selected, unit, onPress }: { c: LogCell; selected: boolean;
       testID={`log-${c.date}`} accessibilityRole="button" accessibilityLabel={label}
       aria-selected={selected} disabled={c.future} onPress={onPress}
       style={({ pressed }) => [
-        s.cell, { backgroundColor: c.future ? 'transparent' : CELL_BG[c.level] },
+        s.cell, { backgroundColor: c.future ? 'transparent' : CELL_BG[c.level] }, !isHud && !c.future && c.level <= 1 && s.cellRule,
         c.future && s.cellFuture, c.today && s.cellToday, selected && !c.today && s.cellSelected, pressed && { opacity: 0.7 },
       ]}
     >
@@ -356,7 +390,7 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
       fuel.grams.map((g) => `${g.key === 'P' ? 'たんぱく質' : g.key === 'F' ? '脂質' : '炭水化物'} ${fmtInt(g.g)}g${g.target != null ? `／${fmtInt(g.target)}g` : ''}${pct(g.key) != null ? `（${pct(g.key)}%）` : ''}`).join('、'),
     ].join('。');
   const onPress = link ? () => router.navigate({ pathname: '/meals', params: { date, focus: 'fuel' } }) : undefined;
-  if (!isHud) return <FuelPanelClassic fuel={fuel} label={link ? `${label}。食事のタブを開く` : label} kcalRatio={kcalRatio} pct={pct} onPress={onPress} testID={testID} />;
+  if (!isHud) return <FuelLedger fuel={fuel} label={link ? `${label}。食事のタブを開く` : label} kcalRatio={kcalRatio} pct={pct} onPress={onPress} testID={testID} />;
   return (
     <Panel testID={testID} label={link ? `${label}。食事のタブを開く` : label} style={s.half}
       onPress={onPress}>
@@ -381,46 +415,6 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
             </View>
           ))}
         </View>
-      </View>
-    </Panel>
-  );
-}
-
-const PFC_NAMES = { P: 'たんぱく質', F: '脂質', C: '炭水化物' } as const;
-
-/**
- * クラシックの FUEL（Figma「ホーム（unslop 案）」の今日の食事）：見出しと日の種類、摂った kcal と目標、補足に「あと N kcal」、
- * kcal の棒（ミント）と、PFC の 3 行（名前・割合・グラム／目標と灰色の棒）。ドーナツは使わない
- */
-function FuelPanelClassic({ fuel, label, kcalRatio, pct, onPress, testID }: {
-  fuel: FuelGauge | null; label: string; kcalRatio: number; pct: (k: 'P' | 'F' | 'C') => number | null; onPress?: () => void; testID: string;
-}) {
-  const left = fuel?.kcalTarget != null ? fuel.kcalTarget - fuel.kcal : null;
-  return (
-    <Panel testID={testID} label={label} style={{ ...s.half, ...s.fuelClassic }} onPress={onPress}>
-      <Head left="FUEL //" ja="今日の食事" strong right={fuel ? DAY_TYPE_LABELS[fuel.dayType] : null} />
-      <View style={[s.head, { alignItems: 'baseline', marginTop: space.s }]}>
-        <View style={s.big}>
-          <CountToText value={fuel ? fuel.kcal : null} format={(v) => fmtInt(v ?? 0)} num bold size={32} style={{ lineHeight: 38 }} />
-          <T size={14} color={colors.sub}>{fuel?.kcalTarget != null ? `/ ${fmtInt(fuel.kcalTarget)} kcal` : 'kcal'}</T>
-        </View>
-        {left != null ? <T size={13} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{left >= 0 ? `あと ${fmtInt(left)} kcal` : `${fmtInt(-left)} kcal 多い`}</T> : null}
-      </View>
-      <View style={[s.bar1, s.round, { marginTop: space.s }]}><View style={[s.fill, s.round, { width: `${kcalRatio * 100}%` }]} /></View>
-      <View style={{ gap: space.s, marginTop: space.m }}>
-        {(fuel?.grams ?? (['P', 'F', 'C'] as const).map((key) => ({ key, g: 0, target: null }))).map((g) => (
-          <View key={g.key} style={{ gap: space.xs }}>
-            <View style={[s.head, { alignItems: 'baseline' }]}>
-              <T size={12} numberOfLines={1} style={{ flexShrink: 1 }}>
-                {PFC_NAMES[g.key]}<T num size={14} color={colors.sub}>{`  ${pct(g.key) ?? '—'}%`}</T>
-              </T>
-              <T num size={14} color={colors.sub}>{g.target != null ? `${fmtInt(g.g)} / ${fmtInt(g.target)} g` : `${fmtInt(g.g)} g`}</T>
-            </View>
-            <View style={[s.bar1, s.round]}>
-              <View style={[s.fill, s.round, { backgroundColor: colors.outline, width: `${g.target ? Math.min(1, g.g / g.target) * 100 : 0}%` }]} />
-            </View>
-          </View>
-        ))}
       </View>
     </Panel>
   );
@@ -478,14 +472,14 @@ const s = StyleSheet.create({
   logHead: { flex: 1, alignItems: 'center' },
   cell: { flex: 1, height: 44, borderRadius: isHud ? 2 : 6, overflow: 'hidden' },
   cellFuture: { borderWidth: 1, borderColor: colors.line },
+  // クラシックの空のマスと 1 段のマスは、罫の枠で囲む（「クラシックの決まり」）
+  cellRule: { borderWidth: 1, borderColor: colors.line },
   cellToday: { borderWidth: 1.5, borderColor: colors.accent },
   cellSelected: { borderWidth: 1.5, borderColor: colors.text },
   cellDay: { position: 'absolute', left: 3, top: 2, lineHeight: 13 },
   cellPart: { position: 'absolute', right: 3, bottom: 4, lineHeight: 14 },
   weighDot: { position: 'absolute', right: 4, top: 4, width: 4, height: 4, borderRadius: 2 },
   injuryDot: { position: 'absolute', left: 4, bottom: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: INJURY_RED },
-  fuelClassic: { paddingHorizontal: space.l + space.xs, paddingVertical: space.l },
-  round: { borderRadius: 2 },
   injury: {
     position: 'absolute', left: 3, bottom: 5, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 8,
     borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: INJURY_RED,

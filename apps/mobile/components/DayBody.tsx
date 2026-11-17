@@ -9,13 +9,16 @@ import type { DateKey } from '@/lib/date';
 import { dayBodyEntries } from '@/lib/dayBody';
 import { layoutCallouts, PlacedCallout } from '@/lib/dayCallouts';
 import { Muscle, musclesForParts, MuscleView } from '@/lib/muscleFigure';
-import { colors, isHud, space } from '@/theme';
+import { colors, isHud, space, stageColors } from '@/theme';
+import { matteVolume } from '@/theme/matte';
 import { DayBody3D, DayBody3DProps, DayBodyAttribution, DayBodyEntry } from './DayBody3D';
 import { DayBodyTag, DAY_TAG_W, MoreTag, tagHeight } from './dayBodyTag';
 import { MuscleFigure } from './MuscleFigure';
 
 /** 札と体をつなぐ線の色（クラシックは補足の灰色） */
-const LEADER = isHud ? colors.accent : colors.sub;
+const LEADER = isHud ? colors.accent : stageColors.outline;
+/** その日の部位の塗り。クラシックは 3D のつや消しの体と同じ（部位の量のいちばん濃い青） */
+const PAINT = isHud ? colors.accent : matteVolume(5);
 
 export type DayBodyProps = {
   width: number;
@@ -136,7 +139,7 @@ function Figure2D({ width, band, entries, parts, fills, perSide = 3, onPickPoint
     <View style={StyleSheet.absoluteFill} pointerEvents={onPressEntry || onPickPoint ? 'box-none' : 'none'} testID="day-body-2d">
       {(['front', 'back'] as const).map((view) => (
         <View key={view} pointerEvents="none" style={{ position: 'absolute', left: view === 'front' ? frontX : backX, top: band.top }}>
-          <MuscleFigure view={view} paint={paint} paintColor={colors.accent} fills={fills} width={figW} height={figH} />
+          <MuscleFigure view={view} paint={paint} paintColor={PAINT} fills={fills} width={figW} height={figH} />
         </View>
       ))}
       <Svg width={width} height={band.bottom} style={StyleSheet.absoluteFill} pointerEvents="none">
