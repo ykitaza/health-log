@@ -75,10 +75,14 @@ const BALANCE_RANGE = 'history.balance_range';
 /** ホームの 3D の体の色の見方（回復か部位の量か。lib/partVolume.ts）。端末だけに覚える（同期しない sync_meta に置く） */
 const HERO_BODY_MODE = 'home.hero_body_mode';
 /**
- * 見た目（HUD・クラシック。theme/appearance.ts）。端末だけに覚える（同期しない sync_meta に置く）。
- * 起動の前に theme が同期で読むので、変えたらアプリを開き直すと反映される。web は localStorage にも写す
+ * 見た目（HUD・クラシック。theme/appearance.ts）。起動の前に theme が同期で読むので、端末の読み取り用の写しを sync_meta に置き
+ * （web は localStorage にも写す）、起動はいつもその写しだけを読む。変えたらアプリを開き直すと反映される。
+ * 端末をまたいで同じにするため、ほかの設定と同じ settings の表（ID は appearance_look）にも書いて同期する（後に書いたほうが勝つ）。
+ * 同期で届いた値は、sync.ts の applyStates が写しに書く（その場で開き直さない。今の表示と違えば設定の画面が知らせる）
  */
 const APPEARANCE = LOOK_KEY;
+/** 見た目の同期の ID（サーバーの設定の ID。値は hud か classic） */
+export const APPEARANCE_SETTING_ID = 'appearance_look';
 
 /**
  * 左右のスワイプのヒント（lib/swipe.ts）。出した回数は画面ごと、スワイプで日を動かしたかは全体で1つ。
@@ -188,9 +192,21 @@ export function settingsRepository(db: Db, deps: Deps) {
     setHeroBodyMode: (mode: HeroBodyMode): Promise<void> => putMeta(HERO_BODY_MODE, mode),
     /** 見た目。覚えていない・知らない値なら HUD */
     appearance: async (): Promise<Look> => parseLook(await meta(APPEARANCE)),
-    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない。web は localStorage にも写す */
+    /** 端末の写し（sync_meta。web は localStorage にも）と、同期する設定の行の両方に書く。今の行と同じ値なら行は書かない */
     async setAppearance(look: Look): Promise<void> {
-      await putMeta(APPEARANCE, look);
+      const now = deps.now().toISOString();
+      await db.withTransactionAsync(async () => {
+        await putMeta(APPEARANCE, look);
+        const row = await db.getFirstAsync<{ value: string | null; deleted_at: string | null }>(
+          'SELECT value, deleted_at FROM settings WHERE id = ?', [APPEARANCE_SETTING_ID],
+        );
+        if (row && row.value === look && row.deleted_at == null) return;
+        await db.runAsync(
+          `INSERT INTO settings (id, value, created_at, updated_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT (id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, deleted_at = NULL`,
+          [APPEARANCE_SETTING_ID, look, now, now],
+        );
+      });
       mirrorLook(look);
     },
 
@@ -236,5 +252,5 @@ export function settingsRepository(db: Db, deps: Deps) {
         }
       });
     },
-  }, ['update']);
+  }, ['update', 'setAppearance']);
 }
