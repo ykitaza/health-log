@@ -100,7 +100,8 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
                     s.cellBox,
                     // 幅が足りなければ縮める（360 の幅など）。足りれば cell の大きさ
                     { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: cell / 2 },
-                    d.inMonth && { borderWidth: 1, borderColor: colors.line },
+                    // マスの枠は今日と記録のある日だけ（ほかの日は透明の枠。大きさは変えない）
+                    d.inMonth && { borderWidth: 1, borderColor: 'transparent' },
                     isMarked && (markStyle === 'ring'
                       ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentDark }
                       : { borderColor: colors.accentDark, backgroundColor: colors.accentDark }),

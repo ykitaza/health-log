@@ -124,7 +124,7 @@ export function RecordSheet({ visible, date, today, onClose }: { visible: boolea
                 style={[s.sheetRow, i > 0 && s.line]}
                 testID={`record-${r.key}`}
               >
-                <View style={s.rowIcon}><Icon name={r.icon} size={24} color={isHud ? colors.onAccentDark : colors.text} /></View>
+                <View style={s.rowIcon}><Icon name={r.icon} size={24} color={isHud ? colors.sub : colors.text} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T variant="titleM">{r.title}</T>
                   <T variant="bodyM" color={colors.sub}>{r.sub}</T>
@@ -186,8 +186,11 @@ const s = StyleSheet.create({
   // クラシックの行は罫の端（シートの余白）にそろえる
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: isHud ? space.l : 0, paddingVertical: space.m, minHeight: 72 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  // HUD はアイコンを緑の地に載せず、枠だけの四角に灰色のアイコン（緑は開いた FAB の「記録する」だけ。行どうしが主な操作と競わない）。
   // クラシックはアイコンを緑の地に載せず、墨のアイコンだけ（幅 24。文字の左の端を行ごとにそろえる）
-  rowIcon: isHud ? { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' } : { width: 24, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: isHud
+    ? { width: 40, height: 40, borderRadius: radius.m, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }
+    : { width: 24, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: HEADER_ROW },
   // 押せる大きさは 48。写真（32）の左の端を、画面の左の余白（16）にそろえる
   account: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center', marginLeft: -(size.touch - AVATAR_SIZE) / 2 },
