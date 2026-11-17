@@ -12,7 +12,7 @@ import {
   Highlight, highlightsFor, KIND_LABELS, Metric, metricLabel, parseMarkdown, primaryMetrics, Report, reportCardLabel, ReportKind, Span, Tone,
   KIND_SHORT, TONE_LABELS, TONE_SHORT,
 } from '@/lib/reports';
-import { colors, onToneSub, radius, space, toneColors } from '@/theme';
+import { colors, isHud, onToneSub, radius, space, toneColors } from '@/theme';
 import { duration, HOLD_MS, springs, staggerDelay } from '@/theme/motion';
 import { CountUpText } from './charts';
 import { Icon, IconName } from './Icon';
@@ -66,10 +66,13 @@ export function Delta({ metric, size = 13, suffix }: { metric: Metric; size?: nu
   );
 }
 
-/** 一覧とホームのカードの、小さな指標 */
+/** 一覧とホームのカードの、小さな指標。クラシックは塗らず、数字を帳の行に並べる */
+const METRIC_CHIP = isHud
+  ? { flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: colors.input, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 } as const
+  : { flexDirection: 'row', alignItems: 'baseline', gap: 4, paddingRight: 8, paddingVertical: 4 } as const;
 function MetricChip({ metric }: { metric: Metric }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: colors.input, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+    <View style={METRIC_CHIP}>
       <T size={11} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{metric.label}</T>
       <T num bold size={17} numberOfLines={1}>{formatMetricValue(metric.value)}</T>
       {metric.unit !== '' && <T size={11} color={colors.sub} numberOfLines={1}>{metric.unit}</T>}
@@ -117,6 +120,11 @@ function MetricRow({ metrics, hideEmpty = false }: { metrics: Metric[]; hideEmpt
   );
 }
 
+/** 種類の四角：HUD は一段明るい面。クラシックは塗らず、罫の色の枠（帳の欄の札） */
+const KIND_SQUARE = isHud
+  ? { width: 28, height: 28, borderRadius: radius.s, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' } as const
+  : { width: 28, height: 28, borderRadius: radius.xs, borderWidth: 1, borderColor: colors.outline, alignItems: 'center', justifyContent: 'center' } as const;
+
 /**
  * カードの左上の、レポートの種類の四角（28dp の角丸に「日」「週」「月」「他」の1文字）。色ではなく文字で分ける。
  * 読み上げはカード全体の名前（reportCardLabel）に「週のまとめ」などの名前で入れる
@@ -124,7 +132,7 @@ function MetricRow({ metrics, hideEmpty = false }: { metrics: Metric[]; hideEmpt
 function KindSquare({ kind }: { kind: ReportKind }) {
   return (
     <View
-      style={{ width: 28, height: 28, borderRadius: radius.s, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}
+      style={KIND_SQUARE}
       accessibilityLabel={KIND_LABELS[kind]}
       testID="report-kind"
     >
@@ -132,6 +140,11 @@ function KindSquare({ kind }: { kind: ReportKind }) {
     </View>
   );
 }
+
+/** カードの面：HUD は塗ったカード。クラシックは塗らず、帳の行（左右は紙の端にそろえる。区切りは置き場所の罫） */
+const REPORT_CARD = isHud
+  ? { flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.card, overflow: 'hidden', minHeight: 72 } as const
+  : { flexDirection: 'row', minHeight: 72 } as const;
 
 /**
  * 一覧とホームのカード：上の行に種類の四角、調子のアイコンとラベル（調子は色の帯ではなく、アイコンと言葉で伝える）、日付（一覧の並びと同じ、期間の日付）。
@@ -151,9 +164,9 @@ export function ReportCard({ report, onPress, unread = false, dense = false }: {
       scaleTo={0.98}
       onPress={onPress}
       testID={`report-${report.id}`}
-      style={{ flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.card, overflow: 'hidden', minHeight: 72 }}
+      style={REPORT_CARD}
     >
-      <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 16, paddingRight: 8, gap: 6 }}>
+      <View style={{ flex: 1, paddingVertical: 12, paddingLeft: isHud ? 16 : 0, paddingRight: 8, gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <KindSquare kind={report.kind} />
           <Icon name={TONE_ICON[report.tone]} size={18} color={tone.accent} />
@@ -169,7 +182,7 @@ export function ReportCard({ report, onPress, unread = false, dense = false }: {
         <T size={14} color={colors.sub} numberOfLines={1}>{report.headline || '\u00A0'}</T>
         <MetricRow metrics={metrics} hideEmpty={dense} />
       </View>
-      <View style={{ justifyContent: 'center', paddingRight: 12 }}>
+      <View style={{ justifyContent: 'center', paddingRight: isHud ? 12 : 0 }}>
         <Icon name="chevron" size={20} color={colors.sub} />
       </View>
     </PressableScale>
@@ -349,6 +362,20 @@ export function ReportSection({ title, children }: { title: string; children: Re
 
 
 /**
+ * 日のまとめの分野のカードの形。HUD は点線の枠と丸に載せたアイコン。
+ * クラシックは帳の中の書き抜き：箱にせず、左に罫の色の 2px の線（記録の行と見分ける）、アイコンは丸に載せない
+ */
+const DAILY_CARD = isHud
+  ? {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card,
+    paddingVertical: 12, paddingLeft: 12, paddingRight: 8, minHeight: 48,
+  } as const
+  : { flexDirection: 'row', alignItems: 'center', gap: 12, borderLeftWidth: 2, borderLeftColor: colors.outline, paddingVertical: 8, paddingLeft: 12, minHeight: 48 } as const;
+const DAILY_ICON = isHud
+  ? { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' } as const
+  : { width: 24, alignItems: 'center', justifyContent: 'center' } as const;
+
+/**
  * 日のまとめの分野のカード（Figma の DailyHighlightCard）。書類のアイコン（レポートから抜き出したもの）、分野の名前、調子の印（アイコンと言葉）、
  * 一文、指標があれば値と変化。記録のカード（塗りのカード）と見分けられるよう、塗りをなくして点線の枠にする。
  * 全体が1つのボタンで、押すと日のまとめの中身を開く
@@ -365,19 +392,17 @@ export function DailyHighlightCard({ highlight, index, onPress }: { highlight: H
         accessibilityHint="日のまとめを開く"
         scaleTo={0.98}
         onPress={onPress}
-        style={{
-          flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card,
-          paddingVertical: 12, paddingLeft: 12, paddingRight: 8, minHeight: 48,
-        }}
+        style={DAILY_CARD}
         testID="daily-highlight"
       >
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={DAILY_ICON}>
           <Icon name="report" size={22} color={colors.text} />
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <T variant="labelM" color={colors.sub}>{AREA_LABELS[highlight.area]}</T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: tone.container, borderRadius: radius.pill, paddingLeft: 6, paddingRight: 8, paddingVertical: 2 }}>
+            <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 6, paddingRight: 8, paddingVertical: 2 },
+              isHud ? { backgroundColor: tone.container, borderRadius: radius.pill } : { borderWidth: 1, borderColor: tone.accent, borderRadius: radius.xs }]}>
               <Icon name={TONE_ICON[highlight.tone]} size={14} color={tone.accent} />
               <T variant="labelS" color={tone.accent}>{TONE_SHORT[highlight.tone]}</T>
             </View>

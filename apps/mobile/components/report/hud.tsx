@@ -78,6 +78,9 @@ const CLASSIC_REPORT: { readonly [K in keyof typeof HUD_REPORT]: string } = {
 /** この画面の色。見た目（look）で HUD のモックの色かテーマの色かを選ぶ */
 export const hud = isHud ? HUD_REPORT : CLASSIC_REPORT;
 
+/** パネルの中の表・行の左右の余白。クラシックはパネルを箱にしないので、中身も紙の端にそろえる（0） */
+export const PAD = isHud ? 14 : 0;
+
 /** 等幅の字（Share Tech Mono）。読み込む前・読み込めなかったときはシステムの monospace */
 const MonoContext = createContext<string>('monospace');
 
@@ -207,7 +210,7 @@ export function NotchChip({ children, fill, border, cut = 6, style }: {
 /** 表の頭（.week-table-head）：左に緑のマイクロラベル（クラシックは日本語の leftJa）、右にマイクロラベル。下に線 */
 export function TableHead({ left, leftJa, right }: { left: string; leftJa?: string; right?: string }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: hud.line2 }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: PAD, paddingTop: 10, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: hud.line2 }}>
       {deco.enLabels ? <Micro green>{left}</Micro> : <T bold size={13} color={hud.ink}>{leftJa ?? left}</T>}
       {right ? <Micro>{right}</Micro> : null}
     </View>
@@ -340,7 +343,11 @@ export function GoalTrack({ ratio, tick, big = false, testIDTick }: { ratio: num
 
 /** 枠だけの小さな札（.milestone / .hero-pill / .f-badge） */
 export function OutlineTag({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[{ borderWidth: 1, borderColor: hud.line, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }, style]}>{children}</View>;
+  // クラシックは塗らない（呼ぶ側の地の色を消す）。枠は罫の枠より一段濃い outline の小さな角（components/ui の TAG と同じ形）
+  return (
+    <View style={[{ borderWidth: 1, borderColor: hud.line, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }, style,
+      !isHud && { backgroundColor: 'transparent', borderColor: colors.outline, borderRadius: radius.xs }]}>{children}</View>
+  );
 }
 
 /** 和文の中の切りのよい重さ（70.0 → 70、69.8 → 69.8。モックの「70kgまで」「目標：80kg」） */

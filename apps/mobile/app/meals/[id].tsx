@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, RULED, Segmented } from '@/components/ui';
+import { ADD_ROW, Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
@@ -15,7 +15,7 @@ import {
   TEMPLATE_NAME_MAX, templateNameError, Unit, UNITS,
 } from '@/lib/meals';
 import { fmt1, fmtInt, parseNumber, trimNumber } from '@/lib/units';
-import { colors, fonts, radius } from '@/theme';
+import { colors, fonts, isHud, radius } from '@/theme';
 
 /** 画面で直している品目。saved は保存してある品目（量を変えるときは、ここから同じ割合で計算する）。足した品目は saved がない */
 type Row = { key: string; saved: MealItem | null; item: MealItem; amountText: string };
@@ -182,7 +182,7 @@ export default function MealDetailScreen() {
                 <T size={12} color={colors.sub}>{r.item.unit}</T>
                 <IconButton name="up" label={`${r.item.name}の量を増やす`} bg="transparent" onPress={() => bump(r, 1)} />
               </View>
-              <IconButton name="trash" label={`${r.item.name}を外す`} bg={colors.input} color={colors.sub} onPress={() => removeRow(r.key)} />
+              <IconButton name="trash" label={`${r.item.name}を外す`} bg={isHud ? colors.input : 'transparent'} color={colors.sub} onPress={() => removeRow(r.key)} />
             </View>
           </View>
         ))}
@@ -212,9 +212,9 @@ export default function MealDetailScreen() {
           </View>
         </Card>
       ) : (
-        <Pressable accessibilityRole="button" onPress={() => setDraft(emptyDraft())} style={s.addItem}>
-          <Icon name="plus" size={18} color={colors.accent} />
-          <T bold size={15} color={colors.accent}>品目を追加</T>
+        <Pressable accessibilityRole="button" onPress={() => setDraft(emptyDraft())} style={[s.addItem, ADD_ROW.style]}>
+          <Icon name="plus" size={18} color={ADD_ROW.fg} />
+          <T bold size={15} color={ADD_ROW.fg}>品目を追加</T>
         </Pressable>
       )}
 
@@ -248,10 +248,14 @@ export default function MealDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  item: { padding: 16 },
+  // クラシックの品目の行は、帳の端（画面の余白）にそろえる
+  item: { padding: 16, ...(isHud ? null : { paddingHorizontal: 0 }) },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.input, borderRadius: 12, paddingHorizontal: 2 },
-  amount: { width: 72, height: 40, textAlign: 'center', color: colors.text, fontFamily: fonts.numBold, fontSize: 20 },
+  // 量の欄：HUD は一段明るい面の角丸。クラシックは塗らず、数の下にだけ罫を引く帳の記入欄（RULED と同じ）
+  stepper: isHud
+    ? { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.input, borderRadius: 12, paddingHorizontal: 2 }
+    : { flexDirection: 'row', alignItems: 'center', marginLeft: -12 },
+  amount: { width: 72, height: 40, textAlign: 'center', color: colors.text, fontFamily: fonts.numBold, fontSize: 20, ...(isHud ? null : { borderBottomWidth: 1, borderBottomColor: colors.outline }) },
   // クラシックは塗らず下の罫だけ（RULED）
   text: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, ...RULED },
   addItem: {

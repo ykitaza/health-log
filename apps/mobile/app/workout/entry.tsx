@@ -350,8 +350,8 @@ function NumberInput({ value, placeholder, onChange, error, shake = 0, decimal, 
         selectTextOnFocus
         style={[
           s.input,
-          focused && { borderColor: colors.accent, borderWidth: 2 },
-          error && { borderColor: colors.danger, borderWidth: 2 },
+          focused && (isHud ? { borderColor: colors.accent, borderWidth: 2 } : { borderBottomColor: colors.accent, borderBottomWidth: 2 }),
+          error && (isHud ? { borderColor: colors.danger, borderWidth: 2 } : { borderBottomColor: colors.danger, borderBottomWidth: 2 }),
         ]}
       />
     </Shake>
@@ -362,10 +362,16 @@ const s = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.m, padding: 4, marginHorizontal: -4 },
   // 重量・回数の欄（M3 の outlined text field を詰めたもの。高さ 48、枠 3.7:1、選んでいる欄は緑の 2px、間違いは赤の 2px）
-  input: {
-    width: '100%', height: 48, borderRadius: radius.input, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.outline,
-    color: colors.text, fontFamily: fonts.num, fontSize: 18, textAlign: 'center',
-  },
+  // クラシックは帳のマスの記入欄：枠で囲まず、下の罫だけ（選んでいる・間違いは下の罫を 2px に。components/Field と同じ）
+  input: isHud
+    ? {
+      width: '100%', height: 48, borderRadius: radius.input, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.outline,
+      color: colors.text, fontFamily: fonts.num, fontSize: 18, textAlign: 'center',
+    }
+    : {
+      width: '100%', height: 48, borderBottomWidth: 1, borderBottomColor: colors.outline,
+      color: colors.text, fontFamily: fonts.num, fontSize: 20, textAlign: 'center',
+    },
   doneTouch: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   done: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   // メモの欄（M3 の filled text field。高さ 48、下に線）

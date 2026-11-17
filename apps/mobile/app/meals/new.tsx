@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, Header, IconButton, RULED, Segmented } from '@/components/ui';
+import { ADD_ROW, Button, Card, Chip, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
@@ -102,9 +102,9 @@ export default function NewMealScreen() {
       ))}
 
       {!numbers && items.length < MAX_ITEMS && (
-        <Pressable accessibilityRole="button" onPress={() => setItems((xs) => [...xs, emptyItem(false)])} style={s.addItem}>
-          <Icon name="plus" size={18} color={colors.accent} />
-          <T bold size={15} color={colors.accent}>品目を追加</T>
+        <Pressable accessibilityRole="button" onPress={() => setItems((xs) => [...xs, emptyItem(false)])} style={[s.addItem, ADD_ROW.style]}>
+          <Icon name="plus" size={18} color={ADD_ROW.fg} />
+          <T bold size={15} color={ADD_ROW.fg}>品目を追加</T>
         </Pressable>
       )}
 

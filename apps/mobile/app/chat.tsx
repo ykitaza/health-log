@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { SCHEDULE_LABEL, useScheduleSheet } from '@/components/ChatSheet';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Header, SectionTitle } from '@/components/ui';
+import { Button, Card, Header, RULED, SectionTitle } from '@/components/ui';
 import { mcpServerUrl } from '@/lib/auth/config';
 import { CHAT_APP_NAMES, CHAT_APPS, ChatApp, openChat, openFailedMessage } from '@/lib/chat';
 import { colors, radius, space } from '@/theme';
@@ -33,8 +33,8 @@ export default function ChatScreen() {
         <T variant="titleM">MCP サーバーの URL</T>
         {mcpServerUrl ? (
           <>
-            {/* 長押しで選んでコピーできる */}
-            <View style={{ backgroundColor: colors.input, borderRadius: radius.input, padding: space.m }}>
+            {/* 長押しで選んでコピーできる。クラシックは塗らず、下の罫だけの帳の記入欄（RULED） */}
+            <View style={[{ backgroundColor: colors.input, borderRadius: radius.input, padding: space.m }, RULED]}>
               <T variant="bodyM" selectable testID="mcp-url">{mcpServerUrl}</T>
             </View>
             <T variant="bodyS" color={colors.sub}>長押しで選んでコピーできます。</T>

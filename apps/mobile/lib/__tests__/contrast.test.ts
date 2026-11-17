@@ -175,4 +175,14 @@ describe('クラシックの共通の部品の色（components/ui・Field・Mont
   test('カレンダーの曜日（補足の色）は紙の上で 4.5:1 以上', () => {
     expect(contrastRatio(c.sub, c.bg)).toBeGreaterThanOrEqual(4.5);
   });
+  test('塗らない札（Badge・TAG・ケガの状態）の文字は、紙の上で 4.5:1 以上。新着の札は墨の地に紙の文字', () => {
+    for (const fg of [c.accent, c.sub, c.danger, c.star, c.text]) expect(contrastRatio(fg, c.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(c.bg, c.text)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('調子の文字（レポートのカード・日のまとめの塗らない札）は、紙の上で 4.5:1 以上', () => {
+    for (const t of Object.values(CLASSIC_TONE_COLORS)) expect(contrastRatio(t.accent, c.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('札・記入欄の枠（outline）は紙の上で 3:1 以上（文字でない印）', () => {
+    expect(contrastRatio(c.outline, c.bg)).toBeGreaterThanOrEqual(3);
+  });
 });

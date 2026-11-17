@@ -7,7 +7,7 @@ import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, ConfirmDialog, Header, ListRow, RULED } from '@/components/ui';
+import { Button, Card, ConfirmDialog, Header, ListRow, RULED, TAG } from '@/components/ui';
 import { HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
@@ -150,7 +150,7 @@ export default function ManageScreen() {
                   dim={e.hidden}
                   onPress={() => router.push({ pathname: '/exercises/[id]', params: { id: e.id } })}
                   right={
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }, TAG]}>
                       {e.hidden && <Icon name="eyeOff" size={13} color={colors.sub} />}
                       <T size={12} color={colors.sub}>{e.hidden ? '非表示' : '表示中'}</T>
                     </View>

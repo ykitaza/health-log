@@ -5,9 +5,9 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { AREA_LABELS, Block, linkCaption, parseMarkdown, ReportLink, ReportReview, Span } from '@/lib/reports';
-import { deco, lbl } from '@/theme';
+import { colors, deco, isHud, lbl } from '@/theme';
 import { T } from '../Text';
-import { hud, JaVal, Micro, Mono, NotchChip, Panel, PanelHead, StatusRow, TableHead } from './hud';
+import { hud, PAD, JaVal, Micro, Mono, NotchChip, Panel, PanelHead, StatusRow, TableHead } from './hud';
 
 /**
  * チェックできる次の一歩（日＝明日の一歩、週＝来週の焦点）。押せる大きさ 44 の四角の箱（チェックでミントの塗りに ✓）と、太い文。
@@ -33,13 +33,27 @@ export function CheckSteps({ en, title, steps, done, onToggle, streak, testID }:
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, paddingVertical: 4 }}
               testID={`todo-${i}`}
             >
-              <NotchChip fill={checked ? hud.green : hud.panel2} border={checked ? undefined : hud.line} style={{ width: 44, height: 44 }}>
-                {checked && (
-                  <Svg width={22} height={22} viewBox="0 0 24 24">
-                    <Path d="M4 12.5 L9.5 18 L20 6.5" stroke={hud.onGreen} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </Svg>
-                )}
-              </NotchChip>
+              {isHud ? (
+                <NotchChip fill={checked ? hud.green : hud.panel2} border={checked ? undefined : hud.line} style={{ width: 44, height: 44 }}>
+                  {checked && (
+                    <Svg width={22} height={22} viewBox="0 0 24 24">
+                      <Path d="M4 12.5 L9.5 18 L20 6.5" stroke={hud.onGreen} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </Svg>
+                  )}
+                </NotchChip>
+              ) : (
+                // クラシック：帳のチェックの欄（ホームの今週やることと同じ 22 の四角を紙の端に。押せる大きさは行の高さ 44 以上）
+                <View style={{ width: 22, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={[{ width: 22, height: 22, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+                    checked ? { backgroundColor: hud.green, borderColor: hud.green } : { borderColor: colors.outline }]}>
+                    {checked && (
+                      <Svg width={16} height={16} viewBox="0 0 24 24">
+                        <Path d="M4 12.5 L9.5 18 L20 6.5" stroke={hud.onGreen} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </Svg>
+                    )}
+                  </View>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <T bold size={15.5} color={checked ? hud.muted : hud.ink} style={[{ lineHeight: 23 }, checked && { textDecorationLine: 'line-through' }]}>{step}</T>
                 <T size={11.5} color={hud.muted} style={{ marginTop: 2 }}>{checked ? '済み。もう一度押すと外せます' : 'できたらタップしてチェック'}</T>
@@ -48,7 +62,7 @@ export function CheckSteps({ en, title, steps, done, onToggle, streak, testID }:
           );
         })}
       </View>
-      {streak && <Mono size={11.5} color={hud.green} style={{ marginTop: 8, marginLeft: 56, fontWeight: '700' }} testID="report-daily-streak">{streak}</Mono>}
+      {streak && <Mono size={11.5} color={hud.green} style={{ marginTop: 8, marginLeft: isHud ? 56 : 34, fontWeight: '700' }} testID="report-daily-streak">{streak}</Mono>}
     </Panel>
   );
 }
@@ -58,7 +72,7 @@ export function MonthlyTaskBlock({ steps }: { steps: string[] }) {
   return (
     <Panel testID="report-monthly-task">
       <TableHead left="Monthly Task" leftJa="今月の課題" right={lbl('This Month', '今月')} />
-      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
         {steps.map((s, i) => (
           <StatusRow key={i} en={i === 0 ? 'Monthly Task' : `Task ${String(i + 1).padStart(2, '0')}`} ja={i === 0 ? '今月の課題' : `課題 ${i + 1}`}
             last={i === steps.length - 1} value={<JaVal>{s}</JaVal>} />
@@ -118,7 +132,7 @@ export function MoreFold({ links, review, body }: { links: ReportLink[]; review:
         accessibilityState={{ expanded: open }}
         accessibilityLabel={MORE_LABEL}
         onPress={() => setOpen((o) => !o)}
-        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 }}
+        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: PAD }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
           {deco.enLabels && <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>MORE</Mono>}
@@ -127,7 +141,7 @@ export function MoreFold({ links, review, body }: { links: ReportLink[]; review:
         <T size={13} color={hud.green}>{open ? '▾' : '▸'}</T>
       </Pressable>
       {open && (
-        <View style={{ borderTopWidth: 1, borderTopColor: hud.line2, paddingHorizontal: 14, paddingBottom: 10 }}>
+        <View style={{ borderTopWidth: 1, borderTopColor: hud.line2, paddingHorizontal: PAD, paddingBottom: 10 }}>
           {links.length > 0 && (
             <>
               <SubHead en="Links" title="つながり" />

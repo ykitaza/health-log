@@ -199,8 +199,9 @@ export function PreviousTodoCard({ week }: { week: TodoWeek }) {
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l },
-  section: { marginTop: space.s, paddingHorizontal: space.l, paddingTop: space.s, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  // クラシックは箱にせず、上の罫で区切る帳の段（左右は紙の端にそろえる。components/ui の Card と同じ）
+  card: isHud ? { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l } : { borderTopWidth: 1, borderTopColor: colors.line, paddingVertical: space.l },
+  section: { marginTop: space.s, paddingHorizontal: isHud ? space.l : 0, paddingTop: space.s, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
   doneRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 48, marginVertical: -space.s },
   todoRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, minHeight: 48, paddingVertical: space.xs },
