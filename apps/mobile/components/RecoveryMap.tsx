@@ -15,7 +15,7 @@ import {
   recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
-import { colors, deco, lbl, recoveryPalette, rowOnFill, space } from '@/theme';
+import { colors, deco, isHud, lbl, overlayFill, recoveryPalette, rowOnFill, space } from '@/theme';
 import { Mono, ScanFrame } from './injuries';
 import { RecoveryFigure2D } from './DayRecovery';
 import { RecoveryCallout, RecoveryMap3D } from './RecoveryMap3D';
@@ -34,7 +34,9 @@ export type RecoveryInput = {
 const agoText = (p: PartRecovery, date: DateKey) => (p.last == null ? 'まだ' : relativeDays(p.last, date));
 
 /** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色 */
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
+/** 文字と印の回復中の色（紙の上でも読める濃い橙・黄土。図の塗りの ramp は使わない） */
+const RECOVERY_INK = { rest: recoveryPalette.rest };
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, RECOVERY_INK) : restColor(p, recoveryPalette));
 
 /** 選んだもの：筋トレの部位か、どの部位にもあたらない部品（部位の名前を付け替えたときなど） */
 type Selection = { part: string } | { mesh: string } | null;
@@ -201,7 +203,7 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   rowOn: { backgroundColor: rowOnFill },
-  rowPressed: { backgroundColor: 'rgba(255,255,255,0.04)' },
+  rowPressed: { backgroundColor: isHud ? 'rgba(255,255,255,0.04)' : 'rgba(27,25,22,0.05)' },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: space.s },
   rowBottom: { flexDirection: 'row', alignItems: 'center', gap: space.s },
   mark: { width: 4, alignSelf: 'stretch', borderRadius: 1 },
@@ -210,7 +212,7 @@ const s = StyleSheet.create({
   empty: { paddingVertical: space.m },
   more: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
   pick: {
-    marginTop: space.s, gap: 2, backgroundColor: 'rgba(14,16,19,0.8)', borderWidth: 1, borderColor: colors.accentMuted,
+    marginTop: space.s, gap: 2, backgroundColor: overlayFill, borderWidth: 1, borderColor: colors.accentMuted,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: space.s,
   },
   pickHead: { flexDirection: 'row', alignItems: 'center', gap: space.s },

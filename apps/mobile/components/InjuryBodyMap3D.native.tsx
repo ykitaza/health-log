@@ -9,10 +9,11 @@ import Svg from 'react-native-svg';
 import type { Injury } from '@/db/repositories/injuries';
 import { anchorFor, CALLOUT_H, facingOf, layoutCallouts, partsFor, siteOfPart } from '@/lib/bodyModel';
 import { siteLabel } from '@/lib/injuries';
-import { colors, lbl, space } from '@/theme';
+import { colors, lbl, overlayFill, space } from '@/theme';
 import { BodyAttribution, BodyCanvas, Fallback, Leader } from './bodyCanvas.native';
 import { InjuryBodyMap, Mono, ScanFrame, SideCallout } from './injuries';
 import { INJURY_AMBER } from './MuscleFigure';
+import { bodyColors } from '@/lib/bodyColors';
 import { BodyScene, Mark } from './bodyScene';
 import { T } from './Text';
 
@@ -48,6 +49,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
     scene.configure({
       marks, reduced, tipMarks: places.map((p) => marks.find((m) => m.id === p.id)!),
       onPick: setPicked, onTips: (v) => tips.set(v),
+      baseColor: bodyColors.neutral, fixedColor: bodyColors.fixed, fixingColor: bodyColors.fixing,
     });
   }, [scene, marks, places, reduced, tips]);
 
@@ -113,6 +115,6 @@ const s = StyleSheet.create({
   mapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pick: {
     position: 'absolute', left: space.l, bottom: space.s, flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 28,
-    backgroundColor: 'rgba(14,16,19,0.8)', borderWidth: 1, borderColor: colors.accentMuted, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2,
+    backgroundColor: overlayFill, borderWidth: 1, borderColor: colors.accentMuted, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2,
   },
 });

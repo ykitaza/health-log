@@ -2,11 +2,14 @@
 // onPress を渡すと押せる（ホームの LATEST：その日の記録のその種目へ）。押せないときは読み上げから隠す
 import { ReactNode } from 'react';
 import { View, ViewStyle } from 'react-native';
-import { exerciseNumber } from '@/lib/dayCallouts';
-import { colors, deco, fonts, isHud } from '@/theme';
+import { exerciseNumber as exerciseNumberEn } from '@/lib/dayCallouts';
+import { deco, fonts, isHud, stageColors as colors } from '@/theme';
 import type { DayBodyEntry } from './DayBody3D';
 import { PressableScale } from './motion';
 import { T } from './Text';
+
+/** 種目の番号：HUD は「EX-01」、クラシックは「1」（Figma「クラシック（大胆版）」の筋トレ） */
+export const exerciseNumber = (n: number) => (isHud ? exerciseNumberEn(n) : String(n));
 
 export const DAY_TAG_W = 96;
 /** 札の高さ（押せるときは、これが押せる高さ。44dp 以上） */
@@ -42,7 +45,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
         style={[{ height: PART_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
         <View style={e.stack ? { alignItems: align === 'right' ? 'flex-end' : 'flex-start' } : { flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
           <T style={[mono, { color: KICKER }]}>{e.kicker}</T>
-          <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
+          <T bold size={13} color={colors.text} style={{ lineHeight: 17 }} numberOfLines={1}>{e.name}</T>
         </View>
         {e.set !== '' && <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>}
       </TagFrame>
@@ -52,7 +55,7 @@ export function DayBodyTag({ e, align, style, onPress }: { e: DayBodyEntry; alig
     <TagFrame testID="day-body-tag" onPress={onPress} label={`${exerciseNumber(e.no)} ${e.name} ${e.set}。この種目の記録を開く`}
       style={[{ height: DAY_TAG_H, justifyContent: 'center', alignItems: align === 'right' ? 'flex-end' : 'flex-start' }, style]}>
       <T style={[mono, { color: KICKER }]}>{exerciseNumber(e.no)}</T>
-      <T bold size={13} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
+      <T bold size={13} color={colors.text} style={{ lineHeight: 17 }} numberOfLines={1} align={align}>{e.name}</T>
       <T style={[mono, { color: colors.sub }]} numberOfLines={1}>{e.set}</T>
     </TagFrame>
   );

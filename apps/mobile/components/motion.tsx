@@ -81,7 +81,7 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
 }
 
 const s = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
+  backdrop: { backgroundColor: colors.scrim },
   sheet: { maxHeight: '80%', backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
 });
 

@@ -15,6 +15,7 @@ import { DailyHighlights } from './reports';
 import { RestTimerBar } from './RestTimer';
 import { ScrollTarget } from './Screen';
 import { T } from './Text';
+import { LedgerHead } from './homeLedger';
 import { Button, Card, ConfirmDialog, EmptyState, IconButton, SetNo } from './ui';
 import type { Entry } from '@/db/repositories/workouts';
 import { useBusy } from '@/hooks/busy';
@@ -25,11 +26,12 @@ import { formatSetLong, tonnes } from '@/lib/format';
 import { TAB_AREAS } from '@/lib/reports';
 import { entriesMissingBodyweight, MISSING_BODYWEIGHT_NOTE } from '@/lib/bodyweight';
 import { dayBodyEntries } from '@/lib/dayBody';
-import { calloutSet, dayFigureLabel, exerciseNumber, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCallouts';
+import { calloutSet, dayFigureLabel, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCallouts';
+import { exerciseNumber } from './dayBodyTag';
 import { MuscleView, musclesForParts } from '@/lib/muscleFigure';
 import { bestSet, dayFocus, entryCardLabel, SetValues, totalVolume } from '@/lib/training';
-import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, fonts, space } from '@/theme';
+import { fmt1, kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
+import { colors, fonts, isHud, space } from '@/theme';
 
 /** 「種目を追加」のボタン（画面の下に固定する）。未来の日は押せない */
 export function AddExerciseButton({ date }: { date: string }) {
@@ -144,20 +146,32 @@ export function WorkoutDayContent({ date, focus }: { date: string; focus?: { ent
       {data && entries.length === 0 && <DailyHighlights date={date} areas={TAB_AREAS.training} />}
       {entries.length > 0 && (
         <>
-          <Card style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.m, marginTop: space.s }}>
-            <Stat label="種目" value={String(entries.length)} />
-            {parts.text !== '' && <Stat label="部位" value={parts.text} spoken={parts.spoken} text center testID="day-parts" />}
-            <Stat label="セット" value={String(setCount)} center />
-            <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
-          </Card>
+          {isHud ? (
+            <Card style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.m, marginTop: space.s }}>
+              <Stat label="種目" value={String(entries.length)} />
+              {parts.text !== '' && <Stat label="部位" value={parts.text} spoken={parts.spoken} text center testID="day-parts" />}
+              <Stat label="セット" value={String(setCount)} center />
+              <Stat label="合計負荷量" value={`${tonnes(volume, unit)} ${unit === 'kg' ? 't' : 'k lb'}`} right />
+            </Card>
+          ) : (
+            // クラシック：罫で区切った帳の 1 行（Figma「クラシック（大胆版）」の筋トレ）
+            <View style={C.ledger}>
+              <LedgerStat label="種目" value={String(entries.length)} first />
+              {parts.text !== '' && <LedgerStat label="部位" value={parts.text} spoken={parts.spoken} text testID="day-parts" />}
+              <LedgerStat label="セット" value={String(setCount)} />
+              <LedgerStat label="合計負荷量" value={tonnes(volume, unit)} unit={unit === 'kg' ? 't' : 'k lb'} wide />
+            </View>
+          )}
           <DayPartsFigure testID="day-parts-figure" title="鍛えた部位の図" parts={parts.names} entries={entries} unit={unit} date={date} pickParts={data?.pickParts ?? []} />
           {entriesMissingBodyweight(entries) && (
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xs }} testID="missing-bodyweight">{MISSING_BODYWEIGHT_NOTE}</T>
           )}
           <DailyHighlights date={date} areas={TAB_AREAS.training} />
           {/* 上の「レポートから」のカード（抜き出し）と分けて、ここからが記録そのものだと分かるように見出しを付ける */}
-          <T variant="titleS" color={colors.sub} accessibilityRole="header" style={{ marginTop: space.l }}>記録した種目</T>
-          <View style={{ gap: space.m, marginTop: space.s }}>
+          {isHud
+            ? <T variant="titleS" color={colors.sub} accessibilityRole="header" style={{ marginTop: space.l }}>記録した種目</T>
+            : <View style={{ marginTop: space.xl }}><LedgerHead title="記録した種目" /></View>}
+          <View style={{ gap: isHud ? space.m : 0, marginTop: space.s }}>
             {entries.map((e, i) => {
               const best = bestSet(e.sets);
               const big3 = data?.big3.has(e.exerciseId) ?? false;
@@ -166,7 +180,7 @@ export function WorkoutDayContent({ date, focus }: { date: string; focus?: { ent
               return (
                 <Animated.View key={e.id} entering={list.entering(i)} exiting={list.exiting} layout={list.layout}>
                   <ScrollTarget request={focus?.entry === e.id ? focus.n : null} testID={`entry-card-${i + 1}`}>
-                  <Card style={{ paddingTop: space.l, paddingBottom: space.s }}>
+                  <Card style={isHud ? { paddingTop: space.l, paddingBottom: space.s } : [C.entry, i > 0 && C.entryRule]}>
                     <PressableScale
                       accessibilityRole="button"
                       scaleTo={0.98}
@@ -175,8 +189,8 @@ export function WorkoutDayContent({ date, focus }: { date: string; focus?: { ent
                     >
                       {/* 1行目は順番・種目名・＞だけ。2行目（種目名の位置にそろえる）に部位・BIG3・推定1RM */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <SetNo n={i + 1} active />
-                        <T variant="titleM" style={{ flex: 1 }} numberOfLines={2}>{e.exerciseName}</T>
+                        {isHud ? <SetNo n={i + 1} active /> : <T num bold size={22} style={C.entryNo}>{String(i + 1)}</T>}
+                        <T variant="titleM" size={isHud ? undefined : 18} style={{ flex: 1 }} numberOfLines={2}>{e.exerciseName}</T>
                         <Icon name="chevron" size={24} color={colors.sub} />
                       </View>
                       {(hasPart || big3 || e1rm) && (
@@ -188,9 +202,9 @@ export function WorkoutDayContent({ date, focus }: { date: string; focus?: { ent
                       )}
                       <View style={{ marginLeft: 32, marginTop: space.s, gap: space.s }}>
                         {e.sets.map((st, j) => (
-                          <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <SetNo n={j + 1} />
-                            <T variant="titleM">{formatSetLong(st.weightKg, st.reps, unit)}</T>
+                          <View key={st.id} style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }, !isHud && j > 0 && C.setRule]}>
+                            {isHud ? <SetNo n={j + 1} /> : <T num size={12} color={colors.sub} style={C.setNo}>{String(j + 1)}</T>}
+                            {isHud ? <T variant="titleM">{formatSetLong(st.weightKg, st.reps, unit)}</T> : <SetLedger weightKg={st.weightKg} reps={st.reps} unit={unit} />}
                             {st.memo !== '' && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 1 }}>
                                 <Icon name="pencil" size={16} color={colors.sub} />
@@ -300,7 +314,7 @@ function DayPartsFigure({ title, parts, entries, unit, date, pickParts, testID }
   const mark = point ? toScreen(point.view, point.point) : null;
 
   return (
-    <Card style={{ marginTop: space.s, paddingVertical: space.m, gap: space.s }}>
+    <Card style={[{ marginTop: space.s, paddingVertical: space.m, gap: space.s }, !isHud && { borderWidth: 0, paddingHorizontal: 0 }]}>
       <View accessible accessibilityLabel={dayFigureLabel(title, entries.map((e) => ({ name: e.exerciseName, part: e.bodyPartName })))} testID={testID}>
         {body3D.on ? (
           <DayBodyBox
@@ -375,6 +389,52 @@ function DayCallout({ callout, entry, unit, align, style }: {
     </View>
   );
 }
+
+/** クラシックのセットの行：重さと回数は大きな数字、単位は小さな補足の色（「80 kg × 8 回」） */
+function SetLedger({ weightKg, reps, unit }: { weightKg: number | null; reps: number; unit: WeightUnit }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }} accessible accessibilityLabel={formatSetLong(weightKg, reps, unit)}>
+      {weightKg != null && (
+        <>
+          <T num bold size={22} style={{ lineHeight: 26 }}>{trimNumber(kgToUnit(weightKg, unit))}</T>
+          <T size={12} color={colors.sub}>{`${unit} ×`}</T>
+        </>
+      )}
+      <T num bold size={22} style={{ lineHeight: 26 }}>{String(reps)}</T>
+      <T size={12} color={colors.sub}>回</T>
+    </View>
+  );
+}
+
+/** クラシックの帳のマス（見出し・大きな数字・単位）。罫で区切る */
+function LedgerStat({ label, value, unit, first, text, wide, spoken, testID }: {
+  label: string; value: string; unit?: string; first?: boolean; text?: boolean; wide?: boolean; spoken?: string; testID?: string;
+}) {
+  return (
+    <View style={[C.cell, first ? { paddingLeft: 0 } : C.cellRule, wide && { flex: 1.4 }]}
+      accessible={spoken != null} accessibilityLabel={spoken != null ? `${label} ${spoken}` : undefined} testID={testID}>
+      <T size={12} color={colors.sub} numberOfLines={1}>{label}</T>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+        {text
+          ? <T bold size={20} style={{ lineHeight: 32, flexShrink: 1 }} numberOfLines={1}>{value}</T>
+          : <T num bold size={28} style={{ lineHeight: 32 }}>{value}</T>}
+        {unit ? <T size={12} color={colors.sub}>{unit}</T> : null}
+      </View>
+    </View>
+  );
+}
+
+/** クラシックの形（紙の記録帳） */
+const C = {
+  ledger: { flexDirection: 'row', marginTop: space.s, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  cell: { flex: 1, minWidth: 0, paddingVertical: space.m, paddingHorizontal: space.s, gap: 2 },
+  cellRule: { borderLeftWidth: 1, borderLeftColor: colors.line },
+  entry: { borderWidth: 0, borderRadius: 0, paddingHorizontal: 0, paddingTop: space.l, paddingBottom: space.s },
+  entryRule: { borderTopWidth: 1, borderTopColor: colors.line },
+  entryNo: { width: 24, lineHeight: 26 },
+  setNo: { width: 24, textAlign: 'center' },
+  setRule: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space.s },
+} as const;
 
 /**
  * まとめの1つの欄（見出しと値）。text は値が文字（部位の名前）のとき：数字の欄と同じ行の高さで、1行に収める（縮められる欄にする）。

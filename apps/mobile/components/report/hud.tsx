@@ -132,10 +132,14 @@ export function Panel({ children, style, cut = 8, bg = hud.panel, border = hud.l
 }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   if (!deco.brackets) {
-    // クラシック：切り欠きをやめ、丸い角の面と 1px の枠
+    // クラシック（紙の記録帳）：ふつうのパネルは塗りも枠も作らず、上に墨の 1px の罫（段の見出し）。左右の余白は紙の端にそろえる。
+    // 一段上の面（bg を変えたパネル：メニューなど）は丸い角の面と 1px の枠
+    const flat = bg === hud.panel;
     return (
       <View testID={testID} accessible={accessible} accessibilityLabel={accessibilityLabel}
-        style={[{ backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: radius.m, padding: 1 }, style]}>
+        style={flat
+          ? [{ borderTopWidth: 1, borderTopColor: colors.text, paddingTop: 4 }, style, { paddingHorizontal: 0 }]
+          : [{ backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: radius.m, padding: 1 }, style]}>
         {children}
       </View>
     );

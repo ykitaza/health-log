@@ -21,7 +21,7 @@ import {
   ReportKind,
 } from '@/lib/reports';
 import { dailyReportStreak, dailyStreakText } from '@/lib/reportStreak';
-import { colors, size as sizes, space } from '@/theme';
+import { colors, isHud, size as sizes, space } from '@/theme';
 
 type PeriodKind = PeriodReportKind;
 const PERIOD_TABS: { key: PeriodKind; label: string }[] = [
@@ -39,7 +39,10 @@ function Frame({ sys, onBack, menu, action, children }: { sys: string | null; on
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: side - 12, minHeight: 44, zIndex: 2 }}>
           {onBack && <IconButton name="back" label="戻る" onPress={onBack} bg="transparent" color={hud.muted} size={20} />}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-            <Micro ja="レポート">KARADA // REPORT</Micro>
+            {isHud || onBack
+              ? <Micro ja="レポート">KARADA // REPORT</Micro>
+              // クラシックのタブ：ほかのタブと同じ大きさの題（Figma「クラシック（大胆版）」のレポート）
+              : <T variant="headlineS" accessibilityRole="header">レポート</T>}
             {sys && onBack && <Micro>{sys}</Micro>}
           </View>
           {action}
@@ -76,6 +79,23 @@ function ReportMenu({ onDelete, disabled }: { onDelete: () => void; disabled: bo
 
 /** 期間タブ（日／週／月）：暗い面に1px の枠、選んだタブはミントの塗り（モックの .tabs）。共用の Segmented は使わない */
 function PeriodTabs({ value, onChange }: { value: ReportKind; onChange: (k: PeriodKind) => void }) {
+  if (!isHud) {
+    // クラシック：文字と墨の下線のタブ（Figma「クラシック（大胆版）」のレポート）
+    return (
+      <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line }} testID="report-period-tabs">
+        {PERIOD_TABS.map((t) => {
+          const on = t.key === value;
+          return (
+            <Pressable key={t.key} accessibilityRole="button" aria-selected={on} accessibilityState={{ selected: on }} accessibilityLabel={t.label}
+              onPress={() => onChange(t.key)} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
+              <T bold={on} size={15} color={on ? colors.text : colors.sub}>{t.label}</T>
+              {on && <View style={{ position: 'absolute', bottom: -1, width: 40, height: 2, backgroundColor: colors.text }} />}
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
   return (
     <Panel bg={hud.panel2} border={hud.line} cut={6} style={{ flexDirection: 'row', gap: 4, padding: 3 }} testID="report-period-tabs">
       {PERIOD_TABS.map((t) => {

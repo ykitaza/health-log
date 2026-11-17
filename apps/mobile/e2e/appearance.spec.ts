@@ -5,23 +5,45 @@ import { AT, bulkPhase, change, EXERCISE, mcp, openWith } from './seed';
 // 見た目（HUD・クラシック）：theme が最初に評価されるときに見た目を読み、色と飾りを選ぶ。web は localStorage の appearance.look。
 // 設定の「表示」で選ぶと、確かめてから保存し（sync_meta と localStorage）、アプリを開き直す。
 // 色の選び方は jest（theme/__tests__/appearance.test.ts）、3D の場面の強さは jest（lib/__tests__/bodyScene.test.ts）。
-// クラシックは地の色が HUD と同じ（Figma「ホーム（unslop 案）」）なので、見分けはヒーローの四隅のラベル（LATEST // と 直近）で見る
+// クラシック（紙の記録帳。Figma「クラシック（大胆版）」）は、地が生成りの紙で、ヒーローの四隅の数字は体の下の帳の 1 行（hero-ledger）に下りる。
+// 見分けは画面の地の色と、直近のマスのラベル（LATEST // と 直近）で見る
 
 const REPORT = 'aaaaaaaa-0000-4000-8000-0000000000e1';
 const latestCorner = (page: Page) => page.getByTestId('home-latest').filter({ visible: true });
+/** 画面の地の色（body に色はなく、塗っているのはナビゲーションのテーマと Stack の地なので、いちばん外の塗った面を見る） */
+const screenColor = (page: Page) => page.evaluate(() => {
+  for (const el of Array.from(document.querySelectorAll('body *'))) {
+    const c = getComputedStyle(el).backgroundColor;
+    if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+  }
+  return null;
+});
+const PAPER = 'rgb(245, 242, 234)';
 
 test('localStorage の見た目でホームの見出しが変わり、消すと HUD に戻る', async ({ page }) => {
   await openApp(page);
   await expect(latestCorner(page)).toContainText('LATEST //');
 
+  expect(await screenColor(page)).not.toBe(PAPER);
+  await expect(page.getByTestId('hero-ledger')).toHaveCount(0);
+
   await page.evaluate(() => localStorage.setItem('appearance.look', 'classic'));
   await openApp(page);
   await expect(latestCorner(page)).toContainText('直近');
   await expect(latestCorner(page)).not.toContainText('LATEST //');
+  // 紙の地、四隅の数字は体の下の帳へ、主な操作は墨の地に紙の文字
+  expect(await screenColor(page)).toBe(PAPER);
+  const ledger = page.getByTestId('hero-ledger').filter({ visible: true });
+  await expect(ledger).toBeVisible();
+  await expect(ledger.getByTestId('home-latest')).toHaveCount(1);
+  const hero = (await page.getByTestId('hero-swipe').filter({ visible: true }).boundingBox())!;
+  expect((await ledger.boundingBox())!.y).toBeGreaterThan(hero.y + hero.height);
+  expect(await page.getByTestId('home-record').filter({ visible: true }).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(27, 25, 22)');
 
   await page.evaluate(() => localStorage.removeItem('appearance.look'));
   await openApp(page);
   await expect(latestCorner(page)).toContainText('LATEST //');
+  expect(await screenColor(page)).not.toBe(PAPER);
 });
 
 test('設定でクラシックを選ぶと、確かめてから開き直し、ホームとレポートが日本語の見出しになる。HUD に戻せる', async ({ page, context }) => {

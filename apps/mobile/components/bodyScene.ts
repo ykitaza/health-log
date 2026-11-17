@@ -1,14 +1,18 @@
 // 3D の体の場面（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。ケガの画面と、からだのタブの回復マップで使う。
 // three.js の物を毎コマ書き換えるので React の外に置く。React と R3F は使わない（jest で GLB を読み込んで確かめる：lib/__tests__/bodyScene.test.ts）
+// 体の見せ方は 2 つ：HUD のホログラム（加算合成で光る。シェーダーは HOLO_FRAG）と、クラシックのつや消しの体（紙の上の石膏の像。
+// MeshStandardMaterial と光。値は theme/matte.ts）。つや消しは configure のときに部品の材質を差し替え、ホログラムの材質は取っておいて戻せる
 import { PanResponder } from 'react-native';
 import * as THREE from 'three';
 import { facingOf, siteOfPart, type Vec3 } from '@/lib/bodyModel';
-import { colors, look as themeLook, toneColors } from '@/theme';
+import { HUD_COLORS, HUD_TONE_COLORS, look as themeLook, MATTE_BODY } from '@/theme';
 import type { Look } from '@/theme/look';
+import { MATTE } from '@/theme/matte';
 
-const GREEN = new THREE.Color(colors.accent);
+/** ホログラムの緑と琥珀色（HUD の色。クラシックでホログラムに戻したときも、暗い地の上の明るい色のまま） */
+const GREEN = new THREE.Color(HUD_COLORS.accent);
 /** 直している途中の色（components/MuscleFigure.tsx の INJURY_AMBER と同じ） */
-const AMBER = new THREE.Color(toneColors.caution.accent);
+const AMBER = new THREE.Color(HUD_TONE_COLORS.caution.accent);
 /** 自動で回る速さ（rad/s）と、触ってから自動で回り始めるまで（ms） */
 const AUTO_SPEED = 0.25;
 const AUTO_DELAY = 2500;
@@ -62,8 +66,11 @@ const CLASSIC_SCENE: SceneLook = {
   scan: 0, quietScan: 0, scanRing: false, markPulse: 0, quietPulse: 0, glow: 0.7, deck: 0.4, skinWire: 0.4, disc: false,
 };
 
-/** 見た目ごとの場面の強さ */
+/** 見た目ごとの場面の強さ（ホログラムのとき） */
 export const sceneLook = (l: Look): SceneLook => (l === 'classic' ? CLASSIC_SCENE : HUD_SCENE);
+
+/** つや消しの体にするか：クラシックで、theme の MATTE_BODY が true のとき（false にするとクラシックでもホログラムに戻る） */
+export const matteFor = (l: Look): boolean => l === 'classic' && MATTE_BODY;
 
 /** 印を付ける部位（ケガ1件） */
 export type Mark = { id: string; parts: string[]; anchor: Vec3; facing: 'front' | 'back'; fixing: boolean };
@@ -101,6 +108,10 @@ const UV_VERT = 'varying vec2 vU; void main(){ vU = uv; gl_Position = projection
 const DISC_FRAG = `
   uniform vec3 uColor; varying vec2 vU;
   void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }`;
+/** つや消しの体の足元の影（ぼかした丸。ふつうの重ね方。影の地図は使わない） */
+const BLOB_FRAG = `
+  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
+  void main(){ float d = distance(vU, vec2(.5)) * 2.0; gl_FragColor = vec4(uColor, smoothstep(1.0, 0.0, d) * uOpacity); }`;
 
 type Shared = { uTime: { value: number }; uScanY: { value: number }; uScanAmp: { value: number } };
 function holoMat(shared: Shared, color: THREE.Color, base: number, rim: number, pulse = 0) {
@@ -162,6 +173,74 @@ function makeDeck() {
 }
 
 /**
+ * つや消しの体の光と足元の影（世界の座標。体が回っても動かない）。影の地図は使わない。場面にはいつも入れておき、つや消しのときだけ見せる
+ */
+function makeMatteStage() {
+  const group = new THREE.Group();
+  group.add(new THREE.HemisphereLight(MATTE.hemi.sky, MATTE.hemi.ground, MATTE.hemi.intensity));
+  for (const l of [MATTE.key, MATTE.fill]) {
+    const d = new THREE.DirectionalLight(l.color, l.intensity);
+    d.position.set(...l.position);
+    group.add(d);
+  }
+  const sh = MATTE.shadow;
+  const blob = new THREE.Mesh(new THREE.PlaneGeometry(sh.width, sh.depth), new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, toneMapped: false,
+    uniforms: { uColor: { value: new THREE.Color(sh.color) }, uOpacity: { value: sh.opacity } }, vertexShader: UV_VERT, fragmentShader: BLOB_FRAG,
+  }));
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.set(sh.offset[0], 0.001, sh.offset[1]);
+  blob.raycast = () => {};
+  group.add(blob);
+  group.visible = false;
+  return group;
+}
+
+/** つや消しの材質（部品ごとに 1 つ。色は部品ごとに変える）。光の色をそのまま出すため、トーンマッピングはしない（試作と同じ） */
+function matteMat(color: THREE.ColorRepresentation) {
+  const m = new THREE.MeshStandardMaterial({
+    color, roughness: MATTE.roughness, metalness: MATTE.metalness, flatShading: MATTE.flatShading, side: THREE.DoubleSide,
+  });
+  m.toneMapped = false;
+  return m;
+}
+
+/** 皮膚を奥へ押す、頂点のシェーダーの差し込み（three.js の project_vertex のあと） */
+export const SKIN_PUSH_GLSL = '#include <project_vertex>\n  gl_Position = projectionMatrix * vec4(mvPosition.xyz + normalize(mvPosition.xyz) * uPush, 1.0);';
+
+/**
+ * 皮膚のつや消しの材質：皮膚を奥へ MATTE.skinPush（m）押して描く（頂点のシェーダーで、カメラから遠ざける）。
+ * 皮膚のすぐ下の筋肉が奥行きの比べで勝ち、色が見える。頭・手・足・関節は皮膚のまま
+ */
+function matteSkin() {
+  const m = matteMat(MATTE.plaster);
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uPush = { value: MATTE.skinPush };
+    shader.vertexShader = 'uniform float uPush;\n' + shader.vertexShader.replace('#include <project_vertex>', SKIN_PUSH_GLSL);
+  };
+  m.customProgramCacheKey = () => 'matte-skin-push';
+  return m;
+}
+
+/**
+ * つや消しの体のケガの印：刷った赤い点と、そのまわりの紙の色の輪（カメラに向ける。奥行きを見ないので、体の裏側でも見える）。脈打たない
+ */
+function matteDot(color: THREE.Color) {
+  const d = MATTE.dot;
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(d.r, 32), new THREE.MeshBasicMaterial({ color: color.clone(), depthTest: false, depthWrite: false, toneMapped: false }));
+  dot.renderOrder = 10;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(d.r * d.ring[0], d.r * d.ring[1], 32), new THREE.MeshBasicMaterial({ color: d.ringColor, depthTest: false, depthWrite: false, toneMapped: false }));
+  ring.renderOrder = 9;
+  dot.add(ring);
+  dot.raycast = () => {};
+  ring.raycast = () => {};
+  return dot;
+}
+
+/** 墨（選んだ部品をこの色へ寄せる） */
+const INK = new THREE.Color('#1B1916');
+
+/**
  * 3D の場面の中身（体・台・走査の輪・にじみ）と、回す・押す・引き出し線の先の計算。
  * three.js の物は毎コマ書き換えるので、React の state にせず、このクラスの中だけで持つ
  */
@@ -180,6 +259,20 @@ export class BodyScene {
   private scene: SceneLook = sceneLook(themeLook);
   readonly scanRing = new THREE.LineLoop(circle(0.36, 64), lineMat(0));
   readonly glowGroup = new THREE.Group();
+  /** つや消しの体の光と足元の影（components/bodyCanvas の場面に入れる。ホログラムのときは見せない） */
+  readonly matteStage = makeMatteStage();
+  /** つや消しの体にしているか（configure の look と theme の MATTE_BODY） */
+  private matte = false;
+  /** ホログラムの材質（つや消しから戻すとき用）と、つや消しの材質（部品ごと） */
+  private holoMats = new Map<THREE.Mesh, THREE.Material>();
+  private matteMats = new Map<THREE.Mesh, THREE.MeshStandardMaterial>();
+  /** つや消しの部品ごとの色（選んだ部品は墨へ寄せる前の色） */
+  private matteTint = new Map<THREE.Mesh, THREE.Color>();
+  /** 皮膚の部品 */
+  private skin: THREE.Mesh | null = null;
+  /** ケガの画面の印の色（直せた・直している途中）。ホログラムは緑と琥珀色 */
+  private fixedColor = GREEN.clone();
+  private fixingColor = AMBER.clone();
   private pickables: THREE.Mesh[] = [];
   private byName: Record<string, THREE.Mesh> = {};
   private glows: { mesh: THREE.Mesh; anchor: THREE.Vector3 }[] = [];
@@ -249,7 +342,10 @@ export class BodyScene {
     for (const { m, opacity } of this.deckLines) m.opacity = opacity * k.deck;
     if (this.skinWire) this.skinWire.opacity = SKIN_WIRE * k.skinWire;
     this.disc.visible = k.disc;
-    this.scanRing.visible = k.scanRing;
+    this.scanRing.visible = k.scanRing && !this.matte;
+    // つや消しの体は紙の上：加算合成の台は見えないので出さず、光と影を出す
+    this.deck.visible = !this.matte;
+    this.matteStage.visible = this.matte;
   }
 
   /** 台・走査の輪・皮膚を土台の色にする */
@@ -278,6 +374,7 @@ export class BodyScene {
       const core = o.name === 'skin';
       o.material = core ? holoMat(this.shared, GREEN, 0.004, 0.32) : holoMat(this.shared, GREEN, IDLE_GLOW.base * this.scene.glow, IDLE_GLOW.rim * this.scene.glow);
       if (core) {
+        this.skin = o;
         this.tinted.push(o.material as THREE.ShaderMaterial, skinWire);
         o.add(new THREE.LineSegments(new THREE.WireframeGeometry(o.geometry), skinWire));
         o.renderOrder = 2;
@@ -310,9 +407,66 @@ export class BodyScene {
     }
     // 終わってから印を付ける（途中で失敗したら、次の描画でやり直す）
     this.loaded = loaded;
+    this.holoMats.clear();
+    for (const o of meshes) this.holoMats.set(o, o.material as THREE.Material);
+    this.swapMaterials();
     this.tint();
     this.setMarks(this.marks);
     this.select(this.selNames);
+  }
+
+  /**
+   * 部品の材質を見た目に合わせる。つや消しは部品ごとにつや消しの材質を作って差し替え（皮膚は奥へ押す材質）、奥行きの板と皮膚の線を隠す。
+   * ホログラムに戻すときは取っておいた材質に戻し、つや消しの材質を捨てる。読み込む前は何もしない（読み込んだときに呼ぶ）
+   */
+  private swapMaterials() {
+    if (!this.loaded) return;
+    if (this.matte) {
+      for (const [o] of this.holoMats) {
+        if (!this.matteMats.has(o)) this.matteMats.set(o, o === this.skin ? matteSkin() : matteMat(MATTE.plaster));
+        o.material = this.matteMats.get(o)!;
+        for (const c of o.children) c.visible = false;
+      }
+      this.setXrays(new Set());
+    } else {
+      for (const [o, m] of this.holoMats) {
+        o.material = m;
+        for (const c of o.children) if (!c.name.endsWith('#xray')) c.visible = true;
+      }
+      this.disposeMatte();
+    }
+  }
+
+  /** つや消しの材質を捨てる */
+  private disposeMatte() {
+    for (const m of this.matteMats.values()) m.dispose();
+    this.matteMats.clear();
+    this.matteTint.clear();
+  }
+
+  /** 場面を閉じるとき（画面から体が消えるとき）。つや消しの材質と、ケガの印の材質と形を捨てる（読み込んだ形は使い回すので捨てない） */
+  dispose() {
+    if (this.matte) {
+      // ホログラムの材質に戻してから捨てる（あとで configure し直すと、つや消しの材質を作り直す）
+      this.matte = false;
+      this.swapMaterials();
+      this.applyLook();
+    }
+    this.disposeMatte();
+    this.clearGlows();
+  }
+
+  /** ケガの印（にじみの板・刷った点）を外して捨てる */
+  private clearGlows() {
+    for (const g of this.glows) {
+      g.mesh.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      });
+    }
+    this.glowGroup.clear();
+    this.glows = [];
   }
 
   private marks: Mark[] = [];
@@ -327,11 +481,22 @@ export class BodyScene {
     levels?: Record<string, number>; quietMarks?: boolean;
     baseColor?: string; levelColor?: (k: number, mesh: string) => string; injuryColor?: string;
     idle?: string[]; idleColor?: string; look?: Look;
+    /** ケガの画面の印の色（直せた・直している途中）。渡さなければ緑と琥珀色 */
+    fixedColor?: string; fixingColor?: string;
+    /** つや消しの体にするか（渡さなければ look から決める：matteFor） */
+    matte?: boolean;
   }) {
     this.reduced = o.reduced;
     this.levels = o.levels ?? {};
     this.quiet = o.quietMarks ?? false;
     this.scene = sceneLook(o.look ?? themeLook);
+    const matte = o.matte ?? matteFor(o.look ?? themeLook);
+    if (matte !== this.matte) {
+      this.matte = matte;
+      this.swapMaterials();
+    }
+    this.fixedColor.set(o.fixedColor ?? GREEN);
+    this.fixingColor.set(o.fixingColor ?? AMBER);
     this.applyLook();
     this.shared.uScanAmp.value = this.quiet ? this.scene.quietScan : this.scene.scan;
     this.base.set(o.baseColor ?? GREEN);
@@ -350,9 +515,23 @@ export class BodyScene {
   /** 画面から部品を選ぶ（回復マップ：押した部位の部品をまとめて光らせる）。空なら選ぶのをやめる */
   select(names: string[]) {
     this.selNames = names;
+    if (this.matte) {
+      this.selected = names.map((n) => this.byName[n]).filter((m): m is THREE.Mesh => m != null && this.pickables.includes(m));
+      this.paintMatte();
+      return;
+    }
     for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 0;
     this.selected = names.map((n) => this.byName[n]).filter((m): m is THREE.Mesh => m != null && this.pickables.includes(m));
     for (const m of this.selected) (m.material as THREE.ShaderMaterial).uniforms.uSel.value = 1;
+  }
+
+  /** つや消しの部品に色を塗る（選んだ部品は墨へ 3 割寄せる） */
+  private paintMatte() {
+    for (const [o, m] of this.matteMats) {
+      if (o === this.skin) continue;
+      m.color.copy(this.matteTint.get(o) ?? this.tmpC.set(MATTE.plaster));
+      if (this.selected.includes(o)) m.color.lerp(INK, 0.3);
+    }
   }
 
   /** 最初のコマを描いたら1回だけ呼ぶ。もう描いていたら、すぐ呼ぶ */
@@ -371,6 +550,11 @@ export class BodyScene {
     const set = (m: THREE.Mesh | undefined, color: THREE.Color, base: number, rim: number, pulse: number) => {
       if (!m) return;
       lit.add(m);
+      if (this.matte) {
+        // つや消し：光の強さは使わず、部品の色だけを変える
+        this.matteTint.set(m, color.clone());
+        return;
+      }
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uColor.value.copy(color); u.uBase.value = base; u.uRim.value = rim; u.uPulse.value = pulse;
     };
@@ -388,12 +572,22 @@ export class BodyScene {
         for (const p of mk.parts) set(this.byName[p], this.injury, QUIET_MARK.base, QUIET_MARK.rim, this.reduced ? 0 : this.scene.quietPulse);
       }
     } else {
-      for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], GREEN, 0.32, 1.8, 0);
-      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], AMBER, 0.7, 2.2, this.reduced ? 0 : this.scene.markPulse);
+      for (const mk of marks.filter((k) => !k.fixing)) for (const p of mk.parts) set(this.byName[p], this.fixedColor, 0.32, 1.8, 0);
+      for (const mk of marks.filter((k) => k.fixing)) for (const p of mk.parts) set(this.byName[p], this.fixingColor, 0.7, 2.2, this.reduced ? 0 : this.scene.markPulse);
+    }
+    if (this.matte) {
+      this.paintMatte();
+      this.clearGlows();
+      this.glows = marks.filter((m) => m.fixing).map((m) => {
+        const mesh = matteDot(this.quiet ? this.injury : this.fixingColor);
+        this.glowGroup.add(mesh);
+        const z = m.facing === 'front' ? MATTE.dot.z : -MATTE.dot.z;
+        return { mesh, anchor: new THREE.Vector3(m.anchor[0], m.anchor[1], m.anchor[2] + z) };
+      });
+      return;
     }
     this.setXrays(lit);
-    for (const g of this.glows) { g.mesh.geometry.dispose(); (g.mesh.material as THREE.Material).dispose(); }
-    this.glowGroup.clear();
+    this.clearGlows();
     this.glows = marks.filter((m) => m.fixing).map((m) => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
@@ -497,6 +691,8 @@ export class BodyScene {
       gl.mesh.position.copy(gl.anchor);
       g.localToWorld(gl.mesh.position);
       gl.mesh.quaternion.copy(camera.quaternion);
+      // つや消しのケガの印は刷った点：大きさを変えず、脈打たない
+      if (this.matte) continue;
       gl.mesh.scale.setScalar((still ? 0.3 : 0.26 + 0.08 * pul) * q);
       (gl.mesh.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (still ? 0.5 : 0.25 + 0.45 * pul) * q;
     }

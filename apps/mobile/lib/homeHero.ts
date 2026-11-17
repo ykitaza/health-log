@@ -104,6 +104,34 @@ export function phaseLine(h: HeroPhase): { text: string; ja: string; spoken: str
   };
 }
 
+/**
+ * クラシックのフェーズの行（Figma「クラシック（大胆版）」のホーム）：左に小さな見出しと大きな数字（今の週）と「/ 8週」、右に調子と残り。
+ * big が null のときは、数字の代わりに見出しを大きく出す（フェーズがない・終えた）。読み上げと行き先は phaseLine と同じ
+ */
+export type PhaseHead = { kicker: string; big: string | null; of: string; title: string; status: string; sub: string };
+
+export function phaseHead(h: HeroPhase): PhaseHead {
+  if (h.kind === 'none' && h.last) {
+    return { kicker: 'フェーズ', big: null, of: '', title: `${DIRECTION_LABELS[h.last.direction!]}を終えました`, status: '振り返り', sub: '次は未設定' };
+  }
+  if (h.kind === 'none') return { kicker: 'フェーズ', big: null, of: '', title: 'フェーズは未設定', status: '始める', sub: '' };
+  if (h.kind === 'rehab') {
+    const p = h.paused;
+    return {
+      kicker: '療養', big: String(h.rehabDays), of: '日目', title: '',
+      status: p ? `${DIRECTION_LABELS[p.phase.direction!]}は停止中` : '',
+      sub: p ? `${p.progress.week} / ${p.progress.weeksTotal ?? p.progress.week}週で止めた` : '',
+    };
+  }
+  const { phase, progress } = h;
+  const status = progress.pace?.status ?? null;
+  const total = progress.weeksTotal ?? progress.week;
+  return {
+    kicker: `${DIRECTION_LABELS[phase.direction!]} ${total}週`, big: String(progress.week), of: `/ ${total}週`, title: '',
+    status: status ? PACE_LABELS[status] : '判定なし', sub: ringFooter(h) ?? '',
+  };
+}
+
 /** 輪の下の 1 行：実施中「残り 10週」、療養で止めているとき「増量 06/16 · 停止中」。ほかは null */
 export function ringFooter(h: HeroPhase): string | null {
   if (h.kind === 'active') {

@@ -30,7 +30,7 @@ import {
   weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
-import { colors, partColor, space } from '@/theme';
+import { colors, isHud, partColor, space } from '@/theme';
 
 const ALL = 'all';
 /** 種目の記録のカードを一度に出す日数（下の「もっと見る」で読み足す） */
@@ -311,7 +311,8 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
     <>
       {/* ホームの BIG3・LOAD のどちらから来ても、この段までスクロールする */}
       <ScrollTarget request={scrollTo('big3') ?? scrollTo('load')} testID="trend-gauges">
-        <View style={s.gaugeRow}>
+        {/* クラシックは帳の行なので縦に並べる */}
+        <View style={isHud ? s.gaugeRow : { marginTop: space.s }}>
           <Big3Panel gauge={big3} unit={unit} ready link={false} testID="trend-big3-gauge" />
           <LoadPanel gauge={load} dates={weekDates} today={today} unit={unit} ready link={false} testID="trend-load-gauge" />
         </View>

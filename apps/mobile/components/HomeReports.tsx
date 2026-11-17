@@ -11,7 +11,7 @@ import Animated, { FadeInDown, FadeOut, useReducedMotion } from 'react-native-re
 import { useFocusData, usePendingReports } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { newReportsSummary, pendingSummary, suggestionItems } from '@/lib/reports';
-import { colors, radius, space } from '@/theme';
+import { colors, isHud, radius, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { REPORT_CHAT_LABEL, useChatChooser } from './ChatSheet';
 import { Icon } from './Icon';
@@ -21,8 +21,18 @@ import { T } from './Text';
 import { Button, IconButton } from './ui';
 import { WeeklyTodoSection } from './WeeklyTodo';
 
-/** お知らせの行：カードの横いっぱいの、濃いミントの帯 */
-const NOTICE = { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.accentDark, paddingLeft: 16, paddingVertical: 8 } as const;
+/** お知らせの行：カードの横いっぱいの、濃いミントの帯。クラシックは紙の一段上の面（「クラシックの決まり」のお知らせ。角 10） */
+const NOTICE = isHud
+  ? { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.accentDark, paddingLeft: 16, paddingVertical: 8 } as const
+  : { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.input, borderRadius: 10, paddingLeft: 16, paddingVertical: 8 } as const;
+/** お知らせの行のアイコンと補足の色 */
+const NOTICE_FG = isHud ? colors.onAccentDark : colors.sub;
+/** カードの枠：クラシックは塗らず、上に墨の罫（段の見出し） */
+const FRAME = isHud
+  ? { backgroundColor: colors.card, borderRadius: radius.l, overflow: 'hidden', paddingBottom: space.s } as const
+  : { borderTopWidth: 1, borderTopColor: colors.text, paddingBottom: space.s } as const;
+/** 見出しの行の左の余白（クラシックは紙の端にそろえる） */
+const HEAD_PAD = isHud ? space.l : 0;
 
 export function HomeReportsCard() {
   const latest = useFocusData((r) => r.reports.latest());
@@ -54,10 +64,10 @@ export function HomeReportsCard() {
   const pendingDetail = pendingSummary(items, today);
 
   return (
-    <View style={{ backgroundColor: colors.card, borderRadius: radius.l, overflow: 'hidden', paddingBottom: space.s }} testID="home-reports">
+    <View style={FRAME} testID="home-reports">
       <View testID="latest-report">
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingLeft: space.l, paddingRight: space.s }}>
-          <T bold size={17} accessibilityRole="header">レポート</T>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingLeft: HEAD_PAD, paddingRight: isHud ? space.s : 0 }}>
+          <T bold size={isHud ? 17 : 13} accessibilityRole="header">レポート</T>
           {report && (
             <PressableScale
               accessibilityRole="button"
@@ -65,7 +75,7 @@ export function HomeReportsCard() {
               onPress={() => router.navigate('/reports')}
               style={{ minHeight: 48, minWidth: 48, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}
             >
-              <T bold size={14} color={colors.accent}>すべて</T>
+              <T bold={isHud} size={isHud ? 14 : 12} color={isHud ? colors.accent : colors.text}>すべて</T>
             </PressableScale>
           )}
         </View>
@@ -84,10 +94,10 @@ export function HomeReportsCard() {
       </View>
       {fresh.length > 0 && (
         <Animated.View key="new" entering={entering} exiting={exiting} style={[NOTICE, { marginTop: space.s }]} testID="home-report-new">
-          <Icon name="trendUp" size={22} color={colors.onAccentDark} />
+          <Icon name="trendUp" size={22} color={NOTICE_FG} />
           <View style={{ flex: 1, gap: 2 }} accessible accessibilityLabel={`${newTitle}。${newDetail}`}>
             <T bold size={16}>{newTitle}</T>
-            <T size={13} color={colors.onAccentDark} numberOfLines={2}>{newDetail}</T>
+            <T size={13} color={NOTICE_FG} numberOfLines={2}>{newDetail}</T>
           </View>
           <Button label="見る" variant="text" small accessibilityLabel={fresh.length === 1 ? '新しいレポートを見る' : 'いちばん新しいレポートを見る'} onPress={openFresh}
             style={{ paddingLeft: 12, paddingRight: 12 }} testID="new-report-open" />
@@ -96,10 +106,10 @@ export function HomeReportsCard() {
       )}
       {items.length > 0 && (
         <Animated.View key="pending" entering={entering} exiting={exiting} style={[NOTICE, { marginTop: space.s }]} testID="home-report-pending">
-          <Icon name="chat" size={22} color={colors.onAccentDark} />
+          <Icon name="chat" size={22} color={NOTICE_FG} />
           <View style={{ flex: 1, gap: 2 }} accessible accessibilityLabel={`${pendingTitle}。${pendingDetail}`}>
             <T bold size={16}>{pendingTitle}</T>
-            <T size={13} color={colors.onAccentDark}>{pendingDetail}</T>
+            <T size={13} color={NOTICE_FG}>{pendingDetail}</T>
           </View>
           <Button label="作る" variant="text" small accessibilityLabel="まとめを作る。ChatGPT か Claude を開きます" onPress={() => chat.pending(items)}
             style={{ paddingLeft: 12, paddingRight: 12 }} testID="report-suggestion-make" />

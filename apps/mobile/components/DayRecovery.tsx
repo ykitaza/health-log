@@ -134,7 +134,9 @@ const CALLOUT_GAP = space.xs;
 const CALLOUTS_PER_SIDE = 4;
 
 /** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色（からだのタブと同じ） */
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
+/** 文字と印の回復中の色（紙の上でも読める濃い橙・黄土。図の塗りの ramp は使わない） */
+const RECOVERY_INK = { rest: recoveryPalette.rest };
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, RECOVERY_INK) : restColor(p, recoveryPalette));
 
 /**
  * 記録のない日のヒーロー：その日の時点の体（3D は前回の部位と回復、2D は回復マップ）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
@@ -178,7 +180,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
     const p = byName.get(name.trim());
     if (!p) return null;
     if (hurt(p)) return { dot: INJURY_RED, text: 'ケガ', spoken: '直している途中のケガ' };
-    if (p.remaining != null) return { dot: recoveryColor(p.level, recoveryPalette), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
+    if (p.remaining != null) return { dot: recoveryColor(p.level, RECOVERY_INK), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
     return null;
   };
 
@@ -333,7 +335,7 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
   return (
     <View style={box} testID="recovery-callout" {...hide}>
       <T variant="labelM" numberOfLines={1} align={align}>{part.name}</T>
-      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level, recoveryPalette) : colors.sub} numberOfLines={1} align={align}>
+      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level, RECOVERY_INK) : colors.sub} numberOfLines={1} align={align}>
         {recoveryShortText(part)}
       </T>
       {lead && (

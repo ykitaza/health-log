@@ -283,7 +283,7 @@ describe('3D の体の場面', () => {
     });
   });
 
-  test('見た目で場面の値だけが変わる：HUD は今の値、クラシックは走査・脈なし・光 0.7 倍・線 0.4 倍・円盤なし。何度変えても掛け重ねない', async () => {
+  test('ホログラムのクラシック（MATTE_BODY を false にして戻したとき）は場面の値だけが変わる：HUD は今の値、クラシックは走査・脈なし・光 0.7 倍・線 0.4 倍・円盤なし。何度変えても掛け重ねない', async () => {
     const scene = new BodyScene();
     scene.setModel(await loadBody());
     const all = meshesIn(scene.body);
@@ -308,8 +308,8 @@ describe('3D の体の場面', () => {
     expect(scene.scanRing.visible).toBe(true);
 
     // クラシック（2 回渡しても同じ）
-    scene.configure({ ...base, look: 'classic' });
-    scene.configure({ ...base, look: 'classic' });
+    scene.configure({ ...base, look: 'classic', matte: false });
+    scene.configure({ ...base, look: 'classic', matte: false });
     expect(u('biceps_l').uBase.value).toBeCloseTo(0.13 * 0.7);
     expect(u('biceps_l').uRim.value).toBeCloseTo(1.2 * 0.7);
     expect(u('delt_front_r').uPulse.value).toBe(0);
@@ -319,7 +319,7 @@ describe('3D の体の場面', () => {
     expect(disc.visible).toBe(false);
     expect(scene.scanRing.visible).toBe(false);
     // 回復マップの控えめな印も脈打たず、走査もない
-    scene.configure({ ...base, look: 'classic', quietMarks: true });
+    scene.configure({ ...base, look: 'classic', matte: false, quietMarks: true });
     expect(u('delt_front_r').uPulse.value).toBe(0);
     expect(scene.shared.uScanAmp.value).toBe(0);
 

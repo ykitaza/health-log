@@ -1,4 +1,5 @@
 import { readLook } from './appearance';
+import { MATTE, MATTE_RECOVERED, matteRecovering } from './matte';
 
 /**
  * 見た目（HUD・クラシック）。このファイルが最初に評価されるときに 1 回だけ読み、色と飾りを決める。
@@ -58,11 +59,36 @@ export const HUD_COLORS = {
 export type Palette = { readonly [K in keyof typeof HUD_COLORS]: string };
 
 /**
- * クラシック（飾りの少ない見た目）の色。Figma「ホーム（unslop 案）」（249:15091・250:15489）は、地と文字の灰色を HUD のまま残し、
- * 飾り（角の切り欠き・英字のラベル・光）だけをやめている。なので色の値は HUD と同じにする（名前の意味も同じ）。
- * 見た目の違いは deco と lbl、計器の色（CLASSIC_METER_COLORS）で出す
+ * クラシック（紙の記録帳）の色。Figma「クラシック（大胆版）」の「クラシックの決まり」（252:17067）：地は生成りの紙、文字は墨、色は緑 1 つだけ。
+ * 名前の意味は HUD と同じ。カードの塗りは作らないので card は紙と同じ色にし、まとまりは罫（line）で区切る。
+ * accentDark は選んだチップ・バッジの地（薄い緑）。切り替えの選んだもの・主なボタンは墨の地に紙の文字（components/ui.tsx）。
+ * danger と star は、一段上の面（input）の上でも 4.5:1 になるよう、決まりの赤（#C2302A）・黄土（#866300）より少し濃くした
  */
-export const CLASSIC_COLORS: Palette = { ...HUD_COLORS };
+export const CLASSIC_COLORS: Palette = {
+  bg: '#F5F2EA',
+  card: '#F5F2EA',
+  input: '#EAE5DA',
+  line: '#DAD4C8',
+  outline: '#857D71',
+  text: '#1B1916',
+  sub: '#575047',
+  accent: '#1E6B47',
+  onAccent: '#F5F2EA',
+  accentDark: '#DDE8DF',
+  onAccentDark: '#123F2A',
+  accentMuted: '#857D71',
+  inverseAccent: '#8FD9B0',
+  danger: '#B42B25',
+  dangerDark: '#F6E0DC',
+  onDangerDark: '#8E1F1A',
+  star: '#7D5C00',
+  disabled: '#8C8478',
+  disabledContainer: '#E3DED3',
+  scrim: 'rgba(27,25,22,0.45)',
+};
+
+/** クラシックの、Palette の外の色（HUD の色の組は変えない）。muted は曜日・出典・メタの控えめな文字（本文には使わない） */
+export const paper = { muted: '#6A6257' } as const;
 
 /** 画面で使う色。見た目（look）で HUD かクラシックを選ぶ */
 export const colors: Palette = isHud ? HUD_COLORS : CLASSIC_COLORS;
@@ -83,17 +109,28 @@ export const injuryNo = (no: string) => (deco.enLabels ? no : no.replace(/^INJ-0
  * 筋肉の図（components/MuscleFigure）の地の色（Figma「部品案：筋肉の図」）。muscle は筋肉のパーツ、body は頭・首・手・足。
  * その日の部位の筋肉は colors.accent で塗る
  */
-export const figureColors = {
+export const HUD_FIGURE_COLORS = {
   muscle: '#4A515D',
   body: '#343A44',
 } as const;
 
 /**
+ * クラシックの筋肉の図：紙の上の石膏の色（3D のつや消しの体に光が当たった色。theme/matte.ts の石膏 #EAE3D4 は、光の下で #D1C7B1〜#DDD2BA に見える）。
+ * 筋肉は頭・手・足より一段濃い
+ */
+export const CLASSIC_FIGURE_COLORS: { readonly [K in keyof typeof HUD_FIGURE_COLORS]: string } = {
+  muscle: '#D3C9B5',
+  body: '#DFD6C3',
+};
+
+export const figureColors = isHud ? HUD_FIGURE_COLORS : CLASSIC_FIGURE_COLORS;
+
+/**
  * 回復マップの色のうち、テーマの色から取るもの（lib/recoveryMap.ts の RecoveryPalette。どの状態にどれを使うかは lib が決める）。
  * 回復中の暖色とケガの赤は lib/recoveryMap.ts の LOAD_ORANGE・LOAD_YELLOW・INJURY_RED。
- * 色が意味を持つので、見た目（look）によらず HUD の色にする
+ * 意味は見た目によらず同じ。HUD は暗い地の上の明るい色、クラシックは紙の上の濃い色（「クラシックの決まり」の意味の色）
  */
-export const recoveryPalette = {
+export const HUD_RECOVERY_PALETTE = {
   /** 回復済み（3D のホログラムの色。体の輪郭・皮膚の線・台もこの色。カードの枠と同じ緑） */
   rest: HUD_COLORS.accent,
   /**
@@ -107,12 +144,26 @@ export const recoveryPalette = {
    */
   idle: HUD_COLORS.outline,
   /** 空いている・まだ（2D の図の塗り）。色を付けない筋肉と同じ灰色 */
-  idleFill: figureColors.muscle,
+  idleFill: HUD_FIGURE_COLORS.muscle,
 } as const;
 
 /**
+ * クラシックの回復マップの色（紙の上）。凡例・一覧の印はアクセントの緑と枠の灰色、図の塗りは 3D のつや消しの体と同じ（theme/matte.ts）：
+ * 回復済みは石膏と緑を半分ずつ、回復中は石膏と橙を明るさで混ぜる（ramp。黄は使わない）、空いている・まだは石膏の筋肉の色
+ */
+export const CLASSIC_RECOVERY_PALETTE: { readonly [K in keyof typeof HUD_RECOVERY_PALETTE]: string } & { readonly ramp: (k: number) => string } = {
+  rest: CLASSIC_COLORS.accent,
+  restFill: MATTE_RECOVERED,
+  idle: CLASSIC_COLORS.outline,
+  idleFill: CLASSIC_FIGURE_COLORS.muscle,
+  ramp: matteRecovering,
+};
+
+export const recoveryPalette = isHud ? HUD_RECOVERY_PALETTE : CLASSIC_RECOVERY_PALETTE;
+
+/**
  * その日の体で鍛えた部位（記録のない日は前回の部位）の光の色：明るいミント（ふだんの体はアクセントの緑）。lib/dayBody.ts の dayBodyGlow の levels に使う。
- * 回復マップの色と並ぶので、見た目によらず HUD の色にする
+ * 3D の体の色は lib/bodyColors.ts が見た目ごとに選ぶ（ホログラムはいつもこの色）
  */
 export const TRAINED_GLOW = HUD_COLORS.onAccentDark;
 
@@ -124,11 +175,23 @@ export const placeholderColor = colors.sub;
  * empty は 0 セット（図の筋肉の地と同じ灰色）、steps は 1〜4・5〜9・10〜14・15〜20・21 以上の 5 段（段が上がるほど明るい。lib/partVolume.ts の volumeLevel）。
  * toward は目安に近づいた差の文字。遠ざかった・同じ差は colors.sub
  */
-export const volumePalette = {
-  empty: figureColors.muscle,
+export const HUD_VOLUME_PALETTE = {
+  empty: HUD_FIGURE_COLORS.muscle,
   steps: ['#2A78AD', '#3A9AD9', '#63BDF5', '#9DD8FF', '#DDF2FF'],
   toward: '#63BDF5',
 } as const;
+
+/**
+ * クラシックの部位の量の色（紙の上）：石膏の色から青（#1F63A0）へ、段が上がるほど濃い（3D のつや消しの体と同じ段。lib/bodyColors.ts）。
+ * 薄い段は紙と近いので、見本には枠を付け、部位の名前とセット数の文字で見分ける
+ */
+export const CLASSIC_VOLUME_PALETTE: { empty: string; steps: readonly string[]; toward: string } = {
+  empty: CLASSIC_FIGURE_COLORS.muscle,
+  steps: MATTE.volume.slice(1),
+  toward: '#1F63A0',
+};
+
+export const volumePalette = isHud ? HUD_VOLUME_PALETTE : CLASSIC_VOLUME_PALETTE;
 
 /**
  * ホームの計器の盤（刷新 A）の色。ミント 1 色の濃淡（LOG の負荷量の 3 段・PFC のドーナツ）と、空のマス・輪の地。
@@ -149,21 +212,21 @@ export const HUD_METER_COLORS = {
 export type MeterPalette = { readonly [K in keyof typeof HUD_METER_COLORS]: string };
 
 /**
- * クラシックの計器の色（Figma「ホーム（unslop 案）」の方眼のマス）。LOG の負荷量の 3 段は落ち着いた緑の濃淡で、どの段の上の文字も colors.text（4.5:1 以上）。
- * いちばん薄い mint1 は空のマスと色だけでは 3:1 に届かないので、鍛えた日はマスの部位の文字（胸・脚…）でも見分ける。
- * PFC は灰色の棒にするので、ここの濃淡は使わない。ring は輪のこれからの目盛り（過ぎた目盛りは colors.outline、今の週は colors.accent）
+ * クラシックの計器の色（「クラシックの決まり」の直近 4 週の墨の濃淡）。1 段・2 段の上の文字は墨、3 段の上の文字は紙の色（components/homeHud.tsx の onCell）。
+ * 空のマスは紙に罫の枠。1 段は空のマスと色が近いので、罫の枠と部位の文字（胸・脚…）で見分ける。
+ * ring は棒の地・フェーズの輪のこれからの目盛り（罫の色）
  */
 export const CLASSIC_METER_COLORS: MeterPalette = {
-  mint1: '#223A2D',
-  mint2: '#2A5840',
-  mint3: '#357A55',
-  empty: CLASSIC_COLORS.input,
-  ring: '#2A2F37',
-  bracket: CLASSIC_COLORS.accentMuted,
+  mint1: '#E6E0D3',
+  mint2: '#CBC2B2',
+  mint3: '#5F574C',
+  empty: CLASSIC_COLORS.bg,
+  ring: CLASSIC_COLORS.line,
+  bracket: CLASSIC_COLORS.outline,
 };
 
-/** クラシックのカードの細い枠（本文の色 #F3F5F7 の 8%。Figma「ホーム（unslop 案）」の枠）。Palette の外に置く（HUD の色の組は変えない） */
-export const hairline = 'rgba(243,245,247,0.08)';
+/** クラシックの罫（行の区切り・帳の縦線）。Palette の外に置く（HUD の色の組は変えない） */
+export const hairline = isHud ? 'rgba(243,245,247,0.08)' : CLASSIC_COLORS.line;
 
 export const hudColors: MeterPalette = isHud ? HUD_METER_COLORS : CLASSIC_METER_COLORS;
 
@@ -172,38 +235,72 @@ export const hudColors: MeterPalette = isHud ? HUD_METER_COLORS : CLASSIC_METER_
  * accent はアイコン・ラベル・帯の色、container は面の色、onToneSub は面の上の補足の文字（color/on-tone-variant）。どれも文字が面に対して 4.5:1 以上（lib/__tests__/contrast.test.ts）。
  * 気をつけたいは赤を使わず琥珀色にする（責める感じにしない）
  */
-export const toneColors = {
+export const HUD_TONE_COLORS = {
   good: { accent: '#5BE49B', container: '#173A28' },
   steady: { accent: '#A9BCCF', container: '#1F2833' },
   caution: { accent: '#F5B54A', container: '#3A2A0C' },
 } as const;
-export const onToneSub = '#C8CED8';
-/** 気をつけたいの帯の地（筋トレの入力画面の「直すこと」。caution.container より暗い。枠は caution.accent の 50%） */
-export const cautionBand = '#211A0D';
+type ToneSet = { readonly [K in keyof typeof HUD_TONE_COLORS]: { readonly accent: string; readonly container: string } };
+/** クラシックの調子の色（「クラシックの決まり」の紙の上の色。面は紙に薄く混ぜた色） */
+export const CLASSIC_TONE_COLORS: ToneSet = {
+  good: { accent: '#1E6B47', container: '#E1EBE3' },
+  steady: { accent: '#4A5B6C', container: '#E5E8EA' },
+  caution: { accent: '#8A5600', container: '#F1E6D2' },
+};
+export const toneColors: ToneSet = isHud ? HUD_TONE_COLORS : CLASSIC_TONE_COLORS;
+export const HUD_ON_TONE_SUB = '#C8CED8';
+export const CLASSIC_ON_TONE_SUB = CLASSIC_COLORS.sub;
+export const onToneSub = isHud ? HUD_ON_TONE_SUB : CLASSIC_ON_TONE_SUB;
+/** 気をつけたいの帯の地（筋トレの入力画面の「直すこと」。caution.container より暗い。枠は caution.accent の 50%）。クラシックは紙に薄い黄土 */
+export const HUD_CAUTION_BAND = '#211A0D';
+export const CLASSIC_CAUTION_BAND = '#F3EADA';
+export const cautionBand = isHud ? HUD_CAUTION_BAND : CLASSIC_CAUTION_BAND;
 
 /**
- * 意味を持つ色（見た目によらず同じ）。load は回復中の橙・黄（lib/recoveryMap の LOAD_ORANGE・LOAD_YELLOW）、injury は直している途中のケガの赤、
- * pfc は食事の P・F・C の色
+ * 意味を持つ色（意味は見た目によらず同じ。クラシックは紙の上で読める濃さ）。load は回復中の橙・黄（lib/recoveryMap の LOAD_ORANGE・LOAD_YELLOW）、
+ * injury は直している途中のケガの赤、pfc は食事の P・F・C の色
  */
-export const loadPalette = { orange: '#FF8A3D', yellow: '#F5C94A', injury: '#FF5A4F' } as const;
-export const pfcPalette = { p: HUD_COLORS.accent, f: HUD_COLORS.star, c: '#6FA8FF' } as const;
+export const HUD_LOAD_PALETTE = { orange: '#FF8A3D', yellow: '#F5C94A', injury: '#FF5A4F' } as const;
+/** クラシック：濃い橙・黄土・赤（「クラシックの決まり」の紙の上の色） */
+export const CLASSIC_LOAD_PALETTE: { readonly [K in keyof typeof HUD_LOAD_PALETTE]: string } = { orange: '#B04A0C', yellow: '#866300', injury: '#C2302A' };
+export const loadPalette = isHud ? HUD_LOAD_PALETTE : CLASSIC_LOAD_PALETTE;
+export const pfcPalette = isHud
+  ? { p: HUD_COLORS.accent, f: HUD_COLORS.star, c: '#6FA8FF' }
+  : { p: CLASSIC_COLORS.accent, f: CLASSIC_COLORS.star, c: '#1F63A0' };
 
 /**
- * 飾りの色（見た目で変わる。意味は持たない）。HUD は今の値。クラシックは静かな灰色の面と線にして、色は緑 1 色だけにする。
+ * 飾りの色（見た目で変わる。意味は持たない）。HUD は今の値。クラシックは紙の一段上の面と罫にして、色は緑 1 色だけにする。
  * Palette の外に置く（HUD の色の組は変えない）
  */
 /** 選んだ・今の状態のパネルの地（フェーズの選択など。HUD は深い緑） */
-export const accentSurface = isHud ? '#0F1C15' : HUD_COLORS.input;
+export const accentSurface = isHud ? '#0F1C15' : CLASSIC_COLORS.input;
 /** ケガの画面の方眼の線 */
 export const gridLine = isHud ? '#1C2A23' : CLASSIC_COLORS.line;
 /** 回復マップの一覧で選んだ行の地 */
-export const rowOnFill = isHud ? 'rgba(91,228,155,0.08)' : 'rgba(243,245,247,0.06)';
-/** 部位のバランスの直近の線（本文の色の 85%。見た目によらず同じ） */
-export const recentStroke = 'rgba(243,245,247,0.85)';
+export const rowOnFill = isHud ? 'rgba(91,228,155,0.08)' : 'rgba(27,25,22,0.06)';
+/** 部位のバランスの直近の線（本文の色の 85%） */
+export const recentStroke = isHud ? 'rgba(243,245,247,0.85)' : 'rgba(27,25,22,0.85)';
+/** 3D の体の上に重ねる札・吹き出しの地（体の上でも読めるよう、地の色を半分すかす） */
+export const overlayFill = isHud ? 'rgba(14,16,19,0.8)' : 'rgba(245,242,234,0.88)';
 
-/** 部位の色（グラフ用）。部位の並び順で選ぶ */
-export const PART_COLORS = ['#5BE49B', '#6FA8FF', '#B98CFF', '#F5A524', '#FF8FB1', '#4DD4E6', '#E6D85B', '#FF7A59'];
+/** 部位の色（グラフ用）。部位の並び順で選ぶ。クラシックは紙の上で 3:1 以上の濃い色 */
+export const HUD_PART_COLORS = ['#5BE49B', '#6FA8FF', '#B98CFF', '#F5A524', '#FF8FB1', '#4DD4E6', '#E6D85B', '#FF7A59'];
+export const CLASSIC_PART_COLORS = ['#1E6B47', '#1F63A0', '#6B4BA8', '#866300', '#B03A6A', '#0E7383', '#6E6A00', '#B04A0C'];
+export const PART_COLORS = isHud ? HUD_PART_COLORS : CLASSIC_PART_COLORS;
 export const partColor = (index: number) => PART_COLORS[((index % PART_COLORS.length) + PART_COLORS.length) % PART_COLORS.length];
+
+/**
+ * 3D の体の見せ方。クラシックは紙の上のつや消しの体（石膏の像）にする。MATTE_BODY を false にすると、クラシックでも前のホログラム
+ * （暗い舞台の上の光る体）に戻す（実機で描けない・見づらいときの戻し方。値を変えて配るだけでよい）
+ */
+export const MATTE_BODY = true;
+/** つや消しの体を使うか（クラシックで、MATTE_BODY が true のとき） */
+export const matteBody = !isHud && MATTE_BODY;
+/**
+ * 3D の体を載せる面の色。HUD とつや消しの体は画面の色のまま。クラシックでホログラムに戻したとき（MATTE_BODY が false）は、
+ * 光る体が紙の上で消えるので、体の面だけを HUD の暗い地にし、札の文字も HUD の色にする
+ */
+export const stageColors: Palette = isHud || matteBody ? colors : HUD_COLORS;
 
 export const fonts = {
   regular: 'NotoSansJP_400Regular',
