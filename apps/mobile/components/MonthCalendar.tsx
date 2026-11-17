@@ -45,7 +45,7 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
       <View style={{ gap: rowGap }} accessibilityLabel={accessibilityLabel} testID={testID}>
         <View style={[s.row, divider && s.divider]}>
           {(isHud ? WEEKDAY_EN : WEEKDAY_JA).map((w) => (
-            <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num={isHud} size={11} color={colors.sub}>{w}</T></View>
+            <View key={w} style={[s.cellBox, { flex: 1, maxWidth: isHud ? cell : Math.max(cell, MIN_CELL) }]}><T num={isHud} size={11} color={colors.sub}>{w}</T></View>
           ))}
         </View>
         {rows.map((row, i) => (
@@ -72,7 +72,8 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
                     testID={d.inMonth ? `day-${d.key}` : undefined}
                     style={[
                       s.cellBox,
-                      { flex: 1, maxWidth: cell, aspectRatio: 1, borderRadius: radius.xs },
+                      // 押せる大きさは 44 以上（幅が足りなければ縮むのは HUD と同じ）
+                      { flex: 1, maxWidth: Math.max(cell, MIN_CELL), aspectRatio: 1, borderRadius: radius.xs },
                       isToday && !isFilled && { borderWidth: 1, borderColor: colors.text },
                       isFilled && { backgroundColor: FILL.bg },
                     ]}
@@ -121,6 +122,9 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
     </LayoutAnimationConfig>
   );
 }
+
+/** クラシックのマスの最小の大きさ（押せる大きさ） */
+const MIN_CELL = 44;
 
 /** 選んだ日の地と文字。HUD は緑、クラシックは墨の地に紙の文字（components/ui の選んだものと同じ） */
 const FILL = isHud ? { bg: colors.accent, fg: colors.onAccent } : { bg: colors.text, fg: colors.bg };

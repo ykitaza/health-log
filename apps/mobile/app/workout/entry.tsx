@@ -26,12 +26,12 @@ import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
-import { colors, fonts, isHud, placeholderColor, radius, rowOnFill } from '@/theme';
+import { colors, fonts, isHud, placeholderColor, radius } from '@/theme';
 
 let keySeq = 0;
 const newKey = () => `k${++keySeq}`;
-/** 完了にしたセットの行の地。HUD は深い緑、クラシックは薄い墨（緑は完了の印の丸だけに使う） */
-const DONE_ROW = isHud ? colors.accentDark : rowOnFill;
+/** 完了にしたセットの行の地。HUD は深い緑、クラシックは一段上の紙の面（不透明の色。移る途中で暗くならない。緑は完了の印の丸だけに使う） */
+const DONE_ROW = isHud ? colors.accentDark : colors.input;
 
 const blank = (): SetDraft => ({ key: newKey(), weight: '', reps: '', memo: '', done: false });
 
