@@ -41,20 +41,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -71,16 +58,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_r",
       "position": [
@@ -131,20 +109,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -161,16 +126,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_r#xray",
       "position": [
@@ -193,20 +149,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -223,16 +166,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_mid_r",
       "position": [
@@ -283,20 +217,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -313,16 +234,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_rear_r",
       "position": [
@@ -373,20 +285,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -403,16 +302,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "pec_r",
       "position": [
@@ -463,20 +353,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -493,16 +370,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "biceps_r",
       "position": [
@@ -553,20 +421,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -583,16 +438,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "triceps_r",
       "position": [
@@ -643,20 +489,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -673,16 +506,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "forearm_r",
       "position": [
@@ -733,20 +557,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -763,16 +574,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "trap_r",
       "position": [
@@ -823,20 +625,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -853,16 +642,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "oblique_r",
       "position": [
@@ -913,20 +693,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -943,16 +710,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_r",
       "position": [
@@ -1003,20 +761,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1033,16 +778,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "shin_r",
       "position": [
@@ -1093,20 +829,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1123,16 +846,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "glute_r",
       "position": [
@@ -1183,20 +897,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1213,16 +914,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "ham_r",
       "position": [
@@ -1273,20 +965,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1303,16 +982,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "calf_r",
       "position": [
@@ -1363,20 +1033,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1393,16 +1050,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_up_r",
       "position": [
@@ -1453,20 +1101,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1483,16 +1118,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_r",
       "position": [
@@ -1543,20 +1169,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1573,16 +1186,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_r#xray",
       "position": [
@@ -1605,20 +1209,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1635,16 +1226,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "lat_r",
       "position": [
@@ -1695,20 +1277,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1725,16 +1294,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_l",
       "position": [
@@ -1785,20 +1345,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1815,16 +1362,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_mid_l",
       "position": [
@@ -1875,20 +1413,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1905,16 +1430,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_rear_l",
       "position": [
@@ -1965,20 +1481,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -1995,16 +1498,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "pec_l",
       "position": [
@@ -2055,20 +1549,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2085,16 +1566,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "biceps_l",
       "position": [
@@ -2145,20 +1617,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2175,16 +1634,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "triceps_l",
       "position": [
@@ -2235,20 +1685,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2265,16 +1702,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "forearm_l",
       "position": [
@@ -2325,20 +1753,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2355,16 +1770,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "trap_l",
       "position": [
@@ -2415,20 +1821,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2445,16 +1838,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "oblique_l",
       "position": [
@@ -2505,20 +1889,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2535,16 +1906,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_l",
       "position": [
@@ -2595,20 +1957,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2625,16 +1974,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "shin_l",
       "position": [
@@ -2685,20 +2025,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2715,16 +2042,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "glute_l",
       "position": [
@@ -2775,20 +2093,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2805,16 +2110,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "ham_l",
       "position": [
@@ -2865,20 +2161,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2895,16 +2178,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "calf_l",
       "position": [
@@ -2955,20 +2229,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -2985,16 +2246,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_up_l",
       "position": [
@@ -3045,20 +2297,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -3075,16 +2314,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_l",
       "position": [
@@ -3135,20 +2365,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -3165,16 +2382,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_l#xray",
       "position": [
@@ -3197,20 +2405,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -3227,16 +2422,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "lat_l",
       "position": [
@@ -3287,20 +2473,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -3317,16 +2490,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "abs",
       "position": [
@@ -3377,20 +2541,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -3407,16 +2558,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "skin",
       "position": [
@@ -3725,9 +2867,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; varying vec2 vU;
-  void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#3",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -3736,7 +2876,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "uniforms": {
           "uColor": "#5be49b",
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -3777,9 +2917,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
-  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#4",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -3789,7 +2927,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uColor": "#f5b54a",
           "uOpacity": 0.4398,
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -3812,9 +2950,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
-  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#4",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -3824,7 +2960,7 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
           "uColor": "#f5b54a",
           "uOpacity": 0.4398,
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -3872,6 +3008,39 @@ exports[`HUD の 3D の体は main と同じ ケガの画面（印・直せた�
       "visible": true,
     },
   ],
+  "shaders": [
+    "
+  varying vec3 vN; varying vec3 vV; varying float vY;
+  void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vY = wp.y;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vV = normalize(-mv.xyz);
+    vN = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * mv;
+  }",
+    "
+  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
+  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
+  varying vec3 vN; varying vec3 vV; varying float vY;
+  void main() {
+    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+    f = pow(f, 2.4);
+    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
+    float d = vY - uScanY;
+    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
+    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
+    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
+    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
+  }",
+    "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    "
+  uniform vec3 uColor; varying vec2 vU;
+  void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }",
+    "
+  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
+  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
+  ],
 }
 `;
 
@@ -3916,20 +3085,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -3946,16 +3102,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_r",
       "position": [
@@ -4006,20 +3153,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4036,16 +3170,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_r#xray",
       "position": [
@@ -4068,20 +3193,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4098,16 +3210,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_mid_r",
       "position": [
@@ -4158,20 +3261,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4188,16 +3278,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_rear_r",
       "position": [
@@ -4248,20 +3329,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4278,16 +3346,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "pec_r",
       "position": [
@@ -4338,20 +3397,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4368,16 +3414,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "pec_r#xray",
       "position": [
@@ -4400,20 +3437,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4430,16 +3454,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "biceps_r",
       "position": [
@@ -4490,20 +3505,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4520,16 +3522,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "triceps_r",
       "position": [
@@ -4580,20 +3573,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4610,16 +3590,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "forearm_r",
       "position": [
@@ -4670,20 +3641,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4700,16 +3658,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "trap_r",
       "position": [
@@ -4760,20 +3709,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4790,16 +3726,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "oblique_r",
       "position": [
@@ -4850,20 +3777,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4880,16 +3794,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_r",
       "position": [
@@ -4940,20 +3845,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -4970,16 +3862,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_r#xray",
       "position": [
@@ -5002,20 +3885,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5032,16 +3902,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "shin_r",
       "position": [
@@ -5092,20 +3953,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5122,16 +3970,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "glute_r",
       "position": [
@@ -5182,20 +4021,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5212,16 +4038,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "ham_r",
       "position": [
@@ -5272,20 +4089,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5302,16 +4106,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "calf_r",
       "position": [
@@ -5362,20 +4157,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5392,16 +4174,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_up_r",
       "position": [
@@ -5452,20 +4225,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5482,16 +4242,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_r",
       "position": [
@@ -5542,20 +4293,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5572,16 +4310,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "lat_r",
       "position": [
@@ -5632,20 +4361,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5662,16 +4378,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_front_l",
       "position": [
@@ -5722,20 +4429,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5752,16 +4446,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_mid_l",
       "position": [
@@ -5812,20 +4497,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5842,16 +4514,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "delt_rear_l",
       "position": [
@@ -5902,20 +4565,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -5932,16 +4582,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "pec_l",
       "position": [
@@ -5992,20 +4633,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6022,16 +4650,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 1,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "biceps_l",
       "position": [
@@ -6082,20 +4701,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6112,16 +4718,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "triceps_l",
       "position": [
@@ -6172,20 +4769,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6202,16 +4786,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "forearm_l",
       "position": [
@@ -6262,20 +4837,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6292,16 +4854,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "trap_l",
       "position": [
@@ -6352,20 +4905,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6382,16 +4922,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "oblique_l",
       "position": [
@@ -6442,20 +4973,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6472,16 +4990,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_l",
       "position": [
@@ -6532,20 +5041,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6562,16 +5058,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "quad_l#xray",
       "position": [
@@ -6594,20 +5081,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6624,16 +5098,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "shin_l",
       "position": [
@@ -6684,20 +5149,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6714,16 +5166,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "glute_l",
       "position": [
@@ -6774,20 +5217,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6804,16 +5234,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "ham_l",
       "position": [
@@ -6864,20 +5285,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6894,16 +5302,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "calf_l",
       "position": [
@@ -6954,20 +5353,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -6984,16 +5370,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_up_l",
       "position": [
@@ -7044,20 +5421,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -7074,16 +5438,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "erector_low_l",
       "position": [
@@ -7134,20 +5489,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -7164,16 +5506,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "lat_l",
       "position": [
@@ -7224,20 +5557,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 2,
@@ -7254,16 +5574,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "abs",
       "position": [
@@ -7314,20 +5625,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
-  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
-    f = pow(f, 2.4);
-    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
-    float d = vY - uScanY;
-    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
-    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
-    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
-    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
-  }",
+        "fragmentShader": "shader#1",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -7344,16 +5642,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uSel": 0,
           "uTime": 1.05,
         },
-        "vertexShader": "
-  varying vec3 vN; varying vec3 vV; varying float vY;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vY = wp.y;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vV = normalize(-mv.xyz);
-    vN = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * mv;
-  }",
+        "vertexShader": "shader#0",
       },
       "name": "skin",
       "position": [
@@ -7662,9 +5951,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": true,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; varying vec2 vU;
-  void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#3",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -7673,7 +5960,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "uniforms": {
           "uColor": "#5be49b",
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -7714,9 +6001,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
-  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#4",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -7726,7 +6011,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uColor": "#ff5a4f",
           "uOpacity": 0.3518,
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -7749,9 +6034,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
         "colorWrite": true,
         "depthTest": false,
         "depthWrite": false,
-        "fragmentShader": "
-  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
-  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
+        "fragmentShader": "shader#4",
         "opacity": 1,
         "polygonOffset": false,
         "side": 0,
@@ -7761,7 +6044,7 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
           "uColor": "#ff5a4f",
           "uOpacity": 0.3518,
         },
-        "vertexShader": "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        "vertexShader": "shader#2",
       },
       "name": "",
       "position": [
@@ -7808,6 +6091,39 @@ exports[`HUD の 3D の体は main と同じ 回復マップ（回復の明る�
       "type": "LineLoop",
       "visible": true,
     },
+  ],
+  "shaders": [
+    "
+  varying vec3 vN; varying vec3 vV; varying float vY;
+  void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vY = wp.y;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vV = normalize(-mv.xyz);
+    vN = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * mv;
+  }",
+    "
+  uniform vec3 uColor; uniform float uBase; uniform float uRim; uniform float uPulse;
+  uniform float uTime; uniform float uScanY; uniform float uScanAmp; uniform float uSel; uniform float uFade;
+  varying vec3 vN; varying vec3 vV; varying float vY;
+  void main() {
+    float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+    f = pow(f, 2.4);
+    float pulse = mix(1.0, 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.14159)), uPulse);
+    float d = vY - uScanY;
+    float scan = exp(-d * d / 0.0006) + 0.35 * exp(-max(-d, 0.0) * 9.0) * step(d, 0.0) * 0.4;
+    float lines = 0.75 + 0.25 * step(0.5, fract(vY * 90.0));
+    float a = (uBase + f * uRim) * pulse * lines + scan * 0.3 * uScanAmp + uSel * (0.4 + 0.9 * f);
+    gl_FragColor = vec4(uColor, clamp(a * uFade, 0.0, 1.0));
+  }",
+    "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    "
+  uniform vec3 uColor; varying vec2 vU;
+  void main(){ float d = distance(vU, vec2(.5)) * 2.0; float a = smoothstep(1.0, 0.0, d) * 0.18 + smoothstep(0.03, 0.0, abs(d - 0.7)) * 0.25; gl_FragColor = vec4(uColor, a); }",
+    "
+  uniform vec3 uColor; uniform float uOpacity; varying vec2 vU;
+  void main() { float d = distance(vU, vec2(0.5)) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.0) * uOpacity; gl_FragColor = vec4(uColor, a); }",
   ],
 }
 `;

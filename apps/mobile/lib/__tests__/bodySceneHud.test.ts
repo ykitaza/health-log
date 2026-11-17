@@ -27,14 +27,21 @@ function value(v: unknown): unknown {
   return v;
 }
 
+/** シェーダーのソースは、同じものを 1 回だけ書き出す（物には番号だけ） */
+let shaders: string[] = [];
+const shaderId = (src: string) => {
+  if (!shaders.includes(src)) shaders.push(src);
+  return `shader#${shaders.indexOf(src)}`;
+};
+
 function material(m: THREE.Material) {
   const out: Record<string, unknown> = {
     type: m.type, transparent: m.transparent, depthWrite: m.depthWrite, depthTest: m.depthTest, side: m.side, blending: m.blending,
     opacity: value(m.opacity), colorWrite: m.colorWrite, polygonOffset: m.polygonOffset,
   };
   if (m instanceof THREE.ShaderMaterial) {
-    out.vertexShader = m.vertexShader;
-    out.fragmentShader = m.fragmentShader;
+    out.vertexShader = shaderId(m.vertexShader);
+    out.fragmentShader = shaderId(m.fragmentShader);
     out.uniforms = Object.fromEntries(Object.entries(m.uniforms).sort(([a], [b]) => a.localeCompare(b)).map(([k, u]) => [k, value(u.value)]));
   }
   if (m instanceof THREE.LineBasicMaterial || m instanceof THREE.MeshBasicMaterial) out.color = value(m.color);
@@ -71,7 +78,11 @@ function frames(scene: BodyScene) {
   for (let i = 0; i < 4; i++) scene.frame(cam, 348, 380, 1 + i / 60, 1 / 60);
 }
 
-const all = (scene: BodyScene) => ({ body: dump(scene.body), deck: dump(scene.deck), scanRing: dump(scene.scanRing), glow: dump(scene.glowGroup) });
+const all = (scene: BodyScene) => {
+  shaders = [];
+  const out = { body: dump(scene.body), deck: dump(scene.deck), scanRing: dump(scene.scanRing), glow: dump(scene.glowGroup) };
+  return { ...out, shaders };
+};
 
 describe('HUD の 3D の体は main と同じ', () => {
   test('ケガの画面（印・直せた・直している途中、毎コマのあと）', async () => {
