@@ -1,14 +1,27 @@
 import { contrastRatio } from '../contrast';
 import {
-  cautionBand, CLASSIC_COLORS, CLASSIC_METER_COLORS, colors, HUD_COLORS, HUD_METER_COLORS, MeterPalette, onToneSub, Palette, PART_COLORS,
-  toneColors, volumePalette,
+  CLASSIC_CAUTION_BAND, CLASSIC_COLORS, CLASSIC_LOAD_PALETTE, CLASSIC_METER_COLORS, CLASSIC_ON_TONE_SUB, CLASSIC_PART_COLORS, CLASSIC_TONE_COLORS,
+  CLASSIC_VOLUME_PALETTE, colors, HUD_CAUTION_BAND, HUD_COLORS, HUD_METER_COLORS, HUD_ON_TONE_SUB, HUD_PART_COLORS, HUD_TONE_COLORS,
+  HUD_VOLUME_PALETTE, MeterPalette, Palette, paper,
 } from '@/theme';
 
-/** 見た目ごとの色の組（HUD は今の見た目、クラシックは Figma「ホーム（unslop 案）」の値） */
+type Tones = Record<'good' | 'steady' | 'caution', { accent: string; container: string }>;
+type Volume = { empty: string; steps: readonly string[]; toward: string };
+type Look = { colors: Palette; meter: MeterPalette; tones: Tones; onToneSub: string; cautionBand: string; parts: string[]; volume: Volume };
+
+/** 見た目ごとの色の組（HUD は今の見た目、クラシックは Figma「クラシック（大胆版）」の「クラシックの決まり」の値） */
+const SETS: Record<'HUD' | 'クラシック', Look> = {
+  HUD: { colors: HUD_COLORS, meter: HUD_METER_COLORS, tones: HUD_TONE_COLORS, onToneSub: HUD_ON_TONE_SUB, cautionBand: HUD_CAUTION_BAND, parts: HUD_PART_COLORS, volume: HUD_VOLUME_PALETTE },
+  クラシック: {
+    colors: CLASSIC_COLORS, meter: CLASSIC_METER_COLORS, tones: CLASSIC_TONE_COLORS, onToneSub: CLASSIC_ON_TONE_SUB, cautionBand: CLASSIC_CAUTION_BAND,
+    parts: CLASSIC_PART_COLORS, volume: CLASSIC_VOLUME_PALETTE,
+  },
+};
 const LOOKS: [string, Palette, MeterPalette][] = [
   ['HUD', HUD_COLORS, HUD_METER_COLORS],
   ['クラシック', CLASSIC_COLORS, CLASSIC_METER_COLORS],
 ];
+const LOOK_SETS = Object.entries(SETS) as [string, Look][];
 
 // 文字は背景に対して 4.5:1 以上（Android のアクセシビリティの指針、WCAG 1.4.3）。
 // 文字でないもの（アイコン、グラフの線）は 3:1 以上（WCAG 1.4.11）
@@ -50,12 +63,15 @@ describe.each(LOOKS)('theme の色の組み合わせ（画面で文字に使っ�
     expect(contrastRatio(colors[fg], colors[bg])).toBeGreaterThanOrEqual(3);
   });
 
-  test('部位の色（グラフ）はカードの上で 3:1 以上', () => {
-    for (const c of PART_COLORS) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
+});
+
+describe.each(LOOK_SETS)('部位の色（グラフ）：%s', (_, { colors, parts }) => {
+  test('カードの上で 3:1 以上', () => {
+    for (const c of parts) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
   });
 });
 
-describe.each(LOOKS)('レポートの調子の色：%s', (_, colors) => {
+describe.each(LOOK_SETS)('レポートの調子の色：%s', (_, { colors, tones: toneColors, onToneSub, cautionBand }) => {
   const tones = Object.entries(toneColors);
   test.each(tones)('%s：ラベル・本文・補足の文字は、調子の面の上で 4.5:1 以上', (_, t) => {
     for (const fg of [t.accent, colors.text, onToneSub]) expect(contrastRatio(fg, t.container)).toBeGreaterThanOrEqual(4.5);
@@ -84,28 +100,53 @@ describe('ホームの計器の盤の色：HUD', () => {
   });
 });
 
-// クラシックの LOG は Figma のとおり、どの段の上の文字も colors.text（components/homeHud.tsx の onCell）。
-// 塗りは落ち着いた濃淡なので、休みの日と鍛えた日は色だけでなく、マスの部位の文字でも見分ける（部位の量の色と同じく、となりの段は 1.2:1 以上）
+// クラシックの直近 4 週は「クラシックの決まり」の墨の濃淡：1 段・2 段の上の文字は墨、3 段の上の文字は紙の色（components/homeHud.tsx の onCell）。
+// 空のマスは紙に罫の枠、1 段は空のマスと色が近い（1.18:1）ので、罫の枠と部位の文字（胸・脚…）で見分ける
 describe('ホームの計器の盤の色：クラシック', () => {
   const [, colors, hudColors] = LOOKS[1];
-  const levels = [hudColors.empty, hudColors.mint1, hudColors.mint2, hudColors.mint3];
-  test('LOG のマスの文字（日付・部位の文字）は、どの段の上でも 4.5:1 以上', () => {
-    for (const bg of levels) expect(contrastRatio(colors.text, bg)).toBeGreaterThanOrEqual(4.5);
+  test('直近 4 週のマスの文字（日付・部位の文字）は、空・1 段・2 段の上は墨、3 段の上は紙の色で 4.5:1 以上', () => {
+    for (const bg of [hudColors.empty, hudColors.mint1, hudColors.mint2]) expect(contrastRatio(colors.text, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.bg, hudColors.mint3)).toBeGreaterThanOrEqual(4.5);
   });
-  test('となりの段どうし（空のマスと 1 段目も）は、色の差が 1.2:1 以上', () => {
-    for (let i = 1; i < levels.length; i++) expect(contrastRatio(levels[i], levels[i - 1])).toBeGreaterThanOrEqual(1.2);
+  test('1 段から上のとなりの段どうしは 1.3:1 以上、3 段は 2 段と紙の上で 3:1 以上。空のマスと 1 段は 1.15:1 以上（罫の枠と文字でも見分ける）', () => {
+    expect(contrastRatio(hudColors.mint2, hudColors.mint1)).toBeGreaterThanOrEqual(1.3);
+    expect(contrastRatio(hudColors.mint3, hudColors.mint2)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(hudColors.mint3, colors.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(hudColors.mint1, hudColors.empty)).toBeGreaterThanOrEqual(1.15);
+  });
+  test('控えめな文字（曜日・出典・メタ）は紙と一段上の面の上で 4.5:1 以上', () => {
+    for (const bg of [colors.bg, colors.input]) expect(contrastRatio(paper.muted, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('意味の色（回復中の橙・黄土・ケガの赤）は、紙の上で文字として 4.5:1 以上', () => {
+    for (const c of Object.values(CLASSIC_LOAD_PALETTE)) expect(contrastRatio(c, colors.bg)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
-describe.each(LOOKS)('部位の量の色：%s', (_, colors) => {
-  const levels = [volumePalette.empty, ...volumePalette.steps];
+describe('部位の量の色：HUD', () => {
+  const { colors, volume } = SETS.HUD;
+  const levels = [volume.empty, ...volume.steps];
   test('どの段も、カードの上で 3:1 以上', () => {
-    for (const c of volumePalette.steps) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
+    for (const c of volume.steps) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
   });
   test('となりの段どうしは、色の差が 1.2:1 以上（見分けがつく。0 と 1 は色相でも分かれる）', () => {
     for (let i = 1; i < levels.length; i++) expect(contrastRatio(levels[i], levels[i - 1])).toBeGreaterThanOrEqual(1.2);
   });
   test('目安に近づいた差の文字は、カードの上で 4.5:1 以上', () => {
-    expect(contrastRatio(volumePalette.toward, colors.card)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(volume.toward, colors.card)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+// クラシックの部位の量は 3D のつや消しの体と同じ段（石膏 → 青。theme/matte.ts）。薄い段は紙と近いので、見本には枠を付け、
+// 部位の名前とセット数の文字でも見分ける。0 と 1 は色相（暖かい石膏と青）で分かれる
+describe('部位の量の色：クラシック', () => {
+  const { colors, volume } = SETS.クラシック;
+  test('1 段から上のとなりの段どうしは、色の差が 1.2:1 以上', () => {
+    for (let i = 1; i < volume.steps.length; i++) expect(contrastRatio(volume.steps[i], volume.steps[i - 1])).toBeGreaterThanOrEqual(1.2);
+  });
+  test('いちばん濃い 2 段は紙の上で 3:1 以上', () => {
+    for (const c of volume.steps.slice(-2)) expect(contrastRatio(c, colors.card)).toBeGreaterThanOrEqual(3);
+  });
+  test('目安に近づいた差の文字は、カードの上で 4.5:1 以上', () => {
+    expect(contrastRatio(volume.toward, colors.card)).toBeGreaterThanOrEqual(4.5);
   });
 });

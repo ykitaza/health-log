@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { formatJpDate } from '@/lib/date';
-import { colors, radius, size as sz, space } from '@/theme';
+import { colors, isHud, radius, size as sz, space } from '@/theme';
 import { Icon, IconName } from './Icon';
 import { ItemLayout, PressableScale, SlidingMark } from './motion';
 import { T } from './Text';
@@ -36,12 +36,18 @@ type ButtonProps = {
   accessibilityLabel?: string;
 };
 
-const BUTTON_BG: Record<ButtonVariant, string> = {
-  primary: colors.accent, tonal: colors.accentDark, secondary: colors.input, outline: 'transparent', text: 'transparent', danger: 'transparent',
-};
-const BUTTON_FG: Record<ButtonVariant, string> = {
-  primary: colors.onAccent, tonal: colors.onAccentDark, secondary: colors.text, outline: colors.accent, text: colors.accent, danger: colors.danger,
-};
+/**
+ * クラシック（紙の記録帳）の、選んだもの・主な操作の色：墨の地に紙の文字（「クラシックの決まり」。緑のボタンは作らない）。
+ * HUD は今までどおり緑の濃淡
+ */
+const SELECTED = isHud ? { bg: colors.accentDark, fg: colors.onAccentDark } : { bg: colors.text, fg: colors.bg };
+
+const BUTTON_BG: Record<ButtonVariant, string> = isHud
+  ? { primary: colors.accent, tonal: colors.accentDark, secondary: colors.input, outline: 'transparent', text: 'transparent', danger: 'transparent' }
+  : { primary: colors.text, tonal: colors.input, secondary: colors.input, outline: 'transparent', text: 'transparent', danger: 'transparent' };
+const BUTTON_FG: Record<ButtonVariant, string> = isHud
+  ? { primary: colors.onAccent, tonal: colors.onAccentDark, secondary: colors.text, outline: colors.accent, text: colors.accent, danger: colors.danger }
+  : { primary: colors.bg, tonal: colors.text, secondary: colors.text, outline: colors.text, text: colors.text, danger: colors.danger };
 
 /**
  * Android でボタンの文字の最後が切れる（「AI で記録」が「AI で記」になる）のを防ぐ。
@@ -192,18 +198,21 @@ export function Chip({ label, active, onPress, disabled, accessibilityLabel, not
       <View
         style={[
           s.chip,
-          active ? { backgroundColor: colors.accentDark, borderColor: colors.accentDark, paddingLeft: 8 } : { borderColor: colors.outline },
+          active ? { backgroundColor: SELECTED.bg, borderColor: SELECTED.bg, paddingLeft: 8 } : { borderColor: colors.outline },
           disabled && { opacity: DISABLED_OPACITY },
         ]}
       >
-        {active && <Icon name="check" size={18} color={colors.onAccentDark} />}
-        <T variant="labelL" bold={!!active} color={active ? colors.onAccentDark : colors.sub}>{label}</T>
+        {active && <Icon name="check" size={18} color={SELECTED.fg} />}
+        <T variant="labelL" bold={!!active} color={active ? SELECTED.fg : CHIP_FG}>{label}</T>
         {dot && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />}
-        {note && <T variant="bodyS" color={active ? colors.onAccentDark : colors.sub} style={{ marginLeft: dot ? -4 : 0 }}>{note}</T>}
+        {note && <T variant="bodyS" color={active ? SELECTED.fg : colors.sub} style={{ marginLeft: dot ? -4 : 0 }}>{note}</T>}
       </View>
     </PressableScale>
   );
 }
+
+/** 選んでいないチップの文字（クラシックは墨） */
+const CHIP_FG = isHud ? colors.sub : colors.text;
 
 export function ChipRow({ children }: { children: ReactNode }) {
   return (
@@ -226,7 +235,7 @@ export function Segmented<K extends string>({ options, value, onChange, check = 
   return (
     <View style={s.segment}>
       <View pointerEvents="none" style={s.segmentFrame}>
-        <SlidingMark layout={mark} style={{ top: 0, bottom: 0, backgroundColor: colors.accentDark }} />
+        <SlidingMark layout={mark} style={{ top: 0, bottom: 0, backgroundColor: SELECTED.bg }} />
       </View>
       {options.map((o, i) => {
         const active = o.key === value;
@@ -239,9 +248,9 @@ export function Segmented<K extends string>({ options, value, onChange, check = 
             onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
             style={s.segmentItem}
           >
-            <View style={[s.segmentFace, i > 0 && s.segmentDivider, active && !mark && { backgroundColor: colors.accentDark }]}>
-              {active && check && <Icon name="check" size={18} color={colors.onAccentDark} />}
-              <T variant="labelL" bold={active} color={active ? colors.onAccentDark : colors.text} numberOfLines={1} style={{ flexShrink: 1 }}>{o.label}</T>
+            <View style={[s.segmentFace, i > 0 && s.segmentDivider, active && !mark && { backgroundColor: SELECTED.bg }]}>
+              {active && check && <Icon name="check" size={18} color={SELECTED.fg} />}
+              <T variant="labelL" bold={active} color={active ? SELECTED.fg : colors.text} numberOfLines={1} style={{ flexShrink: 1 }}>{o.label}</T>
             </View>
           </Pressable>
         );
@@ -270,8 +279,8 @@ export function PrimaryTabs<K extends string>({ options, value, onChange }: { op
             onLayout={(e) => setLayouts(o.key, e.nativeEvent.layout)}
             style={s.tabItem}
           >
-            {o.icon && <Icon name={o.icon} size={24} color={active ? colors.accent : colors.sub} />}
-            <T variant="titleS" color={active ? colors.accent : colors.sub}>{o.label}</T>
+            {o.icon && <Icon name={o.icon} size={24} color={active ? TAB_ON : colors.sub} />}
+            <T variant="titleS" color={active ? TAB_ON : colors.sub}>{o.label}</T>
             {active && !mark && <View style={[s.tabMark, { left: 16, right: 16 }]} />}
           </Pressable>
         );
@@ -281,6 +290,9 @@ export function PrimaryTabs<K extends string>({ options, value, onChange }: { op
     </View>
   );
 }
+
+/** 選んだタブの文字と下の線（クラシックは墨） */
+const TAB_ON = isHud ? colors.accent : colors.text;
 
 /** 並んだものの位置と幅（key ごと）。選んだ印をすべらせるのに使う */
 export function useLayouts(): [Record<string, ItemLayout | undefined>, (key: string, l: ItemLayout) => void] {
@@ -383,12 +395,15 @@ export function ListRow({ title, subtitle, right, onPress, dim, first, chevron =
 /** 区分けの見出し（14、M3 の titleSmall）。どの画面でも緑 */
 export function SectionTitle({ title, right }: { title: string; right?: string }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.l, marginBottom: space.s }}>
-      <T variant="titleS" color={colors.accent} accessibilityRole="header">{title}</T>
+    <View style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: space.l, marginBottom: space.s }, SECTION_RULE]}>
+      <T variant="titleS" color={isHud ? colors.accent : colors.text} accessibilityRole="header">{title}</T>
       {right && <T variant="bodyS" color={colors.sub}>{right}</T>}
     </View>
   );
 }
+
+/** クラシックの区分けの見出しは、上に墨の 1px の罫（「クラシックの決まり」の段の見出し） */
+const SECTION_RULE: ViewStyle | null = isHud ? null : { borderTopWidth: 1, borderTopColor: colors.text, paddingTop: space.m };
 
 type BadgeTone = 'primary' | 'neutral' | 'error' | 'star' | 'solid';
 const BADGE: Record<BadgeTone, { bg: string; fg: string }> = {
@@ -414,8 +429,8 @@ export function Badge({ label, tone = 'primary', icon, color, bg }: { label: str
 export function Fab({ label, icon = 'plus', onPress, testID, style }: { label: string; icon?: IconName; onPress: () => void; testID?: string; style?: StyleProp<ViewStyle> }) {
   return (
     <PressableScale accessibilityRole="button" onPress={onPress} testID={testID} style={[s.fab, style]}>
-      <Icon name={icon} size={24} color={colors.onAccent} />
-      <T variant="titleM" color={colors.onAccent} numberOfLines={1}>{label}</T>
+      <Icon name={icon} size={24} color={BUTTON_FG.primary} />
+      <T variant="titleM" color={BUTTON_FG.primary} numberOfLines={1}>{label}</T>
     </PressableScale>
   );
 }
@@ -438,8 +453,10 @@ const s = StyleSheet.create({
   snackbar: { minHeight: sz.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s, backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.s },
   // 押せる高さ 48。右の余白は snackbar の余白に重ねて、文字の端を M3 の位置（右から 8）に寄せる
   snackbarAction: { minHeight: sz.touch, justifyContent: 'center', paddingHorizontal: space.s, marginVertical: -space.s, marginRight: -space.s },
-  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l },
-  button: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, paddingRight: 24 },
+  // クラシックはカードの塗りを作らず、罫の枠で囲む
+  card: isHud ? { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l } : { borderWidth: 1, borderColor: colors.line, borderRadius: radius.m, padding: space.l },
+  // クラシックのボタンは角 12（「クラシックの決まり」の下のボタン）
+  button: { alignItems: 'center', justifyContent: 'center', borderRadius: isHud ? radius.full : radius.m, paddingRight: 24 },
   buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
   header: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginHorizontal: -12 },
   tabHeader: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginRight: -12 },
@@ -447,9 +464,9 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, height: CHIP_HEIGHT, borderRadius: radius.s, borderWidth: 1 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginHorizontal: -space.screen },
   tabItem: { flex: 1, minHeight: sz.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.l },
-  tabMark: { position: 'absolute', bottom: 0, height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: colors.accent },
+  tabMark: { position: 'absolute', bottom: 0, height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: TAB_ON },
   segment: { flexDirection: 'row', height: sz.touch },
-  segmentFrame: { position: 'absolute', left: 0, right: 0, top: 4, bottom: 4, borderRadius: radius.full, borderWidth: 1, borderColor: colors.outline, overflow: 'hidden' },
+  segmentFrame: { position: 'absolute', left: 0, right: 0, top: 4, bottom: 4, borderRadius: isHud ? radius.full : radius.s, borderWidth: 1, borderColor: colors.outline, overflow: 'hidden' },
   segmentItem: { flex: 1, height: sz.touch, justifyContent: 'center' },
   segmentFace: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.m },
   segmentDivider: { borderLeftWidth: 1, borderLeftColor: colors.outline },
@@ -461,7 +478,7 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.s },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: space.xs, alignSelf: 'flex-start' },
-  fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: radius.l, paddingLeft: space.l, paddingRight: 20, backgroundColor: colors.accent, elevation: 3 },
+  fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: radius.l, paddingLeft: space.l, paddingRight: 20, backgroundColor: BUTTON_BG.primary, elevation: 3 },
 });
 
 /** セットの番号の丸（24） */

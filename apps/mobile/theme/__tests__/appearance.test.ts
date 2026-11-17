@@ -104,18 +104,43 @@ describe('theme：読んだ見た目で色と飾りを選ぶ', () => {
     expect(t.isHud).toBe(false);
     expect(t.colors).toBe(t.CLASSIC_COLORS);
     expect(t.hudColors).toBe(t.CLASSIC_METER_COLORS);
-    expect(t.hudColors.mint1).toBe('#223A2D');
+    expect(t.hudColors.mint1).toBe('#E6E0D3');
+    expect(t.colors.bg).toBe('#F5F2EA');
+    expect(t.colors.text).toBe('#1B1916');
     expect(Object.values(t.deco).some(Boolean)).toBe(false);
     expect(t.lbl('LOAD', '負荷量')).toBe('負荷量');
   });
 
-  test('意味を持つ色（回復マップ・鍛えた部位の光・部位の量）は、どちらの見た目でも同じ', () => {
+  test('意味を持つ色（回復マップ・部位の量・図・調子・回復中とケガ）は、HUD は今の値、クラシックは紙の上の色（意味は同じ）', () => {
     const hud = load('hud');
     const classic = load('classic');
-    expect(classic.recoveryPalette).toEqual(hud.recoveryPalette);
+    expect(hud.recoveryPalette).toBe(hud.HUD_RECOVERY_PALETTE);
+    expect(hud.volumePalette).toBe(hud.HUD_VOLUME_PALETTE);
+    expect(hud.figureColors).toBe(hud.HUD_FIGURE_COLORS);
+    expect(hud.toneColors).toBe(hud.HUD_TONE_COLORS);
+    expect(hud.loadPalette).toBe(hud.HUD_LOAD_PALETTE);
+    expect(hud.PART_COLORS).toBe(hud.HUD_PART_COLORS);
+    expect(classic.recoveryPalette).toBe(classic.CLASSIC_RECOVERY_PALETTE);
+    expect(classic.volumePalette).toBe(classic.CLASSIC_VOLUME_PALETTE);
+    expect(classic.figureColors).toBe(classic.CLASSIC_FIGURE_COLORS);
+    expect(classic.toneColors).toBe(classic.CLASSIC_TONE_COLORS);
+    expect(classic.loadPalette).toEqual({ orange: '#B04A0C', yellow: '#866300', injury: '#C2302A' });
+    expect(classic.PART_COLORS).toBe(classic.CLASSIC_PART_COLORS);
+    // 名前はそろえる
+    expect(Object.keys(classic.CLASSIC_RECOVERY_PALETTE)).toEqual(expect.arrayContaining(Object.keys(hud.HUD_RECOVERY_PALETTE)));
+    expect(Object.keys(classic.CLASSIC_TONE_COLORS).sort()).toEqual(Object.keys(hud.HUD_TONE_COLORS).sort());
+    // 鍛えた部位の光（ホログラム）は見た目によらず HUD の色
     expect(classic.TRAINED_GLOW).toBe(hud.TRAINED_GLOW);
-    expect(classic.volumePalette).toEqual(hud.volumePalette);
-    expect(classic.figureColors).toEqual(hud.figureColors);
+  });
+
+  test('3D の体：クラシックはつや消し（MATTE_BODY）、HUD はホログラム。ホログラムの面と札の色は HUD のまま', () => {
+    const hud = load('hud');
+    const classic = load('classic');
+    expect(hud.matteBody).toBe(false);
+    expect(hud.stageColors).toBe(hud.HUD_COLORS);
+    expect(classic.MATTE_BODY).toBe(true);
+    expect(classic.matteBody).toBe(true);
+    expect(classic.stageColors).toBe(classic.CLASSIC_COLORS);
   });
 
   test('クラシックの色は HUD と同じ名前をそろえて持つ', () => {

@@ -60,7 +60,12 @@ export type RecoveryPalette = {
   idle: string;
   /** 空いている・まだ（2D の図の塗り。色を付けない筋肉と同じ灰色） */
   idleFill: string;
+  /** 回復中の色を明るさ k から直接決める（クラシックの紙の上の塗り。theme/matte.ts）。ないときは緑 → 黄 → 橙の点で混ぜる */
+  ramp?: (k: number) => string;
 };
+
+/** recoveryColor に渡す色。orange・yellow を渡すと、回復中の暖色を見た目の色の代わりにそれにする（クラシックでホログラムに戻したときの HUD の色） */
+export type RecoveryRamp = Pick<RecoveryPalette, 'rest' | 'ramp'> & { orange?: string; yellow?: string };
 /** 回復中（鍛えた日・次の日） */
 export const LOAD_ORANGE : string = loadPalette.orange;
 /** 回復中（最後の日のあたり） */
@@ -68,7 +73,7 @@ export const LOAD_YELLOW : string = loadPalette.yellow;
 /** ケガ（直している途中）。ケガの画面の琥珀色（INJURY_AMBER）とは別 */
 export const INJURY_RED : string = loadPalette.injury;
 /** 明るさ k（0〜1）と色の点。間は HSL で混ぜる。0 は回復済みの緑（palette.rest） */
-const stops = (rest: string): [number, string][] => [[0, rest], [0.25, LOAD_YELLOW], [0.75, LOAD_ORANGE], [1, LOAD_ORANGE]];
+const stops = (rest: string, yellow = LOAD_YELLOW, orange = LOAD_ORANGE): [number, string][] => [[0, rest], [0.25, yellow], [0.75, orange], [1, orange]];
 
 const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
 const toHex = (v: number[]) => `#${v.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
@@ -89,9 +94,10 @@ function fromHsl(h: number, s: number, l: number): string {
 }
 
 /** 明るさ k（0〜1）の色。0 は回復済みの緑、0.25 は黄、0.75 からは橙。色相は近いほうへ回す */
-export function recoveryColor(k: number, palette: Pick<RecoveryPalette, 'rest'>): string {
-  const STOPS = stops(palette.rest);
+export function recoveryColor(k: number, palette: RecoveryRamp): string {
   const t = Math.min(1, Math.max(0, k));
+  if (palette.ramp) return t <= 0 ? palette.rest : palette.ramp(t);
+  const STOPS = stops(palette.rest, palette.yellow, palette.orange);
   const i = STOPS.findIndex(([at]) => at >= t);
   if (i <= 0) return STOPS[0][1];
   const [a, ca] = STOPS[i - 1];

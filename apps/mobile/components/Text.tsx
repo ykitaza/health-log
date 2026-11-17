@@ -1,5 +1,8 @@
 import { Text as RNText, TextProps, TextStyle } from 'react-native';
-import { colors, fonts, type, TypeName } from '@/theme';
+import { colors, fonts, isHud, type, TypeName } from '@/theme';
+
+/** クラシックの数字はそろえ数字（桁がそろい、帳の右寄せの数字が縦に並ぶ。「クラシックの決まり」） */
+const TABULAR: TextStyle | null = isHud ? null : { fontVariant: ['tabular-nums'] };
 
 type Props = TextProps & {
   /** 文字の段階（theme の type）。size・bold・num を個別に指定すると、そちらが優先 */
@@ -22,6 +25,7 @@ export function T({ variant, size, color = colors.text, bold, num, align, style,
       {...rest}
       style={[
         { fontFamily, fontSize: size ?? v?.size ?? 14, color, textAlign: align, includeFontPadding: false },
+        isNum && TABULAR,
         v && size == null && { lineHeight: v.lineHeight },
         style,
       ]}

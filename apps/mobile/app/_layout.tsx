@@ -3,7 +3,7 @@ import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed/700
 import { NotoSansJP_400Regular } from '@expo-google-fonts/noto-sans-jp/400Regular';
 import { NotoSansJP_700Bold } from '@expo-google-fonts/noto-sans-jp/700Bold';
 import { useFonts } from 'expo-font';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteDatabase, SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
@@ -14,7 +14,7 @@ import { DB_NAME } from '@/db/name';
 import { AuthProvider } from '@/hooks/auth';
 import { HealthConnectProvider } from '@/hooks/healthConnect';
 import { SyncProvider } from '@/hooks/sync';
-import { colors } from '@/theme';
+import { colors, isHud } from '@/theme';
 import { duration } from '@/theme/motion';
 
 export { ErrorBoundary } from 'expo-router';
@@ -26,9 +26,11 @@ async function onInit(db: SQLiteDatabase) {
   await migrate(db);
 }
 
+// クラシックは紙の地（明るいテーマ。ナビゲーションの地と文字も紙と墨）
+const base = isHud ? DarkTheme : DefaultTheme;
 const theme = {
-  ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, primary: colors.accent, text: colors.text, border: colors.line },
+  ...base,
+  colors: { ...base.colors, background: colors.bg, card: colors.bg, primary: colors.accent, text: colors.text, border: colors.line },
 };
 
 export default function RootLayout() {
@@ -56,7 +58,8 @@ export default function RootLayout() {
         <SyncProvider>
           <HealthConnectProvider>
             <ThemeProvider value={theme}>
-              <StatusBar style="light" />
+              {/* クラシックは紙の地なので、状態バーのアイコンを暗くする（スプラッシュは暗いまま） */}
+              <StatusBar style={isHud ? 'light' : 'dark'} />
               <Stack
                 screenOptions={{
                   headerShown: false,
