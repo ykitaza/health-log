@@ -9,7 +9,7 @@ import { colors, radius, space } from '@/theme';
 import { Icon } from './Icon';
 import { Sheet } from './motion';
 import { T } from './Text';
-import { Button, ListRow, Segmented } from './ui';
+import { Button, LIST_GROUP, ListRow, Segmented } from './ui';
 
 /** 押すと、ChatGPT か Claude を選ぶシートを出すボタンの読み上げの名前（外のアプリを開くことを伝える） */
 export const AI_RECORD_LABEL = 'AI で記録。ChatGPT か Claude を開きます';
@@ -182,7 +182,7 @@ export function AiRecordButton({ prompt, disabled, style }: { prompt: Exclude<Ch
 }
 
 const s = StyleSheet.create({
-  group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
+  group: LIST_GROUP,
   plan: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.s, minHeight: 56 },
   snack: { minHeight: 48, justifyContent: 'center', backgroundColor: colors.text, borderRadius: radius.xs, paddingHorizontal: space.l, paddingVertical: space.m },
 });

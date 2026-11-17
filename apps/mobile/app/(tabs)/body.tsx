@@ -21,7 +21,7 @@ import { addDays, formatJpDate, formatMonthDay, todayKey } from '@/lib/date';
 import { formatClock, formatHeartRate, formatHM, formatMinutes, formatSteps, sevenDayAverage } from '@/lib/health';
 import { TAB_AREAS } from '@/lib/reports';
 import { fmt1, kgToUnit, WeightUnit } from '@/lib/units';
-import { colors, radius, space } from '@/theme';
+import { colors, isHud, radius, space } from '@/theme';
 
 type Pane = 'today' | 'trend';
 
@@ -106,7 +106,8 @@ export default function BodyScreen() {
           <BodyTrend daily={data.daily} settings={data.settings} sleep={data.sleepWeek} heart={data.heartWeek} steps={data.stepWeek} today={today} />
         )
       ) : (<>
-        <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs, marginTop: space.l }}>
+        {/* クラシックは枠も罫も付けず、日付と前後の矢印だけ（筋トレ・食事の日付の切り替えと同じ） */}
+        <Card style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs, marginTop: space.l }, !isHud && { borderTopWidth: 0, paddingHorizontal: 0 }]}>
           <IconButton name="prev" label="前の日" onPress={() => setDate(addDays(date, -1))} />
           <T variant="titleM">{formatJpDate(date)}</T>
           <IconButton name="next" label="次の日" disabled={date >= today} onPress={() => date < today && setDate(addDays(date, 1))} />
@@ -307,5 +308,8 @@ function HealthRow({ testID, icon, title, sub, lead, value, unit, label, onPress
 const s = StyleSheet.create({
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   healthRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, minHeight: 64, paddingVertical: space.s },
-  tile: { flex: 1, minWidth: 0, minHeight: 64, backgroundColor: colors.input, borderRadius: radius.m, paddingHorizontal: space.m, paddingVertical: space.s, justifyContent: 'center' },
+  // クラシックは塗らずに左の罫（帳の欄）
+  tile: isHud
+    ? { flex: 1, minWidth: 0, minHeight: 64, backgroundColor: colors.input, borderRadius: radius.m, paddingHorizontal: space.m, paddingVertical: space.s, justifyContent: 'center' }
+    : { flex: 1, minWidth: 0, minHeight: 64, borderLeftWidth: 1, borderLeftColor: colors.line, paddingHorizontal: space.m, paddingVertical: space.s, justifyContent: 'center' },
 });

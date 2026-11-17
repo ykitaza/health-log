@@ -10,14 +10,14 @@ import { DateKey, formatJpDate, formatMonthDay, MONTH_NAMES_EN } from '@/lib/dat
 import { mealRecordTarget } from '@/lib/home';
 import { HOME_ACCOUNT_LABEL } from '@/lib/profile';
 import { Received, receivedMessage, receivedTarget } from '@/lib/sync/received';
-import { colors, deco, radius, size, space } from '@/theme';
+import { colors, deco, isHud, radius, size, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { Avatar } from './Avatar';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { Icon, IconName } from './Icon';
 import { easeIn, easeOut, PressableScale, Sheet } from './motion';
 import { T } from './Text';
-import { SettingsButton, Snackbar } from './ui';
+import { LIST_GROUP, SettingsButton, Snackbar } from './ui';
 
 /** 見出しの行の高さ。押せる大きさ（48） */
 const HEADER_ROW = size.touch;
@@ -124,7 +124,7 @@ export function RecordSheet({ visible, date, today, onClose }: { visible: boolea
                 style={[s.sheetRow, i > 0 && s.line]}
                 testID={`record-${r.key}`}
               >
-                <View style={s.rowIcon}><Icon name={r.icon} size={24} color={colors.onAccentDark} /></View>
+                <View style={s.rowIcon}><Icon name={r.icon} size={24} color={isHud ? colors.onAccentDark : colors.text} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T variant="titleM">{r.title}</T>
                   <T variant="bodyM" color={colors.sub}>{r.sub}</T>
@@ -182,10 +182,12 @@ export function ReceivedNotice({ bottom }: { bottom: number }) {
 }
 
 const s = StyleSheet.create({
-  group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
+  group: LIST_GROUP,
+  // クラシックの行は罫の端（シートの余白）にそろえる
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: isHud ? space.l : 0, paddingVertical: space.m, minHeight: 72 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
+  // クラシックはアイコンを緑の地に載せず、墨のアイコンだけ（幅 24。文字の左の端を行ごとにそろえる）
+  rowIcon: isHud ? { width: 40, height: 40, borderRadius: radius.m, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' } : { width: 24, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: HEADER_ROW },
   // 押せる大きさは 48。写真（32）の左の端を、画面の左の余白（16）にそろえる
   account: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center', marginLeft: -(size.touch - AVATAR_SIZE) / 2 },

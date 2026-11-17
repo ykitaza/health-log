@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, Segmented } from '@/components/ui';
+import { Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
@@ -252,7 +252,8 @@ const s = StyleSheet.create({
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.input, borderRadius: 12, paddingHorizontal: 2 },
   amount: { width: 72, height: 40, textAlign: 'center', color: colors.text, fontFamily: fonts.numBold, fontSize: 20 },
-  text: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15 },
+  // クラシックは塗らず下の罫だけ（RULED）
+  text: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, ...RULED },
   addItem: {
     marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 52,
     borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.card,

@@ -11,7 +11,7 @@ import { Icon } from '@/components/Icon';
 import { PressableScale, Sheet } from '@/components/motion';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Badge, Button, Card, ConfirmDialog, Header, ListRow, SectionTitle } from '@/components/ui';
+import { Badge, Button, Card, ConfirmDialog, Header, LIST_GROUP, ListRow, SectionTitle } from '@/components/ui';
 import type { AccountSwitch } from '@/db/repositories/sync';
 import { useAuth } from '@/hooks/auth';
 import { useProfile } from '@/hooks/profile';
@@ -20,7 +20,7 @@ import { authConfig, NATIVE_REDIRECT_URI } from '@/lib/auth/config';
 import { AuthError, endpoints, SCOPES } from '@/lib/auth/session';
 import { accountTitle, DISPLAY_NAME_MAX, loginStatusText, PROFILE_NOTE } from '@/lib/profile';
 import type { SyncErrorCode } from '@/lib/sync/engine';
-import { colors, radius, space } from '@/theme';
+import { colors, space } from '@/theme';
 
 // web は、ログインの画面をポップアップで開き、自分の /callback に戻す（E2E と画面の確認用。Cognito には登録していない）
 const redirectUri = Platform.OS === 'web' ? makeRedirectUri({ path: 'callback' }) : NATIVE_REDIRECT_URI;
@@ -357,5 +357,5 @@ const s = StyleSheet.create({
     position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16,
     backgroundColor: colors.accentDark, borderWidth: 2, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center',
   },
-  group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
+  group: LIST_GROUP,
 });

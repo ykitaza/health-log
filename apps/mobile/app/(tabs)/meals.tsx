@@ -14,7 +14,7 @@ import { DailyHighlights } from '@/components/reports';
 import { Screen, ScrollTarget } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { MealWeekly } from '@/components/MealWeekly';
-import { Button, Card, IconButton, PrimaryTabs, Segmented, TabHeader } from '@/components/ui';
+import { Button, Card, IconButton, LIST_GROUP, PrimaryTabs, Segmented, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
@@ -26,7 +26,7 @@ import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, 
 import { TAB_AREAS } from '@/lib/reports';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
-import { colors, radius, space } from '@/theme';
+import { colors, isHud, radius, space } from '@/theme';
 
 /**
  * 食事のタブ。「記録」はその日の区分ごとの食事、合計と目標の残り（日付は過去にも戻れる。今日が初め）。「推移」は週のふり返り（週のまとめ）。
@@ -338,10 +338,16 @@ const s = StyleSheet.create({
   dayChip: { flexDirection: 'row', alignItems: 'center', gap: space.s, height: 32, borderRadius: radius.s, borderWidth: 1, paddingLeft: space.s, paddingRight: space.l },
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
   // まだ記録していない枠の点線（3.7:1 の outline）
-  empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card, padding: space.l, alignItems: 'center' },
+  // クラシックは点線の箱にせず、上下の罫の間に左寄せの一行（帳の空いた行）
+  empty: isHud
+    ? { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card, padding: space.l, alignItems: 'center' }
+    : { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: space.m },
   // 食事の行（高さ 72 の押せる行）
-  mealRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
-  group: { backgroundColor: colors.input, borderRadius: radius.card },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
+  // クラシックの行は、画面の余白（帳の端）にそろえ、下に罫
+  mealRow: isHud
+    ? { flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: radius.card, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 }
+    : { flexDirection: 'row', alignItems: 'center', gap: space.m, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: space.m, minHeight: 72 },
+  group: isHud ? { backgroundColor: colors.input, borderRadius: radius.card } : LIST_GROUP,
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: isHud ? 16 : 0, paddingVertical: 12, minHeight: 60 },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
 });

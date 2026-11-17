@@ -56,7 +56,7 @@ function BodyMap3D({ injuries, numbers }: { injuries: Injury[]; numbers: Map<str
   const pickedLabel = picked ? (() => { const s = siteOfPart(picked); return s ? siteLabel(s.site, s.side) : null; })() : null;
 
   return (
-    <ScanFrame strong style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
+    <ScanFrame strong atTop style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
       <View accessible accessibilityLabel={`体の図。直している途中 ${active}件、直せた ${cleared}件`} style={{ gap: space.s }}>
         <View style={s.mapHead}>
           <Mono color={colors.accent}>{lbl('BODY MAP // SCAN', '体の図')}</Mono>

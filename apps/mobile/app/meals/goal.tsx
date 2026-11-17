@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, Header, Segmented } from '@/components/ui';
+import { Button, Card, Chip, Header, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
@@ -304,6 +304,7 @@ function Num({ label, unit, value, onChange, a11y }: { label: string; unit: stri
 const s = StyleSheet.create({
   notice: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, backgroundColor: colors.accentDark, borderRadius: radius.m, padding: space.m },
   panel: { gap: space.s, borderWidth: 1, borderColor: colors.line, borderRadius: radius.m, padding: space.m },
-  box: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.input, borderRadius: radius.input, paddingRight: 8 },
-  input: { flex: 1, minWidth: 0, height: 44, paddingHorizontal: 12, color: colors.text, fontFamily: fonts.numBold, fontSize: 20 },
+  // クラシックは塗らず下の罫だけ（RULED）
+  box: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.input, borderRadius: radius.input, paddingRight: 8, ...RULED },
+  input: { flex: 1, minWidth: 0, height: 44, paddingHorizontal: RULED ? 0 : 12, color: colors.text, fontFamily: fonts.numBold, fontSize: 20 },
 });

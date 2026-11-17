@@ -96,8 +96,8 @@ export function IconButton({ name, onPress, label, color, bg, variant = 'standar
   name: IconName; onPress: () => void; label: string; color?: string; bg?: string; variant?: IconButtonVariant; size?: number;
   disabled?: boolean; testID?: string;
 }) {
-  const base = { standard: 'transparent', tonal: colors.input, selected: colors.accentDark, outlined: 'transparent' }[variant];
-  const fg = disabled ? colors.disabled : color ?? (variant === 'selected' ? colors.onAccentDark : colors.text);
+  const base = { standard: 'transparent', tonal: colors.input, selected: SELECTED.bg, outlined: 'transparent' }[variant];
+  const fg = disabled ? colors.disabled : color ?? (variant === 'selected' ? SELECTED.fg : colors.text);
   const outer = Math.max(size, sz.touch);
   return (
     <PressableScale
@@ -111,7 +111,7 @@ export function IconButton({ name, onPress, label, color, bg, variant = 'standar
     >
       <View
         style={[
-          { width: size, height: size, borderRadius: size / 2, backgroundColor: disabled && (bg ?? base) !== 'transparent' ? colors.disabledContainer : bg ?? base, alignItems: 'center', justifyContent: 'center' },
+          { width: size, height: size, borderRadius: isHud ? size / 2 : radius.s, backgroundColor: disabled && (bg ?? base) !== 'transparent' ? colors.disabledContainer : bg ?? base, alignItems: 'center', justifyContent: 'center' },
           variant === 'outlined' && { borderWidth: 1, borderColor: colors.outline },
         ]}
       >
@@ -168,14 +168,17 @@ export function DayNote({ date, today }: { date: string; today: string }) {
   if (date === today) return null;
   const future = date > today;
   return (
-    <View style={[s.dayNote, future ? { backgroundColor: colors.dangerDark } : { backgroundColor: colors.accentDark }]}>
-      <Icon name="calendar" size={20} color={future ? colors.onDangerDark : colors.onAccentDark} />
-      <T variant="labelL" color={future ? colors.onDangerDark : colors.onAccentDark} style={{ flexShrink: 1 }}>
+    <View style={[s.dayNote, isHud ? { backgroundColor: future ? colors.dangerDark : colors.accentDark } : { borderLeftColor: future ? colors.danger : colors.text }]}>
+      <Icon name="calendar" size={20} color={DAY_NOTE_FG[future ? 'future' : 'past']} />
+      <T variant="labelL" color={DAY_NOTE_FG[future ? 'future' : 'past']} style={{ flexShrink: 1 }}>
         {future ? '未来の日には記録できません' : `過去の日（${formatJpDate(date)}）に記録しています`}
       </T>
     </View>
   );
 }
+
+/** 今日でない日の知らせの文字。クラシックは塗らず、左の罫（墨・未来は赤）と同じ色の文字 */
+const DAY_NOTE_FG = isHud ? { past: colors.onAccentDark, future: colors.onDangerDark } : { past: colors.text, future: colors.danger };
 
 /** チップの見た目の高さ。押せる範囲は上下を広げて 48 */
 export const CHIP_HEIGHT = 32;
@@ -311,7 +314,7 @@ export function EmptyState({ icon = 'dumbbell', title, body, action, compact, te
   if (compact) {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m, paddingVertical: space.s }} testID={testID}>
-        <View style={[s.emptyIcon, { width: 48, height: 48, borderRadius: 24 }]}>
+        <View style={[s.emptyIcon, isHud && { width: 48, height: 48, borderRadius: 24 }]}>
           <Icon name={icon} color={colors.sub} size={24} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
@@ -324,7 +327,7 @@ export function EmptyState({ icon = 'dumbbell', title, body, action, compact, te
   return (
     <View style={{ alignItems: 'center', paddingVertical: space.xxl, paddingHorizontal: space.l, gap: space.s }}>
       <View style={s.emptyIcon}>
-        <Icon name={icon} color={colors.sub} size={40} />
+        <Icon name={icon} color={colors.sub} size={isHud ? 40 : 32} />
       </View>
       <T variant="titleL" align="center" style={{ marginTop: space.s }}>{title}</T>
       {body && <T variant="bodyM" color={colors.sub} align="center">{body}</T>}
@@ -357,6 +360,22 @@ export function ConfirmDialog({ visible, title, body, confirmLabel, cancelLabel 
     </Modal>
   );
 }
+
+/**
+ * シートの中の選択肢の並び（記録する・AI で記録・ケガを記録）。HUD は一段明るい面の角丸のまとまり。
+ * クラシックは塗らず、上と下の罫で挟んだ帳の数行にする（中の行は ListRow の区切りの罫）
+ */
+export const LIST_GROUP: ViewStyle = isHud
+  ? { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' }
+  : { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line };
+
+/**
+ * 塗った入力欄（一段明るい面の角丸）を、クラシックでは帳の記入欄にする上書き：塗らず、枠を消し、下の罫だけ（components/Field と同じ）。
+ * 画面の入力欄の style の後ろに重ねる。HUD は null（何も変えない）
+ */
+export const RULED: ViewStyle | null = isHud
+  ? null
+  : { backgroundColor: 'transparent', borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderBottomColor: colors.outline, paddingHorizontal: 0 };
 
 /** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印。badge は題の横の印 */
 export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, left, testID, label, badge }: {
@@ -455,13 +474,18 @@ const s = StyleSheet.create({
   // 押せる高さ 48。右の余白は snackbar の余白に重ねて、文字の端を M3 の位置（右から 8）に寄せる
   snackbarAction: { minHeight: sz.touch, justifyContent: 'center', paddingHorizontal: space.s, marginVertical: -space.s, marginRight: -space.s },
   // クラシックはカードの塗りを作らず、罫の枠で囲む
-  card: isHud ? { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l } : { borderWidth: 1, borderColor: colors.line, borderRadius: radius.m, padding: space.l },
+  // クラシックはカードを箱にせず、上の罫で区切る帳の段にする（左右の余白なし。中身は画面の余白にそろう）。
+  // 呼ぶ側の padding: 0 などがそのまま効くよう、上下は padding の一括指定で取る（paddingVertical にすると padding より強くなる）
+  card: isHud ? { backgroundColor: colors.card, borderRadius: radius.card, padding: space.l } : { borderTopWidth: 1, borderTopColor: colors.line, padding: space.l, paddingHorizontal: 0 },
   // クラシックのボタンは角 12（「クラシックの決まり」の下のボタン）
   button: { alignItems: 'center', justifyContent: 'center', borderRadius: isHud ? radius.full : radius.m, paddingRight: 24 },
   buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
   header: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginHorizontal: -12 },
   tabHeader: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: sz.topBar, marginRight: -12 },
-  dayNote: { flexDirection: 'row', alignItems: 'center', gap: space.s, borderRadius: radius.m, paddingHorizontal: space.l, paddingVertical: space.m, marginTop: space.xs },
+  // クラシックは塗らず、左に 2px の罫
+  dayNote: isHud
+    ? { flexDirection: 'row', alignItems: 'center', gap: space.s, borderRadius: radius.m, paddingHorizontal: space.l, paddingVertical: space.m, marginTop: space.xs }
+    : { flexDirection: 'row', alignItems: 'center', gap: space.s, borderLeftWidth: 2, paddingHorizontal: space.m, paddingVertical: space.s, marginTop: space.s },
   chip: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, height: CHIP_HEIGHT, borderRadius: radius.s, borderWidth: 1 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginHorizontal: -space.screen },
   tabItem: { flex: 1, minHeight: sz.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.l },
@@ -471,12 +495,17 @@ const s = StyleSheet.create({
   segmentItem: { flex: 1, height: sz.touch, justifyContent: 'center' },
   segmentFace: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.m },
   segmentDivider: { borderLeftWidth: 1, borderLeftColor: colors.outline },
-  emptyIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  // クラシックはアイコンを丸に載せない
+  emptyIcon: isHud ? { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' } : { alignItems: 'center', justifyContent: 'center' },
   backdrop: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: space.xl },
-  dialog: { width: '100%', minWidth: 280, maxWidth: 560, backgroundColor: colors.input, borderRadius: radius.dialog, paddingTop: space.xl, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.l },
+  // クラシックのダイアログは紙の地に罫の枠、角は小さく
+  dialog: isHud
+    ? { width: '100%', minWidth: 280, maxWidth: 560, backgroundColor: colors.input, borderRadius: radius.dialog, paddingTop: space.xl, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.l }
+    : { width: '100%', minWidth: 280, maxWidth: 560, backgroundColor: colors.bg, borderRadius: radius.s, borderWidth: 1, borderColor: colors.outline, paddingTop: space.xl, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.l },
   dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.s, paddingTop: space.s },
   dialogButton: { paddingLeft: 12, paddingRight: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: space.l, paddingVertical: space.s },
+  // クラシックの行は、画面の余白（帳の左右の端）にそろえる
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: isHud ? space.l : 0, paddingVertical: space.s },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: space.xs, alignSelf: 'flex-start' },
   fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: radius.l, paddingLeft: space.l, paddingRight: 20, backgroundColor: BUTTON_BG.primary, elevation: 3 },
@@ -485,8 +514,8 @@ const s = StyleSheet.create({
 /** セットの番号の丸（24） */
 export function SetNo({ n, active }: { n: number; active?: boolean }) {
   return (
-    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: active ? colors.accentDark : colors.input, alignItems: 'center', justifyContent: 'center' }}>
-      <T variant="labelM" color={active ? colors.onAccentDark : colors.sub}>{n}</T>
+    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: isHud ? (active ? colors.accentDark : colors.input) : undefined, alignItems: 'center', justifyContent: 'center' }}>
+      <T variant="labelM" color={isHud ? (active ? colors.onAccentDark : colors.sub) : active ? colors.text : colors.sub}>{n}</T>
     </View>
   );
 }

@@ -150,3 +150,29 @@ describe('部位の量の色：クラシック', () => {
     expect(contrastRatio(volume.toward, colors.card)).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe('クラシックの共通の部品の色（components/ui・Field・MonthCalendar・Screen）', () => {
+  const c = CLASSIC_COLORS;
+  /** 紙の上に墨を a の濃さで重ねた色（rowOnFill の rgba(27,25,22,a) を、紙の上で見た色） */
+  const inkOnPaper = (a: number) => {
+    const p = [0xf5, 0xf2, 0xea], k = [0x1b, 0x19, 0x16];
+    return `#${p.map((v, i) => Math.round(v * (1 - a) + k[i] * a).toString(16).padStart(2, '0')).join('')}`;
+  };
+  test('選んだ日（カレンダー）・選んだチップ・切り替えは、墨の地に紙の文字で 4.5:1 以上', () => {
+    expect(contrastRatio(c.bg, c.text)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('今日でない日の知らせ（塗らない）は、紙の上の墨・赤の文字で 4.5:1 以上', () => {
+    expect(contrastRatio(c.text, c.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(c.danger, c.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('記入欄の下の罫（outline）と記録のある日の緑の点は、紙の上で 3:1 以上（文字でない印）', () => {
+    expect(contrastRatio(c.outline, c.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(c.accent, c.bg)).toBeGreaterThanOrEqual(3);
+  });
+  test('完了したセットの行・着いた行の薄い墨の地（6%）の上で、本文と補足の文字は 4.5:1 以上', () => {
+    for (const fg of [c.text, c.sub]) expect(contrastRatio(fg, inkOnPaper(0.06))).toBeGreaterThanOrEqual(4.5);
+  });
+  test('カレンダーの曜日（補足の色）は紙の上で 4.5:1 以上', () => {
+    expect(contrastRatio(c.sub, c.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+});

@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, Header, IconButton, Segmented } from '@/components/ui';
+import { Button, Card, Chip, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
@@ -150,7 +150,7 @@ function NumField({ label, unit, value, onChange, a11y }: { label: string; unit:
     <Field label={label} style={{ flex: 1 }}>
       <View style={[s.box, { flexDirection: 'row', alignItems: 'center', paddingRight: 8 }]}>
         <Input value={value} onChangeText={onChange} keyboardType="decimal-pad" accessibilityLabel={a11y} placeholder="0" placeholderTextColor={colors.sub}
-          style={[s.num, { flex: 1, minWidth: 0, backgroundColor: 'transparent' }]} />
+          style={[s.num, { flex: 1, minWidth: 0, backgroundColor: 'transparent' }, RULED && { borderBottomWidth: 0 }]} />
         <T size={11} color={colors.sub}>{unit}</T>
       </View>
     </Field>
@@ -158,9 +158,10 @@ function NumField({ label, unit, value, onChange, a11y }: { label: string; unit:
 }
 
 const s = StyleSheet.create({
-  box: { backgroundColor: colors.input, borderRadius: radius.input },
-  text: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15 },
-  num: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.numBold, fontSize: 20 },
+  // クラシックは塗らず下の罫だけ（RULED）
+  box: { backgroundColor: colors.input, borderRadius: radius.input, ...RULED },
+  text: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, ...RULED },
+  num: { height: 44, paddingHorizontal: 12, backgroundColor: colors.input, borderRadius: radius.input, color: colors.text, fontFamily: fonts.numBold, fontSize: 20, ...RULED },
   addItem: {
     marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 52,
     borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.card,
