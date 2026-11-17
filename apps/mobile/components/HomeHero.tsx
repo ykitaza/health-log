@@ -22,7 +22,7 @@ import {
   phaseLine, ringFooter, ringSegment,
 } from '@/lib/homeHero';
 import type { LatestSession } from '@/lib/homeHud';
-import { recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
+import { HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED, recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
 import { MuscleView, partsAt } from '@/lib/muscleFigure';
 import { HeroBodyMode, heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeMuscleLevels } from '@/lib/partVolume';
 import { PHASE_TICKS } from '@/lib/phases';
@@ -131,6 +131,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
   const footer = data ? ringFooter(data.phase) : null;
   const band = { top: CORNER_H, bottom: h - CORNER_H };
   const rotate = rotateColumn(w);
+  const captionVolume = page === 'latest' && mode === 'volume' ? data?.volume ?? null : null;
   // 回復の色で塗るのは、回復マップに出る部位を一度でも鍛えたときだけ（まっさらなときに体じゅうを灰色にしない）
   const recovery = data && data.recovery.list.some((p) => p.last != null) ? data.recovery : null;
 
@@ -177,6 +178,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
             </>
           )}
         </View>
+        {captionVolume && <VolumeCaption volume={captionVolume} />}
         <View style={c.modeRow}>
           {page === 'latest' && data?.volume ? (
             <View style={c.modeBox} testID="hero-body-mode">
@@ -231,6 +233,7 @@ export function HomeHero({ today, unit, latest, ready, data }: {
           </>
         )}
       </View>
+      {captionVolume && <VolumeCaption volume={captionVolume} />}
       {/* 輪の下の 1 行（輪とページの印の間） */}
       {footer && (
         <View style={s.footer} pointerEvents="none">
@@ -377,6 +380,16 @@ const openInjury = (id: string) => router.push(`/injuries/${id}`);
 const BODY_MODES: { key: HeroBodyMode; label: string }[] = [{ key: 'recovery', label: '回復' }, { key: 'volume', label: '部位の量' }];
 
 /** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
+/** 部位の量の見出し（「増量 8週で 64セット」）：体の面の下の 1 行。長いと折り返す */
+function VolumeCaption({ volume }: { volume: PhaseVolume }) {
+  const text = heroVolumeCaption(volume);
+  return (
+    <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
+      {isHud ? <Mono size={11} color={colors.sub}>{text}</Mono> : <T size={12} color={colors.sub} style={s.captionText}>{text}</T>}
+    </View>
+  );
+}
+
 const NO_PARTS: string[] = [];
 const NO_INJURIES: Injury[] = [];
 
@@ -413,8 +426,8 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
   );
   const pickedKey = pick == null ? null : 'mesh' in pick ? pickByMesh(cands, pick.mesh) : pickByNames(cands, pick.names);
   const tags = useMemo<DayBodyEntry[]>(
-    () => selectHeroTags(cands, pickedKey).map((t, i) => ({ key: t.key, no: i + 1, name: t.main, set: t.sub, part: t.part, kicker: t.lead, stack: t.stack })),
-    [cands, pickedKey],
+    () => selectHeroTags(cands, pickedKey, HERO_TAG_MAX, byVolume ? HERO_TAG_MAX : HERO_TAG_MAX_WITH_RECOVERED).map((t, i) => ({ key: t.key, no: i + 1, name: t.main, set: t.sub, part: t.part, kicker: t.lead, stack: t.stack })),
+    [cands, pickedKey, byVolume],
   );
   const onPickMesh = useCallback((mesh: string | null) => setPick(mesh ? { mesh } : null), []);
   const onPickPoint = useCallback((view: MuscleView, point: { x: number; y: number }) => {
@@ -433,13 +446,6 @@ function LatestPage({ width, height, today, unit, latest, ready, rotate, recover
         {...(byVolume && volumeBody
           ? { parts: NO_PARTS, recovery: volumeBody.glow, idle: volumeBody.idle, injuries, fills: volumeBody.fills, levelColor: bodyColors.volume, idleColor: bodyColors.volume(0) }
           : recovery ? { parts: NO_PARTS, recovery: recovery.levels, idle: recovery.idle, injuries, fills } : { parts })} />
-      {byVolume && (
-        <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
-          <View style={s.captionText}>
-            {isHud ? <Mono size={11} color={colors.sub}>{heroVolumeCaption(volume!)}</Mono> : <T size={12} color={stageColors.sub}>{heroVolumeCaption(volume!)}</T>}
-          </View>
-        </View>
-      )}
       {/* クラシックは、切り替えと四隅の数字を体の外（紙の帳）へ下ろす（HomeHero） */}
       {volume && isHud && (
         <View style={s.mode} pointerEvents="box-none" testID="hero-body-mode">
@@ -656,9 +662,9 @@ const s = StyleSheet.create({
   stage: { overflow: 'hidden' },
   corner: { position: 'absolute', minWidth: size.touch, minHeight: size.touch, padding: space.s },
   shield: { position: 'absolute', top: 0, bottom: 0 },
-  caption: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' },
-  // 外の輪の上の弧と重なるので、文字の後ろは地の色で抜く
-  captionText: { backgroundColor: stageColors.bg, paddingHorizontal: 8, paddingVertical: 1 },
+  // 部位の量の見出しは体の面の外（輪の下）に出す。体の頭や輪の上の弧に重ならない。長いフェーズ名は折り返す
+  caption: { alignItems: 'center', paddingHorizontal: space.l, marginTop: space.xs },
+  captionText: { textAlign: 'center' },
   mode: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
   modeBox: { width: 176 },
   footer: { alignItems: 'center', marginTop: space.xs },

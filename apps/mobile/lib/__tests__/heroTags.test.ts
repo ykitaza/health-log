@@ -1,4 +1,4 @@
-import { HERO_TAG_MAX, pickByMesh, pickByNames, recoveryCandidates, selectHeroTags, volumeCandidates } from '../heroTags';
+import { HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED, pickByMesh, pickByNames, recoveryCandidates, selectHeroTags, volumeCandidates } from '../heroTags';
 import { phasePartVolume } from '../partVolume';
 import { partRecoveries } from '../recoveryMap';
 import type { TrainingSetRow } from '../training';
@@ -80,9 +80,36 @@ describe('回復の札：回復中の部位だけ、あと何日が長い順に 
     expect(selectHeroTags(never, '胸')[0].spoken).toBe('胸 まだ');
   });
 
-  test('みんな回復済みなら札なし', () => {
-    const rested = recoveryCandidates(partRecoveries(rows('2026-10-01', 'chest', 3), nameOf, ['胸', '肩'], today));
-    expect(selectHeroTags(rested, null)).toEqual([]);
+  test('みんな回復済みなら、回復済みの札が出る（言い方は回復マップの札と同じ「回復済み」）。空いている部位は出ない', () => {
+    // 11/12 に鍛えた胸（R=2 → 回復済み）。11/1 に鍛えた肩は空いている
+    const rested = recoveryCandidates(partRecoveries([...rows('2026-11-12', 'chest', 3), ...rows('2026-11-01', 'shoulder', 3)], nameOf, ['胸', '肩'], today));
+    const tags = selectHeroTags(rested, null, HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED);
+    expect(tags.map((t) => t.spoken)).toEqual(['胸 回復済み']);
+    expect(selectHeroTags(rested, null)).toHaveLength(1);
+    expect(selectHeroTags(recoveryCandidates(partRecoveries(rows('2026-10-01', 'chest', 3), nameOf, ['胸'], today)), null, HERO_TAG_MAX, 4)).toEqual([]);
+  });
+
+  test('回復中が先、回復済みはそのあと：回復中 2 つ + 回復済み 2 つ。回復済みは最後に鍛えた日の新しい順で、全部で 4 つまで', () => {
+    const names6 = ['胸', '肩', '背中', '脚', '上腕二頭筋', '腹筋'];
+    const d = [
+      ...rows('2026-11-16', 'chest', 1), ...rows('2026-11-16', 'back', 1), // 回復中
+      ...rows('2026-11-12', 'shoulder', 1), ...rows('2026-11-13', 'biceps', 1), ...rows('2026-11-11', 'abs', 1), // 回復済み（腹筋は R=1 で回復済み）
+    ];
+    const c = recoveryCandidates(partRecoveries(d, nameOf, names6, today));
+    const tags = selectHeroTags(c, null, HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED);
+    expect(tags).toHaveLength(HERO_TAG_MAX_WITH_RECOVERED);
+    expect(keys(tags).slice(0, 2).sort()).toEqual(['背中', '胸']);
+    expect(keys(tags).slice(2)).toEqual(['上腕二頭筋', '肩']);
+    expect(tags.slice(2).every((t) => t.main === '回復済み')).toBe(true);
+  });
+
+  test('回復中が 3 つあれば、回復済みは 1 つだけ（札で体をふさがない）。押した部位はそれに足す', () => {
+    const d = [...rows('2026-11-16', 'chest', 1), ...rows('2026-11-16', 'back', 1), ...rows('2026-11-16', 'legs', 1), ...rows('2026-11-12', 'shoulder', 1), ...rows('2026-11-11', 'abs', 1)];
+    const c = recoveryCandidates(partRecoveries(d, nameOf, ['胸', '肩', '背中', '脚', '腹筋'], today));
+    const tags = selectHeroTags(c, null, HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED);
+    expect(keys(tags)).toHaveLength(4);
+    expect(tags.filter((t) => t.main === '回復済み')).toHaveLength(1);
+    expect(keys(selectHeroTags(c, '腹筋', HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED))).toHaveLength(5);
   });
 });
 
