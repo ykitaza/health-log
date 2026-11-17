@@ -20,7 +20,7 @@ import { LoadError } from './LoadError';
 import { PressableScale, Sheet } from './motion';
 import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
-import { Button, Chip, EmptyState, LIST_GROUP, ListRow, Segmented } from './ui';
+import { Button, Chip, EmptyState, LIST_GROUP, ListRow, Segmented, TAG } from './ui';
 
 /** 走査の枠の線（控えめな緑） */
 const SCAN_LINE = colors.accentMuted;
@@ -71,12 +71,15 @@ export function ScanFrame({ children, strong, style, testID, atTop }: { children
 }
 
 /** 状態の札。直している途中は琥珀色の点、直せたは緑の中抜きの丸（色だけにしない：文字と形） */
+/** 直せたの札の文字と輪の色。クラシックは塗らない札（components/ui の TAG）なので、紙の上で読める緑 */
+const FIXED_FG = isHud ? colors.onAccentDark : colors.accent;
+
 export function StatusBadge({ status }: { status: InjuryStatus }) {
   const fixing = status === 'fixing';
   return (
-    <View style={[s.badge, { backgroundColor: fixing ? toneColors.caution.container : colors.accentDark }]}>
-      <View style={[s.dot, fixing ? { backgroundColor: INJURY_AMBER } : { borderWidth: 1.5, borderColor: colors.onAccentDark }]} />
-      <T variant="labelM" color={fixing ? INJURY_AMBER : colors.onAccentDark}>{STATUS_NAMES[status]}</T>
+    <View style={[s.badge, isHud ? { backgroundColor: fixing ? toneColors.caution.container : colors.accentDark } : TAG]}>
+      <View style={[s.dot, fixing ? { backgroundColor: INJURY_AMBER } : { borderWidth: 1.5, borderColor: FIXED_FG }]} />
+      <T variant="labelM" color={fixing ? INJURY_AMBER : FIXED_FG}>{STATUS_NAMES[status]}</T>
     </View>
   );
 }

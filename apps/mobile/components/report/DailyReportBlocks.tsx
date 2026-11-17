@@ -20,7 +20,7 @@ import {
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { deco } from '@/theme';
 import { T } from '../Text';
-import { hud, Micro, pace2, Mono, NotchChip, Panel, PanelHead, Ring, StatusRow, ValUnit } from './hud';
+import { hud, PAD, Micro, pace2, Mono, NotchChip, Panel, PanelHead, Ring, StatusRow, ValUnit } from './hud';
 
 const AREA_EN: Record<Area, string> = { training: 'Training', meals: 'Meals', body: 'Body', sleep: 'Sleep' };
 const TONE_MARK: Record<Tone, string> = { good: '↗', steady: '→', caution: '!' };
@@ -280,7 +280,7 @@ export function DailyDetailsBlock({ date, highlights }: { date: DateKey; highlig
         accessibilityState={{ expanded: open }}
         accessibilityLabel={`くわしく、ステータス。${open ? 'たたむ' : '開く'}`}
         onPress={() => setOpen((o) => !o)}
-        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 }}
+        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: PAD }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {deco.enLabels && <Mono size={9} spacing={1.6} color={hud.microGreen} style={{ fontWeight: '700' }}>DETAILS</Mono>}
@@ -290,13 +290,13 @@ export function DailyDetailsBlock({ date, highlights }: { date: DateKey; highlig
       </Pressable>
       {open && (
         <>
-          <View style={{ borderTopWidth: 1, borderTopColor: hud.line2, paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+          <View style={{ borderTopWidth: 1, borderTopColor: hud.line2, paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
             {items.map((r, i) => (
               <StatusRow key={r.en} en={r.en} ja={r.ja} value={r.value} last={i === items.length - 1} accessibilityLabel={r.full ? r.label : `${r.ja}、${r.label}`} wide={r.en === 'Training'} />
             ))}
           </View>
           {highlights.length > 0 && (
-            <View style={{ borderTopWidth: 1, borderTopColor: hud.line, paddingHorizontal: 14, paddingBottom: 8 }}>
+            <View style={{ borderTopWidth: 1, borderTopColor: hud.line, paddingHorizontal: PAD, paddingBottom: 8 }}>
               <FieldHead right={date.slice(5).replace('-', '.')} />
               <ByFieldList highlights={highlights} metricVs="前の日より" />
             </View>

@@ -8,7 +8,7 @@ import { RehabStartSheet } from '@/components/phase/parts';
 import { INJURY_AMBER, MuscleFigure } from '@/components/MuscleFigure';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, ConfirmDialog, Header, IconButton } from '@/components/ui';
+import { Button, ConfirmDialog, Header, IconButton, LIST_GROUP, TAG } from '@/components/ui';
 import type { InjuryReview } from '@/db/repositories/injuries';
 import { PhaseError } from '@/db/repositories/phases';
 import { useBusy } from '@/hooks/busy';
@@ -19,7 +19,7 @@ import { injuryNumbers, ReviewResult, RESULTS, siteDetail, siteLabel } from '@/l
 import { markPoint } from '@/lib/muscleFigure';
 import { loadMaintenance, rehabMealTargets } from '@/lib/phaseMeals';
 import { currentPhase, pauses, phaseLabel, phaseWeek } from '@/lib/phases';
-import { colors, deco, injuryNo, lbl, radius, space, toneColors } from '@/theme';
+import { colors, deco, injuryNo, isHud, lbl, radius, space, toneColors } from '@/theme';
 
 /** 振り返りの結果の色（記号と文字も添える） */
 const RESULT_TONE: Record<ReviewResult, { fg: string; bg: string }> = {
@@ -255,7 +255,7 @@ function BlockHead({ title, no, strong }: { title: string; no: string; strong?: 
 
 function Block({ title, no, strong, children }: { title: string; no: string; strong?: boolean; children: ReactNode }) {
   return (
-    <View style={[s.block, strong && { borderColor: colors.accentMuted, borderWidth: 1 }]}>
+    <View style={[s.block, strong && STRONG_BLOCK]}>
       <BlockHead title={title} no={no} strong={strong} />
       {children}
     </View>
@@ -290,15 +290,29 @@ function LogItem({ review, last }: { review: InjuryReview; last: boolean }) {
   );
 }
 
+/**
+ * 強めた段（次はこう直す）の印。HUD は控えめな緑の枠。クラシックは箱にせず、左に緑の 2px の罫（今日でない日の知らせと同じ形）
+ */
+const STRONG_BLOCK = isHud
+  ? { borderColor: colors.accentMuted, borderWidth: 1 }
+  : { borderTopWidth: 0, borderLeftWidth: 2, borderLeftColor: colors.accent, paddingLeft: space.m, paddingVertical: space.m };
+
 const s = StyleSheet.create({
-  block: { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l, marginTop: space.m, borderWidth: 1, borderColor: 'transparent' },
+  // クラシックは箱にせず、上の罫で区切る帳の段（左右は紙の端にそろえる。components/ui の Card と同じ）
+  block: isHud
+    ? { backgroundColor: colors.card, borderRadius: radius.l, padding: space.l, marginTop: space.m, borderWidth: 1, borderColor: 'transparent' }
+    : { borderTopWidth: 1, borderTopColor: colors.line, paddingVertical: space.l, marginTop: space.m },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.line, marginVertical: space.m },
-  tag: { borderWidth: 1, borderColor: colors.outline, borderRadius: radius.s, paddingHorizontal: space.m, paddingVertical: space.xs, backgroundColor: colors.input },
+  // 種目・場面の札。クラシックは塗らない枠だけの札（components/ui の TAG）
+  tag: { borderWidth: 1, borderColor: colors.outline, borderRadius: radius.s, paddingHorizontal: space.m, paddingVertical: space.xs, backgroundColor: colors.input, ...TAG },
   logDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, marginTop: 4 },
   logLine: { flex: 1, width: 1, backgroundColor: colors.outline, marginTop: 2 },
   result: { borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 },
-  rehab: {
-    flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, marginTop: space.m, paddingHorizontal: space.l, paddingVertical: space.m,
-    borderRadius: radius.l, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.card,
-  },
+  // 療養に入る入口。クラシックは箱にせず、上と下の罫で挟んだ帳の1行（記録するの選択肢と同じ LIST_GROUP）
+  rehab: isHud
+    ? {
+      flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, marginTop: space.m, paddingHorizontal: space.l, paddingVertical: space.m,
+      borderRadius: radius.l, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.card,
+    }
+    : { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, marginTop: space.m, paddingVertical: space.m, ...LIST_GROUP },
 });

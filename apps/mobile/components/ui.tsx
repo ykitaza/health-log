@@ -377,6 +377,14 @@ export const RULED: ViewStyle | null = isHud
   ? null
   : { backgroundColor: 'transparent', borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderBottomColor: colors.outline, paddingHorizontal: 0 };
 
+/**
+ * 「品目を追加」など、一覧の下に行を足す入口（HUD は点線の箱）。クラシックは箱にせず、帳の端にそろえた墨の文字の行（押せる高さ 48）。
+ * style は画面の点線の箱の後ろに重ねる（HUD は null で何も変えない）。fg は文字とアイコンの色
+ */
+export const ADD_ROW: { style: ViewStyle | null; fg: string } = isHud
+  ? { style: null, fg: colors.accent }
+  : { style: { borderWidth: 0, borderRadius: 0, justifyContent: 'flex-start', height: sz.touch }, fg: colors.text };
+
 /** M3 の list item。1行は高さ 56、2行（subtitle あり）は 72。右に値や矢印。badge は題の横の印 */
 export function ListRow({ title, subtitle, right, onPress, dim, first, chevron = true, icon, left, testID, label, badge }: {
   title: string; subtitle?: string; right?: ReactNode; onPress?: () => void; dim?: boolean; first?: boolean; chevron?: boolean;
@@ -434,11 +442,26 @@ const BADGE: Record<BadgeTone, { bg: string; fg: string }> = {
   solid: { bg: colors.accent, fg: colors.onAccent },
 };
 
-/** 小さな札（角 8、文字 12）。icon を添えると色だけで伝えない */
+/**
+ * クラシックの札：塗らず、罫の色の 1px の枠に、意味の色の文字（紙の上で 4.5:1 以上）。新着（solid）だけ墨の地に紙の文字。
+ * 呼ぶ側が渡す地の色（bg）は使わない（帳の上に色の面を作らない）
+ */
+const CLASSIC_BADGE_FG: Record<BadgeTone, string> = { primary: colors.accent, neutral: colors.sub, error: colors.danger, star: colors.star, solid: colors.bg };
+
+/**
+ * 画面の中の小さな札（種目の管理の「表示中」、ケガの詳細の種目・場面など。押せない）。
+ * HUD は呼ぶ側の形のまま（null）。クラシックは塗らず、罫の色の 1px の枠と小さな角（Badge と同じ形）
+ */
+export const TAG: ViewStyle | null = isHud
+  ? null
+  : { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.outline, borderRadius: radius.xs };
+
+/** 小さな札（角 8、文字 12）。icon を添えると色だけで伝えない。クラシックは枠だけの札（CLASSIC_BADGE_FG） */
 export function Badge({ label, tone = 'primary', icon, color, bg }: { label: string; tone?: BadgeTone; icon?: IconName; color?: string; bg?: string }) {
-  const fg = color ?? BADGE[tone].fg;
+  const fg = color ?? (isHud ? BADGE[tone] : { fg: CLASSIC_BADGE_FG[tone] }).fg;
+  const face = isHud ? { backgroundColor: bg ?? BADGE[tone].bg } : tone === 'solid' && bg == null ? { backgroundColor: colors.text } : TAG;
   return (
-    <View style={[s.badge, { backgroundColor: bg ?? BADGE[tone].bg }]}>
+    <View style={[s.badge, face]}>
       {icon && <Icon name={icon} size={14} color={fg} />}
       <T variant="labelM" color={fg}>{label}</T>
     </View>
@@ -508,7 +531,8 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingHorizontal: isHud ? space.l : 0, paddingVertical: space.s },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: space.xs, alignSelf: 'flex-start' },
-  fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: radius.l, paddingLeft: space.l, paddingRight: 20, backgroundColor: BUTTON_BG.primary, elevation: 3 },
+  // クラシックの FAB は紙の上の墨の札：角はボタンと同じ 12、影は付けない（紙に浮かせない）
+  fab: { flexDirection: 'row', alignItems: 'center', gap: space.m, height: sz.fab, borderRadius: isHud ? radius.l : radius.m, paddingLeft: space.l, paddingRight: 20, backgroundColor: BUTTON_BG.primary, elevation: isHud ? 3 : 0 },
 });
 
 /** セットの番号の丸（24） */

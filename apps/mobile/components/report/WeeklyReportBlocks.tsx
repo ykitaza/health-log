@@ -25,7 +25,7 @@ import { fmt1, kgToUnit } from '@/lib/units';
 import { injuryNo } from '@/theme';
 import { PartVolumeBody } from '../PartVolumeCard';
 import { T } from '../Text';
-import { dotMonthDay, hud, JaVal, Micro, Mono, Panel, PanelHead, StatusRow, TableHead, ValUnit } from './hud';
+import { dotMonthDay, hud, PAD, JaVal, Micro, Mono, Panel, PanelHead, StatusRow, TableHead, ValUnit } from './hud';
 
 /**
  * 週の部位の量：レポートの週（月曜〜日曜）の、部位ごとのセット数と、1 週間 10〜20 セットの目安との差。前の週と比べる。
@@ -76,7 +76,7 @@ export function WeeklyStatusBlock({ start, end }: { start: DateKey; end: DateKey
   return (
     <Panel testID="report-weekly-status">
       <TableHead left="Weekly Status" leftJa="今週の記録" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
-      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
         <StatusRow en="Week Avg" ja="週間平均体重" value={data.avg != null ? <ValUnit value={fmt1(kgToUnit(data.avg, data.unit))} unit={U} /> : '—'} />
         <StatusRow en="Training" ja="筋トレ" value={<ValUnit value={String(w.training.days)} unit="DAYS" />} accessibilityLabel={`筋トレ ${w.training.days}日`} />
         <StatusRow en="Total Load" ja="合計負荷量" value={<ValUnit value={tonnes(data.volumeKg, data.unit)} unit={data.unit === 'kg' ? 'T' : 'K LB'} />} />
@@ -104,7 +104,7 @@ export function WeeklyGoalsBlock({ start, end }: { start: DateKey; end: DateKey 
   return (
     <Panel testID="report-achievement">
       <TableHead left="Weekly Goals" leftJa="今週の目標" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
-      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
         {rows.map((r, i) => (
           <StatusRow
             key={r.key}
@@ -129,7 +129,7 @@ export function WeeklyGoalsBlock({ start, end }: { start: DateKey; end: DateKey 
           {streakText && <T size={11.5} color={hud.muted} testID="report-goal-streak">{streakText}</T>}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="目標を変える" onPress={openGoalSettings} testID="report-goals-edit"
-          style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+          style={{ minHeight: 44, paddingHorizontal: PAD, justifyContent: 'center' }}>
           <T bold size={12} color={hud.green}>目標を変える ›</T>
         </Pressable>
       </View>
@@ -176,11 +176,11 @@ function InjuryGroup({ entry, showReviews }: { entry: InjuryReportEntry; showRev
   const latestNote = entry.periodReviews[0]?.note.trim();
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: hud.line2 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingTop: 9, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: hud.line2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: PAD, paddingTop: 9, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: hud.line2 }}>
         <Mono size={11} spacing={1.5} color={hud.green}>{injuryNo(entry.number)}</Mono>
         <Mono size={12} color={hud.muted}>{dotMonthDay(entry.occurredOn)}</Mono>
       </View>
-      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
         {rows.map((r, i) => <StatusRow key={r.en} en={r.en} ja={r.ja} value={r.value} last={i === rows.length - 1 && reviews.length === 0} wide />)}
         {reviews.length > 0 && (
           <StatusRow en="Results" ja="振り返りの結果" last={!latestNote} accessibilityLabel={`振り返りの結果。${reviewsLabel}`} value={(
@@ -214,7 +214,7 @@ export function InjuryReviewBlock({ start, end }: { start: DateKey; end: DateKey
   return (
     <Panel testID="report-injury-review" accessibilityLabel="ケガの振り返り">
       <TableHead left="Injury Review" leftJa="ケガの振り返り" right={`${dotMonthDay(start)}–${dotMonthDay(end)}`} />
-      <View style={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 2, paddingBottom: 6 }}>
         {counts.map((c, i) => (
           <StatusRow key={c.en} en={c.en} ja={c.ja} last={i === counts.length - 1} accessibilityLabel={`${c.ja} ${c.n}件`}
             value={<T style={{ textAlign: 'right' }}><Mono size={14} color={hud.white}>{String(c.n)}</Mono><T size={10} color={hud.muted}> 件</T></T>} />
@@ -230,10 +230,10 @@ export function PrevTodoBlock({ week }: { week: TodoWeek }) {
   const count = todoCount(week.steps, week.done);
   return (
     <Panel>
-      <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 10 }}>
         <PanelHead en="Last Week Review" title="先週やることの振り返り" />
       </View>
-      <View testID="report-prev-todo" style={{ paddingHorizontal: 14, paddingBottom: 6, marginTop: 6, borderTopWidth: 1, borderTopColor: hud.line2 }}>
+      <View testID="report-prev-todo" style={{ paddingHorizontal: PAD, paddingBottom: 6, marginTop: 6, borderTopWidth: 1, borderTopColor: hud.line2 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 8, paddingBottom: 2 }}>
           <T bold size={12.5} color={hud.label} accessibilityRole="header">{`${weekRangeLabel(week.start)}にやること`}</T>
           <T size={12} color={todoAllDone(week.steps, week.done) ? hud.green : hud.muted} accessibilityLabel={`${week.steps.length}つのうち${count}つ済み`}>{`${count}／${week.steps.length}`}</T>
