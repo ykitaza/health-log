@@ -32,6 +32,11 @@ import {
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, isHud, partColor, space } from '@/theme';
 
+/** 数字の小さなまとまり。HUD は一段明るい面、クラシックは塗らずに左の罫（帳の欄） */
+const TILE = isHud
+  ? { flex: 1, backgroundColor: colors.input, borderRadius: 10, padding: 10, gap: 2 }
+  : { flex: 1, borderLeftWidth: 1, borderLeftColor: colors.line, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, gap: 2 };
+
 const ALL = 'all';
 /** 種目の記録のカードを一度に出す日数（下の「もっと見る」で読み足す） */
 const PAGE_DAYS = 10;
@@ -254,7 +259,7 @@ function ExerciseDayCard({ date, entry, name, unit, onPress }: { date: string; e
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.input, borderRadius: 10, padding: 10, gap: 2 }}>
+    <View style={TILE}>
       <T variant="labelM" color={colors.sub}>{label}</T>
       <T num bold size={20}>{value}</T>
     </View>
@@ -478,7 +483,7 @@ function Big3Card({ rows, exercises, today, unit }: {
           const d = l.current != null && l.monthAgo != null ? conv(l.current) - conv(l.monthAgo) : null;
           return (
             <View
-              key={l.role} style={{ flex: 1, backgroundColor: colors.input, borderRadius: 10, padding: 10, gap: 2 }}
+              key={l.role} style={TILE}
               accessible accessibilityLabel={`${BIG3_LABELS[l.role]}${name && name !== BIG3_LABELS[l.role] ? `（${name}）` : ''} ${
                 l.exerciseId == null ? '未割り当て' : l.current == null ? '記録なし' : `${fmt1(conv(l.current))}${unit}${d != null ? `、先月より${signed(d)}` : ''}`}`}
               testID={`big3-${l.role}`}

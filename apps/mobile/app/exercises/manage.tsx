@@ -7,7 +7,7 @@ import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, ConfirmDialog, Header, ListRow } from '@/components/ui';
+import { Button, Card, ConfirmDialog, Header, ListRow, RULED } from '@/components/ui';
 import { HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
@@ -110,7 +110,7 @@ export default function ManageScreen() {
                   placeholderTextColor={colors.sub}
                   accessibilityLabel="部位の名前"
                   autoFocus
-                  style={{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }}
+                  style={[{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }, RULED]}
                 />
                 {renameError && <T size={12} color={colors.danger}>{renameError}</T>}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -171,7 +171,7 @@ export default function ManageScreen() {
               accessibilityLabel="追加する部位の名前"
               placeholderTextColor={colors.sub}
               autoFocus
-              style={{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }}
+              style={[{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }, RULED]}
             />
             {error && <T size={12} color={colors.danger}>{error}</T>}
             <View style={{ flexDirection: 'row', gap: 10 }}>

@@ -6,7 +6,7 @@ import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-co
 import { usePullToSync } from '@/hooks/sync';
 import { ScrollWatchProvider, useScrollTarget, useScrollWatch } from '@/hooks/useOnScreen';
 import { ScrollToTopTarget, scrollToTopTarget } from '@/lib/scrollToTop';
-import { colors, radius, size, space } from '@/theme';
+import { colors, isHud, radius, rowOnFill, size, space } from '@/theme';
 import { PullMark, usePullMark } from './PullMark';
 import { Snackbar } from './ui';
 
@@ -106,6 +106,13 @@ const GLOW_IN_MS = 300;
 const GLOW_OUT_MS = 900;
 
 /**
+ * 光の形。HUD は緑の縁と面。クラシックは光らせず、墨の左の罫と薄い墨の面（帳の行に指を置いた印）
+ */
+const GLOW_STYLE = isHud
+  ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.card, borderWidth: 2, borderColor: colors.accent, backgroundColor: `${colors.accent}33` } as const
+  : { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderLeftWidth: 2, borderLeftColor: colors.text, backgroundColor: rowOnFill } as const;
+
+/**
  * 着いたビューの上に重ねて、縁と面をアクセント色でふわっと光らせる（どの記録に来たかを見せる）。レイアウトは動かさない（絶対配置・タッチは通す）。
  * 動きを減らす設定なら、フェードせず同じ長さのあいだ光らせるだけ
  */
@@ -128,7 +135,7 @@ function Glow({ request }: { request: number | null }) {
   return (
     <Animated.View
       pointerEvents="none" testID="scroll-glow" accessible={false} importantForAccessibility="no-hide-descendants"
-      style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.card, borderWidth: 2, borderColor: colors.accent, backgroundColor: `${colors.accent}33` }, style]}
+      style={[GLOW_STYLE, style]}
     />
   );
 }

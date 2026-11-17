@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useBusy } from '@/hooks/busy';
-import { colors } from '@/theme';
+import { colors, isHud } from '@/theme';
 import { Icon } from './Icon';
 import { T } from './Text';
 import { Button } from './ui';
@@ -16,7 +16,8 @@ export function LoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
   const { busy, run } = useBusy();
   return (
     <View style={{ alignItems: 'center', paddingVertical: 40, gap: 8 }} testID="load-error">
-      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.dangerDark, alignItems: 'center', justifyContent: 'center' }}>
+      {/* クラシックはアイコンを丸に載せない */}
+      <View style={isHud ? { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.dangerDark, alignItems: 'center', justifyContent: 'center' } : { alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="close" color={colors.danger} size={30} />
       </View>
       <View accessible accessibilityLiveRegion="polite" style={{ alignItems: 'center', gap: 4 }}>

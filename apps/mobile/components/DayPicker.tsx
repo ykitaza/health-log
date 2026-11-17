@@ -33,7 +33,7 @@ export function DateSwitcher({ label, prevLabel, nextLabel, onPrev, onNext, canN
   );
   return (
     // クラシックは枠を付けず、紙の上に日付と前後の矢印だけを置く（Figma「クラシック（大胆版）」の筋トレ）
-    <Card style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs }, !isHud && { borderWidth: 0, paddingHorizontal: 0 }, style]}>
+    <Card style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs, paddingHorizontal: space.xs }, !isHud && { borderTopWidth: 0, paddingHorizontal: 0 }, style]}>
       <IconButton name="prev" label={prevLabel} onPress={onPrev} />
       {onPick ? (
         <PressableScale
@@ -102,7 +102,7 @@ function DayPickerBody({ kind, value, today, onPick }: { kind: PickerKind; value
       <T variant="bodyM" color={colors.sub} style={{ marginTop: space.xs }}>{text.note}</T>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m, marginBottom: space.s }}>
         <IconButton name="prev" label="前の月" onPress={() => setMonth(addMonths(month, -1))} />
-        <T num bold size={22}>{MONTH_NAMES_EN[m - 1]} {year}</T>
+        {isHud ? <T num bold size={22}>{MONTH_NAMES_EN[m - 1]} {year}</T> : <T variant="titleM">{`${year}年${m}月`}</T>}
         <IconButton name="next" label="次の月" disabled={month >= thisMonth} onPress={() => month < thisMonth && setMonth(addMonths(month, 1))} />
       </View>
       <MonthCalendar

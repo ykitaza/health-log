@@ -6,7 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { changedDigits } from '@/lib/digits';
-import { colors } from '@/theme';
+import { colors, isHud, radius } from '@/theme';
 import { duration, EASE_IN, EASE_OUT, motionDuration, PRESS_SCALE, springs, STAGGER_TOTAL_MS, staggerDelay } from '@/theme/motion';
 import { T } from './Text';
 
@@ -82,7 +82,10 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
 
 const s = StyleSheet.create({
   backdrop: { backgroundColor: colors.scrim },
-  sheet: { maxHeight: '80%', backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  // クラシックのシートは紙の一枚：角は小さく、上に罫
+  sheet: isHud
+    ? { maxHeight: '80%', backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 }
+    : { maxHeight: '80%', backgroundColor: colors.card, borderTopLeftRadius: radius.m, borderTopRightRadius: radius.m, borderTopWidth: 1, borderColor: colors.outline },
 });
 
 type TextProps = Omit<ComponentProps<typeof T>, 'children'>;

@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Card, Header } from '@/components/ui';
+import { Card, Header, RULED } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { rmFromInput, rmTable } from '@/lib/training';
 import { fmt1, parseNumber } from '@/lib/units';
@@ -67,7 +67,7 @@ function Field({ label, value, onChange, decimal }: { label: string; value: stri
         accessibilityLabel={label}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        style={{ height: 52, borderRadius: 12, backgroundColor: colors.input, borderWidth: 1.5, borderColor: focused ? colors.accent : colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 17, paddingHorizontal: 14 }}
+        style={[{ height: 52, borderRadius: 12, backgroundColor: colors.input, borderWidth: 1.5, borderColor: focused ? colors.accent : colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 17, paddingHorizontal: 14 }, RULED, RULED && focused && { borderBottomWidth: 2, borderBottomColor: colors.text }]}
       />
     </View>
   );

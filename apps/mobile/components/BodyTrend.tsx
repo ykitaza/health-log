@@ -9,7 +9,7 @@ import { addDays } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { average, formatHM, formatSteps, sleepWeek, stepWeek } from '@/lib/health';
 import { fmt1, kgToUnit } from '@/lib/units';
-import { colors, space } from '@/theme';
+import { colors, isHud, space } from '@/theme';
 import { LineChart, StackedBarChart } from './charts';
 import { Icon, IconName } from './Icon';
 import { PressableScale } from './motion';
@@ -35,7 +35,8 @@ export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
     <View style={{ marginTop: space.l, gap: space.m }}>
       <PressableScale accessibilityRole="button" scaleTo={0.98} onPress={() => router.push({ pathname: '/body-trend', params: { metric: 'weight' } })}
         accessibilityLabel={['体重の推移', monthChange != null ? `1か月で ${formatSigned(kgToUnit(monthChange, unit))}${unit}` : null, goalLabel, '詳しく見る'].filter(Boolean).join('。')}>
-        <Card>
+        {/* タブのすぐ下。クラシックはタブの下の罫と重ねないよう、上の罫を引かない */}
+        <Card style={!isHud && { borderTopWidth: 0, paddingTop: 0 }}>
           <View style={s.head}>
             <T variant="titleM">体重の推移</T>
             {monthChange != null && <T variant="labelL" color={colors.accent}>1か月で {formatSigned(kgToUnit(monthChange, unit))} {unit}</T>}

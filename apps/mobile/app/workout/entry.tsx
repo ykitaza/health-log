@@ -26,10 +26,13 @@ import { beatsBest, copyOf, draftFromSet, hasChanges, lastFilledSet, prepareSave
 import { personalBests, PersonalBest } from '@/lib/training';
 import { kgToUnit, trimNumber } from '@/lib/units';
 import { touchRoom } from '@/lib/touch';
-import { colors, fonts, placeholderColor, radius } from '@/theme';
+import { colors, fonts, isHud, placeholderColor, radius } from '@/theme';
 
 let keySeq = 0;
 const newKey = () => `k${++keySeq}`;
+/** 完了にしたセットの行の地。HUD は深い緑、クラシックは一段上の紙の面（不透明の色。移る途中で暗くならない。緑は完了の印の丸だけに使う） */
+const DONE_ROW = isHud ? colors.accentDark : colors.input;
+
 const blank = (): SetDraft => ({ key: newKey(), weight: '', reps: '', memo: '', done: false });
 
 type Loaded = {
@@ -243,7 +246,7 @@ export default function EntryScreen() {
           const newBest = beatsBest(d, best, exercise.recordType, unit);
           return (
             <Animated.View key={d.key} entering={list.entering(i)} exiting={list.exiting} layout={list.layout} style={{ gap: 6, marginTop: 8 }}>
-              <ColorFade on={d.done} from={colors.card} to={colors.accentDark} style={s.setRow}>
+              <ColorFade on={d.done} from={colors.card} to={DONE_ROW} style={s.setRow}>
                 <T variant="numM" bold style={{ width: 36 }} align="center" color={d.done ? colors.text : colors.sub}>{i + 1}</T>
                 {weighted && (
                   <NumberInput
@@ -366,8 +369,9 @@ const s = StyleSheet.create({
   doneTouch: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   done: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   // メモの欄（M3 の filled text field。高さ 48、下に線）
+  // クラシックは塗らず、下の罫だけの帳の記入欄（components/Field と同じ）
   memo: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.input, paddingHorizontal: 12,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: isHud ? colors.input : 'transparent', paddingHorizontal: isHud ? 12 : 0,
     borderTopLeftRadius: radius.xs, borderTopRightRadius: radius.xs, borderBottomWidth: 1, borderBottomColor: colors.outline,
   },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, backgroundColor: colors.text, borderRadius: radius.xs, paddingLeft: 16, paddingRight: 4 },

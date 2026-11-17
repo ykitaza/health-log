@@ -1,4 +1,4 @@
-import { colors } from '@/theme';
+import { colors, isHud } from '@/theme';
 
 /** 下のタブのバー（M3 の navigation bar）の、アイコンとラベルの部分の高さ */
 export const TAB_BAR_HEIGHT = 80;
@@ -10,7 +10,9 @@ export const TAB_BAR_HEIGHT = 80;
 export function tabBarStyle(bottomInset: number) {
   return {
     backgroundColor: colors.card,
-    borderTopWidth: 0,
+    // クラシックは紙の上の罫で区切る（選んだタブの印の墨の線は、この罫に重なる）
+    borderTopWidth: isHud ? 0 : 1,
+    borderTopColor: colors.line,
     height: TAB_BAR_HEIGHT + bottomInset,
     paddingTop: 12,
     paddingBottom: bottomInset,

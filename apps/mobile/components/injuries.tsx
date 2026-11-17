@@ -10,7 +10,7 @@ import { addDays, formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { dotDate, injuryNumbers, InjuryStatus, RESULT_KEYS, ReviewResult, RESULTS, siteLabel, STATUS_NAMES } from '@/lib/injuries';
 import { INJURY_LIMITS } from '@/lib/limits';
 import { markPoint, MuscleView } from '@/lib/muscleFigure';
-import { colors, deco, fonts, gridLine, injuryNo, lbl, radius, space, toneColors } from '@/theme';
+import { colors, deco, fonts, gridLine, injuryNo, isHud, lbl, radius, space, toneColors } from '@/theme';
 import { AI_RECORD_LABEL, useChatChooser } from './ChatSheet';
 import { DayPickerSheet } from './DayPicker';
 import { Icon } from './Icon';
@@ -20,7 +20,7 @@ import { LoadError } from './LoadError';
 import { PressableScale, Sheet } from './motion';
 import { INJURY_AMBER, MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
-import { Button, Chip, EmptyState, ListRow, Segmented } from './ui';
+import { Button, Chip, EmptyState, LIST_GROUP, ListRow, Segmented } from './ui';
 
 /** 走査の枠の線（控えめな緑） */
 const SCAN_LINE = colors.accentMuted;
@@ -38,13 +38,14 @@ export function Mono({ children, color = colors.sub, size = 12 }: { children: Re
  * 走査の枠：角の括弧と方眼の地。strong は緑の枠（一覧の体の図）。中身は children。
  * クラシック（deco.brackets がない）は、括弧と方眼をやめて区切りの線の枠だけにする
  */
-export function ScanFrame({ children, strong, style, testID }: { children: ReactNode; strong?: boolean; style?: object; testID?: string }) {
+/** atTop：タブのすぐ下に置く（クラシックではタブの下の罫と重ねないよう、上の罫を引かない） */
+export function ScanFrame({ children, strong, style, testID, atTop }: { children: ReactNode; strong?: boolean; style?: object; testID?: string; atTop?: boolean }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   return (
     <View
       testID={testID}
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-      style={[s.frame, { borderColor: strong && deco.brackets ? SCAN_LINE : colors.line }, style]}
+      style={[s.frame, { borderColor: strong && deco.brackets ? SCAN_LINE : colors.line }, style, !isHud && s.frameClassic, !isHud && atTop && { borderTopWidth: 0 }]}
     >
       {size && deco.brackets && (
         <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -146,7 +147,7 @@ export function InjuryBodyMap({ injuries, numbers }: { injuries: Injury[]; numbe
   const lineFrom = (p: Placed & { top: number }, x: number) => ({ x, y: p.top + CALLOUT_H <= p.y ? p.top + CALLOUT_H : p.top });
 
   return (
-    <ScanFrame strong style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
+    <ScanFrame strong atTop style={{ paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.m }} testID="injury-map">
       <View accessible accessibilityLabel={`体の図。直している途中 ${active}件、直せた ${cleared}件`} style={{ gap: space.s }}>
         <View style={[s.mapHead, { alignItems: 'flex-start' }]}>
           <Mono color={colors.accent}>{lbl('BODY MAP // SCAN', '体の図')}</Mono>
@@ -443,9 +444,11 @@ function InjuryAddSheetBody({ onAi, onManual }: { onAi: () => void; onManual: ()
 }
 
 const s = StyleSheet.create({
-  group: { backgroundColor: colors.input, borderRadius: radius.card, overflow: 'hidden' },
-  fixedList: { backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  group: LIST_GROUP,
+  fixedList: isHud ? { backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' } : LIST_GROUP,
   frame: { borderWidth: 1, borderRadius: radius.l, backgroundColor: colors.card, overflow: 'hidden' },
+  // クラシックは枠で囲まず、上の罫で区切る帳の段（左右の余白なし。呼ぶ側の余白より優先）
+  frameClassic: { borderWidth: 0, borderTopWidth: 1, borderRadius: 0, paddingHorizontal: 0, paddingLeft: 0, paddingRight: 0 },
   mapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   figLabel: { position: 'absolute', height: FIG_LABEL_H, alignItems: 'center', justifyContent: 'flex-end' },
   // 半透明の地（85%）。図が少し透けて、文字は背景に対して十分な濃さ
@@ -455,14 +458,22 @@ const s = StyleSheet.create({
   },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.s, paddingHorizontal: space.s, paddingVertical: 2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  activeCard: {
+  // クラシックは箱にせず、左の琥珀の罫（直している途中の印）と下の罫だけの帳の行
+  activeCard: isHud ? {
     flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1,
     borderColor: toneColors.caution.container, borderLeftWidth: 4, borderLeftColor: INJURY_AMBER, padding: space.l, minHeight: 48,
+  } : {
+    flexDirection: 'row', alignItems: 'center', gap: space.m, borderLeftWidth: 4, borderLeftColor: INJURY_AMBER,
+    borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: space.l, paddingLeft: space.m, minHeight: 48,
   },
-  fixedRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 72 },
+  fixedRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, paddingHorizontal: isHud ? space.l : 0, paddingVertical: space.m, minHeight: 72 },
   fixedRing: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.accentMuted },
-  input: {
+  // クラシックは帳の記入欄（components/Field と同じ下の罫だけ）
+  input: isHud ? {
     minHeight: 72, borderRadius: radius.m, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.input, color: colors.text,
     fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top',
+  } : {
+    minHeight: 72, borderBottomWidth: 1, borderColor: colors.outline, color: colors.text,
+    fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: 0, paddingVertical: space.m, textAlignVertical: 'top',
   },
 });

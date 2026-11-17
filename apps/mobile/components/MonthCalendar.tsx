@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { LayoutAnimationConfig, useReducedMotion, ZoomIn } from 'react-native-reanimated';
-import { DateKey, dayLabel, monthMatrix, WEEKDAY_EN } from '@/lib/date';
-import { colors } from '@/theme';
+import { DateKey, dayLabel, monthMatrix, WEEKDAY_EN, WEEKDAY_JA } from '@/lib/date';
+import { colors, isHud, radius } from '@/theme';
 import { duration } from '@/theme/motion';
 import { easeOut } from './motion';
 import { T } from './Text';
@@ -44,8 +44,8 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
     <LayoutAnimationConfig skipEntering>
       <View style={{ gap: rowGap }} accessibilityLabel={accessibilityLabel} testID={testID}>
         <View style={[s.row, divider && s.divider]}>
-          {WEEKDAY_EN.map((w) => (
-            <View key={w} style={[s.cellBox, { flex: 1, maxWidth: cell }]}><T num size={11} color={colors.sub}>{w}</T></View>
+          {(isHud ? WEEKDAY_EN : WEEKDAY_JA).map((w) => (
+            <View key={w} style={[s.cellBox, { flex: 1, maxWidth: isHud ? cell : Math.max(cell, MIN_CELL) }]}><T num={isHud} size={11} color={colors.sub}>{w}</T></View>
           ))}
         </View>
         {rows.map((row, i) => (
@@ -56,7 +56,34 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
               const isToday = d.key === today && d.inMonth;
               const isAfterMax = (maxDate != null && d.key > maxDate) || (minDate != null && d.key < minDate);
               const isDotted = (dotted?.has(d.key) ?? false) && d.inMonth;
-              const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? colors.onAccent : isMarked ? colors.accent : colors.text;
+              const fg = !d.inMonth ? colors.line : isAfterMax ? colors.sub : isFilled ? FILL.fg : isMarked ? colors.accent : colors.text;
+              // クラシック：マスは枠で囲まない。選んだ日は墨の四角、今日は墨の枠、記録のある日は数字の下の緑の点（どちらの markStyle も）
+              if (!isHud) {
+                return (
+                  <Pressable
+                    key={d.key}
+                    disabled={!onPressDay || !d.inMonth || isAfterMax}
+                    aria-selected={onPressDay ? isFilled : undefined}
+                    onPress={() => onPressDay?.(d.key)}
+                    accessibilityRole={onPressDay && d.inMonth ? 'button' : undefined}
+                    accessibilityLabel={dayLabel(d.key, { today: isToday, marked: isMarked }) + (isDotted ? ' 食事の記録あり' : '')}
+                    importantForAccessibility={d.inMonth ? 'auto' : 'no-hide-descendants'}
+                    aria-hidden={!d.inMonth || undefined}
+                    testID={d.inMonth ? `day-${d.key}` : undefined}
+                    style={[
+                      s.cellBox,
+                      // 押せる大きさは 44 以上（幅が足りなければ縮むのは HUD と同じ）
+                      { flex: 1, maxWidth: Math.max(cell, MIN_CELL), aspectRatio: 1, borderRadius: radius.xs },
+                      isToday && !isFilled && { borderWidth: 1, borderColor: colors.text },
+                      isFilled && { backgroundColor: FILL.bg },
+                    ]}
+                  >
+                    <T num bold={isFilled || isToday || isMarked} size={15} color={isAfterMax || !d.inMonth ? fg : isFilled ? FILL.fg : colors.text}>{d.day}</T>
+                    {isMarked && <View style={[s.markDot, { backgroundColor: isFilled ? FILL.fg : colors.accent }]} />}
+                    {isDotted && <View style={s.dot} testID={`meal-dot-${d.key}`} />}
+                  </Pressable>
+                );
+              }
               return (
                 <Pressable
                   key={d.key}
@@ -81,7 +108,7 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
                     isFilled && { borderColor: colors.accent },
                   ]}
                 >
-                  {isFilled && <Animated.View entering={grow} style={[StyleSheet.absoluteFill, { borderRadius: cell / 2, backgroundColor: colors.accent }]} />}
+                  {isFilled && <Animated.View entering={grow} style={[StyleSheet.absoluteFill, { borderRadius: cell / 2, backgroundColor: FILL.bg }]} />}
                   <T num bold size={15} color={markStyle === 'dot' && isMarked && !isFilled ? colors.text : fg}>{d.day}</T>
                   {markStyle === 'dot' && isMarked && <View style={[s.markDot, { backgroundColor: isFilled ? colors.onAccent : colors.accent }]} />}
                   {/* 今日や筋トレの日の丸の上でも見えるよう、背景の色の縁を付ける */}
@@ -95,6 +122,12 @@ export function MonthCalendar({ year, month, today, marked, markStyle = 'ring', 
     </LayoutAnimationConfig>
   );
 }
+
+/** クラシックのマスの最小の大きさ（押せる大きさ） */
+const MIN_CELL = 44;
+
+/** 選んだ日の地と文字。HUD は緑、クラシックは墨の地に紙の文字（components/ui の選んだものと同じ） */
+const FILL = isHud ? { bg: colors.accent, fg: colors.onAccent } : { bg: colors.text, fg: colors.bg };
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },

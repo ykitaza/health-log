@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { AppState, StyleSheet, Vibration, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { createRestTimer, formatRest, REST_EXTEND_SECONDS, remainingRatio, remainingSeconds, spokenRest } from '@/lib/restTimer';
-import { colors, space } from '@/theme';
+import { colors, isHud, space } from '@/theme';
 import { duration } from '@/theme/motion';
 import { easeIn, easeOut } from './motion';
 import { T } from './Text';
@@ -61,7 +61,8 @@ export function RestTimerBar() {
 
 const s = StyleSheet.create({
   // 画面の左右の余白の外まで広げる（下のボタンの列の上の帯）
-  band: { marginHorizontal: -space.screen, marginTop: -space.s, marginBottom: space.xs, backgroundColor: colors.card },
+  // クラシックは上に罫を引いて、本文と分ける（地は紙のまま）
+  band: { marginHorizontal: -space.screen, marginTop: -space.s, marginBottom: space.xs, backgroundColor: colors.card, ...(isHud ? null : { borderTopWidth: 1, borderTopColor: colors.line }) },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingLeft: space.screen, paddingRight: space.s, minHeight: 56 },
   time: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: space.m },
   action: { paddingLeft: 12, paddingRight: 12 },

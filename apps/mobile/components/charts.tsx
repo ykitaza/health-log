@@ -4,7 +4,7 @@ import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedVal
 import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { useCountTo } from '@/hooks/entrance';
 import { niceTicks } from '@/lib/chart';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, isHud } from '@/theme';
 import { barDelay, duration, EASE_OUT } from '@/theme/motion';
 import { easeOut } from './motion';
 import { T } from './Text';
@@ -27,6 +27,10 @@ export function CountToText({ value, format, ...text }: Omit<ComponentProps<type
   const shown = useCountTo(value);
   return <T {...text}>{format(shown)}</T>;
 }
+
+/** 輪の端と棒の角。クラシックは丸めない（帳の上の墨の線・棒。丸い端は HUD の計器の形） */
+const RING_CAP = isHud ? 'round' : 'butt';
+const BAR_RX = isHud ? 3 : 0;
 
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -248,10 +252,10 @@ function GoalRing({ item, progress, reduced }: { item: RingItem; progress: Share
       <Svg width={size} height={size}>
         <Circle cx={center} cy={center} r={r} stroke={colors.line} strokeWidth={stroke} fill="none" />
         {item.ratio != null && (reduced ? (
-          <Circle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          <Circle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap={RING_CAP}
             strokeDasharray={[c, c]} strokeDashoffset={c * (1 - ratio)} transform={`rotate(-90 ${center} ${center})`} />
         ) : (
-          <AnimatedCircle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          <AnimatedCircle cx={center} cy={center} r={r} stroke={colors.accent} strokeWidth={stroke} fill="none" strokeLinecap={RING_CAP}
             strokeDasharray={[c, c]} transform={`rotate(-90 ${center} ${center})`} animatedProps={arc} />
         ))}
         <SvgText x={center} y={center + 5} fill={colors.text} fontSize={16} fontFamily={fonts.num} textAnchor="middle">
@@ -330,7 +334,7 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
               {b.segments.filter((s) => s.value > 0).map((s, j) => {
                 const h = (s.value / max) * plotH;
                 y -= h;
-                const rect = { x, y, width: barW, height: Math.max(1, h - 1.5), rx: 3, fill: s.color };
+                const rect = { x, y, width: barW, height: Math.max(1, h - 1.5), rx: BAR_RX, fill: s.color };
                 return reduced
                   ? <Rect key={j} {...rect} />
                   : <GrowingRect key={j} {...rect} base={base} from={from} to={to} progress={progress} />;

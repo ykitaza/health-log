@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { MIN_TOUCH } from '@/lib/touch';
-import { colors } from '@/theme';
+import { colors, isHud } from '@/theme';
 import { tabIndicatorDuration } from '@/theme/motion';
 import { Icon, IconName } from './Icon';
 import { easeIn, easeOut } from './motion';
@@ -11,6 +11,16 @@ import { T } from './Text';
 
 /** 選んだタブのアイコンの後ろの印（M3 の active indicator） */
 export const INDICATOR = { width: 64, height: 32, radius: 16 } as const;
+
+/**
+ * 印の形。HUD は アイコンの後ろの緑の丸（M3）。クラシックは塗らず、バーの上の罫に重ねた墨の短い線（帳の見出しの印。アイコンの箱の上 12 はバーの paddingTop）
+ */
+const INDICATOR_STYLE = isHud
+  ? { position: 'absolute', width: INDICATOR.width, height: INDICATOR.height, borderRadius: INDICATOR.radius, backgroundColor: colors.accentDark } as const
+  : { position: 'absolute', top: -13, width: 32, height: 2, backgroundColor: colors.text } as const;
+
+/** 選んだタブのアイコンの色（クラシックは墨） */
+const ICON_ON = isHud ? colors.onAccentDark : colors.text;
 
 /**
  * 選んだタブの印。選ぶと、まん中から横に広がりながら現れる（200ms、ease-out、はね返りなし）。
@@ -35,7 +45,7 @@ export function TabIndicator({ selected }: { selected: boolean }) {
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', width: INDICATOR.width, height: INDICATOR.height, borderRadius: INDICATOR.radius, backgroundColor: colors.accentDark }, anim]}
+      style={[INDICATOR_STYLE, anim]}
     />
   );
 }
@@ -60,7 +70,7 @@ export function TabButton({ icon, label, style, onPress, onLongPress, testID, 'a
         <TabIndicator selected={focused} />
         {/* web では位置を指定した印がアイコンの上に描かれるので、アイコンも View に入れて印の上に重ねる */}
         <View>
-          <Icon name={icon} color={focused ? colors.onAccentDark : colors.sub} size={24} />
+          <Icon name={icon} color={focused ? ICON_ON : colors.sub} size={24} />
         </View>
       </View>
       <T variant="labelM" bold={focused} color={focused ? colors.text : colors.sub} style={{ marginTop: 4 }}>{label}</T>

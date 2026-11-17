@@ -10,7 +10,7 @@ import { PressableScale, Sheet } from '@/components/motion';
 import { INJURY_AMBER, MuscleFigure } from '@/components/MuscleFigure';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Chip, Header, ListRow } from '@/components/ui';
+import { Button, Chip, Header, ListRow, RULED } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
@@ -293,10 +293,10 @@ const s = StyleSheet.create({
   },
   select: {
     flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: space.l, borderRadius: radius.m, borderWidth: 1,
-    borderColor: colors.outline, backgroundColor: colors.input,
+    borderColor: colors.outline, backgroundColor: colors.input, ...RULED,
   },
   input: {
     minHeight: 56, borderRadius: radius.m, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.input, color: colors.text,
-    fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: space.l,
+    fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: space.l, ...RULED,
   },
 });

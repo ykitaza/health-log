@@ -5,7 +5,8 @@ import type { DailyBody } from '@/lib/body';
 import { formatJpDate } from '@/lib/date';
 import { LIMITS, MEMO_MAX_LENGTH, memoLengthError, parseInRange } from '@/lib/limits';
 import { fmt1, kgToUnit, trimNumber, WeightUnit } from '@/lib/units';
-import { colors, fonts, radius, space } from '@/theme';
+import { colors, fonts, isHud, radius, space } from '@/theme';
+import { CLASSIC_FIELD } from './Field';
 import { Input } from './Input';
 import { Sheet, Shake } from './motion';
 import { T } from './Text';
@@ -136,7 +137,7 @@ function NumberField({ label, unit, value, shake, error, onChange, imported }: {
   return (
     <View style={{ flex: 1, gap: space.xs }}>
       <Shake trigger={shake}>
-        <View style={[s.field, tone != null && { borderColor: tone, borderWidth: 2 }]}>
+        <View style={[s.field, tone != null && (isHud ? { borderColor: tone, borderWidth: 2 } : { borderColor: tone, borderBottomWidth: 2 })]}>
           <Input
             value={value}
             onChangeText={onChange}
@@ -153,15 +154,18 @@ function NumberField({ label, unit, value, shake, error, onChange, imported }: {
           </View>
         </View>
       </Shake>
-      {imported && <T variant="bodyS" color={colors.sub} style={{ paddingLeft: space.l }}>{imported}</T>}
+      {imported && <T variant="bodyS" color={colors.sub} style={{ paddingLeft: isHud ? space.l : 0 }}>{imported}</T>}
     </View>
   );
 }
 
+// クラシックは components/Field と同じ帳の記入欄（下の罫だけ、ラベルは上）
 const s = StyleSheet.create({
-  field: { flexDirection: 'row', alignItems: 'center', height: 56, borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, paddingHorizontal: space.l, gap: space.s },
-  fieldError: { borderColor: colors.danger, borderWidth: 2 },
-  fieldLabel: { position: 'absolute', top: -9, left: 12, paddingHorizontal: 4, backgroundColor: colors.card },
-  numberInput: { flex: 1, minWidth: 0, height: 52, color: colors.text, fontFamily: fonts.numBold, fontSize: 22 },
-  memoInput: { flex: 1, minWidth: 0, height: 52, color: colors.text, fontFamily: fonts.regular, fontSize: 16 },
+  field: isHud
+    ? { flexDirection: 'row', alignItems: 'center', height: 56, borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, paddingHorizontal: space.l, gap: space.s }
+    : CLASSIC_FIELD.field,
+  fieldError: isHud ? { borderColor: colors.danger, borderWidth: 2 } : { borderColor: colors.danger, borderBottomWidth: 2 },
+  fieldLabel: isHud ? { position: 'absolute', top: -9, left: 12, paddingHorizontal: 4, backgroundColor: colors.card } : CLASSIC_FIELD.fieldLabel,
+  numberInput: { flex: 1, minWidth: 0, height: isHud ? 52 : CLASSIC_FIELD.fieldInput.height, color: colors.text, fontFamily: fonts.numBold, fontSize: 22 },
+  memoInput: { flex: 1, minWidth: 0, height: isHud ? 52 : CLASSIC_FIELD.fieldInput.height, color: colors.text, fontFamily: fonts.regular, fontSize: 16 },
 });

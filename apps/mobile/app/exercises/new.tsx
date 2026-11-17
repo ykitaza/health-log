@@ -6,7 +6,7 @@ import { Big3Field, FormVideoUrlField } from '@/components/ExerciseFields';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
-import { Button, Card, Chip, ConfirmDialog, Header } from '@/components/ui';
+import { Button, Card, Chip, ConfirmDialog, Header, RULED } from '@/components/ui';
 import { BodyPart, HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
@@ -106,7 +106,7 @@ export default function NewExerciseScreen() {
         accessibilityLabel="種目の名前"
         placeholderTextColor={colors.sub}
         autoFocus
-        style={{ height: 52, borderRadius: 12, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.accent, color: colors.text, fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: 14 }}
+        style={[{ height: 52, borderRadius: 12, backgroundColor: colors.input, borderWidth: 1.5, borderColor: colors.accent, color: colors.text, fontFamily: fonts.regular, fontSize: 16, paddingHorizontal: 14 }, RULED]}
       />
       <T size={13} color={colors.sub} style={{ marginTop: 18, marginBottom: 6 }}>部位</T>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
