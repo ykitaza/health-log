@@ -2,11 +2,14 @@
 // onPress を渡すと押せる（ホームの LATEST：その日の記録のその種目へ）。押せないときは読み上げから隠す
 import { ReactNode } from 'react';
 import { View, ViewStyle } from 'react-native';
-import { exerciseNumber } from '@/lib/dayCallouts';
+import { exerciseNumber as exerciseNumberEn } from '@/lib/dayCallouts';
 import { deco, fonts, isHud, stageColors as colors } from '@/theme';
 import type { DayBodyEntry } from './DayBody3D';
 import { PressableScale } from './motion';
 import { T } from './Text';
+
+/** 種目の番号：HUD は「EX-01」、クラシックは「1」（Figma「クラシック（大胆版）」の筋トレ） */
+export const exerciseNumber = (n: number) => (isHud ? exerciseNumberEn(n) : String(n));
 
 export const DAY_TAG_W = 96;
 /** 札の高さ（押せるときは、これが押せる高さ。44dp 以上） */

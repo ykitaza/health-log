@@ -6,7 +6,7 @@ import {
   PartVolume, PrevWord, volumeDeltaText, volumeLevel, volumeMuscleLevels, volumeRowText,
 } from '@/lib/partVolume';
 import { INJURY_RED } from '@/lib/recoveryMap';
-import { colors, volumePalette } from '@/theme';
+import { colors, isHud, volumePalette } from '@/theme';
 import { MuscleFigure } from './MuscleFigure';
 import { T } from './Text';
 
@@ -66,7 +66,8 @@ const s = StyleSheet.create({
   figures: { flexDirection: 'row', gap: 2 },
   rows: { flex: 1, minWidth: 0, gap: 5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 20 },
-  swatch: { width: 12, height: 12, borderRadius: 2 },
+  // クラシックの薄い段は紙と近いので、見本に枠を付ける
+  swatch: isHud ? { width: 12, height: 12, borderRadius: 2 } : { width: 12, height: 12, borderRadius: 2, borderWidth: 1, borderColor: colors.outline },
   name: { minWidth: 34, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3 },
   count: { flex: 1, minWidth: 0 },
   delta: { textAlign: 'right' },

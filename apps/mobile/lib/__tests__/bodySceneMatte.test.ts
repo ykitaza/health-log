@@ -153,6 +153,33 @@ describe('つや消しの体（クラシック）', () => {
     expect(typeof picked).toBe('string');
   });
 
+  test('部位の量の見方：段のない部品は石膏で、回復済みの緑にならない', async () => {
+    const scene = new BodyScene();
+    scene.setModel(await loadBody());
+    const colors = BODY_COLOR_SETS.matte;
+    scene.configure({
+      marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {}, look: 'classic', quietMarks: true,
+      levels: { pec_r: 0.8, pec_l: 0.8 }, baseColor: colors.neutral, levelColor: colors.volume, idle: ['abs'], idleColor: colors.volume(0),
+    });
+    const green = hex(new THREE.Color(MATTE_RECOVERED));
+    const parts = meshesIn(scene.body).filter((m) => !(m.parent instanceof THREE.Mesh));
+    for (const m of parts) expect(hex((m.material as THREE.MeshStandardMaterial).color)).not.toBe(green);
+    expect(hex((parts.find((m) => m.name === 'pec_r')!.material as THREE.MeshStandardMaterial).color)).toBe(hex(new THREE.Color(matteVolume(4))));
+  });
+
+  test('閉じたあと（dispose）にもう一度 configure しても、つや消しの材質と色が付く', async () => {
+    const scene = new BodyScene();
+    scene.setModel(await loadBody());
+    const base = { marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {}, look: 'classic' as const, levels: { quad_r: 1 }, levelColor: BODY_COLOR_SETS.matte.recovering };
+    scene.configure(base);
+    scene.dispose();
+    expect(meshesIn(scene.body).every((m) => !(m.material instanceof THREE.MeshStandardMaterial))).toBe(true);
+    scene.configure(base);
+    const quad = meshesIn(scene.body).find((m) => m.name === 'quad_r')!.material as THREE.MeshStandardMaterial;
+    expect(quad).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(hex(quad.color)).toBe(hex(new THREE.Color(matteRecovering(1))));
+  });
+
   test('ホログラムに戻すと、つや消しの材質を捨てる（何度切り替えても材質は増えない）', async () => {
     const scene = new BodyScene();
     scene.setModel(await loadBody());

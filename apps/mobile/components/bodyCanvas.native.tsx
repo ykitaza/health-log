@@ -15,7 +15,7 @@ import { useOnScreen } from '@/hooks/useOnScreen';
 import { CAMERA } from '@/lib/bodyModel';
 import { bodyRunning } from '@/lib/onScreen';
 import { ensureTextDecoder } from '@/lib/utf8';
-import { colors, deco, lbl, space } from '@/theme';
+import { colors, deco, isHud, lbl, matteBody, space, stageColors } from '@/theme';
 import { BodyScene } from './bodyScene';
 import { Mono } from './injuries';
 import { T } from './Text';
@@ -85,7 +85,7 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
   }, [ready, focused]);
   if (timedOut && !ready) throw new Error('3D の体を描けませんでした（時間切れ）');
   return (
-    <View ref={box} onLayout={view.onLayout} collapsable={false} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View ref={box} onLayout={view.onLayout} collapsable={false} style={[StyleSheet.absoluteFill, HOLO_ON_PAPER]} pointerEvents="box-none">
       <Canvas
         style={StyleSheet.absoluteFill}
         frameloop={running ? 'always' : 'never'}
@@ -100,6 +100,9 @@ export function BodyCanvas({ scene }: { scene: BodyScene }) {
     </View>
   );
 }
+
+/** クラシックでホログラムに戻したとき（theme の MATTE_BODY が false）は、光る体が紙の上で消えるので、体の面だけ暗い地にする */
+const HOLO_ON_PAPER = isHud || matteBody ? null : { backgroundColor: stageColors.bg };
 
 /** 体を描けるまで待つ時間（ms）。過ぎたら 2D の図へ戻す */
 const LOAD_TIMEOUT_MS = 15000;

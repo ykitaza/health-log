@@ -45,7 +45,8 @@ function Stage({ width, height, entries, parts, band, recovery = NO_RECOVERY, id
     scene.configure({
       marks, reduced, tipMarks, onPick: (m) => pick.current?.(m), onTips: (v) => tips.set(v), levels: glow.levels, quietMarks: true,
       // 色の意味がない体（その日の部位だけ）は、つや消しでは石膏（ホログラムは回復済みと同じ緑）
-      baseColor: levelColor || idle.length > 0 || Object.keys(recovery).length > 0 ? bodyColors.rest : bodyColors.neutral,
+      // 色の段を渡す見方（部位の量）も、段のない部品は石膏（回復済みの緑にしない）
+      baseColor: !levelColor && (idle.length > 0 || Object.keys(recovery).length > 0) ? bodyColors.rest : bodyColors.neutral,
       levelColor: levelColor ?? ((k, mesh) => (glow.warm.has(mesh) ? bodyColors.recovering(k) : bodyColors.trained)), injuryColor: bodyColors.injury,
       idle, idleColor: idleColor ?? bodyColors.idle,
     });

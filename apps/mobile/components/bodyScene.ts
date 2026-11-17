@@ -446,6 +446,12 @@ export class BodyScene {
 
   /** 場面を閉じるとき（画面から体が消えるとき）。つや消しの材質と、ケガの印の材質と形を捨てる（読み込んだ形は使い回すので捨てない） */
   dispose() {
+    if (this.matte) {
+      // ホログラムの材質に戻してから捨てる（あとで configure し直すと、つや消しの材質を作り直す）
+      this.matte = false;
+      this.swapMaterials();
+      this.applyLook();
+    }
     this.disposeMatte();
     this.clearGlows();
   }

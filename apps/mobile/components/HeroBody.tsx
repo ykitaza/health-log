@@ -5,7 +5,7 @@ import { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Injury } from '@/db/repositories/injuries';
 import { INJURY_RED } from '@/lib/recoveryMap';
-import { colors } from '@/theme';
+import { stageColors } from '@/theme';
 import { HeroBody3D } from './HeroBody3D';
 import { HERO_TAG_H, HERO_TAG_W, HeroInjuryTag } from './heroInjuryTag';
 import { MuscleFigure } from './MuscleFigure';
@@ -56,7 +56,7 @@ function Figure2D({ width, band, injuries, numbers, shield, onPressInjury }: {
         const side = i % 2 === 0 ? 'left' : 'right';
         return (
           <HeroInjuryTag key={inj.id} injury={inj} number={numbers.get(inj.id) ?? ''} align={side === 'left' ? 'right' : 'left'}
-            style={{ position: 'absolute', [side]: 0, top: band.top + Math.floor(i / 2) * (HERO_TAG_H + 8) + 24, width: tagW, backgroundColor: colors.bg }}
+            style={{ position: 'absolute', [side]: 0, top: band.top + Math.floor(i / 2) * (HERO_TAG_H + 8) + 24, width: tagW, backgroundColor: stageColors.bg }}
             onPress={() => onPressInjury(inj.id)} />
         );
       })}
