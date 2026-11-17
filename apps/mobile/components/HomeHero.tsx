@@ -547,10 +547,10 @@ function Ledger({ cells, narrow }: { cells: CornerSpec[]; narrow: boolean }) {
             key={k.testID} accessibilityRole="button" accessibilityLabel={k.label} scaleTo={0.97} onPress={k.onPress} disabled={k.disabled}
             style={[c.cell, i === 0 ? c.cellFirst : c.cellRule]} testID={k.testID}
           >
-            <T size={12} color={v.labelColor ?? colors.sub} numberOfLines={1}>{v.label}</T>
+            <T size={12} color={v.labelColor ?? colors.sub} numberOfLines={2}>{v.label}</T>
             <View style={c.cellValue}>
               <T num={ascii} bold={!ascii} size={size} color={v.valueColor ?? colors.text} numberOfLines={ascii ? 1 : 2} style={{ lineHeight: Math.round(size * 1.15), flexShrink: ascii ? 0 : 1 }}>{v.value}</T>
-              {v.unit ? <T size={12} color={colors.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{v.unit}</T> : null}
+              {v.unit ? <T size={12} color={colors.sub} numberOfLines={2} style={{ flexShrink: 1 }}>{v.unit}</T> : null}
             </View>
           </PressableScale>
         );
