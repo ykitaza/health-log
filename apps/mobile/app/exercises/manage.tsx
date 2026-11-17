@@ -14,7 +14,7 @@ import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useFocusData } from '@/hooks/data';
 import { big3RoleById } from '@/lib/exercises';
 import { touchRoom } from '@/lib/touch';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, radius } from '@/theme';
 
 const TYPE_LABEL = { weight_reps: '重量×回数', reps_only: '回数だけ' } as const;
 
@@ -150,7 +150,7 @@ export default function ManageScreen() {
                   dim={e.hidden}
                   onPress={() => router.push({ pathname: '/exercises/[id]', params: { id: e.id } })}
                   right={
-                    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }, TAG]}>
+                    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.input, borderRadius: radius.s, paddingHorizontal: 10, paddingVertical: 4 }, TAG]}>
                       {e.hidden && <Icon name="eyeOff" size={13} color={colors.sub} />}
                       <T size={12} color={colors.sub}>{e.hidden ? '非表示' : '表示中'}</T>
                     </View>

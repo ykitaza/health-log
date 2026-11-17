@@ -339,8 +339,9 @@ const s = StyleSheet.create({
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
   // まだ記録していない枠の点線（3.7:1 の outline）
   // クラシックは点線の箱にせず、上下の罫の間に左寄せの一行（帳の空いた行）
+  // HUD は点線の箱を並べず、控えめな 1 行の文字（区分けの見出しの下）
   empty: isHud
-    ? { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, borderRadius: radius.card, padding: space.l, alignItems: 'center' }
+    ? { paddingVertical: space.xs }
     : { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: space.m },
   // 食事の行（高さ 72 の押せる行）
   // クラシックの行は、画面の余白（帳の端）にそろえ、下に罫

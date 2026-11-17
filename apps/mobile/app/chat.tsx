@@ -34,7 +34,8 @@ export default function ChatScreen() {
         {mcpServerUrl ? (
           <>
             {/* 長押しで選んでコピーできる。クラシックは塗らず、下の罫だけの帳の記入欄（RULED） */}
-            <View style={[{ backgroundColor: colors.input, borderRadius: radius.input, padding: space.m }, RULED]}>
+            {/* HUD は入力欄と同じ形：塗らない 1px の枠（outline）と角 8 */}
+            <View style={[{ borderWidth: 1, borderColor: colors.outline, borderRadius: radius.input, padding: space.m }, RULED]}>
               <T variant="bodyM" selectable testID="mcp-url">{mcpServerUrl}</T>
             </View>
             <T variant="bodyS" color={colors.sub}>長押しで選んでコピーできます。</T>
