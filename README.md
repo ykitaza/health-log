@@ -65,6 +65,7 @@ flowchart LR
 | `docs/` | 構成図、シーケンス図、設計、同期、監視、CD の説明、アプリ用の API の仕様（`docs/api/app-api.yaml`） |
 | `testdata/training/` | アプリとサーバーの計算が同じかを確かめるデータ |
 | `tools/inspector/` | MCP Inspector で試すときの CIMD の文書 |
+| `tools/body-model/` | 3D の体（`apps/mobile/assets/models/body.glb`）の手直しを作り直すスクリプト（[README](apps/mobile/assets/models/README.md)） |
 | `.github/` | CI（テスト）、サーバーのデプロイ、アプリの配信（EAS）、Dependabot の設定 |
 
 AWS のスタックは4つに分かれています。
