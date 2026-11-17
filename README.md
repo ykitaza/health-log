@@ -1,4 +1,29 @@
-# health-log
+<p align="center">
+  <img src="docs/images/readme/home-hud.png" alt="KARADA のホーム（HUD）" width="260">
+  &nbsp;&nbsp;
+  <img src="docs/images/readme/home-classic.png" alt="KARADA のホーム（クラシック）" width="260">
+</p>
+
+<h1 align="center">KARADA</h1>
+
+<p align="center">
+  <b>筋トレ・食事・体組成を、1 つの「体」に集める。</b><br>
+  Android のアプリと、Claude・ChatGPT（MCP）から、同じ記録を扱う。
+</p>
+
+<p align="center">
+  <a href="https://github.com/ykitaza/health-log/actions/workflows/test.yml"><img src="https://github.com/ykitaza/health-log/actions/workflows/test.yml/badge.svg" alt="test"></a>
+  <a href="https://github.com/ykitaza/health-log/actions/workflows/eas-update.yml"><img src="https://github.com/ykitaza/health-log/actions/workflows/eas-update.yml/badge.svg" alt="eas-update"></a>
+</p>
+
+<p align="center">
+  <sub>左：HUD（暗い計器の見た目）／右：クラシック（紙の記録帳の見た目）。どちらも設定で切り替えられます。<br>
+  画像は E2E の画面（web 版・サンプルのデータ）です。web 版の体は 2D で、Android では 3D になります。</sub>
+</p>
+
+---
+
+## health-log とは
 
 筋トレ・食事・体組成の記録を、Android のアプリ「KARADA」（旧名 hlog、トレログ）と、Claude・ChatGPT（MCP）の両方から扱うためのリポジトリです（旧名 meal-log-mcp）。
 サーバーは AWS（API Gateway、Lambda、DynamoDB、Cognito のパスキー）にあり、アプリ用の API と、食事・筋トレ・レポートのツールを持つ MCP サーバーを動かします。
@@ -18,6 +43,34 @@ MCP の認可には、Authlib で書いた OAuth 2.1 の認可サーバー（認
 
 写真の解析や栄養の推定は Claude・ChatGPT の AI が行い、サーバーは記録と、決まった式での計算だけを受け持ちます。
 アプリと MCP は同じデータを使います（アプリはパスキーでログインして同期）。アプリが Health Connect から取り込んだ体重計・睡眠・心拍（1日のまとめ）・歩数（1日の合計）も、同期で MCP から見えます。
+
+## 2 つの見た目
+
+設定の「表示」で切り替えられます（選ぶと、確かめてからアプリを開き直します）。記録も機能も同じで、変わるのは見た目だけです。
+
+| HUD | クラシック |
+|---|---|
+| ほぼ黒の地にミント 1 色の、計器の盤。回復中は暖色、ケガは赤。ホームは英字の見出し（`LATEST //` など） | 生成りの紙に墨の、紙の記録帳。見出しは日本語で、四隅の数字は体の下の帳の 1 行に下りる |
+
+## 3D の体
+
+ホームの中心は、体の図です。回復の色（回復済み・回復中・ケガ）や、部位ごとの量を、体の上に直接重ねて見せます。Android では three.js と expo-gl で描く 3D の体で、ケガの画面、からだのタブ、筋トレの記録にも出ます。web 版と描けないときは 2D の図になります。
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/readme/body-hud.png" alt="3D の体（HUD）" width="320"><br><sub>HUD：ホログラム</sub></td>
+    <td align="center"><img src="docs/images/readme/body-classic.png" alt="3D の体（クラシック）" width="320"><br><sub>クラシック：つや消し</sub></td>
+  </tr>
+</table>
+
+体の形は [BodyParts3D](https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html) をもとに、筋肉を 36 の部品にまとめ、頂点を減らして作っています（作り方と手を入れた点は [apps/mobile/assets/models/README.md](apps/mobile/assets/models/README.md)）。
+
+## Claude・ChatGPT から使う（MCP）
+
+MCP に対応したチャットに、カスタムコネクタとして登録して使います。写真や言葉で食事を伝えると、AI が品目と栄養を推定し、サーバーが記録と、決まった式での計算（目標、総負荷量、推定1RM など）を受け持ちます。保存したまとめ（レポート）は、アプリのホームとレポートのタブで読めます。
+
+- つなぎ方、頼み方の例、ツールの一覧：[docs/mcp.md](docs/mcp.md)
+- ログイン（OAuth 2.1・PKCE）からツール呼び出しまでの流れ：[docs/sequence.md](docs/sequence.md)
 
 ## アーキテクチャ
 
@@ -50,6 +103,9 @@ flowchart LR
 
 ![構成図](docs/architecture.drawio.svg)
 
+<details>
+<summary>フォルダの役割</summary>
+
 | フォルダ | 役割 |
 |---|---|
 | `apps/mobile/` | Android アプリ「KARADA」（Expo、expo-router、SQLite）（[README](apps/mobile/README.md)） |
@@ -68,6 +124,11 @@ flowchart LR
 | `tools/body-model/` | 3D の体（`apps/mobile/assets/models/body.glb`）の手直しを作り直すスクリプト（[README](apps/mobile/assets/models/README.md)） |
 | `.github/` | CI（テスト）、サーバーのデプロイ、アプリの配信（EAS）、Dependabot の設定 |
 
+</details>
+
+<details>
+<summary>AWS のスタック</summary>
+
 AWS のスタックは4つに分かれています。
 
 | まとまり | リージョン | 中身 |
@@ -77,9 +138,37 @@ AWS のスタックは4つに分かれています。
 | 監視（us-east-1） | us-east-1 | IAM の操作を東京に転送する EventBridge のルール |
 | CI/CD | ap-northeast-1 | GitHub Actions から入るための OIDC の ID プロバイダーと、差分用・デプロイ用のロール。ワークフローからはデプロイせず、手でデプロイする（[サーバーの CD](docs/cd.md)） |
 
+</details>
+
 スタックの名前とデプロイの手順は [サーバーの CD](docs/cd.md) にあります。
 
-## 文書
+## 開発
+
+詳しくは [docs/development.md](docs/development.md) と [apps/mobile/README.md](apps/mobile/README.md) にあります。
+
+```sh
+# サーバーを PC で動かす（先に setup-local.sh で services/authorization/.env を作る）
+(cd services/authorization && uv run flask --app main run --port 3000) &
+(cd services/mcp && PYTHONPATH=../composition uv run python main.py) &   # http://localhost:8001/mcp
+
+# テスト
+for s in authorization meals sync training app_api mcp; do (cd services/$s && uv run pytest); done
+(cd cdk && npm ci && npx tsc --noEmit && npm test)
+(cd apps/mobile && npm ci && npx tsc --noEmit && npx jest)
+
+# アプリ（Expo）を動かす（ブラウザで見るときは npx expo start --web）
+(cd apps/mobile && npx expo start)
+```
+
+アプリの画面の E2E テスト（Playwright）は [apps/mobile/e2e/README.md](apps/mobile/e2e/README.md) にあります。
+
+## デプロイ
+
+- サーバー（AWS）：初めてのデプロイと GitHub Actions からのデプロイは [docs/cd.md](docs/cd.md)、AWS の構成のコマンドは [cdk/README.md](cdk/README.md)
+- アプリ：EAS Update で JS の変更を Pixel に配信します（[apps/mobile/docs/eas.md](apps/mobile/docs/eas.md)）
+
+<details>
+<summary>文書の一覧</summary>
 
 | 文書 | 中身 |
 |---|---|
@@ -95,3 +184,17 @@ AWS のスタックは4つに分かれています。
 | [docs/sequence.md](docs/sequence.md) | ログインからツールの呼び出し、アプリの同期の流れ（シーケンス図） |
 | [docs/monitoring.md](docs/monitoring.md) | 監視、通知が来たときに見るもの、メールの購読の足し方 |
 | [docs/api/app-api.yaml](docs/api/app-api.yaml) | アプリ用の API の仕様（OpenAPI） |
+
+</details>
+
+## クレジットとライセンス
+
+3D の体のデータは BodyParts3D をもとにしています。
+
+> BodyParts3D, © [The Database Center for Life Science](https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html) licensed under [CC Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
+
+- 元のデータ：BodyParts3D 4.0（DOI：[10.18908/lsdba.nbdc00837-000](https://doi.org/10.18908/lsdba.nbdc00837-000)）
+- 公式のライセンスのページ：<https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html>
+- 筋肉の部品へのまとめ、頂点の削減、皮膚の手直しなどの改変をしています（[apps/mobile/assets/models/README.md](apps/mobile/assets/models/README.md)）。アプリでは、ケガの画面に出典とリンクを出しています
+
+このリポジトリのコードのライセンスは、まだ決めていません（`LICENSE` ファイルはありません）。
