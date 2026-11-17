@@ -230,6 +230,17 @@ def _reject(field: str, message: str, detail: str) -> Rejection:
     return Rejection("invalid_fields", message, ({"field": f"fields.{field}", "message": detail},))
 
 
+APPEARANCE_LOOK_ID = "appearance_look"  # 見た目（アプリの設定。端末の sync_meta の appearance.look にも写す）
+APPEARANCE_LOOKS = ("hud", "classic")
+
+
+def _check_setting(entity_id: str, fields: dict) -> Rejection | None:
+    """設定は、ほかの ID なら何でも受ける（古い版・新しい版が違う ID を足しても止まらない）。見た目だけ、値を決める。"""
+    if entity_id == APPEARANCE_LOOK_ID and "value" in fields and fields["value"] not in APPEARANCE_LOOKS:
+        return _reject("value", "見た目（appearance_look）は hud か classic にしてください", "hud か classic")
+    return None
+
+
 def _check_phase(entity_id: str, fields: dict) -> Rejection | None:
     """同じ変更に入っている項目どうしの決まり（入っていない項目とは比べない。項目ごとに後勝ちのため）。"""
     kind = fields.get("kind")
@@ -293,7 +304,7 @@ def register(registry: Registry) -> None:
     registry.register("workout_set", EntitySpec(WorkoutSetFields, REQUIRED["workout_set"], AREA,
                                                 owner=("workout_entry", "entry_id")))
     registry.register("body_record", EntitySpec(BodyRecordFields, REQUIRED["body_record"], AREA))
-    registry.register("setting", EntitySpec(SettingFields, REQUIRED["setting"], AREA))
+    registry.register("setting", EntitySpec(SettingFields, REQUIRED["setting"], AREA, check=_check_setting))
     registry.register("sleep_session", EntitySpec(SleepSessionFields, REQUIRED["sleep_session"], AREA))
     registry.register("heart_rate_day", EntitySpec(HeartRateDayFields, REQUIRED["heart_rate_day"], AREA))
     registry.register("step_day", EntitySpec(StepDayFields, REQUIRED["step_day"], AREA))

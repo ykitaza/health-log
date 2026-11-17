@@ -2,7 +2,8 @@ import type { EntityState, PushChange } from '@/lib/api';
 import { backfillOutbox, insertSeeds } from '../migrations';
 import { oneAtATime } from '../serial';
 import { SQL_DELETE_HC_TOKENS } from './healthConnect';
-import { SQL_DELETE_PROFILE } from './settings';
+import { LOOK_KEY, mirrorLook, parseLook } from '@/theme/appearance';
+import { APPEARANCE_SETTING_ID, SQL_DELETE_PROFILE } from './settings';
 import { ENTITIES, EntitySpec, SPEC_BY_TYPE, SyncType, toApiFields, toDbFields } from '../syncSpec';
 import type { Db } from '../types';
 
@@ -132,6 +133,26 @@ export function syncStore(db: Db) {
     return 'skipped';
   };
 
+  /**
+   * 同期で届いた見た目（settings の appearance_look）を、起動が読む端末の写し（sync_meta・web は localStorage）に書く。
+   * 起動の読み出しは同期のままで、いまの表示は変えない（開き直したときに変わる。違いは設定の画面が知らせる）。
+   * 知らない値・消えた行は写さない。端末でまだ送っていない変更があれば、行はその値のままなので写しも変わらない
+   */
+  async function mirrorPulledLook(): Promise<void> {
+    try {
+      const row = await db.getFirstAsync<{ value: string | null }>(
+        'SELECT value FROM settings WHERE id = ? AND deleted_at IS NULL', [APPEARANCE_SETTING_ID],
+      );
+      if (row?.value !== 'hud' && row?.value !== 'classic') return;
+      const look = parseLook(row.value);
+      if ((await meta(LOOK_KEY)) === look) return;
+      await putMeta(LOOK_KEY, look);
+      mirrorLook(look);
+    } catch {
+      // 写せなくても、同期は止めない（次に届いたときにまた試す）
+    }
+  }
+
   async function tryApply(state: EntityState): Promise<Applied> {
     const spec = SPEC_BY_TYPE.get(state.entity_type as SyncType);
     if (!spec) return 'skipped'; // 知らない種類（あとの版で足すもの）
@@ -241,6 +262,7 @@ export function syncStore(db: Db) {
           await db.runAsync(`DELETE FROM sync_meta WHERE key = 'applying'`, []);
         }
       });
+      if (applied > 0) await mirrorPulledLook();
       return applied;
     }),
   };

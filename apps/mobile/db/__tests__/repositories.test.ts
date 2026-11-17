@@ -1,5 +1,6 @@
 import { LATEST_VERSION, migrate, MIGRATIONS } from '../migrations';
 import { HiddenDuplicateError } from '../repositories/catalog';
+import { DEFAULT_SETTINGS } from '../repositories/settings';
 import { SEED_BODY_PARTS, SEED_EXERCISES } from '../seed';
 import { big3Assignments } from '@/lib/exercises';
 import { memoryDb, repos, testDeps } from '@/test-utils/nodeDb';
@@ -142,19 +143,25 @@ describe('設定', () => {
     expect(await r.settings.heroBodyMode()).toBe('recovery');
   });
 
-  test('見た目は端末だけに覚え、同期に載せない。初めは HUD。theme/appearance.ts が起動の前に読む sync_meta の key に置く', async () => {
+  test('見た目は端末の写し（sync_meta。theme/appearance.ts が起動の前に読む key）と、同期する設定の行（appearance_look）に書く。初めは HUD', async () => {
     const { r, db } = await setup();
     expect(await r.settings.appearance()).toBe('hud');
     await r.settings.setAppearance('classic');
     expect(await r.settings.appearance()).toBe('classic');
     expect(db.raw.prepare("SELECT value FROM sync_meta WHERE key = 'appearance.look'").get()).toEqual({ value: 'classic' });
-    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 0 });
-    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 0 });
+    expect(db.raw.prepare("SELECT value FROM settings WHERE id = 'appearance_look'").get()).toEqual({ value: 'classic' });
+    expect(db.raw.prepare("SELECT entity_id, op FROM sync_outbox WHERE entity_type = 'setting'").all()).toEqual([{ entity_id: 'appearance_look', op: 'create' }]);
+    // 同じ値をもう一度選んでも、変更を積まない
+    await r.settings.setAppearance('classic');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 1 });
     await r.settings.setAppearance('hud');
     expect(await r.settings.appearance()).toBe('hud');
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 2 });
     // 知らない値は HUD
     db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'appearance.look'").run();
     expect(await r.settings.appearance()).toBe('hud');
+    // ほかの設定の読み出しには出ない
+    expect(await r.settings.get()).toEqual(DEFAULT_SETTINGS);
   });
 
   test('筋トレの推移の部位のバランスの期間は端末だけに覚え、同期に載せない。初めは 2週', async () => {

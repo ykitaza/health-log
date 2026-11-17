@@ -391,3 +391,21 @@ def test_MCP_の書き込み_合う変更は今までどおり書く_消すの�
     asyncio.run(repo.save_entries(TraineeId(USER), [], ["s8"], []))
     states = {d.own.entity_id: d.own for d in engine.docs_of_type(USER, "workout_set")}
     assert states["s8"].deleted and states["s8"].values["set_index"] == 1000
+
+
+def test_見た目の設定は_hud_か_classic_だけを受け_ほかの設定の_ID_は今までどおり受ける():
+    def parse(entity_id, value, op="create"):
+        raw = {"change_id": str(uuid.uuid4()), "entity_type": "setting", "entity_id": entity_id, "op": op,
+               "fields": {"value": value}, "changed_at": "2026-11-08T09:00:00Z"}
+        return REGISTRY.parse_change(raw, set(REGISTRY.specs), "pixel")
+
+    for look in ("hud", "classic"):
+        assert not isinstance(parse("appearance_look", look), Rejection)
+    assert not isinstance(parse("appearance_look", "classic", op="update"), Rejection)
+    for bad in ("dark", "", "HUD", None):
+        rejection = parse("appearance_look", bad)
+        assert isinstance(rejection, Rejection) and rejection.code == "invalid_fields"
+    assert isinstance(parse("appearance_look", "x", op="update"), Rejection)
+    # ほかの設定は値を確かめない（見た目を送らない古い版も、今までどおり）
+    assert not isinstance(parse("weight_unit", "kg"), Rejection)
+    assert not isinstance(parse("future_setting", "anything"), Rejection)

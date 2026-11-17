@@ -331,6 +331,34 @@ describe('同期の1回分（送る → 受け取る → 当てはめる）', ()
     expect((await b.r.catalog.listExercises()).some((e) => e.id === BENCH)).toBe(false);
     expect((await b.r.catalog.listBodyParts()).map((p) => p.id)).toContain(CHEST);
   });
+
+  test('見た目は、ほかの端末で選んだ値が端末の写し（起動が読む sync_meta）に届く。あとに選んだほうが勝つ。知らない値は写さない', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
+    const a = await device(server);
+    const b = await device(server);
+    await a.r.settings.setAppearance('classic');
+    expect(a.outbox().map((r) => [r.entity_type, r.entity_id, JSON.parse(r.fields as string)])).toEqual([
+      ['setting', 'appearance_look', { value: 'classic' }],
+    ]);
+    await a.engine.run();
+    await b.engine.run();
+    const copy = (d: typeof a) => d.db.raw.prepare("SELECT value FROM sync_meta WHERE key = 'appearance.look'").get();
+    expect(copy(b)).toEqual({ value: 'classic' });
+    expect(await b.r.settings.appearance()).toBe('classic');
+    expect(b.outbox()).toEqual([]); // 当てはめたものは送り返さない
+
+    // b があとに選び直す → a に届く
+    b.deps.advance(60_000);
+    await b.r.settings.setAppearance('hud');
+    await b.engine.run();
+    await a.engine.run();
+    expect(copy(a)).toEqual({ value: 'hud' });
+
+    // 知らない値（ほかの版が書いた値）は、端末の写しを変えない
+    server.append([mcp('setting', 'appearance_look', 'update', { value: 'neon' })]);
+    await a.engine.run();
+    expect(copy(a)).toEqual({ value: 'hud' });
+  });
 });
 
 describe('別のアカウントでログインし直したとき（docs/sync-design.md の「アカウントが変わったとき」）', () => {
