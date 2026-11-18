@@ -19,19 +19,14 @@ from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.routes import create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
-from starlette.responses import JSONResponse, PlainTextResponse
 
 from composition.adapters import BodyRecordWeights, EngineAppSyncStatus, TrainingPhasePeriods, WorkoutTrainingDays
 from composition.body_data import SyncedBodyData
 from composition.clock import JST, today
 from composition.registry import create_registry
-from connector.access_token_verifier import AuthzApiTokenVerifier, JwksUnavailableError
-from connector.authz_session import AuthzApiSession
 from connector.icons import IconMiddleware, server_icons
 from connector.period_overview import register_overview_tools
-from connector.request_log import JsonRpcLogMiddleware
 from connector.settings import load_settings
-from connector.tools import Session, register_connector_tools
 from meals.application.goals import GoalService
 from meals.application.meals import MealService
 from meals.application.summaries import SummaryService
@@ -39,6 +34,11 @@ from meals.application.templates import TemplateService
 from meals.application.weights import WeightService
 from meals.infrastructure import sync_repositories as synced
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
+from mcp_connector.access_token_verifier import AuthzApiTokenVerifier
+from mcp_connector.authz_session import AuthzApiSession
+from mcp_connector.errors import unhandled_error
+from mcp_connector.request_log import JsonRpcLogMiddleware
+from mcp_connector.tools import Session, register_connector_tools
 from meals.presentation import mcp_server as meal_tools
 from reports.main import create_service as create_report_service
 from reports.presentation import mcp_tools as report_tools
@@ -122,15 +122,6 @@ def create_server(
     report_tools.register_report_tools(mcp, report_service, TrainingPhasePeriods(training_queries, today))
     register_connector_tools(mcp, session)
     return mcp
-
-
-def unhandled_error(request, exc: Exception):
-    """認証（SDK のミドルウェア）の中で起きた例外の応答。JWKS が取れないときだけ、401 ではなく 503 で再試行を促す。"""
-    if isinstance(exc, JwksUnavailableError):
-        return JSONResponse(
-            {"error": "temporarily_unavailable", "error_description": "Token verification is temporarily unavailable"},
-            status_code=503, headers={"Retry-After": "1"})
-    return PlainTextResponse("Internal Server Error", status_code=500)
 
 
 def create_app(mcp: MCPServer, host: str):

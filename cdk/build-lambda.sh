@@ -1,10 +1,12 @@
 #!/bin/sh
-# authorization・mcp・app_api を、Lambda（arm64、Python 3.12）に載せる形にまとめて cdk/build/ に置く。
+# authorization・mcp・app_api・words を、Lambda（arm64、Python 3.12）に載せる形にまとめて cdk/build/ に置く。
 # cdk deploy の前に実行する。Docker は使わず、uv で Lambda 用のパッケージを入れる。
 #
 # mcp は MCP サーバーの組み立て（services/mcp）で、食事・筋トレ・レポート・同期のコードを一緒に載せる（MealsFunction）。
 # 外部の依存は uv export で書き出し、Lambda 用の wheel を入れる。同じリポジトリのパッケージ（sync・meals・training・reports）は
 # path の依存なので書き出さず（--no-emit-local）、ソースをそのままコピーする（wheel を作るより速く、中身が見てわかる）。
+# words はことば（services/words）で、MCP の Lambda（WordsMcpFunction）とアプリ用の同期の Lambda（WordsAppApiFunction）が同じものを使う。
+# 同期と、KARADA と共有のコネクタの部品（services/mcp_connector）を一緒に載せる。KARADA のコンテキストは載せない
 set -eu
 cd "$(dirname "$0")"
 services=../services
@@ -20,7 +22,7 @@ copy_sources() {
   done
 }
 
-for app in authorization mcp app_api; do
+for app in authorization mcp app_api words; do
   out="build/$app"
   rm -rf "$out"
   mkdir -p "$out"
@@ -36,6 +38,12 @@ for app in authorization mcp app_api; do
       # 食事・筋トレ・レポートと同期を載せる。組み立ての場所どうしで共有するもの（services/composition）も載せる
       cp -R "$services/sync/sync" "$services/meals/meals" "$services/training/training" "$services/reports/reports" \
         "$services/composition/composition" "$out/" ;;
+    words)
+      cp -R "$services/sync/sync" "$out/" ;;
+  esac
+  # MCP のコネクタの共有の部品（アクセストークンの検証・logout・診断のログ。KARADA とことばの MCP が使う）
+  case "$app" in
+    mcp | words) cp -R "$services/mcp_connector/mcp_connector" "$out/" ;;
   esac
   # PC でテストを動かしたときのキャッシュは載せない（中身が同じでも、アセットのハッシュが変わるため）
   find "$out" -name __pycache__ -type d -prune -exec rm -rf {} +
@@ -45,6 +53,7 @@ for app in authorization mcp app_api; do
   case "$app" in
     authorization) server="gunicorn --bind 0.0.0.0:8080 --no-control-socket --timeout 0 'main:create_app()'" ;;  # ファイルを書けないので制御用のソケットは作らない。--timeout 0 は、凍結・解凍のあとにマスターがワーカーを心拍切れで殺すのを止める（1回のリクエストの上限は Lambda のタイムアウト）
     mcp) server='uvicorn main:app --host 0.0.0.0 --port 8080' ;;
+    words) server='uvicorn mcp_main:app --host 0.0.0.0 --port 8080' ;;  # WordsAppApiFunction は app_api.handler を直接呼ぶ
     *) server='' ;;
   esac
   if [ -n "$server" ]; then

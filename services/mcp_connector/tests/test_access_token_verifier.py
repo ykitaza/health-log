@@ -9,7 +9,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from connector.access_token_verifier import AuthzApiTokenVerifier, JwksUnavailableError
+from mcp_connector.access_token_verifier import AuthzApiTokenVerifier, JwksUnavailableError
 
 ISSUER = "https://authz.example"
 RESOURCE = "https://mcp.example/mcp"

@@ -1,0 +1,479 @@
+{
+  "description": "手札の間隔（v1）。手札に入れた日 start に enter_hand（間隔1日・明日が期限・意味がわかる・連続の回数0）、そのあと events を順に当てる。said 言えた：min(ceil(間隔×1.5), 14)（14日より長い間隔は縮めない）、言えたが2回続いたら意味がわかる→言えそう。close 惜しい：何も変えない（期限だけ その日＋間隔）。blank 出てこなかった：max(floor(間隔÷2), 1)、言えそう→意味がわかる・使えた→言えそう。use 使えた：min(max(間隔×3, 7), 60)、段階は使えた。同じ日の2回目からは間隔の項目を変えない（use は回数だけ足す）。日付は日本時間の午前4時で区切った日",
+  "cases": [
+    {
+      "name": "言えたが続く（14日で止まる）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-04",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 3,
+            "due_on": "2026-11-07",
+            "last_reviewed_on": "2026-11-04",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-07",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 5,
+            "due_on": "2026-11-12",
+            "last_reviewed_on": "2026-11-07",
+            "success_streak": 3,
+            "lapse_streak": 0,
+            "review_count": 3,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-12",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 8,
+            "due_on": "2026-11-20",
+            "last_reviewed_on": "2026-11-12",
+            "success_streak": 4,
+            "lapse_streak": 0,
+            "review_count": 4,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-20",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 12,
+            "due_on": "2026-12-02",
+            "last_reviewed_on": "2026-11-20",
+            "success_streak": 5,
+            "lapse_streak": 0,
+            "review_count": 5,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-12-02",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 14,
+            "due_on": "2026-12-16",
+            "last_reviewed_on": "2026-12-02",
+            "success_streak": 6,
+            "lapse_streak": 0,
+            "review_count": 6,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-12-16",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 14,
+            "due_on": "2026-12-30",
+            "last_reviewed_on": "2026-12-16",
+            "success_streak": 7,
+            "lapse_streak": 0,
+            "review_count": 7,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "3日のところで使えた（9 → 27 → 60）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-04",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 3,
+            "due_on": "2026-11-07",
+            "last_reviewed_on": "2026-11-04",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-07",
+          "event": "use",
+          "expected": {
+            "stage": "used",
+            "interval_days": 9,
+            "due_on": "2026-11-16",
+            "last_reviewed_on": "2026-11-07",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 1,
+            "last_used_on": "2026-11-07"
+          }
+        },
+        {
+          "day": "2026-11-16",
+          "event": "use",
+          "expected": {
+            "stage": "used",
+            "interval_days": 27,
+            "due_on": "2026-12-13",
+            "last_reviewed_on": "2026-11-16",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 2,
+            "last_used_on": "2026-11-16"
+          }
+        },
+        {
+          "day": "2026-12-13",
+          "event": "use",
+          "expected": {
+            "stage": "used",
+            "interval_days": 60,
+            "due_on": "2027-02-11",
+            "last_reviewed_on": "2026-12-13",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 3,
+            "last_used_on": "2026-12-13"
+          }
+        },
+        {
+          "day": "2027-02-11",
+          "event": "said",
+          "expected": {
+            "stage": "used",
+            "interval_days": 60,
+            "due_on": "2027-04-12",
+            "last_reviewed_on": "2027-02-11",
+            "success_streak": 3,
+            "lapse_streak": 0,
+            "review_count": 3,
+            "lapse_count": 0,
+            "use_count": 3,
+            "last_used_on": "2026-12-13"
+          }
+        }
+      ]
+    },
+    {
+      "name": "出てこなかった（縮む・段階が戻る）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-04",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 3,
+            "due_on": "2026-11-07",
+            "last_reviewed_on": "2026-11-04",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-07",
+          "event": "blank",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 1,
+            "due_on": "2026-11-08",
+            "last_reviewed_on": "2026-11-07",
+            "success_streak": 0,
+            "lapse_streak": 1,
+            "review_count": 3,
+            "lapse_count": 1,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-08",
+          "event": "blank",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 1,
+            "due_on": "2026-11-09",
+            "last_reviewed_on": "2026-11-08",
+            "success_streak": 0,
+            "lapse_streak": 2,
+            "review_count": 4,
+            "lapse_count": 2,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-09",
+          "event": "blank",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 1,
+            "due_on": "2026-11-10",
+            "last_reviewed_on": "2026-11-09",
+            "success_streak": 0,
+            "lapse_streak": 3,
+            "review_count": 5,
+            "lapse_count": 3,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "惜しいは何も変えない",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-04",
+          "event": "close",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-06",
+            "last_reviewed_on": "2026-11-04",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 2,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-06",
+          "event": "said",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 3,
+            "due_on": "2026-11-09",
+            "last_reviewed_on": "2026-11-06",
+            "success_streak": 2,
+            "lapse_streak": 0,
+            "review_count": 3,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "使えたのあと出てこなかった（使えた → 言えそう）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "use",
+          "expected": {
+            "stage": "used",
+            "interval_days": 7,
+            "due_on": "2026-11-09",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 0,
+            "lapse_streak": 0,
+            "review_count": 0,
+            "lapse_count": 0,
+            "use_count": 1,
+            "last_used_on": "2026-11-02"
+          }
+        },
+        {
+          "day": "2026-11-09",
+          "event": "blank",
+          "expected": {
+            "stage": "sayable",
+            "interval_days": 3,
+            "due_on": "2026-11-12",
+            "last_reviewed_on": "2026-11-09",
+            "success_streak": 0,
+            "lapse_streak": 1,
+            "review_count": 1,
+            "lapse_count": 1,
+            "use_count": 1,
+            "last_used_on": "2026-11-02"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ日の2回目は変えない",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "event": "blank",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "event": "said",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "last_reviewed_on": "2026-11-02",
+            "success_streak": 1,
+            "lapse_streak": 0,
+            "review_count": 1,
+            "lapse_count": 0,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    }
+  ],
+  "business_day": [
+    {
+      "at": "2026-11-18T03:59:59+09:00",
+      "expected": "2026-11-17"
+    },
+    {
+      "at": "2026-11-18T04:00:00+09:00",
+      "expected": "2026-11-18"
+    },
+    {
+      "at": "2026-11-17T18:59:00Z",
+      "expected": "2026-11-17"
+    },
+    {
+      "at": "2026-11-17T19:00:00Z",
+      "expected": "2026-11-18"
+    },
+    {
+      "at": "2026-11-18T23:30:00+09:00",
+      "expected": "2026-11-18"
+    }
+  ]
+}

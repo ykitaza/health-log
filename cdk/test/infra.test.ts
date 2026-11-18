@@ -116,9 +116,10 @@ describe('スマホアプリ用のクライアント', () => {
     expect(app().ExplicitAuthFlows).toEqual(['ALLOW_USER_AUTH']);
   });
 
-  test('戻り先はアプリのカスタムスキームだけ（torelog-dev は開発用の KARADA (dev)）', () => {
-    expect(app().CallbackURLs).toEqual(['torelog://callback', 'torelog-dev://callback']);
-    expect(app().LogoutURLs).toEqual(['torelog://signout', 'torelog-dev://signout']);
+  test('戻り先はアプリのカスタムスキームだけ（torelog-dev は開発用の KARADA (dev)、kotoba はことばのアプリ）', () => {
+    expect(app().CallbackURLs).toEqual(
+      ['torelog://callback', 'torelog-dev://callback', 'kotoba://callback', 'kotoba-dev://callback']);
+    expect(app().LogoutURLs).toEqual(['torelog://signout', 'torelog-dev://signout', 'kotoba://signout', 'kotoba-dev://signout']);
   });
 
   test('トークンの期限、ローテーション、失効、ユーザーの有無を隠す', () => {
@@ -325,14 +326,14 @@ describe('Lambda の権限', () => {
   const paramArn = (name: string) => `arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/cognito-study/${name}`;
   const actionsOf = (s: any) => [s.Action].flat().sort();
 
-  test('認可API の SSM：読むのは起動時の5つ、書けるのは2つの秘密を初めて作るときだけ', () => {
+  test('認可API の SSM：読むのは起動時の6つ（ことばの MCP の URL を含む）、書けるのは2つの秘密を初めて作るときだけ', () => {
     const ssm = statementsOf('AuthzFunction').filter((s) => actionsOf(s).some((a: string) => a.startsWith('ssm:')));
     expect(ssm).toHaveLength(2);
     const get = ssm.find((s) => actionsOf(s).includes('ssm:GetParameter'));
     expect(actionsOf(get)).toEqual(['ssm:GetParameter']);
     expect([...get.Resource].sort()).toEqual([
       'authorization/cognito-client-id', 'authorization/session-secret', 'authorization/signing-key',
-      'authorization/url', 'meals/url'].map(paramArn).sort());
+      'authorization/url', 'meals/url', 'words/url'].map(paramArn).sort());
     const put = ssm.find((s) => actionsOf(s).includes('ssm:PutParameter'));
     expect(actionsOf(put)).toEqual(['ssm:PutParameter']);
     expect([...put.Resource].sort()).toEqual(

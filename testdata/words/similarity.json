@@ -1,0 +1,60 @@
+{
+  "description": "似た表現の判定。normalized_key どうしで、2文字ずつの組（1文字ならその文字）の重なり（Jaccard）が 0.5 以上、または片方がもう片方を含めば似ている。同じ形は「同じ表現」なので似ているには入れない（false）",
+  "threshold": 0.5,
+  "cases": [
+    {
+      "a": "腑に落ちる",
+      "b": "腑に落ちた",
+      "jaccard": 0.6,
+      "similar": true
+    },
+    {
+      "a": "に尽きる",
+      "b": "これに尽きる",
+      "jaccard": 0.6,
+      "similar": true
+    },
+    {
+      "a": "腑に落ちる",
+      "b": "気が置けない",
+      "jaccard": 0.0,
+      "similar": false
+    },
+    {
+      "a": "やぶさかでない",
+      "b": "やぶさかではない",
+      "jaccard": 0.625,
+      "similar": true
+    },
+    {
+      "a": "一石二鳥",
+      "b": "一石二鳥だ",
+      "jaccard": 0.75,
+      "similar": true
+    },
+    {
+      "a": "あ",
+      "b": "あい",
+      "jaccard": 0.0,
+      "similar": true
+    },
+    {
+      "a": "あ",
+      "b": "い",
+      "jaccard": 0.0,
+      "similar": false
+    },
+    {
+      "a": "のれんに腕押し",
+      "b": "ぬかに釘",
+      "jaccard": 0.0,
+      "similar": false
+    },
+    {
+      "a": "ありがとう",
+      "b": "ありがとう",
+      "jaccard": 1.0,
+      "similar": false
+    }
+  ]
+}

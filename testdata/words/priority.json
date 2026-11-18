@@ -1,0 +1,175 @@
+{
+  "description": "一度に見せるもの。risk ＝ 最後に振り返ってからの日数 ÷ 間隔（まだなら手札に入れてからの日数）、3で止める。優先度 ＝ risk × 今の役立ち度（1〜3。null と期限切れは2）× ★（1.5）。期限（due_on が今日以前）のものを優先度の順に5つまで、3つに満たなければ今日まだ振り返っていない risk 0.5 以上のものを優先度の順に足して3つに。手札が3つより少なければ全部。同じ優先度は ID の順",
+  "today": "2026-11-20",
+  "hand": [
+    {
+      "id": "a",
+      "interval_days": 2,
+      "due_on": "2026-11-19",
+      "last_reviewed_on": "2026-11-17",
+      "hand_since": "2026-11-10"
+    },
+    {
+      "id": "b",
+      "interval_days": 1,
+      "due_on": "2026-11-15",
+      "last_reviewed_on": "2026-11-14",
+      "hand_since": "2026-11-10",
+      "star": true
+    },
+    {
+      "id": "c",
+      "interval_days": 5,
+      "due_on": "2026-11-20",
+      "last_reviewed_on": "2026-11-15",
+      "hand_since": "2026-11-01",
+      "usefulness": 3,
+      "usefulness_until": "2026-11-30"
+    },
+    {
+      "id": "d",
+      "interval_days": 5,
+      "due_on": "2026-11-20",
+      "last_reviewed_on": "2026-11-15",
+      "hand_since": "2026-11-01",
+      "usefulness": 3,
+      "usefulness_until": "2026-11-19"
+    },
+    {
+      "id": "e",
+      "interval_days": 8,
+      "due_on": "2026-11-24",
+      "last_reviewed_on": "2026-11-16",
+      "hand_since": "2026-11-01"
+    },
+    {
+      "id": "f",
+      "interval_days": 14,
+      "due_on": "2026-12-01",
+      "last_reviewed_on": "2026-11-17",
+      "hand_since": "2026-10-01",
+      "usefulness": 1
+    },
+    {
+      "id": "g",
+      "interval_days": 1,
+      "due_on": "2026-11-21",
+      "last_reviewed_on": null,
+      "hand_since": "2026-11-20"
+    }
+  ],
+  "expected_each": [
+    {
+      "id": "a",
+      "risk": 1.5,
+      "usefulness": 2,
+      "priority": 3.0
+    },
+    {
+      "id": "b",
+      "risk": 3.0,
+      "usefulness": 2,
+      "priority": 9.0
+    },
+    {
+      "id": "c",
+      "risk": 1.0,
+      "usefulness": 3,
+      "priority": 3.0
+    },
+    {
+      "id": "d",
+      "risk": 1.0,
+      "usefulness": 2,
+      "priority": 2.0
+    },
+    {
+      "id": "e",
+      "risk": 0.5,
+      "usefulness": 2,
+      "priority": 1.0
+    },
+    {
+      "id": "f",
+      "risk": 0.214286,
+      "usefulness": 1,
+      "priority": 0.214286
+    },
+    {
+      "id": "g",
+      "risk": 0.0,
+      "usefulness": 2,
+      "priority": 0.0
+    }
+  ],
+  "expected_queue": [
+    {
+      "id": "b",
+      "priority": 9.0,
+      "due": true
+    },
+    {
+      "id": "a",
+      "priority": 3.0,
+      "due": true
+    },
+    {
+      "id": "c",
+      "priority": 3.0,
+      "due": true
+    },
+    {
+      "id": "d",
+      "priority": 2.0,
+      "due": true
+    }
+  ],
+  "queue_cases": [
+    {
+      "name": "期限が2つ → risk 0.5 以上で3つに",
+      "hand_ids": [
+        "a",
+        "c",
+        "e",
+        "f",
+        "g"
+      ],
+      "expected": [
+        {
+          "id": "a",
+          "priority": 3.0,
+          "due": true
+        },
+        {
+          "id": "c",
+          "priority": 3.0,
+          "due": true
+        },
+        {
+          "id": "e",
+          "priority": 1.0,
+          "due": false
+        }
+      ]
+    },
+    {
+      "name": "手札が2つなら全部",
+      "hand_ids": [
+        "f",
+        "g"
+      ],
+      "expected": [
+        {
+          "id": "f",
+          "priority": 0.214,
+          "due": false
+        },
+        {
+          "id": "g",
+          "priority": 0.0,
+          "due": false
+        }
+      ]
+    }
+  ]
+}

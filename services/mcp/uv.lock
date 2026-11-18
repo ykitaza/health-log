@@ -612,12 +612,33 @@ wheels = [
 ]
 
 [[package]]
+name = "mcp-connector"
+version = "0.1.0"
+source = { editable = "../mcp_connector" }
+dependencies = [
+    { name = "anyio" },
+    { name = "mcp" },
+    { name = "pyjwt", extra = ["crypto"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", specifier = ">=4.9" },
+    { name = "mcp", specifier = ">=2.3.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+
+[[package]]
 name = "mcp-server"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },
+    { name = "mcp-connector" },
     { name = "meals", extra = ["mcp"] },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "reports", extra = ["mcp"] },
@@ -637,6 +658,7 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.9" },
     { name = "mcp", specifier = ">=2.3.0" },
+    { name = "mcp-connector", editable = "../mcp_connector" },
     { name = "meals", extras = ["mcp"], editable = "../meals" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "reports", extras = ["mcp"], editable = "../reports" },

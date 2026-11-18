@@ -1,0 +1,1099 @@
+# ことば アプリ用 API（同期）。設計は docs/words-design.md。
+# services/words/scripts/gen_openapi.py で作る（直接は直さない）。
+openapi: 3.1.0
+info:
+  title: ことば アプリ用 API
+  version: 0.1.0
+  description: 'スマホアプリ（ことば、apps/words）の同期の API。設計は docs/words-design.md の「同期」。
+
+
+    - 形は KARADA のアプリ用 API（docs/api/app-api.yaml）の同期と同じ。テーブルと変更の番号は KARADA と別（WordsTable）
+
+    - 認可：KARADA と同じ Cognito のアプリ用クライアント（torelog-app）のアクセストークン。scope は torelog-api/training.*
+
+    - 利用者はトークンの sub で決まる。本文や URL に利用者の ID は入れない
+
+    - 時刻は UTC の RFC 3339（ミリ秒まで）。日付は日本時間（午前4時で区切る）
+
+    - 流量の制限：1秒2回・瞬間10回。超えると 429
+
+    - 初期の行（出会った場所5つ・タグ20個）は固定の ID（testdata/words/catalog.json）。変えるまで送らず、変えた項目だけを update で送る'
+servers:
+- url: https://{apiId}.execute-api.ap-northeast-1.amazonaws.com
+  description: cdk deploy の出力 WordsAppApiUrl（SSM /cognito-study/words/app/api-url）
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+security: []
+paths:
+  /v1/sync/changes:
+    post:
+      operationId: pushChanges
+      summary: 端末の変更を送る（まとめて、冪等）
+      description: '1回に25件まで、本文は 64KB（65536 バイト）まで。1件ごとに accepted・duplicate・rejected を返す。rejected があっても、ほかの変更は受け付ける。
+
+        応答を受け取れなかったときは、同じ change_id のまま送り直す。'
+      security:
+      - cognito:
+        - torelog-api/training.write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+      responses:
+        '200':
+          description: 1件ごとの結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResponse'
+        '400':
+          description: 本文の形が違う（JSON でない、changes が26件以上、change_id の重複など）。1件も受け付けていない
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '413':
+          description: 本文が 64KB を超える。1件も受け付けていない。changes を分けて送る
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: pullChanges
+      summary: カーソル以降の変更を受け取る（ページ送り）
+      description: seq が after より大きい変更を、seq の順に返す。読める scope のない種類は飛ばす。
+      security:
+      - cognito:
+        - torelog-api/training.read
+      parameters:
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+      responses:
+        '200':
+          description: 変更と、当てはめたあとの状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangesPage'
+        '400':
+          description: after・limit が範囲の外
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/sync/snapshot:
+    get:
+      operationId: getSnapshot
+      summary: 初回の全件の取得
+      description: '今の状態を全部返す（消えたものも deleted: true で返す）。最初のページの cursor を覚え、全部読んだら /v1/sync/changes?after=cursor を読む。'
+      security:
+      - cognito:
+        - torelog-api/training.read
+      parameters:
+      - name: page_token
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 2000
+        description: 前のページの next_page_token
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 200
+      responses:
+        '200':
+          description: 今の状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotPage'
+        '400':
+          description: page_token が壊れている、ほかの人のもの、limit が範囲の外
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    cognito:
+      type: oauth2
+      description: Cognito のマネージドログイン（パスキー）。認可コード＋PKCE。毎回 prompt=login を付ける
+      flows:
+        authorizationCode:
+          authorizationUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/authorize
+          tokenUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/token
+          refreshUrl: https://oidc-study-{account}.auth.ap-northeast-1.amazoncognito.com/oauth2/token
+          scopes:
+            openid: OIDC
+            torelog-api/training.read: ことばの記録を読む（KARADA の筋トレと同じ scope）
+            torelog-api/training.write: ことばの記録を書く（同上）
+  responses:
+    Unauthorized:
+      description: トークンがない、期限切れ、issuer か audience が違う（ID トークンや認可API のトークンを含む）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    Forbidden:
+      description: ルートに要る scope がない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    TooManyRequests:
+      description: 流量の制限を超えた
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GatewayError'
+    InternalError:
+      description: サーバーの不具合。少し待って送り直す（送信は冪等なので同じ本文でよい）
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    EntityType:
+      type: string
+      enum:
+      - source
+      - expression
+      - tag
+      - expression_tag
+      - encounter
+      - review
+      description: 対象の種類。どれも torelog-api/training.* の scope で扱う
+    SourceFields:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 40
+          minLength: 1
+          type: string
+        icon_key:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9_-]+$
+          type: string
+        sort_order:
+          maximum: 100000
+          minimum: 0
+          type: integer
+        hidden:
+          type: boolean
+      type: object
+      description: 出会った場所。アプリからは create・update・restore だけ（消すのは hidden）。create で要る項目：name・icon_key・sort_order・hidden
+    ExpressionFields:
+      additionalProperties: false
+      properties:
+        text:
+          maxLength: 200
+          minLength: 1
+          type: string
+        source_id:
+          anyOf:
+          - pattern: ^[A-Za-z0-9_-]{1,64}$
+            type: string
+          - type: 'null'
+        normalized_key:
+          maxLength: 600
+          minLength: 0
+          type: string
+        scene:
+          maxLength: 300
+          minLength: 0
+          type: string
+        note:
+          maxLength: 1000
+          minLength: 0
+          type: string
+        star:
+          type: boolean
+        place:
+          enum:
+          - collected
+          - hand
+          - own
+          type: string
+        stage:
+          anyOf:
+          - enum:
+            - understood
+            - sayable
+            - used
+            type: string
+          - type: 'null'
+        moved_at:
+          type: string
+        hand_since:
+          anyOf:
+          - type: string
+          - type: 'null'
+        interval_days:
+          maximum: 60
+          minimum: 1
+          type: integer
+        due_on:
+          anyOf:
+          - type: string
+          - type: 'null'
+        last_reviewed_on:
+          anyOf:
+          - type: string
+          - type: 'null'
+        success_streak:
+          maximum: 1000000
+          minimum: 0
+          type: integer
+        lapse_streak:
+          maximum: 1000000
+          minimum: 0
+          type: integer
+        review_count:
+          maximum: 1000000
+          minimum: 0
+          type: integer
+        lapse_count:
+          maximum: 1000000
+          minimum: 0
+          type: integer
+        use_count:
+          maximum: 1000000
+          minimum: 0
+          type: integer
+        last_used_on:
+          anyOf:
+          - type: string
+          - type: 'null'
+        reading:
+          maxLength: 100
+          minLength: 0
+          type: string
+        use_note:
+          maxLength: 300
+          minLength: 0
+          type: string
+        meaning:
+          maxLength: 300
+          minLength: 0
+          type: string
+        nuance:
+          maxLength: 500
+          minLength: 0
+          type: string
+        register:
+          anyOf:
+          - enum:
+            - spoken
+            - written
+            - formal
+            type: string
+          - type: 'null'
+        register_by:
+          anyOf:
+          - enum:
+            - user
+            - claude
+            type: string
+          - type: 'null'
+        examples:
+          items:
+            maxLength: 200
+            minLength: 1
+            type: string
+          maxItems: 3
+          type: array
+        similar:
+          items:
+            maxLength: 100
+            minLength: 1
+            type: string
+          maxItems: 5
+          type: array
+        usefulness:
+          anyOf:
+          - maximum: 3
+            minimum: 1
+            type: integer
+          - type: 'null'
+        usefulness_reason:
+          maxLength: 200
+          minLength: 0
+          type: string
+        usefulness_until:
+          anyOf:
+          - type: string
+          - type: 'null'
+        enriched_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+      type: object
+      description: 表現。補う項目（meaning・nuance・examples・similar・usefulness・usefulness_reason・usefulness_until・enriched_at）はアプリから書けない。間隔の項目（stage〜last_used_on）は組で送る。create
+        で要る項目：text・normalized_key・place
+    TagFields:
+      additionalProperties: false
+      properties:
+        kind:
+          enum:
+          - situation
+          - feeling
+          type: string
+        name:
+          maxLength: 20
+          minLength: 1
+          type: string
+        sort_order:
+          maximum: 100000
+          minimum: 0
+          type: integer
+        hidden:
+          type: boolean
+        created_by:
+          enum:
+          - user
+          - claude
+          - seed
+          type: string
+      type: object
+      description: 使う場面・気持ちのタグ。アプリからは create・update・restore だけ（消すのは hidden）。create で要る項目：kind・name・sort_order・hidden
+    ExpressionTagFields:
+      additionalProperties: false
+      properties:
+        expression_id:
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+          type: string
+        tag_id:
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+          type: string
+        added_by:
+          enum:
+          - user
+          - claude
+          type: string
+        status:
+          enum:
+          - confirmed
+          - proposed
+          - rejected
+          type: string
+        confirmed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+      type: object
+      description: 表現とタグのつながり。entity_id は uuid5(ことばの名前空間, "<expression_id>:<tag_id>")（testdata/words/catalog.json）。added_by・status・confirmed_at
+        は組で送る。表現と一緒に消す。create で要る項目：expression_id・tag_id・added_by・status
+    EncounterFields:
+      additionalProperties: false
+      properties:
+        expression_id:
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+          type: string
+        source_id:
+          anyOf:
+          - pattern: ^[A-Za-z0-9_-]{1,64}$
+            type: string
+          - type: 'null'
+        title:
+          maxLength: 200
+          minLength: 0
+          type: string
+        locator:
+          maxLength: 100
+          minLength: 0
+          type: string
+        met_on:
+          anyOf:
+          - type: string
+          - type: 'null'
+        time_hint:
+          maxLength: 50
+          minLength: 0
+          type: string
+        scene:
+          maxLength: 300
+          minLength: 0
+          type: string
+        surrounding_text:
+          maxLength: 1000
+          minLength: 0
+          type: string
+        wording:
+          maxLength: 200
+          minLength: 0
+          type: string
+        captured_via:
+          enum:
+          - mcp
+          - app
+          type: string
+        note:
+          maxLength: 500
+          minLength: 0
+          type: string
+      type: object
+      description: 出会い1回。表現と一緒に消す。create で要る項目：expression_id
+    ReviewFields:
+      additionalProperties: false
+      properties:
+        expression_id:
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+          type: string
+        kind:
+          enum:
+          - recall
+          - use
+          type: string
+        result:
+          anyOf:
+          - enum:
+            - said
+            - close
+            - blank
+            type: string
+          - type: 'null'
+        reviewed_at:
+          type: string
+        interval_before:
+          anyOf:
+          - maximum: 60
+            minimum: 1
+            type: integer
+          - type: 'null'
+        interval_after:
+          anyOf:
+          - maximum: 60
+            minimum: 1
+            type: integer
+          - type: 'null'
+        session_id:
+          anyOf:
+          - pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+            type: string
+          - type: 'null'
+        trigger:
+          anyOf:
+          - enum:
+            - self
+            - notification
+            - chat
+            type: string
+          - type: 'null'
+      type: object
+      description: 振り返りの記録（と使えたの報告）。追記だけ（create・delete）。表現と一緒に消す。create で要る項目：expression_id・kind・reviewed_at
+    SourceChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: source
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - restore
+          description: アプリから送れる op：create・update・restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/SourceFields'
+          description: create・update の項目。delete・restore には入れない
+    ExpressionChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: expression
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+          description: アプリから送れる op：create・update・delete・restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ExpressionFields'
+          description: create・update の項目。delete・restore には入れない
+    TagChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: tag
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - restore
+          description: アプリから送れる op：create・update・restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/TagFields'
+          description: create・update の項目。delete・restore には入れない
+    ExpressionTagChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: expression_tag
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+          description: アプリから送れる op：create・update・delete・restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ExpressionTagFields'
+          description: create・update の項目。delete・restore には入れない
+    EncounterChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: encounter
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+          description: アプリから送れる op：create・update・delete・restore
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/EncounterFields'
+          description: create・update の項目。delete・restore には入れない
+    ReviewChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: review
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - delete
+          description: アプリから送れる op：create・delete
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ReviewFields'
+          description: create・update の項目。delete・restore には入れない
+    Change:
+      oneOf:
+      - $ref: '#/components/schemas/SourceChange'
+      - $ref: '#/components/schemas/ExpressionChange'
+      - $ref: '#/components/schemas/TagChange'
+      - $ref: '#/components/schemas/ExpressionTagChange'
+      - $ref: '#/components/schemas/EncounterChange'
+      - $ref: '#/components/schemas/ReviewChange'
+      discriminator:
+        propertyName: entity_type
+        mapping:
+          source: '#/components/schemas/SourceChange'
+          expression: '#/components/schemas/ExpressionChange'
+          tag: '#/components/schemas/TagChange'
+          expression_tag: '#/components/schemas/ExpressionTagChange'
+          encounter: '#/components/schemas/EncounterChange'
+          review: '#/components/schemas/ReviewChange'
+    PushRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - device_id
+      - changes
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 端末の ID（アプリを入れたときに作る UUID）
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            $ref: '#/components/schemas/Change'
+          description: 変えた順に並べる。25件より多いときは分けて送る
+    PushResult:
+      type: object
+      required:
+      - change_id
+      - status
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - accepted
+          - duplicate
+          - rejected
+          description: accepted：受け付けた。duplicate：前に受け付けた（状態は変わらない）。rejected：断った（送り直しても同じなので、端末で扱いを決める）
+        seq:
+          type:
+          - integer
+          - 'null'
+          description: 受け付けた変更の通し番号（rejected では null）
+        error:
+          oneOf:
+          - $ref: '#/components/schemas/ChangeError'
+          - type: 'null'
+    ChangeError:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          enum:
+          - invalid_fields
+          - missing_fields
+          - missing_parent_id
+          - parent_id_not_allowed
+          - fields_not_allowed
+          - insufficient_scope
+          - op_not_allowed
+          description: invalid_fields：知らない項目・型（"10" と 10、1 と true は別）・範囲の違い、null にできない項目に null、entity_id・op・changed_at・origin
+            の誤り。missing_fields：create に要る項目がない。missing_parent_id：meal_item に parent_id がない。parent_id_not_allowed：meal_item
+            以外に parent_id がある。fields_not_allowed：delete・restore に fields がある。insufficient_scope：その種類を書く scope がない。op_not_allowed：アプリから受け付けない
+            op か項目（report の delete と next_steps_done の update 以外）
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    PushResponse:
+      type: object
+      required:
+      - results
+      - cursor
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PushResult'
+          description: 送った順
+        cursor:
+          type: integer
+          description: サーバーの今の通し番号（受け取りの目安）
+    EntityState:
+      type: object
+      required:
+      - entity_type
+      - entity_id
+      - parent_id
+      - fields
+      - deleted
+      - created_at
+      - updated_at
+      - deleted_at
+      - seq
+      properties:
+        entity_type:
+          $ref: '#/components/schemas/EntityType'
+        entity_id:
+          type: string
+        parent_id:
+          type:
+          - string
+          - 'null'
+        fields:
+          type: object
+          description: 今の値（種類ごとの *Fields の形。まだ届いていない項目はない）
+        deleted:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          description: 当てはめた変更の時刻のうち、いちばん新しいもの
+        deleted_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        seq:
+          type: integer
+          description: この状態に最後に当てはめた変更の通し番号。端末は大きい方を残す
+    ChangeRecord:
+      type: object
+      required:
+      - seq
+      - change_id
+      - entity_type
+      - entity_id
+      - parent_id
+      - op
+      - fields
+      - changed_at
+      - received_at
+      - origin
+      - device_id
+      properties:
+        seq:
+          type: integer
+        change_id:
+          type: string
+        entity_type:
+          $ref: '#/components/schemas/EntityType'
+        entity_id:
+          type: string
+        parent_id:
+          type:
+          - string
+          - 'null'
+        op:
+          type: string
+          enum:
+          - create
+          - update
+          - delete
+          - restore
+        fields:
+          type:
+          - object
+          - 'null'
+        changed_at:
+          type: string
+          format: date-time
+        received_at:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          - mcp
+          - migration
+        device_id:
+          type:
+          - string
+          - 'null'
+    ChangesPage:
+      type: object
+      required:
+      - entries
+      - next_cursor
+      - has_more
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            required:
+            - change
+            - state
+            properties:
+              change:
+                $ref: '#/components/schemas/ChangeRecord'
+              state:
+                $ref: '#/components/schemas/EntityState'
+        next_cursor:
+          type: integer
+          description: 次の after に使う（読めない種類の変更を飛ばした分も進む）
+        has_more:
+          type: boolean
+    SnapshotPage:
+      type: object
+      required:
+      - states
+      - cursor
+      - next_page_token
+      properties:
+        states:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityState'
+        cursor:
+          type: integer
+          description: 最初のページを読んだときの通し番号。全部読んだら、ここから /v1/sync/changes を読む
+        next_page_token:
+          type:
+          - string
+          - 'null'
+          description: null なら終わり
+    FieldError:
+      type: object
+      required:
+      - field
+      - message
+      properties:
+        field:
+          type: string
+          description: 例：changes[2].fields.amount
+        message:
+          type: string
+    Problem:
+      type: object
+      required:
+      - type
+      - title
+      - status
+      description: Lambda が返すエラー（RFC 9457）
+      properties:
+        type:
+          type: string
+          description: 例：https://torelog.invalid/problems/invalid-request
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    GatewayError:
+      type: object
+      required:
+      - message
+      description: API Gateway が Lambda の前で返すエラー（形は変えられない）。401：Unauthorized、403：Forbidden、429：Too Many Requests
+      properties:
+        message:
+          type: string

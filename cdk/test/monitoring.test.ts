@@ -327,7 +327,8 @@ describe('EventBridge のルール', () => {
   const topicTargets = [Match.objectLike({ Arn: { Ref: Match.stringLikeRegexp('AlertTopic') } })];
 
   test('自分のスタック（名前を並べる）以外への CloudFormation の変更。CDK のデプロイの、stackName のない CreateChangeSet は除く', () => {
-    expect(OWN_STACK_NAMES).toEqual(['CognitoStudy', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit']);
+    expect(OWN_STACK_NAMES).toEqual(
+      ['CognitoStudy', 'CognitoStudyWords', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit']);
     template.hasResourceProperties('AWS::Events::Rule', {
       EventPattern: {
         source: ['aws.cloudformation'],
@@ -419,5 +420,49 @@ describe('EventBridge のルール', () => {
     t.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: { Statement: [{ Effect: 'Allow', Action: 'events:PutEvents', Resource: tokyoBus }] },
     });
+  });
+});
+
+describe('ことば（CognitoStudyWords）を足したとき', () => {
+  const words = {
+    access: {
+      WordsMcpApi: '/cognito-study-monitoring/WordsMcpApi/access-log-group',
+      WordsAppApi: '/cognito-study-monitoring/WordsAppApi/access-log-group',
+    },
+    functions: {
+      WordsMcpFunction: '/cognito-study-monitoring/WordsMcpFunction/function-name',
+      WordsAppApiFunction: '/cognito-study-monitoring/WordsAppApiFunction/function-name',
+    },
+    tables: { WordsTable: '/cognito-study-monitoring/WordsTable/table-name' },
+    appLog: '/cognito-study-monitoring/WordsAppApiFunction/log-group',
+  };
+  const template = Template.fromStack(new MonitoringStack(newApp(), 'Monitoring', {
+    env, tokenEndpointApi: 'AuthzApi', appApiLogGroupParam,
+    accessLogGroupParams: { ...accessLogGroupParams, ...words.access },
+    functionNameParams: { ...functionNameParams, ...words.functions },
+    tableNameParams: { ...tableNameParams, ...words.tables },
+    extraAppApiLogGroupParams: { WordsAppApiFunction: words.appLog },
+  }));
+
+  test('新しいアラームは作らず、まとめのアラームの式に関数2つとテーブル1つを足す', () => {
+    template.resourceCountIs('AWS::CloudWatch::Alarm', 9);
+    const metricsOf = (label: string) => Object.values(template.findResources('AWS::CloudWatch::Alarm'))
+      .map((a) => a.Properties).find((a) => a.Metrics?.some((m: any) => m.Label === label))
+      .Metrics.filter((m: any) => m.MetricStat);
+    // KARADA の分の ID（e0〜e2・w0〜w1）は今のまま、後ろに足す
+    expect(metricsOf('Errors').map((m: any) => m.Id)).toEqual(['e0', 'e1', 'e2', 'e3', 'e4']);
+    expect(metricsOf('ConsumedWriteCapacityUnits').map((m: any) => m.Id)).toEqual(['w0', 'w1', 'w2']);
+  });
+
+  test('アクセスログ2つ分と、ことばのアプリ用の API の bulk_delete を数える', () => {
+    const filters = Object.keys(template.findResources('AWS::Logs::MetricFilter'));
+    for (const id of ['WordsMcpApiRequestsFilter', 'WordsAppApiServerErrorsFilter', 'WordsAppApiFunctionBulkDeletesFilter']) {
+      expect(filters.some((f) => f.startsWith(id))).toBe(true);
+    }
+    expect(filters.some((f) => f.startsWith('WordsMcpApiTokenFailures'))).toBe(false);
+    const bulk = Object.values(template.findResources('AWS::Logs::MetricFilter'))
+      .filter((f) => f.Properties.MetricTransformations[0].MetricName === 'BulkDeletes');
+    expect(bulk).toHaveLength(2);
+    template.hasParameter('*', { Type: 'AWS::SSM::Parameter::Value<String>', Default: words.appLog });
   });
 });

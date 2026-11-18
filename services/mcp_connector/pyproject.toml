@@ -1,0 +1,28 @@
+[project]
+name = "mcp-connector"
+version = "0.1.0"
+description = "MCP の入口（コネクタ）の共有の部品（アクセストークンの検証、logout、診断のログ）。KARADA とことばの MCP が使う"
+requires-python = ">=3.12"
+dependencies = [
+    "anyio>=4.9",
+    "mcp>=2.3.0",
+    "pyjwt[crypto]>=2.15.1",
+]
+
+# KARADA の MCP（services/mcp）と、ことばの MCP（services/words）から path の依存で使うので、パッケージとして作れるようにする。
+# Lambda には、cdk/build-lambda.sh がソースをコピーする
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "mcp_connector"
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

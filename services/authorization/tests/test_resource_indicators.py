@@ -43,6 +43,16 @@ def test_rejects_scopes_the_resource_does_not_serve():
         MCP.grant("meals:write")
 
 
+def test_missing_resource_goes_to_the_default_server():
+    # ことばの MCP を足しても、resource を送らないクライアント（今のコネクタ）は KARADA 宛てのまま
+    words = ResourceServer("https://words.example/mcp", ("words:read", "words:write"), "ことば")
+    with_default = ResourceIndicators([MEALS, words], default=MEALS)
+    assert with_default.find([]) == MEALS
+    assert with_default.find([words.indicator]) == words
+    with pytest.raises(InvalidTargetError):
+        with_default.find(["https://other.example/mcp"])
+
+
 def test_token_request_must_target_the_granted_resource():
     check_token_resource(None, MEALS.indicator)
     check_token_resource(MEALS.indicator, MEALS.indicator)
