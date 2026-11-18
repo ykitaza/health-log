@@ -34,6 +34,9 @@ test('360 の幅でも、長いフェーズの名前と 3 桁のセット数で�
   const caption = (await page.getByTestId('hero-body-caption').filter({ visible: true }).boundingBox())!;
   expect(caption.x).toBeGreaterThanOrEqual(0);
   expect(caption.x + caption.width).toBeLessThanOrEqual(360);
+  // 長い名前は折り返しても、「N セット」の塊は 1 行のまま（「80セ／ット」と途中で折れない）
+  const sets = (await page.getByTestId('hero-body-caption').filter({ visible: true }).locator('xpath=./*[last()]').boundingBox())!;
+  expect(sets.height).toBeLessThan(24);
   const press = page.getByTestId('day-body-2d-press-front').filter({ visible: true });
   const figure = (await press.boundingBox())!;
   await press.click({ position: { x: figure.width * 0.5, y: figure.height * 0.36 } }); // 腹（先頭の 3 つは腕・胸・脚）
