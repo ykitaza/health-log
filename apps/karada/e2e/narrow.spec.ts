@@ -83,3 +83,19 @@ test('360 の幅でも、下の5つのタブの文字（いちばん長い「レ
     expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   }
 });
+
+test('360 の幅のクラシックでも、帳の「種目 · 20セット」は数と単位の塊ごとに折り返し、「20セ／ット」と途中で折れない', async ({ page, context }) => {
+  test.setTimeout(150_000);
+  await page.addInitScript(() => localStorage.setItem('appearance.look', 'classic'));
+  await openWith(page, context, [...workout('2026-11-08', EXERCISE.bench, 20)]);
+  const cell = page.getByTestId('home-latest-ex').filter({ visible: true });
+  await expect(cell).toContainText('種目 ·');
+  const box = (await cell.boundingBox())!;
+  const chunks = cell.getByText(/^(種目 ·|20セット)\s*$/);
+  await expect(chunks).toHaveCount(2);
+  for (let i = 0; i < 2; i++) {
+    const b = (await chunks.nth(i).boundingBox())!;
+    expect(b.height, `塊 ${i} が途中で折れている ${JSON.stringify(b)}`).toBeLessThan(24); // 12px の文字の 1 行
+    expect(b.x + b.width, `塊 ${i} がマスからはみ出す`).toBeLessThanOrEqual(box.x + box.width);
+  }
+});
