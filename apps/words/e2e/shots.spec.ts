@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, byTest, createFakeSyncServer, goTab, mcpExpression, openApp, setNow, signedInWith } from './helpers';
+import { button, byTest, createFakeSyncServer, goTab, mcpExpression, openApp, routeAudio, setNow, signedInWith } from './helpers';
 
 // 画面の写し（PR に貼るもの）。SHOTS_DIR があるときだけ流す（CI では流さない）
 const DIR = process.env.SHOTS_DIR;
@@ -98,13 +98,14 @@ test('画面の写し', async ({ page, context }) => {
   await byTest(page, 'listen-pause').click();
 
   await goTab(page, 'collected');
-  await byTest(page, 'open-menu').click();
-  await byTest(page, 'open-records').click();
+  await byTest(page, 'collected-settings').click();
+  await byTest(page, 'settings-records').click();
   await expect(byTest(page, 'records-screen')).toBeVisible();
   await shot(page, '13-records');
   await button(page, '戻る').click();
-  await byTest(page, 'open-menu').click();
-  await byTest(page, 'open-settings').click();
+  await expect(byTest(page, 'settings-screen')).toBeVisible();
+  await byTest(page, 'natural-voice').click();
+  await expect(byTest(page, 'natural-voice')).toHaveAttribute('aria-checked', 'true');
   await shot(page, '14-settings');
   await byTest(page, 'settings-account').click();
   await shot(page, '15-account');
@@ -114,6 +115,14 @@ test('画面の写し', async ({ page, context }) => {
   await button(page, '戻る').first().click();
   await byTest(page, 'settings-sources').click();
   await shot(page, '17-sources');
+
+  // 自然な声をオンにしたあとの聞く（サーバーの声で読めたこと）
+  await routeAudio(context, 200);
+  await button(page, '戻る').first().click();
+  await button(page, '戻る').first().click();
+  await goTab(page, 'listen');
+  await expect(byTest(page, 'listen-voice')).toHaveText('自然な声（Polly）で読んでいます');
+  await shot(page, '18-listen-natural');
 });
 
 test('画面の写し（0 の週のホーム）', async ({ page }) => {

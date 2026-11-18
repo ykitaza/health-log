@@ -51,8 +51,8 @@ test('聞く：手札から並び、再生・次・前で動き、聞き終え�
   await expect(byTest(page, 'listen-play')).toBeVisible({ timeout: 15_000 });
 
   await goTab(page, 'collected');
-  await byTest(page, 'open-menu').click();
-  await byTest(page, 'open-records').click();
+  await byTest(page, 'collected-settings').click();
+  await byTest(page, 'settings-records').click();
   await expect(byTest(page, 'records-listen')).toContainText('2 語');
 });
 
