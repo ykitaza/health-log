@@ -115,4 +115,5 @@ jobs:
 
       # 配信した更新が届くネイティブの指紋（runtime version）を出す。この値のビルドにだけ更新が届く
       - if: steps.target.outputs.ok == 'true'
-        run: npx expo-updates fingerprint:generate --platform android | jq -r '"runtime version: " + .hash'
+        run: |
+          npx expo-updates fingerprint:generate --platform android | jq -r '"runtime version: " + .hash'
