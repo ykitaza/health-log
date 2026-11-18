@@ -8,6 +8,7 @@ import { expressionTagId } from '@/db/repositories/words';
 import { SEED_SOURCES, SEED_TAGS, WORDS_NAMESPACE } from '@/db/seed';
 import { bigramJaccard, isSimilarKey, SIMILAR_THRESHOLD, searchKey } from '../normalize';
 import { applyListen, applyUse, businessDay, EMPTY_SCHEDULE, enterHand, listenQueue, priority, risk, usefulnessOf } from '../schedule';
+import { ListenPause, SECTION_GAP_MS } from '../listen/pace';
 import { buildScript } from '../speech';
 import { activityStats } from '../stats';
 import type { Expression, Place } from '../types';
@@ -77,13 +78,17 @@ describe('優先度と聞く順（listen_queue.json）', () => {
 describe('読み上げの台本（speech.json）', () => {
   const data = load('speech.json') as {
     cases: { name: string; expression: Partial<Expression> & { examples?: { text: string; origin: 'user' | 'claude'; confirmed: boolean }[] };
-      tags: { kind: 'situation' | 'feeling'; name: string; status: 'confirmed' | 'proposed' | 'rejected' }[]; sections: [string, string][]; ssml: string }[];
+      tags: { kind: 'situation' | 'feeling'; name: string; status: 'confirmed' | 'proposed' | 'rejected' }[]; sections: [string, string][]; ssml: string; pause?: ListenPause }[];
+    pause_ms: Record<ListenPause, number>;
   };
   it.each(data.cases.map((c) => [c.name, c]))('%s', (_name, c) => {
     const e = { text: '', reading: '', meaning: '', nuance: '', use_note: '', ...c.expression, examples: c.expression.examples ?? [] };
-    const script = buildScript(e as Parameters<typeof buildScript>[0], c.tags);
+    const script = buildScript(e as Parameters<typeof buildScript>[0], c.tags, c.pause);
     expect(script.sections).toEqual(c.sections);
     expect(script.ssml).toBe(c.ssml);
+  });
+  it('区切りのあいだの間は、サーバーの break と同じ長さ（pause_ms）', () => {
+    expect(SECTION_GAP_MS).toEqual(data.pause_ms);
   });
 });
 

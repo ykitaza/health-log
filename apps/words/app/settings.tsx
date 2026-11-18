@@ -68,7 +68,7 @@ export default function SettingsScreen() {
       <Choice title="1 語ごとのくり返し" options={REPEATS} value={listen.pace.repeat} label={(v) => REPEAT_LABEL[v]} onChange={(repeat) => { void listen.setPace({ repeat }); }} testID="pace-repeat" />
       <Choice title="区切りのあいだの間" options={PAUSES} value={listen.pace.pause} label={(v) => PAUSE_LABEL[v]} onChange={(pause) => { void listen.setPace({ pause }); }} testID="pace-pause" />
       <T variant="label" color={colors.sub} style={{ marginTop: space.s }}>
-        変えると、次に準備する言葉から効きます。間は、表現・読み・説明などの区切りのあいだと、くり返しのあいだ・言葉のあとに空けます（自然な声では、区切りのあいだはサーバーの声のままです）
+        変えると、次に準備する言葉から効きます。間は、表現・読み・説明などの区切りのあいだと、くり返しのあいだ・言葉のあとに空けます
       </T>
 
       <SectionTitle title="通知" />

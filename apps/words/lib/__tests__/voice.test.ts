@@ -5,14 +5,15 @@ describe('聞くの声の選び方（自然な声と端末の声）', () => {
   const mp3 = new Uint8Array([1, 2, 3]).buffer;
   function setup(o: Partial<VoiceSource> & { audio?: (id: string) => Promise<ArrayBuffer> }) {
     const calls: string[] = [];
+    const pauses: (string | undefined)[] = [];
     const notes: VoiceNote[] = [];
     const source: VoiceSource = {
       polly: true, signedIn: true, configured: true,
-      api: { audio: async (id) => { calls.push(id); return o.audio ? o.audio(id) : mp3; } },
+      api: { audio: async (id, pause) => { calls.push(id); pauses.push(pause); return o.audio ? o.audio(id) : mp3; } },
       ...o,
     };
     const fetch = createAudioFetcher(() => source, (n) => notes.push(n));
-    return { source, fetch, calls, notes, last: () => voiceNoteText(notes[notes.length - 1] ?? null) };
+    return { source, fetch, calls, pauses, notes, last: () => voiceNoteText(notes[notes.length - 1] ?? null) };
   }
 
   it('オフならサーバーを呼ばず、端末の声（知らせもなし）', async () => {
@@ -20,6 +21,14 @@ describe('聞くの声の選び方（自然な声と端末の声）', () => {
     expect(await t.fetch('a')).toBeNull();
     expect(t.calls).toEqual([]);
     expect(t.last()).toBeNull();
+  });
+
+  it('設定の間（pause）を、取るたびに今の値で頼む', async () => {
+    const t = setup({ pause: 'long' });
+    await t.fetch('a');
+    t.source.pause = 'short';
+    await t.fetch('b');
+    expect(t.pauses).toEqual(['long', 'short']);
   });
 
   it('オンでつながれば、サーバーの声（POST /v1/audio の MP3）を使う', async () => {
