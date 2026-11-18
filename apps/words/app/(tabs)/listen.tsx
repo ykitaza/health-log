@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { SettingsButton } from '@/components/SettingsButton';
-import { Header, Screen, T } from '@/components/ui';
+import { Button, Header, Screen, T } from '@/components/ui';
 import { BrushReveal } from '@/components/wa';
 import { useListen } from '@/hooks/listen';
 import { progressOf } from '@/lib/listen/queue';
@@ -33,7 +33,7 @@ function Control({ icon, label, onPress, size, primary, disabled, testID }: {
  * 並びは手札 → 期限のもの → ★ → 最近拾ったもの。画面を消しても、ロック画面・車のボタンで操作できる
  */
 export default function ListenScreen() {
-  const { state, queue, rebuild, play, pause, next, previous, voice } = useListen();
+  const { state, queue, rebuild, play, pause, next, previous, voice, scope, start } = useListen();
   // 開いたときに並びを作り直す（鳴らしているあいだは変えない）
   useFocusEffect(useCallback(() => { void rebuild(); }, [rebuild]));
   const current = queue[state.index];
@@ -50,6 +50,13 @@ export default function ListenScreen() {
           </View>
         )}
       />
+      {/* 手札の画面の「聞く」から来たとき：手札だけを流している。いつもの並びに戻せる */}
+      {scope === 'hand' && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s }} testID="listen-scope-hand">
+          <T variant="bodyS" color={colors.sub}>手札だけを聞いています</T>
+          <Button label="すべてを聞く" variant="text" small onPress={() => { void start('all', false, false); }} testID="listen-scope-all" />
+        </View>
+      )}
       {empty ? (
         <View style={{ flex: 1, justifyContent: 'center', gap: space.m }}>
           <T variant="wordS">まだ聞くものがありません</T>

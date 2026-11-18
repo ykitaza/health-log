@@ -8,10 +8,11 @@ import { Button, Header, Screen, T } from '@/components/ui';
 import { InkSettle, Seal } from '@/components/wa';
 import type { ListItem } from '@/db/repositories/words';
 import { useData } from '@/hooks/data';
+import { useListen } from '@/hooks/listen';
 import { formatMonthDay, relativeTime, reviewDay } from '@/lib/date';
 import { estimateSeconds } from '@/lib/listen/timerOutput';
 import { listenQueue } from '@/lib/schedule';
-import { buildScript, spokenText } from '@/lib/speech';
+import { buildScript, spokenSections, spokenText } from '@/lib/speech';
 import { listenMinutes, thisWeek, weekLine, weekSeals } from '@/lib/stats';
 import { HAND_LIMIT, Source } from '@/lib/types';
 import { colors, radius, space } from '@/theme';
@@ -37,18 +38,20 @@ function dayLabel(today: string) {
 /**
  * ホーム（下のタブの1番目）。上から、書き留める欄と「AI で拾う」、今週の一文と落款（押すと記録）、今日の手札、
  * 「手札を聞く」（聞くへ）、最近拾った。数は記録の画面と同じ計算（lib/stats.ts の activityStats）、
- * 手札の並びと聞くの数・分は聞くと同じ並び（lib/schedule.ts の listenQueue）と見積もり（estimateSeconds）。0 の週も責めない
+ * 手札の並びと聞くの数・分は聞くと同じ並び（lib/schedule.ts の listenQueue）と見積もり（estimateSeconds。設定の読み方を入れて）。0 の週も責めない
  */
 export default function HomeScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
+  const listen = useListen();
   const { data } = useData(async (r) => {
     const today = reviewDay(new Date());
-    const [items, usages, sources] = [await r.words.listAll(), await r.words.usages(), await r.catalog.sources()];
+    const [items, usages, sources, pace] = [await r.words.listAll(), await r.words.usages(), await r.catalog.sources(), await r.local.listenPace()];
     const queue = listenQueue(items, today);
     let seconds = 0;
     for (const { expression: e } of queue) {
       const tags = (await r.words.tagsOf(e.id)).map((t) => ({ kind: t.kind, name: t.name, status: t.status }));
-      seconds += estimateSeconds({ id: e.id, title: e.text, reading: e.reading, speech: spokenText(buildScript(e, tags)) });
+      const script = buildScript(e, tags);
+      seconds += estimateSeconds({ speech: spokenText(script), sections: spokenSections(script) }, pace);
     }
     const week = thisWeek(items, usages, today);
     return {
@@ -120,7 +123,8 @@ export default function HomeScreen() {
           {data.listen.count > 0 && (
             <Button
               label={`手札を聞く（${data.listen.count} 語・約 ${data.listen.minutes} 分）`} icon="play"
-              onPress={() => router.navigate('/listen')} style={{ marginTop: space.l }} testID="home-listen"
+              // 手札の画面から手札だけにしていたら、いつもの並びに戻す（鳴らしているいつもの並びは止めない）
+              onPress={() => { if (listen.scope !== 'all') void listen.start('all', false); router.navigate('/listen'); }} style={{ marginTop: space.l }} testID="home-listen"
             />
           )}
 

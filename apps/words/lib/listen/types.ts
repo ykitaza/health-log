@@ -4,9 +4,14 @@ export type Track = {
   /** 表現（ロック画面の題） */
   title: string;
   reading: string;
-  /** 読み上げる文 */
+  /** 読み上げる文（区切りを改行2つでつないだもの。区切りごとに書き出せないときに1回で読む） */
   speech: string;
+  /** 区切り（表現・読み・説明・使い方・例文）。あいだに設定の間を空けて読む（lib/listen/pace.ts） */
+  sections: string[];
 };
+
+/** 区切り（なければ読み上げる文を1つの区切りにする） */
+export const sectionsOf = (t: Pick<Track, 'speech' | 'sections'>) => (t.sections.length > 0 ? t.sections : [t.speech]);
 
 /** audio：一時ファイルを再生の並びで鳴らす（端末の読み上げか自然な声）。speech：その場で読む（iOS・書き出せないとき）。idle：まだ */
 export type EngineMode = 'audio' | 'speech' | 'idle';

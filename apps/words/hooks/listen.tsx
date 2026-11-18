@@ -3,10 +3,11 @@ import type { ListItem } from '@/db/repositories/words';
 import { apiBaseUrl } from '@/lib/auth/config';
 import { reviewDay } from '@/lib/date';
 import { createEngine } from '@/lib/listen/engine';
+import { DEFAULT_PACE, ListenPace } from '@/lib/listen/pace';
 import { EngineState, IDLE_STATE, Track } from '@/lib/listen/types';
 import { createAudioFetcher, VoiceNote, voiceNoteText, VoiceSource } from '@/lib/listen/voice';
 import { listenQueue } from '@/lib/schedule';
-import { buildScript, spokenText } from '@/lib/speech';
+import { buildScript, spokenSections, spokenText } from '@/lib/speech';
 import { useAuth } from './auth';
 import { useRepos } from './data';
 import { useNotifications } from './notifications';
@@ -16,11 +17,21 @@ import { useNotifications } from './notifications';
  * 1つ流し終えたら表現の listened_at・listen_count（と手札の間隔）を書き、止めたとき・最後まで流したときに、
  * 聞いた1回（listen_session：流した秒と数）を残す
  */
+/** 聞く並び。all：手札 → 期限 → ★ → 最近拾った（既定）。hand：手札だけ（手札の画面の「聞く」から） */
+export type ListenScope = 'all' | 'hand';
+
 type Value = {
   state: EngineState;
   queue: ListItem[];
-  /** 並びを作り直す（鳴らしていないときだけ） */
+  /** 並びを作り直す（鳴らしていないときだけ。聞くの画面を開いたとき） */
   rebuild: () => Promise<void>;
+  /** いまの並び */
+  scope: ListenScope;
+  /**
+   * 並びを選んで作り直す（鳴らしていても止めて作り直す）。autoplay なら作り終えたら鳴らす。
+   * navigate：このあと聞くの画面へ移る（移ったときの作り直しを1回飛ばす。聞くの画面の中から呼ぶときは false）
+   */
+  start: (scope: ListenScope, autoplay: boolean, navigate?: boolean) => Promise<void>;
   play: () => void;
   pause: () => void;
   next: () => void;
@@ -30,6 +41,9 @@ type Value = {
   setNaturalVoice: (on: boolean) => Promise<void>;
   /** いまの声の一文（自然な声で読めた・端末の声に戻した理由）。自然な声がオフ・まだ読んでいないときは null */
   voice: string | null;
+  /** 設定の読み方（速さ・くり返し・間）。変えると次に準備する語から効く */
+  pace: ListenPace;
+  setPace: (patch: Partial<ListenPace>) => Promise<void>;
 };
 
 const Ctx = createContext<Value | null>(null);
@@ -39,6 +53,8 @@ const Ctx = createContext<Value | null>(null);
  * ほかは端末の読み上げ（既定）。取るたびにここを読むので、設定を変えると次に書き出す表現から効く
  */
 const audioSource: VoiceSource = { polly: false, signedIn: false, configured: apiBaseUrl !== '', api: null };
+/** 読み方。1つを書き出す（準備する）たびにここを読むので、設定を変えると次に準備する語から効く */
+const paceSource: { current: ListenPace } = { current: DEFAULT_PACE };
 
 export function ListenProvider({ children }: { children: ReactNode }) {
   const repos = useRepos();
@@ -66,7 +82,33 @@ export function ListenProvider({ children }: { children: ReactNode }) {
     return voiceLoad.current;
   }, [repos]);
   useEffect(() => { void loadVoice(); }, [loadVoice]);
-  const [engine] = useState(() => createEngine(createAudioFetcher(() => audioSource, setVoice)));
+  /** 読み方（設定の画面と聞くで同じ値を見る）。自然な声と同じく、読み終える前に変えたら変えた値を使う */
+  const [pace, setPaceState] = useState<ListenPace>(DEFAULT_PACE);
+  const paceLoad = useRef<Promise<void> | null>(null);
+  const paceTouched = useRef(false);
+  const loadPace = useCallback(() => {
+    paceLoad.current ??= repos.local.listenPace()
+      .then((v) => { if (!paceTouched.current) { paceSource.current = v; setPaceState(v); } })
+      .catch(() => {});
+    return paceLoad.current;
+  }, [repos]);
+  useEffect(() => { void loadPace(); }, [loadPace]);
+  const [engine] = useState(() => createEngine(createAudioFetcher(() => audioSource, setVoice), () => paceSource.current));
+
+  /** 設定で読み方を変える。すぐに効かせ（次に準備する語から）、端末に残す。残せなければ戻す */
+  const setPace = useCallback(async (patch: Partial<ListenPace>) => {
+    paceTouched.current = true;
+    const before = paceSource.current;
+    const next = { ...before, ...patch };
+    paceSource.current = next;
+    setPaceState(next);
+    try {
+      await repos.local.setListenPace(next);
+    } catch {
+      paceSource.current = before;
+      setPaceState(before);
+    }
+  }, [repos]);
 
   /** 設定で「自然な声」を切り替える。すぐに効かせ（次に書き出す表現から）、端末に残す。残せなければ戻す */
   const setNaturalVoice = useCallback(async (on: boolean) => {
@@ -110,32 +152,55 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   }, [engine, repos, flush]);
   useEffect(() => () => engine.destroy(), [engine]);
 
-  const rebuild = useCallback(async () => {
-    if (engine.getState().playing) return;
+  const [scope, setScope] = useState<ListenScope>('all');
+  const scopeRef = useRef<ListenScope>('all');
+  /** start のあと聞くの画面へ移ったときの作り直しを1回飛ばす（作ったばかりの並びを、止めた並びで作り直さないように） */
+  const skipNextRebuild = useRef(false);
+
+  const load = useCallback(async (autoplay: boolean) => {
     try {
-      await loadVoice();
+      await Promise.all([loadVoice(), loadPace()]);
       setVoice(null);
       const all = await repos.words.listAll();
-      const q = listenQueue(all, reviewDay(new Date())).map((x) => x.expression);
+      const today = reviewDay(new Date());
+      const q = listenQueue(all, today)
+        .filter((x) => scopeRef.current === 'all' || x.group === 'due' || x.group === 'hand')
+        .map((x) => x.expression);
       const tracks: Track[] = [];
       for (const e of q) {
         const tags = (await repos.words.tagsOf(e.id)).map((t) => ({ kind: t.kind, name: t.name, status: t.status }));
-        tracks.push({ id: e.id, title: e.text, reading: e.reading, speech: spokenText(buildScript(e, tags)) });
+        const script = buildScript(e, tags);
+        tracks.push({ id: e.id, title: e.text, reading: e.reading, speech: spokenText(script), sections: spokenSections(script) });
       }
       setQueue(q);
       setRebuildError(null);
       await engine.load(tracks, 0);
+      if (autoplay && tracks.length > 0) engine.play();
     } catch (e) {
       // 握りつぶさず、画面に理由を出す
       setRebuildError(`聞く準備に失敗しました：${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [engine, repos, loadVoice]);
+  }, [engine, repos, loadVoice, loadPace]);
+
+  const rebuild = useCallback(async () => {
+    if (skipNextRebuild.current) { skipNextRebuild.current = false; return; }
+    if (engine.getState().playing) return;
+    await load(false);
+  }, [engine, load]);
+
+  const start = useCallback(async (next: ListenScope, autoplay: boolean, navigate = true) => {
+    skipNextRebuild.current = navigate;
+    scopeRef.current = next;
+    setScope(next);
+    if (engine.getState().playing) engine.pause();
+    await load(autoplay);
+  }, [engine, load]);
 
   const shown = useMemo(() => (rebuildError && !state.error ? { ...state, error: rebuildError } : state), [state, rebuildError]);
   const value = useMemo(() => ({
-    state: shown, queue, rebuild, naturalVoice, setNaturalVoice, voice: voiceNoteText(voice),
+    state: shown, queue, rebuild, scope, start, naturalVoice, setNaturalVoice, voice: voiceNoteText(voice), pace, setPace,
     play: () => engine.play(), pause: () => engine.pause(), next: () => engine.next(), previous: () => engine.previous(),
-  }), [shown, queue, rebuild, naturalVoice, setNaturalVoice, voice, engine]);
+  }), [shown, queue, rebuild, scope, start, naturalVoice, setNaturalVoice, voice, pace, setPace, engine]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

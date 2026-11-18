@@ -1,5 +1,6 @@
 // 端末だけに置くもの（同期しない）：アプリを前面にした時刻、通知を送った時刻、小さな設定（sync_meta）
 import { isChatApp, type ChatApp } from '@/lib/chat';
+import { ListenPace, parsePace, serializePace } from '@/lib/listen/pace';
 import { oneAtATime } from '../serial';
 import type { Db, Deps } from '../types';
 
@@ -11,6 +12,8 @@ const KEYS = {
   notifyAsked: 'notify.asked',
   /** 聞くの「自然な声（Polly）」。既定はオフ（端末の読み上げ） */
   naturalVoice: 'listen.natural_voice',
+  /** 聞くの読み方（速さ・くり返し・間。JSON）。既定は 1.0 倍・1 回・ふつう */
+  listenPace: 'listen.pace',
   /** 初めの画面（ログインするか、ログインせずに使うか）を済ませたか */
   welcomed: 'welcome.done',
 } as const;
@@ -40,6 +43,9 @@ export function localRepository(db: Db, deps: Deps) {
 
     async naturalVoice() { return (await meta(KEYS.naturalVoice)) === '1'; },
     setNaturalVoice: (on: boolean) => put(KEYS.naturalVoice, on ? '1' : '0'),
+
+    async listenPace(): Promise<ListenPace> { return parsePace(await meta(KEYS.listenPace)); },
+    setListenPace: (pace: ListenPace) => put(KEYS.listenPace, serializePace(pace)),
 
     async notifyAsked() { return (await meta(KEYS.notifyAsked)) === '1'; },
     setNotifyAsked: () => put(KEYS.notifyAsked, '1'),

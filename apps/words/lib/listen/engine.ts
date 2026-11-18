@@ -7,6 +7,9 @@
  * - 書き出すのは自前の小さなモジュール（modules/kotoba-tts。Android の TextToSpeech.synthesizeToFile）
  * - 一時ファイルは「いま」と「次」の2つまで。鳴らし終えたらすぐ消す。保存（キャッシュ）はしない。起動のときに一時フォルダを空にする
  * - 設定の「自然な声（Polly）」をオンにしたときだけ、サーバーの音声（POST /v1/audio の MP3）を同じ一時ファイルの作りで使う
+ * - 設定の読み方（lib/listen/pace.ts）：1 語を 1 つの一時ファイルにまとめる（端末の声は区切りごとに書き出して間を挟んでつなぎ、
+ *   くり返しは同じ音声を並べる。自然な声は MP3 を無音のフレームを挟んでつなぐ。lib/listen/audioJoin.ts）。
+ *   速さは再生の並びの速さ（playbackRate）で、その語を鳴らし始めるときに合わせる。設定は書き出すごとに読む（次に準備する語から効く）
  *
  * 並びは [しるし, いま, 次]。しるしは同梱の短い無音（assets/audio/marker.wav。一時ファイルではない）。
  * 車やロック画面の「前」は、並びの中で前（しるし）へ移るので、それを受けて前の表現を書き出し、並びを作り直す。
@@ -23,9 +26,10 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { KotobaTts } from '@/modules/kotoba-tts';
 import { createController, Output } from './controller';
+import { joinMp3, joinWav } from './audioJoin';
+import { ListenPace, paceSeconds, wordPlan } from './pace';
 import { countsAsListened } from './queue';
-import { estimateSeconds } from './timerOutput';
-import { EngineState, FetchAudio, IDLE_STATE, ListenEngine, Track } from './types';
+import { EngineState, FetchAudio, IDLE_STATE, ListenEngine, sectionsOf, Track } from './types';
 
 const MARKER = require('@/assets/audio/marker.wav') as number;
 const LOCK_OPTIONS = { showNextTrack: true, showPreviousTrack: true, showSeekForward: false, showSeekBackward: false };
@@ -45,33 +49,56 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
   });
 }
 
-/** 端末の声でその場で読む出力（iOS と、書き出せないとき） */
-function speechOutput(): Output {
-  let current: { track: Track; ev: Parameters<Output['start']>[2] } | null = null;
+/**
+ * 端末の声でその場で読む出力（iOS と、書き出せないとき）。区切りを1つずつ読み、あいだは時計で待つ（読み方の間とくり返し）。
+ * 読み方は準備（prepare）のときに読む
+ */
+function speechOutput(pace: () => ListenPace): Output {
+  let current: { track: Track; ev: Parameters<Output['start']>[2]; pace: ListenPace } | null = null;
+  let prepared: { i: number; pace: ListenPace } | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let gap: ReturnType<typeof setTimeout> | null = null;
+  /** 読み始めるたびに増やす（止めた・次へ送ったあとに、前の読み上げや時計から続きを読まないように） */
+  let run = 0;
   let position = 0;
-  const clear = () => { if (timer) clearInterval(timer); timer = null; };
+  const clear = () => {
+    if (timer) clearInterval(timer);
+    if (gap) clearTimeout(gap);
+    timer = null;
+    gap = null;
+  };
   const speak = () => {
     if (!current) return;
-    const { track, ev } = current;
-    const duration = estimateSeconds(track);
+    const { track, ev, pace: p } = current;
+    const my = ++run;
+    const sections = sectionsOf(track);
+    const plan = wordPlan(sections.length, p);
+    const duration = paceSeconds(sections, p);
     clear();
+    position = 0;
     timer = setInterval(() => { position = Math.min(duration, position + 0.5); ev.onProgress(position, duration); }, 500);
-    Speech.speak(track.speech, {
-      language: 'ja-JP',
-      rate: RATE,
-      onDone: () => { clear(); ev.onProgress(duration, duration); ev.onEnd(); },
-      onError: (e) => { clear(); ev.onError?.(`端末の読み上げが使えません：${messageOf(e)}`); },
-    });
+    const step = (k: number) => {
+      if (my !== run) return;
+      const seg = plan[k];
+      if (!seg) { clear(); ev.onProgress(duration, duration); ev.onEnd(); return; }
+      if ('silence' in seg) { gap = setTimeout(() => step(k + 1), seg.silence / p.speed); return; }
+      Speech.speak(sections[seg.part], {
+        language: 'ja-JP',
+        rate: RATE * p.speed,
+        onDone: () => step(k + 1),
+        onError: (e) => { if (my !== run) return; clear(); ev.onError?.(`端末の読み上げが使えません：${messageOf(e)}`); },
+      });
+    };
+    step(0);
   };
   return {
     mode: 'speech',
-    async prepare() { return true; },
-    start(track, _i, ev) { current = { track, ev }; position = 0; speak(); },
+    async prepare(_t, i) { prepared = { i, pace: pace() }; return true; },
+    start(track, i, ev) { current = { track, ev, pace: prepared?.i === i ? prepared.pace : pace() }; speak(); },
     // その場の読み上げは途中から続けられない（Android）ので、止めて、再開は頭から読む
-    pause() { clear(); void Speech.stop(); },
-    resume() { position = 0; speak(); },
-    stop() { clear(); current = null; void Speech.stop(); },
+    pause() { run++; clear(); void Speech.stop(); },
+    resume() { speak(); },
+    stop() { run++; clear(); current = null; void Speech.stop(); },
   };
 }
 
@@ -91,14 +118,19 @@ async function checkTts(): Promise<string | null> {
   }
 }
 
-export function createEngine(fetchAudio: FetchAudio): ListenEngine {
+/** 一時ファイル1つ（1 語分）。speed はその語を書き出したときの速さ（鳴らし始めるときに並びの速さを合わせる） */
+type Rendered = { i: number; file: File; speed: number };
+
+export function createEngine(fetchAudio: FetchAudio, pace: () => ListenPace): ListenEngine {
   const dir = new Directory(Paths.cache, 'kotoba-tts');
   let tracks: Track[] = [];
   let playlist: AudioPlaylist | null = null;
   let speech: ListenEngine | null = null;
   /** いま（並びの1番目）と次（2番目）の表現の位置と一時ファイル */
-  let cur: { i: number; file: File } | null = null;
-  let nxt: { i: number; file: File } | null = null;
+  let cur: Rendered | null = null;
+  let nxt: Rendered | null = null;
+  /** 並びにいま合わせている速さ */
+  let rate = 1;
   /** 並びを作り直しているあいだ（と、その直後の少しのあいだ）は、並びの知らせを受けない */
   let rebuilding = false;
   let quietUntil = 0;
@@ -136,23 +168,51 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
   }
   cleanDir();
 
-  /** i 番目を一時ファイルに書き出す（自然な声がオンでつながればサーバーの MP3、ほかは端末の読み上げの WAV）。書き出せなければ理由を残して null */
-  async function render(i: number): Promise<{ i: number; file: File } | null> {
+  /** 端末の読み上げで text を file（WAV）に書き出す */
+  async function synth(file: File, text: string) {
+    if (!KotobaTts) throw new Error('端末の読み上げのモジュールがありません');
+    await withTimeout(KotobaTts.synthesizeToFile(text, plainPath(file.uri), RATE), RENDER_TIMEOUT_MS, '書き出しが終わりません（時間切れ）');
+    if (!file.exists || !file.size) throw new Error('書き出したファイルが空です');
+  }
+
+  /**
+   * i 番目を一時ファイル（1 語に 1 つ）に書き出す（自然な声がオンでつながればサーバーの MP3、ほかは端末の読み上げの WAV）。
+   * 読み方（くり返し・間）はここで読んで、1 つのファイルにまとめる。区切りごとの書き出しは、つないだらすぐ消す。
+   * 書き出せなければ理由を残して null
+   */
+  async function render(i: number): Promise<Rendered | null> {
     const t = tracks[i];
     if (!t) return null;
+    const p = pace();
     let file: File | null = null;
     try {
       const bytes = await fetchAudio(t.id);
       if (bytes) {
         file = new File(dir, `${i}-${t.id}.mp3`);
-        await file.write(new Uint8Array(bytes));
-        return { i, file };
+        let out: Uint8Array<ArrayBuffer> = new Uint8Array(bytes);
+        // つなげない（読めない形の）ときは、1 回だけそのまま鳴らす
+        try { out = joinMp3(out, wordPlan(1, p)); } catch { /* そのまま */ }
+        await file.write(out);
+        return { i, file, speed: p.speed };
       }
       if (!KotobaTts) { renderError = '端末の読み上げのモジュールがありません'; return null; }
       file = new File(dir, `${i}-${t.id}.wav`);
-      await withTimeout(KotobaTts.synthesizeToFile(t.speech, plainPath(file.uri), RATE), RENDER_TIMEOUT_MS, '書き出しが終わりません（時間切れ）');
-      if (!file.exists || !file.size) { renderError = '書き出したファイルが空です'; remove({ file }); return null; }
-      return { i, file };
+      const sections = sectionsOf(t);
+      const parts: Uint8Array[] = [];
+      for (let k = 0; k < sections.length; k++) {
+        const part = new File(dir, `${i}-${t.id}-${k}.wav`);
+        try {
+          await synth(part, sections[k]);
+          parts.push(await part.bytes());
+        } finally {
+          remove({ file: part });
+        }
+      }
+      let joined: Uint8Array | null = null;
+      try { joined = joinWav(parts, wordPlan(parts.length, p)); } catch { /* つなげない形：まとめて1回で書き出す */ }
+      if (joined) await file.write(joined);
+      else await synth(file, t.speech);
+      return { i, file, speed: p.speed };
     } catch (e) {
       renderError = messageOf(e);
       remove(file ? { file } : null);
@@ -160,11 +220,17 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     }
   }
 
+  /** いまの語を書き出したときの速さに、並びの速さを合わせる */
+  function applySpeed(p: AudioPlaylist, r: Rendered) {
+    if (rate === r.speed) return;
+    try { p.playbackRate = r.speed; rate = r.speed; } catch { /* 速さを変えられなくても鳴らせる */ }
+  }
+
   const meta = (i: number) => ({ title: tracks[i]?.title ?? '', artist: 'ことば', albumTitle: tracks[i]?.reading || undefined });
 
   /** その場の読み上げ（expo-speech）で鳴らす。理由（fallbackReason）があれば画面に出す */
   async function startSpeech(start: number) {
-    const sp = createController(speechOutput());
+    const sp = createController(speechOutput(pace));
     speech = sp;
     subs.push({ remove: sp.subscribe((st) => set({ ...st, error: st.error ?? fallbackReason })) });
     subs.push({ remove: sp.onListened((id, sec) => { for (const l of listened) l(id, sec); }) });
@@ -214,6 +280,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
       p.add({ uri: cur.file.uri });
       if (nxt) p.add({ uri: nxt.file.uri });
       p.skipTo(1);
+      applySpeed(p, cur);
       try { p.updateLockScreenMetadata(meta(cur.i)); } catch { /* ロック画面がないとき */ }
       last = { position: 0, duration: 0 };
       set({ index: cur.i, loading: false, mode: 'audio', error: null });
@@ -240,6 +307,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
       p.remove(1); // [しるし, いま]。並びから外してからファイルを消す
       remove(done);
       if (!cur) { set({ playing: false }); return; }
+      applySpeed(p, cur);
       set({ index: cur.i, position: 0, duration: 0 });
       try { p.updateLockScreenMetadata(meta(cur.i)); } catch { /* ロック画面がないとき */ }
     } catch (e) {
@@ -308,6 +376,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
         return;
       }
       playlist = p;
+      rate = 1;
       subs.push(p.addListener('playlistStatusUpdate', (st) => {
         // 再生のエラー（ファイルを読めない、など）は、並びの位置にかかわらず見る。ネイティブは error を足して知らせる（型にはない）
         const err = (st as { error?: { message?: string; code?: number } }).error;
