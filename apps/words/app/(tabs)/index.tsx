@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { CaptureForm } from '@/components/CaptureForm';
 import { Icon } from '@/components/Icon';
+import { SettingsButton } from '@/components/SettingsButton';
 import { Button, Header, Screen, T } from '@/components/ui';
 import { InkSettle, Seal } from '@/components/wa';
 import type { ListItem } from '@/db/repositories/words';
@@ -64,7 +65,15 @@ export default function HomeScreen() {
 
   return (
     <Screen inTab testID="home-screen">
-      <Header title="ことば" right={<T variant="bodyS" color={colors.sub} testID="home-date">{data ? dayLabel(data.today) : ''}</T>} />
+      <Header
+        title="ことば"
+        right={(
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+            <T variant="bodyS" color={colors.sub} testID="home-date">{data ? dayLabel(data.today) : ''}</T>
+            <SettingsButton testID="home-settings" />
+          </View>
+        )}
+      />
       <CaptureForm onSaved={setSavedId} />
 
       {data && (

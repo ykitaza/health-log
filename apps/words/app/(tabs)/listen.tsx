@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
+import { SettingsButton } from '@/components/SettingsButton';
 import { Header, Screen, T } from '@/components/ui';
 import { BrushReveal } from '@/components/wa';
 import { useListen } from '@/hooks/listen';
@@ -32,7 +33,7 @@ function Control({ icon, label, onPress, size, primary, disabled, testID }: {
  * 並びは手札 → 期限のもの → ★ → 最近拾ったもの。画面を消しても、ロック画面・車のボタンで操作できる
  */
 export default function ListenScreen() {
-  const { state, queue, rebuild, play, pause, next, previous } = useListen();
+  const { state, queue, rebuild, play, pause, next, previous, voice } = useListen();
   // 開いたときに並びを作り直す（鳴らしているあいだは変えない）
   useFocusEffect(useCallback(() => { void rebuild(); }, [rebuild]));
   const current = queue[state.index];
@@ -40,7 +41,15 @@ export default function ListenScreen() {
 
   return (
     <Screen inTab scroll={false} testID="listen-screen">
-      <Header title="聞く" right={!empty ? <T variant="body" color={colors.sub} testID="listen-position">{state.index + 1} / {queue.length}</T> : undefined} />
+      <Header
+        title="聞く"
+        right={(
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+            {!empty && <T variant="body" color={colors.sub} testID="listen-position">{state.index + 1} / {queue.length}</T>}
+            <SettingsButton testID="listen-settings" />
+          </View>
+        )}
+      />
       {empty ? (
         <View style={{ flex: 1, justifyContent: 'center', gap: space.m }}>
           <T variant="wordS">まだ聞くものがありません</T>
@@ -59,7 +68,9 @@ export default function ListenScreen() {
             <View style={s.track} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progressOf(state.position, state.duration) * 100) }}>
               <View style={[s.bar, { width: `${progressOf(state.position, state.duration) * 100}%` }]} testID="listen-progress" />
             </View>
-            {state.mode === 'speech' && <T variant="label" color={colors.sub} testID="listen-mode">端末の声で読んでいます</T>}
+            {/* 自然な声がオンのとき：サーバーの声で読めたか、端末の声に戻した理由 */}
+            {voice ? <T variant="label" color={colors.sub} testID="listen-voice" selectable>{voice}</T>
+              : state.mode === 'speech' && <T variant="label" color={colors.sub} testID="listen-mode">端末の声で読んでいます</T>}
             {/* 鳴らせなかった理由（次に同じことが起きたとき、画面で原因を伝えられるように） */}
             {state.error ? <T variant="label" color={colors.ink} testID="listen-error" selectable>{state.error}</T> : null}
           </View>

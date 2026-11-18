@@ -62,6 +62,22 @@ export async function routeSyncServer(context: BrowserContext, server: FakeSyncS
   });
 }
 
+/**
+ * 自然な声（POST /v1/audio）を偽の応答にする（同期サーバーの後に足すので、こちらが先に当たる）。
+ * 200 は短い MP3 のつもりのバイト、ほかはエラー。呼ばれた表現の ID を返す配列に積む
+ */
+export async function routeAudio(context: BrowserContext, status: number): Promise<string[]> {
+  const ids: string[] = [];
+  await context.route(/^https:\/\/[^/]+\.execute-api\.[^/]+\.amazonaws\.com\/.*\/?v1\/audio$/, async (route) => {
+    const req = route.request();
+    if (req.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
+    ids.push((JSON.parse(req.postData() ?? '{}') as { expression_id?: string }).expression_id ?? '');
+    if (status === 200) await route.fulfill({ status, contentType: 'audio/mpeg', body: Buffer.from([0xff, 0xfb, 0x90, 0x00]), headers: CORS });
+    else await route.fulfill({ status, contentType: 'application/problem+json', body: JSON.stringify({ title: 'error' }), headers: CORS });
+  });
+  return ids;
+}
+
 /** 偽のログイン（本物の Cognito には当てない）と、偽の同期サーバー */
 export async function signedInWith(page: Page, context: BrowserContext, server: FakeSyncServer) {
   const token = { status: 200, body: { access_token: fakeAccessToken('user-a'), refresh_token: 'r', expires_in: 3600, token_type: 'Bearer' } };

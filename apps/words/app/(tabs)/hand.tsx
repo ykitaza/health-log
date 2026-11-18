@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { EmptySlot, HandCard } from '@/components/HandCard';
 import { Icon } from '@/components/Icon';
+import { SettingsButton } from '@/components/SettingsButton';
 import { Button, Header, Screen, T } from '@/components/ui';
 import { useData } from '@/hooks/data';
 import { reviewDay } from '@/lib/date';
@@ -23,11 +24,14 @@ export default function HandScreen() {
         title="手札"
         count={`${hand.length} / ${HAND_LIMIT}`}
         right={(
-          <Pressable accessibilityRole="link" accessibilityLabel={`自分の言葉 ${data?.counts.own ?? 0}`} onPress={() => router.push({ pathname: '/collected', params: { filter: 'own' } })}
-            style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48 }} testID="open-own">
-            <T variant="body" color={colors.sub}>自分の言葉 {data?.counts.own ?? 0}</T>
-            <Icon name="chevronRight" size={20} color={colors.sub} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+            <Pressable accessibilityRole="link" accessibilityLabel={`自分の言葉 ${data?.counts.own ?? 0}`} onPress={() => router.push({ pathname: '/collected', params: { filter: 'own' } })}
+              style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48 }} testID="open-own">
+              <T variant="body" color={colors.sub}>自分の言葉 {data?.counts.own ?? 0}</T>
+              <Icon name="chevronRight" size={20} color={colors.sub} />
+            </Pressable>
+            <SettingsButton testID="hand-settings" />
+          </View>
         )}
       />
       {hand.length > HAND_LIMIT && (

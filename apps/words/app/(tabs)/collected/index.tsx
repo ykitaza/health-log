@@ -2,7 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { AiCaptureButton } from '@/components/ChatSheet';
-import { Button, Chip, Header, IconButton, Notice, Screen, Sheet, T } from '@/components/ui';
+import { SettingsButton } from '@/components/SettingsButton';
+import { Chip, Header, IconButton, Notice, Screen, T } from '@/components/ui';
 import { WordRow } from '@/components/WordRow';
 import type { ListItem } from '@/db/repositories/words';
 import { useData, useRepos } from '@/hooks/data';
@@ -10,14 +11,13 @@ import { useNotifications } from '@/hooks/notifications';
 import { applyFilter, CollectedFilter, groupByWork, rowSub } from '@/lib/collected';
 import { colors, space } from '@/theme';
 
-/** 拾った（Figma の 2-collection）。本・人ごとのまとまり、絞り込み、探す（虫めがね）、記録と設定（…） */
+/** 拾った（Figma の 2-collection）。本・人ごとのまとまり、絞り込み、探す（虫めがね）、設定と記録（歯車） */
 export default function CollectedScreen() {
   const repos = useRepos();
   const notifications = useNotifications();
   const params = useLocalSearchParams<{ filter?: string }>();
   const [filter, setFilter] = useState<CollectedFilter>('all');
   const [notice, setNotice] = useState<string | null>(null);
-  const [menu, setMenu] = useState(false);
   const { data } = useData(async (r) => ({ items: await r.words.listAll(), sources: await r.catalog.sources() }));
 
   // 手札の「自分の言葉 23 ›」から来たとき
@@ -55,7 +55,7 @@ export default function CollectedScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
             <AiCaptureButton small prompt={() => ({ kind: 'capture' })} />
             <IconButton name="search" label="探す" onPress={() => router.push('/collected/search')} testID="open-search" />
-            <IconButton name="moreH" label="記録と設定" onPress={() => setMenu(true)} testID="open-menu" style={{ marginRight: -space.m }} />
+            <SettingsButton testID="collected-settings" />
           </View>
         )}
       />
@@ -90,12 +90,6 @@ export default function CollectedScreen() {
           ))}
         </View>
       ))}
-      <Sheet visible={menu} onClose={() => setMenu(false)} testID="collected-menu">
-        <View style={{ gap: space.s }}>
-          <Button label="記録" icon="chart" variant="plain" onPress={() => { setMenu(false); router.push('/records'); }} testID="open-records" />
-          <Button label="設定" variant="plain" onPress={() => { setMenu(false); router.push('/settings'); }} testID="open-settings" />
-        </View>
-      </Sheet>
     </Screen>
   );
 }

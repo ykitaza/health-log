@@ -168,7 +168,8 @@ export function AddChip({ label, onPress, testID }: { label: string; onPress: ()
 export function Toggle({ value, onChange, label, testID }: { value: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   return (
     <Pressable
-      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value }} onPress={() => onChange(!value)} testID={testID}
+      // aria-checked も渡す（web は accessibilityState を aria-checked にしないので、読み上げとテストでオン・オフが分かるように）
+      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value }} aria-checked={value} onPress={() => onChange(!value)} testID={testID}
       style={[s.toggle, value ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.sub }]}
     >
       <View style={[s.knob, value ? { alignSelf: 'flex-end', backgroundColor: colors.onAccent, width: 28, height: 28 } : { backgroundColor: colors.sub }]} />

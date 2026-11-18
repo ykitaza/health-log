@@ -47,8 +47,8 @@ test('同じ表現をもう一度拾うと、また出会ったとして手札�
   await button(page, '戻る').click();
 
   await goTab(page, 'collected');
-  await byTest(page, 'open-menu').click();
-  await byTest(page, 'open-records').click();
+  await byTest(page, 'collected-settings').click();
+  await byTest(page, 'settings-records').click();
   await expect(byTest(page, 'records-uses')).toHaveText('使えた 1 回 · 自分の言葉 0 語');
   await expect(byTest(page, 'records-seals')).toContainText('腑に落ちる');
   await expect(byTest(page, 'records-lead')).toHaveText('今週は 1 語。これまでに 1 語、拾っています');

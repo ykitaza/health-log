@@ -61,11 +61,10 @@ test('ログインすると同期し、Claude が拾った言葉と例文・タ�
   }, { timeout: 15_000 }).toEqual({ example: true, tag: true });
   expect(id).toMatch(/^a0000000/);
 
-  // アカウントの画面（拾った → … → 設定 → アカウント。web のログインはメモリーにだけあるので、読み込み直さない）
+  // アカウントの画面（拾った → 歯車（設定） → アカウント。web のログインはメモリーにだけあるので、読み込み直さない）
   await button(page, '戻る').click();
   await goTab(page, 'collected');
-  await byTest(page, 'open-menu').click();
-  await byTest(page, 'open-settings').click();
+  await byTest(page, 'collected-settings').click();
   await byTest(page, 'settings-account').click();
   await expect(byTest(page, 'account-status')).toHaveText('ログインしています');
   await expect(byTest(page, 'sync-pending')).toHaveText('0件');

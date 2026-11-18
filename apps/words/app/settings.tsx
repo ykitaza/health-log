@@ -2,20 +2,22 @@ import { router } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { Button, Header, LinkRow, Screen, SectionTitle, T, Toggle } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
-import { useData, useRepos } from '@/hooks/data';
+import { useData } from '@/hooks/data';
+import { useListen } from '@/hooks/listen';
 import { useNotifications } from '@/hooks/notifications';
 import { useSync } from '@/hooks/sync';
 import { formatMinutes, formatMonthDay, jstDate, jstMinutes } from '@/lib/date';
 import { notifyMinutes } from '@/lib/notifyPlan';
 import { colors, space } from '@/theme';
 
-/** 設定（拾ったの「…」から）。アカウント、AI とつなぐ、同期の状態、通知の許可と時刻の目安、出会った場所とタグ */
+/** 設定（各タブの見出しの歯車から）。アカウント、記録、AI とつなぐ、同期の状態、聞くの声、通知の許可と時刻の目安、出会った場所とタグ */
 export default function SettingsScreen() {
   const auth = useAuth();
   const sync = useSync();
   const notifications = useNotifications();
-  const repos = useRepos();
-  const { data } = useData(async (r) => ({ opens: await r.local.opens(Date.now() - 14 * 86_400_000), natural: await r.local.naturalVoice() }));
+  // 自然な声は聞くと同じ値を見る（切り替えたら、聞くを開き直さなくても次の表現から効く）
+  const listen = useListen();
+  const { data } = useData(async (r) => ({ opens: await r.local.opens(Date.now() - 14 * 86_400_000) }));
   const minutes = notifyMinutes(data?.opens ?? [], new Date());
   const plan = notifications.plan;
 
@@ -39,9 +41,9 @@ export default function SettingsScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.l }}>
         <View style={{ flex: 1, gap: 2 }}>
           <T variant="body">自然な声（Polly）</T>
-          <T variant="label" color={colors.sub}>オフは端末の読み上げ（通信なし）。オンはサーバーで作った声を使います（通信します。保存はしません）</T>
+          <T variant="label" color={colors.sub}>オフは端末の読み上げ（通信なし）。オンはサーバーで作った声を使います（通信します。保存はしません。使えないときは端末の声に戻し、聞くに理由を出します）</T>
         </View>
-        <Toggle value={data?.natural ?? false} onChange={(v) => { void repos.local.setNaturalVoice(v); }} label="自然な声（Polly）" testID="natural-voice" />
+        <Toggle value={listen.naturalVoice} onChange={(v) => { void listen.setNaturalVoice(v); }} label="自然な声（Polly）" testID="natural-voice" />
       </View>
 
       <SectionTitle title="通知" />
