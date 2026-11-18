@@ -35,15 +35,19 @@ test('聞く：手札から並び、再生・次・前で動き、聞き終え�
   await capture(page, { text: '腑に落ちる', want: true });
   await goTab(page, 'listen');
   await expect(byTest(page, 'listen-position')).toHaveText('1 / 2');
-  await expect(byTest(page, 'listen-current')).toHaveText('肩の荷が下りる');
+  // 同じ優先度の手札は ID の順（サーバーと同じ）なので、どちらが先かはテストでは決めない
+  const current = byTest(page, 'listen-current');
+  const first = await current.getAttribute('aria-label');
+  const second = first === '肩の荷が下りる' ? '腑に落ちる' : '肩の荷が下りる';
+  expect([first, second].sort()).toEqual(['肩の荷が下りる', '腑に落ちる'].sort());
   await byTest(page, 'listen-play').click();
   await expect(byTest(page, 'listen-pause')).toBeVisible();
   await byTest(page, 'listen-next').click();
-  await expect(byTest(page, 'listen-current')).toHaveText('腑に落ちる');
+  await expect(current).toHaveAccessibleName(second);
   await byTest(page, 'listen-prev').click();
-  await expect(byTest(page, 'listen-current')).toHaveText('肩の荷が下りる');
+  await expect(current).toHaveAccessibleName(first!);
   // 最後まで聞く（web は音を出さず、文の長さの分だけ時計で進める。1つ3秒ほど）
-  await expect(byTest(page, 'listen-current')).toHaveText('腑に落ちる', { timeout: 15_000 });
+  await expect(current).toHaveAccessibleName(second, { timeout: 15_000 });
   await expect(byTest(page, 'listen-play')).toBeVisible({ timeout: 15_000 });
 
   await goTab(page, 'collected');
