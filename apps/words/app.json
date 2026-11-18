@@ -11,6 +11,11 @@
     "runtimeVersion": {
       "policy": "fingerprint"
     },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/582f783c-941d-46ca-940d-6cca5599bdd4"
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
