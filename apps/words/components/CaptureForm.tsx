@@ -44,7 +44,10 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [wantToUse, setWantToUse] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  // 同じ文言が続いても、そのたびに4秒を数え直す（文言だけを持つと、前の知らせのタイマーが、新しい知らせを途中で消す）
+  const [noticeState, setNoticeState] = useState<{ message: string; n: number } | null>(null);
+  const notice = noticeState?.message ?? null;
+  const setNotice = (message: string) => setNoticeState((prev) => ({ message, n: (prev?.n ?? 0) + 1 }));
   const [open, setOpen] = useState(false);
   // 画面を離れたとき、ことばの欄が空なら欄をたたむ（タブの画面は残るので、ホームが長いままにならないように）
   const textRef = useRef(text);
@@ -63,10 +66,10 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
   }, [text, repos]);
 
   useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 4000);
+    if (!noticeState) return;
+    const t = setTimeout(() => setNoticeState(null), 4000);
     return () => clearTimeout(t);
-  }, [notice]);
+  }, [noticeState]);
 
   const toggleTag = (id: string) => setPicked((prev) => {
     const next = new Set(prev);
