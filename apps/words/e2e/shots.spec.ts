@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { button, byTest, createFakeSyncServer, goTab, mcpExpression, setNow, signedInWith } from './helpers';
+import { button, byTest, createFakeSyncServer, goTab, mcpExpression, openApp, setNow, signedInWith } from './helpers';
 
 // 画面の写し（PR に貼るもの）。SHOTS_DIR があるときだけ流す（CI では流さない）
 const DIR = process.env.SHOTS_DIR;
@@ -40,13 +40,22 @@ test('画面の写し', async ({ page, context }) => {
   await page.goto('/');
   await shot(page, '01-signin');
   await byTest(page, 'signin').click();
-  await expect(byTest(page, 'capture-screen')).toBeVisible();
+  await expect(byTest(page, 'home-screen')).toBeVisible();
   await expect(byTest(page, 'recent-row').first()).toBeVisible();
+  // 今週の落款が見えるよう、今日の手札から1つ「使えた」を押しておく
+  await byTest(page, 'home-hand-card').first().click();
+  await byTest(page, 'used').click();
+  await button(page, '戻る').click();
+  await expect(byTest(page, 'home-week-seals')).toBeVisible();
+  await shot(page, '02-home');
+  await page.mouse.wheel(0, 900);
+  await shot(page, '02-home-scrolled');
+  await page.mouse.wheel(0, -900);
 
-  // 書き留める（手がかりを開いて）
+  // 書き留める（ことばの欄に書くと、場所・題などが開く。手がかりを開いて）
+  await byTest(page, 'capture-text').fill('肩の荷が下りる');
   await byTest(page, 'source-Audible').click();
   await byTest(page, 'capture-title').fill('『街とその不確かな壁』 村上春樹');
-  await byTest(page, 'capture-text').fill('肩の荷が下りる');
   await byTest(page, 'capture-scene').fill('役目を譲った場面の、ほっとした感じ');
   await shot(page, '02-capture');
   await byTest(page, 'capture-hints').click();
@@ -102,4 +111,11 @@ test('画面の写し', async ({ page, context }) => {
   await button(page, '戻る').first().click();
   await byTest(page, 'settings-sources').click();
   await shot(page, '17-sources');
+});
+
+test('画面の写し（0 の週のホーム）', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await openApp(page);
+  await expect(byTest(page, 'home-week-line')).toBeVisible();
+  await shot(page, '02-home-empty');
 });

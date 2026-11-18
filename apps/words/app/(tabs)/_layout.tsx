@@ -8,9 +8,9 @@ import { useAuth } from '@/hooks/auth';
 import { useRepos } from '@/hooks/data';
 import { colors, space } from '@/theme';
 
-/** 下のタブ（Figma の帯）：書き留める・拾った・手札・聞く（振り返りの画面は、運転中に聞く画面に変えた） */
+/** 下のタブ（Figma の帯）：ホーム（書き留める欄・今週・今日の手札・最近拾った）・拾った・手札・聞く（振り返りの画面は、運転中に聞く画面に変えた） */
 const TABS: { name: string; href: Href; label: string; icon: IconName }[] = [
-  { name: 'index', href: '/', label: '書き留める', icon: 'pencil' },
+  { name: 'index', href: '/', label: 'ホーム', icon: 'home' },
   { name: 'collected', href: '/collected', label: '拾った', icon: 'book' },
   { name: 'hand', href: '/hand', label: '手札', icon: 'cards' },
   { name: 'listen', href: '/listen', label: '聞く', icon: 'headphones' },

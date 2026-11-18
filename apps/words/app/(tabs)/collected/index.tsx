@@ -74,7 +74,7 @@ export default function CollectedScreen() {
       {data && items.length === 0 && (
         <View style={{ marginTop: space.xxl, gap: space.s }}>
           <T variant="wordS">まだ何も拾っていません</T>
-          <T variant="bodyS" color={colors.sub}>「書き留める」か、Claude・ChatGPT から拾えます。</T>
+          <T variant="bodyS" color={colors.sub}>ホームの書き留める欄か、Claude・ChatGPT から拾えます。</T>
         </View>
       )}
       {data && items.length > 0 && shown.length === 0 && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.xl }}>当てはまる言葉はありません</T>}

@@ -132,3 +132,30 @@ export function sealGallery<T extends { place: Place; use_count: number; last_us
   return items.filter((e) => e.use_count > 0 || e.place === 'own')
     .sort((a, b) => (b.last_used_on ?? '').localeCompare(a.last_used_on ?? '') || b.created_at.localeCompare(a.created_at));
 }
+
+/** 今週（月曜〜日曜）の拾った数と使えた数。activityStats の今週の行をそのまま使う（数え直さない） */
+export function thisWeek(expressions: Expr[], usages: { used_on: DateKey }[], today: DateKey) {
+  const r = activityStats(expressions, [], usages, [], [], today, 'week', 1).periods[0];
+  return { from: r.from, to: r.to, captured: r.captured, used: r.used };
+}
+
+/** ホームの今週の一文（責めない。0 の週は「まだ」） */
+export function weekLine(w: { captured: number; used: number }): string {
+  if (w.captured === 0 && w.used === 0) return '今週はまだ。拾ったら、ここに並びます';
+  return `今週は ${w.captured} 語。使えた ${w.used}。`;
+}
+
+/** 今週の落款：今週に使えたの記録がある表現（新しく使えた順。1つの表現に1つの印） */
+export function weekSeals<T extends { id: string }>(
+  items: T[], usages: { expression_id: string; used_on: DateKey }[], week: { from: DateKey; to: DateKey },
+): T[] {
+  const last = new Map<string, DateKey>();
+  for (const u of usages) {
+    if (u.used_on < week.from || u.used_on > week.to) continue;
+    if ((last.get(u.expression_id) ?? '') < u.used_on) last.set(u.expression_id, u.used_on);
+  }
+  return items.filter((e) => last.has(e.id)).sort((a, b) => last.get(b.id)!.localeCompare(last.get(a.id)!));
+}
+
+/** 聞くのおおよその分（切り上げ。1分より短くても「約 1 分」） */
+export const listenMinutes = (seconds: number) => Math.max(1, Math.ceil(seconds / 60));
