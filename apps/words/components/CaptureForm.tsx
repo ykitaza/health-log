@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AiCaptureButton } from '@/components/ChatSheet';
 import { Icon } from '@/components/Icon';
@@ -45,6 +46,10 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // 画面を離れたとき、ことばの欄が空なら欄をたたむ（タブの画面は残るので、ホームが長いままにならないように）
+  const textRef = useRef(text);
+  useEffect(() => { textRef.current = text; }, [text]);
+  useFocusEffect(useCallback(() => () => { if (!textRef.current.trim()) setOpen(false); }, []));
   const [matches, setMatches] = useState<{ same: Expression | null; similar: Expression[] }>({ same: null, similar: [] });
 
   // 初めは、並びの最初の場所を選んでおく
