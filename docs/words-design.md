@@ -5,7 +5,7 @@ KARADA と同じリポジトリに置き、ログイン・同期・CI/CD・監�
 
 まだ何も作っていません。この文書は、作り始める前に決めたことと、決めていないことをまとめたものです。
 KARADA の全体の設計は [design.md](design.md)、同期は [sync-design.md](sync-design.md)、MCP は [mcp.md](mcp.md)、デプロイは [cd.md](cd.md) にあります。
-アプリのフォルダは、名前を変える PR のあとの `apps/karada`（今の `apps/mobile`）で書きます。
+KARADA のアプリのフォルダは `apps/karada` です（#279 で `apps/mobile` から名前を変えた）。
 
 ## 背景
 
@@ -30,6 +30,7 @@ KARADA の全体の設計は [design.md](design.md)、同期は [sync-design.md]
 - v1 の間隔の計算は単純なものにし、使ってみてから直す
 - 同じリポジトリの `apps/words`（KARADA とは別の Expo のアプリ、別の EAS のプロジェクト）
 - 共有するもの：認可API（ログインは1つ。ことばの MCP をトークンの宛先に足す）、Cognito、同期の仕組み（種類を足す）、CI/CD、監視
+- **ログインの情報は KARADA と共通にする**（使うのは本人だけのため）。Cognito の資源は足さず、ことばのアプリは KARADA のアプリのクライアント（`torelog-app`）と scope（`torelog-api/…`）をそのまま使う（下の「ログインとトークンの宛先」）
 - ことばの MCP サーバーは新しい Lambda（`services/words`）で、URL も Claude のコネクタも KARADA と別。作りは今の MCP の Lambda と同じで、サーバーの説明（instructions）は別に持つ
 - AgentCore Gateway は今は使わない（下の「AgentCore Gateway を使わない理由」）
 - データは **新しい DynamoDB のテーブル**（`WordsTable`）に置く（下の「データの置き場所」）
@@ -55,7 +56,7 @@ KARADA の全体の設計は [design.md](design.md)、同期は [sync-design.md]
 ### 種類
 
 同期の対象の種類（`entity_type`）を3つ足します。どれも ID は UUID（アプリも MCP も v4）で、同期の決まり（作成・更新の時刻、論理削除 `deleted_at`、項目ごとの後勝ち）は KARADA と同じです（[sync-design.md](sync-design.md#対象)）。
-scope の対象（`EntitySpec.area`）は `words` です。
+scope の対象（`EntitySpec.area`）は `training` です。ログインの情報を KARADA と共通にし、新しい scope を作らないためです（レポート `report` が筋トレの scope を使っているのと同じ）。ことばの種類は `WordsTable` 用の別の `Registry` に登録するので、KARADA のアプリ用の API と同期の流れには入りません
 
 | 種類 | 中身 | 親 | 書く人 |
 |---|---|---|---|
@@ -349,7 +350,7 @@ flowchart LR
   KConn -- "aud = KARADA の /mcp" --> MealsFn
   WConn -- "aud = ことばの /mcp" --> WMcp
   KApp -- "Cognito のトークン（torelog-app）" --> AppFn
-  WApp -- "Cognito のトークン（words-app）" --> WAppFn
+  WApp -- "Cognito のトークン（torelog-app を共有）" --> WAppFn
   KApp -. ログイン .-> Cognito
   WApp -. ログイン .-> Cognito
   MealsFn --> Meals
@@ -365,7 +366,7 @@ flowchart LR
 | 場所 | 中身 |
 |---|---|
 | `services/words/` | ことばのコンテキスト（パッケージ `words`。`domain`：表現・置き場所・間隔の計算・同じ表現の判定、`application`、`infrastructure`：同期への登録 `sync_entities.py` とリポジトリ、`presentation`：MCP のツール `mcp_tools.py`）と、2つの組み立て（`mcp_main.py`：MCP の Lambda、`app_api.py`：アプリ用の同期の Lambda） |
-| `services/sync/` | 変えない。ただし、アプリ用の API の scope の前置き（今は `torelog-api/` の決め打ち）を `SyncHttpApi` の引数にする（既定は今の値。KARADA は変わらない） |
+| `services/sync/` | 変えない（scope の前置き `torelog-api/` も、ことばで同じものを使うのでそのまま） |
 | `services/mcp/connector/` | アクセストークンの検証・`logout`・アイコン・診断のログを、ことばからも使えるパッケージ（例：`services/mcp_connector/`）に出す。KARADA の MCP は import の先が変わるだけ |
 | `services/authorization/` | リソースサーバーにことばの MCP を足す。同意画面の説明とブランドを宛先ごとにする（下の「ログインとトークンの宛先」） |
 | `apps/words/` | アプリ |
@@ -381,12 +382,9 @@ flowchart LR
 |---|---|
 | Lambda `WordsMcpFunction` | MCP サーバー（Lambda Web Adapter、Python 3.12、arm64、512MB、15秒。`MealsFunction` と同じ作り）。権限は `WordsTable` の `GetItem`・`BatchGetItem`・`Query`・`PutItem`（`index/*` を含む）と、自分の URL の SSM パラメータの読み取りだけ |
 | Lambda `WordsAppApiFunction` | アプリ用の同期（API Gateway のイベントを直接受ける。`AppApiFunction` と同じ作り）。権限は同上 |
-| HTTP API `WordsMcpApi`・`WordsAppApi` | 入口。流量の制限（MCP は1秒1回・瞬間5回、アプリ用は1秒2回・瞬間10回）とアクセスログ（30日）。アプリ用は JWT のオーソライザー（issuer は Cognito、audience は `words-app` のクライアント）とルートごとの scope |
+| HTTP API `WordsMcpApi`・`WordsAppApi` | 入口。流量の制限（MCP は1秒1回・瞬間5回、アプリ用は1秒2回・瞬間10回）とアクセスログ（30日）。アプリ用は JWT のオーソライザー（issuer は Cognito、audience は KARADA と同じ `torelog-app` のクライアント）とルートごとの scope（`torelog-api/training.read`・`training.write`） |
 | DynamoDB `WordsTable` | 上の「データの置き場所」 |
-| Cognito のアプリクライアント `words-app` | 今のユーザープールに足す（下） |
-| Cognito のリソースサーバー `words-api` | scope `words.read`・`words.write` |
-| マネージドログインのブランディング | `words-app` のクライアント用 |
-| SSM パラメータ | `/cognito-study/words/url`（認可API が読む MCP の URL）、`/cognito-study/words/app/*`（アプリが使う値）、`/cognito-study-monitoring/Words*/…`（監視が読む名前） |
+| SSM パラメータ | `/cognito-study/words/url`（認可API が読む MCP の URL）、`/cognito-study/words/app/api-url`（アプリが使う同期の API の URL。issuer・クライアント ID・ドメインは KARADA の `/cognito-study/app/*` をそのまま使う）、`/cognito-study-monitoring/Words*/…`（監視が読む名前） |
 | Lambda のロググループ | 90日（今と同じ） |
 
 **Lambda は1つではなく2つにすることを勧めます。** MCP は Starlette を Lambda Web Adapter で動かし、同期の入口（`SyncHttpApi`）は API Gateway のイベントからオーソライザーが確かめたクレームを読むので、作りが違います。1つにまとめると、同期の入口で Cognito のトークンを自分で確かめ直す処理が要ります。KARADA と同じ分け方にすれば、テスト・監視・ビルドの手順をそのまま写せます（決めていないことに入れています）。
@@ -418,24 +416,47 @@ flowchart LR
 
 ## ログインとトークンの宛先
 
+使うのは本人だけなので、ログインの情報は KARADA と共通にします。Cognito に資源は足しません。
+
 | 誰が | どこへ | トークン |
 |---|---|---|
-| Claude・ChatGPT のコネクタ（ことば） | ことばの MCP | 認可API が出す JWT。`aud` = ことばの MCP の URL（`…/mcp`）、scope `words:read`・`words:write`。KARADA のトークン（`aud` が KARADA の URL）は、ことばの MCP の検証（`aud` を確かめる）で断られ、逆も同じ |
-| ことばのアプリ | ことばのアプリ用の API | Cognito のアクセストークン（クライアント `words-app`、scope `words-api/words.read`・`words-api/words.write`）。オーソライザーの audience は `words-app` だけなので、KARADA のアプリのトークンは通らない |
+| Claude・ChatGPT のコネクタ（ことば） | ことばの MCP | 認可API が出す JWT。`aud` = ことばの MCP の URL（`…/mcp`）、scope `words:read`・`words:write`（下の「MCP の宛先」） |
+| ことばのアプリ | ことばのアプリ用の API | KARADA のアプリと同じ Cognito のアクセストークン（クライアント `torelog-app`、scope `torelog-api/training.read`・`training.write`） |
+
+### ことばのアプリが KARADA から使うもの
+
+| もの | 値 | 置き場所 |
+|---|---|---|
+| クライアント ID | `torelog-app`（シークレットなし、認可コード＋PKCE、`ALLOW_USER_AUTH`） | SSM `/cognito-study/app/client-id`、`cdk deploy` の出力 `AppClientId` |
+| scope | `torelog-api/training.read`・`torelog-api/training.write`（KARADA と同じ resource server。ことばは食事の scope を求めない） | `cdk/lib/infra-stack.ts` の `AppApiResourceServer` |
+| issuer・ドメイン | Cognito の issuer と、マネージドログインのドメイン（`oidc-study-<アカウント>`） | SSM `/cognito-study/app/issuer`・`/cognito-study/app/cognito-domain` |
+| パスキー | 同じユーザー・同じパスキー（RP ID は上のドメイン） | 作り直しは要らない |
+| ログイン画面 | `torelog-app` のブランディング（KARADA の見た目のまま） | `AppBranding` |
+| トークンの期限 | アクセストークン15分、リフレッシュトークン30日（使うたびに新しくする） | 同じクライアントの設定 |
+
+- **今のクライアントで1つだけ変えること**：戻り先に、ことばのアプリのスキーム（仮に `kotoba://callback`・`kotoba-dev://callback`、ログアウトは `kotoba://signout`・`kotoba-dev://signout`）を足します。`torelog://` を2つのアプリで使うと、Android がどちらで開くかを聞き、横取りの対策（ログインのあとに `/logout` で Cookie を消す）も効かなくなるためです。`callbackUrls`・`logoutUrls` の変更は、クライアントを作り直さない変更（`AWS::Cognito::UserPoolClient` の置き換えのない更新）で、`CognitoStudy` の中の変更です
+- ことばのアプリ用の API のオーソライザーは、issuer と audience（`torelog-app` のクライアント ID）を KARADA と同じ SSM パラメータから読みます。KARADA のアプリのトークンでもことばの API を呼べますが、どちらも本人のデータなので問題にしません
+- `SyncHttpApi` は今のまま（scope の前置き `torelog-api/`、`app_client_id` に `torelog-app`）で使えます
+- ログインの操作は、ことばのアプリで1回します。KARADA のアプリは、トークンに換えたあとにマネージドログインの Cookie を消している（[design.md](design.md#スマホアプリkaradaのログイン)）ので、ことばのアプリでもパスキーでもう一度入ります。トークンはアプリごとに別に持ち、片方でログアウトしても、もう片方は切れません
+
+### MCP の宛先（認可API）
+
+認可API は共有のままです。ことばのコネクタのトークンの宛先（`aud`）をどうするかは、次の2つを比べ、**(a) を勧めます**。
+
+| 案 | 中身 | よい点 | 気になる点 |
+|---|---|---|---|
+| (a) 宛先をコネクタごとに分ける | 認可API のリソースサーバーを2つにする（KARADA の `/mcp` と、ことばの `/mcp`）。ことばの MCP は、`aud` がことばの URL のトークンだけを受け付ける。`resource` を送らないクライアントは KARADA 宛てにする | MCP の仕様（RFC 8707・RFC 9728）のとおりで、Claude・ChatGPT がそのままつなげる。scope も宛先ごとに分かれ、同意画面に「ことば」の読み書きだけが出る | 認可API のコードを少し直す（下）。`resource` がないときの既定を足す |
+| (b) ことばの MCP も今の宛先を受け付ける | ことばの MCP が、`aud` が KARADA の URL のトークンを受け付ける | 宛先は1つのまま | Claude・ChatGPT は、つなぐ MCP の URL（ことばの `/mcp`）を `resource` に入れて送り、RFC 9728 の文書の `resource` がその URL と同じかを確かめる。ことばの URL を受け付けて KARADA の `aud` を出す読み替えを認可API に足すことになり、結局コードを直す。KARADA の食事・筋トレの scope がことばのコネクタにも付き、ことばのトークンで KARADA の MCP も呼べる |
+
+使うのは本人だけなので、どちらでも危うさは小さいです。ただ (b) は、仕様から外れる読み替えが要り、手間も減らないので、(a) にします。
 
 認可API で変えること（`services/authorization/`）：
 
 - リソースサーバーを2つにします（`main.py` の `resource_servers` に、ことばの MCP の URL と scope `words:read`・`words:write` を足す）。URL は SSM パラメータ `/cognito-study/words/url` から読みます。`AuthzFunction` の `ssm:GetParameter` の許可にこの名前を足すのは、`CognitoStudy` の変更（足すだけ）です
-- **`resource` を送らないクライアントの扱い**：今はリソースサーバーが1つなので、`resource` がなければそこ宛てにしています（`ResourceIndicators.find`）。2つにすると、今のままでは `invalid_target` で断り、今のコネクタがつなぎ直せなくなるおそれがあります。`resource` がないときは KARADA 宛てにする（既定のリソースサーバーを持つ）ように変え、テストで確かめます。Claude・ChatGPT・Muse が `resource` を送っているかは、認可API のログで確かめます
+- `resource` を送らないクライアントは KARADA 宛てにします（`ResourceIndicators.find` に既定のリソースサーバーを持たせる）。今はリソースサーバーが1つなのでそこ宛てにしていて、2つにしたときに `invalid_target` で断ると、今のコネクタがつなぎ直せなくなるためです。テストで確かめます
 - ことばの URL のパラメータがまだないとき（デプロイの順番による）は、ことばを足さずに起動します（起動で失敗しない）
 - 同意画面（`presentation/pages.py`）の scope の説明に `words:*` を足し、宛先がことばのときは見出しを「ことば」にします
 - リフレッシュトークンの系列は宛先ごとなので、ことばのコネクタを解除しても KARADA のコネクタは切れません
-
-Cognito で変えること：今のユーザープールに、アプリクライアント `words-app`（シークレットなし、認可コード＋PKCE、`ALLOW_USER_AUTH`、戻り先 `kotoba://callback`・`kotoba-dev://callback`、トークンの期限は `torelog-app` と同じ）とリソースサーバー `words-api` を足します。どちらも `WordsStack` の中で、ユーザープールを ID で参照して作ります（`UserPool.fromUserPoolId`。ユーザープール自身の定義は変えない）。
-ユーザープールの ID は、`CognitoStudy` に SSM パラメータ（例：`/cognito-study/user-pool-id`）を足して渡します。
-
-- ログインのアカウントは1つ（同じ `sub`）です。ただ、KARADA のアプリはトークンに換えたあとにマネージドログインの Cookie を消している（[design.md](design.md#スマホアプリkaradaのログイン)）ので、ことばのアプリでもパスキーでもう一度ログインします
-- アプリのカスタムスキームの横取りの対策（ログインのあとに `/logout` で Cookie を消す）も、KARADA と同じにします
 
 ## 同期
 
@@ -455,7 +476,7 @@ Cognito で変えること：今のユーザープールに、アプリクライ
 | 順番 | パッケージ | 中身（今の場所） |
 |---|---|---|
 | 1 | `packages/sync-client` | 同期の流れ・いつ動かすか・状態（`apps/karada/lib/sync/`）、outbox のトリガーを作る部分と種類の対応の型（`db/syncSpec.ts` の型と作る関数。KARADA の種類の中身は KARADA に残す） |
-| 2 | `packages/auth` | ログインとトークンの保存（`lib/auth/`、`hooks/auth.tsx` の中身）。クライアント ID・スキーム・scope を引数にする |
+| 2 | `packages/auth` | ログインとトークンの保存（`lib/auth/`、`hooks/auth.tsx` の中身）。クライアント ID は共通、スキーム・scope を引数にする |
 | 3 | `packages/ui` | 色・余白・文字の基本の値（`theme/`）と、ボタン・カードなどの基本の部品。アクセントの色は引数 |
 
 KARADA の動きと見た目を変えないことは、出すたびに次で確かめます。
@@ -474,13 +495,13 @@ KARADA の動きと見た目を変えないことは、出すたびに次で確�
 
 ### v1 で勧めること
 
-**v1 は、今のスタックを組み替えず、`WordsStack` を足すだけにします。** 今の資源には、足す変更（SSM パラメータ1つ、認可API の環境と許可）しかしないので、データを失うおそれがありません。
+**v1 は、今のスタックを組み替えず、`WordsStack` を足すだけにします。** 今の資源への変更は、認可API の環境と許可に名前を足すことと、`torelog-app` のクライアントの戻り先にことばのスキームを足すことだけです（どれも置き換えのない更新）。Cognito に資源は足さないので、データを失うおそれがありません。
 
-- `WordsStack`（CloudFormation のスタックの名前は `CognitoStudyWords`。監視と CiCd が名前を並べて扱っているので、今の名前の並びに合わせる）は、共有の資源を SSM パラメータの名前で参照します（ユーザープールの ID、Cognito の issuer、認可API の URL）。スタックをまたぐ Export は作りません（今の監視のスタックと同じ。Export があると、元のスタックの値を変えられなくなる）
+- `WordsStack`（CloudFormation のスタックの名前は `CognitoStudyWords`。監視と CiCd が名前を並べて扱っているので、今の名前の並びに合わせる）は、共有の資源を SSM パラメータの名前で参照します（Cognito の issuer、`torelog-app` のクライアント ID、認可API の URL。どれも今ある `/cognito-study/app/*`・`/cognito-study/authorization/url`）。スタックをまたぐ Export は作りません（今の監視のスタックと同じ。Export があると、元のスタックの値を変えられなくなる）
 - 認可API がことばの MCP の URL を読むのも SSM パラメータの名前だけなので、2つのスタックの間に CloudFormation の依存はできません
 - デプロイの順番：
   1. 共有のコネクタの部品を出す PR（KARADA の MCP の中身は変わらない。`MealsFunction` のコードのハッシュだけが変わる）
-  2. 認可API を直す PR（`resource` がないときは KARADA 宛て、ことばの URL がなくても起動）と、`CognitoStudy` に SSM パラメータを足す PR。デプロイして、KARADA のコネクタのつなぎ直しと更新ができることを確かめる
+  2. 認可API を直す PR（`resource` がないときは KARADA 宛て、ことばの URL がなくても起動）と、`CognitoStudy` の変更（`AuthzFunction` の許可、`torelog-app` の戻り先）の PR。デプロイして、KARADA のコネクタのつなぎ直しと更新、KARADA のアプリのログインができることを確かめる。認可API のログで、`resource` のない `/authorize` があったかも見る
   3. `services/words` と `WordsStack`、監視・CiCd・ワークフローの変更。CiCd を手でデプロイしてから、`CognitoStudyWords`、監視の順にデプロイする
   4. `packages/` を出す PR を1つずつ、そのあと `apps/words`
 
@@ -557,9 +578,8 @@ KARADA の動きと見た目を変えないことは、出すたびに次で確�
 
 - ことばの Lambda を2つ（MCP と同期）にするか、1つにまとめるか（上の「AWS に足すもの」。勧めは2つ）
 - スタックの名前（`CognitoStudyWords` を勧める。`Words` などにするなら、監視の `OWN_STACK_NAMES`・CiCd・ロググループの名前の前置きを合わせて直す）
-- Claude・ChatGPT・Muse が `/authorize` に `resource` を送っているか（認可API のログで確かめる。送っていなければ、KARADA を既定の宛先にする変更が必須）
 - 同じ認可API に、2つのカスタムコネクタ（client_id は同じ claude.ai の CIMD）がつながったとき、Claude.ai がトークンを宛先ごとに分けて持つか（検証のコネクタで確かめる）
-- アプリの名前・アイコン・Android のパッケージ名・カスタムスキーム（仮に `kotoba://`）・EAS のプロジェクト名
+- アプリの名前・アイコン・Android のパッケージ名・カスタムスキーム（仮に `kotoba://`。決めたら `torelog-app` の戻り先に足す）・EAS のプロジェクト名
 - 似た表現の判定のしきい値（2文字の組の重なり 0.5）と、よみを持つか
 - 自分の言葉に移す条件（使えたを2回、違う日に）と、自動で移すか勧めるだけか（勧めは「勧めるだけ」）
 - 役立ち度の期限（14日）と、★の重み（1.5）
