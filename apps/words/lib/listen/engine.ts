@@ -169,6 +169,8 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     subs.push({ remove: sp.subscribe((st) => set({ ...st, error: st.error ?? fallbackReason })) });
     subs.push({ remove: sp.onListened((id, sec) => { for (const l of listened) l(id, sec); }) });
     await sp.load(tracks, start);
+    // 準備の途中で再生を押されていたら鳴らす
+    if (wantPlay && speech === sp) { wantPlay = false; sp.play(); }
   }
 
   /** 再生の並びをやめ、その場の読み上げにする（少なくとも鳴るように。裏での再生・車のボタンは効かない） */
@@ -189,6 +191,9 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     set({ loading: true, index: i, position: 0, duration: 0 });
     try {
       p.pause();
+      // 並びから外してからファイルを消す（消したファイルを並びが読みにいかないように）
+      if (p.trackCount < 1) throw new Error('しるしの音を読み込めませんでした');
+      for (let k = p.trackCount - 1; k >= 1; k--) p.remove(k);
       remove(cur);
       remove(nxt);
       cur = null;
@@ -204,8 +209,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
       }
       nxt = await render(cur.i + 1);
       if (playlist !== p) return;
-      // しるし（並びの最初）だけを残して、あとを入れ替える
-      if (p.trackCount < 1) throw new Error('しるしの音を読み込めませんでした');
+      // しるし（並びの最初）の後ろに、いまと次を並べる
       for (let k = p.trackCount - 1; k >= 1; k--) p.remove(k);
       p.add({ uri: cur.file.uri });
       if (nxt) p.add({ uri: nxt.file.uri });
@@ -230,11 +234,11 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     const p = playlist;
     rebuilding = true;
     const done = cur;
-    remove(done);
     cur = nxt;
     nxt = null;
     try {
-      p.remove(1); // [しるし, いま]
+      p.remove(1); // [しるし, いま]。並びから外してからファイルを消す
+      remove(done);
       if (!cur) { set({ playing: false }); return; }
       set({ index: cur.i, position: 0, duration: 0 });
       try { p.updateLockScreenMetadata(meta(cur.i)); } catch { /* ロック画面がないとき */ }
@@ -309,7 +313,8 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
         const err = (st as { error?: { message?: string; code?: number } }).error;
         if (err && playlist === p) {
           const code = err.code != null ? `（${err.code}）` : '';
-          void fallbackToSpeech(`音声を再生できません：${err.message ?? '不明なエラー'}${code}`, cur?.i ?? state.index, true);
+          // 止めているあいだのエラーで、急にしゃべり出さない
+          void fallbackToSpeech(`音声を再生できません：${err.message ?? '不明なエラー'}${code}`, cur?.i ?? state.index, state.playing || wantPlay);
           return;
         }
         if (quiet() || st.currentIndex !== 1 || !cur) return;
@@ -337,9 +342,8 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     },
     play() {
       if (speech) { speech.play(); return; }
-      if (!playlist) return;
-      // 書き出している途中なら、書き出し終えたら鳴らす
-      if (state.loading || !cur) { wantPlay = true; return; }
+      // 準備（エンジンの確かめ・書き出し）の途中なら、終えたら鳴らす
+      if (!playlist || rebuilding || !cur) { if (tracks.length > 0) wantPlay = true; return; }
       playlist.play();
     },
     pause() { wantPlay = false; if (speech) speech.pause(); else playlist?.pause(); },
