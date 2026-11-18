@@ -43,7 +43,7 @@ for app in authorization mcp app_api; do
   # 認可API は Flask（WSGI）なので gunicorn、MCP サーバーは ASGI なので uvicorn で動かす。
   # app_api は Web Adapter を通さず、Lambda が main.handler を直接呼ぶ
   case "$app" in
-    authorization) server="gunicorn --bind 0.0.0.0:8080 --no-control-socket 'main:create_app()'" ;;  # Lambda ではファイルを書けないので、制御用のソケットは作らない
+    authorization) server="gunicorn --bind 0.0.0.0:8080 --no-control-socket --timeout 0 'main:create_app()'" ;;  # ファイルを書けないので制御用のソケットは作らない。--timeout 0 は、凍結・解凍のあとにマスターがワーカーを心拍切れで殺すのを止める（1回のリクエストの上限は Lambda のタイムアウト）
     mcp) server='uvicorn main:app --host 0.0.0.0 --port 8080' ;;
     *) server='' ;;
   esac

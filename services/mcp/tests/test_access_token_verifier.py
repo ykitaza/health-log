@@ -3,12 +3,13 @@
 import asyncio
 import time
 
+import httpx2
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from connector.access_token_verifier import AuthzApiTokenVerifier
+from connector.access_token_verifier import AuthzApiTokenVerifier, JwksUnavailableError
 
 ISSUER = "https://authz.example"
 RESOURCE = "https://mcp.example/mcp"
@@ -84,3 +85,57 @@ def test_unknown_kid_does_not_refetch_jwks_every_time():
     assert run(unknown) is None and len(fetched) == 2  # 間があけば取り直す（鍵が替わったかもしれない）
     assert run(unknown) is None and len(fetched) == 2
     assert run(token()) is not None and len(fetched) == 2  # 知っている kid は今の鍵で検証する
+
+
+# --- JWKS が取れないとき（トークンが不正なのではないので、401 にしない） ---
+
+class FlakyJwks:
+    """最初の fail_times 回は失敗し、そのあとは本物の鍵を返す。"""
+
+    def __init__(self, fail_times):
+        self.fail_times, self.calls = fail_times, 0
+
+    async def __call__(self):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise httpx2.ConnectError("down")
+        return await stub_jwks()
+
+
+async def no_sleep(_):
+    pass
+
+
+def flaky_verifier(fail_times, clock=None):
+    jwks = FlakyJwks(fail_times)
+    return AuthzApiTokenVerifier(ISSUER, RESOURCE, fetch_jwks=jwks, clock=clock or Clock(), sleep=no_sleep), jwks
+
+
+def test_jwks_failure_is_retried_once_briefly():
+    verifier, jwks = flaky_verifier(1)
+    assert asyncio.run(verifier.verify_token(token())) is not None
+    assert jwks.calls == 2
+
+
+def test_jwks_failure_without_cache_raises_unavailable_not_none():
+    verifier, jwks = flaky_verifier(10)
+    with pytest.raises(JwksUnavailableError):
+        asyncio.run(verifier.verify_token(token()))
+    assert jwks.calls == 2  # 1回やり直して、あきらめる
+
+
+def test_jwks_failure_uses_last_cached_keys():
+    clock = Clock()
+    verifier, jwks = flaky_verifier(0, clock)
+    assert asyncio.run(verifier.verify_token(token())) is not None  # 鍵を取って覚える
+    jwks.fail_times = 10
+    clock.now += AuthzApiTokenVerifier.JWKS_MIN_REFETCH_SECONDS
+    unknown = token(headers={"kid": "other", "typ": "at+jwt"})
+    with pytest.raises(JwksUnavailableError):  # 覚えていない kid は決められない
+        asyncio.run(verifier.verify_token(unknown))
+    assert asyncio.run(verifier.verify_token(token())) is not None  # 覚えている鍵なら通る
+
+
+def test_jwks_failure_still_rejects_invalid_token_with_none():
+    verifier, _ = flaky_verifier(10)
+    assert asyncio.run(verifier.verify_token("abc.def.ghi")) is None  # 鍵を取る前に不正と分かる

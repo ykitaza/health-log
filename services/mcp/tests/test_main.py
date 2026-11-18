@@ -638,3 +638,23 @@ def test_今週の目標は0から7の整数だけを読む(server, value, expec
     app_change(engine, "setting", "weeklyGoalTrainingDays", {"value": "5"})  # snake_case を先に読む
     body = main.SyncedBodyData(engine, main.create_queries(engine))
     assert anyio.run(body.weekly_goals, EaterId("alice"))["training_days"] == expected
+
+
+def test_JWKS_が取れないときは_401_ではなく_503_を返す(server):
+    from connector.access_token_verifier import JwksUnavailableError
+
+    class DownVerifier:
+        async def verify_token(self, token):
+            raise JwksUnavailableError("down")
+
+    mcp = main.create_server(server["engine"], DownVerifier(), ISSUER, RESOURCE, server["session"])
+    app = main.create_app(mcp, "127.0.0.1")
+
+    async def go():
+        transport = httpx2.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://127.0.0.1:8001") as h:
+            return await h.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                                headers={"Authorization": "Bearer x"})
+
+    res = anyio.run(go)
+    assert res.status_code == 503 and res.headers["retry-after"] == "1"
