@@ -11,11 +11,13 @@ test('何も拾っていないときは、責めない一文だけ。落款・�
   await expect(byTest(page, 'home-hand')).toHaveCount(0);
   await expect(byTest(page, 'home-listen')).toHaveCount(0);
   await expect(byTest(page, 'home-recent')).toHaveCount(0);
-  // 書き留める欄は、ことばの欄と「拾う」「AI で拾う」だけ。書き始めると場所・題が開く
+  // 書き留める欄は、1 行のことばの欄と右の「AI で拾う」だけ。書き始めると「拾う」と場所・題が開く
   await expect(byTest(page, 'capture-title')).toHaveCount(0);
+  await expect(byTest(page, 'capture-save')).toHaveCount(0);
   await expect(byTest(page, 'ai-capture')).toBeVisible();
   await byTest(page, 'capture-text').fill('一目置く');
   await expect(byTest(page, 'capture-title')).toBeVisible();
+  await expect(byTest(page, 'capture-save')).toBeVisible();
 });
 
 test('拾うと今週の一文・今日の手札・最近拾ったに出る。使えたで落款が押される。押すと記録・聞くへ移る', async ({ page }) => {
@@ -33,6 +35,7 @@ test('拾うと今週の一文・今日の手札・最近拾ったに出る。�
   await expect(byTest(page, 'recent-row').filter({ hasText: '腑に落ちる' })).toContainText('Kindle');
   // 聞くの数は、聞くの並び（手札と最近拾ったもの）と同じ
   await expect(byTest(page, 'home-listen')).toHaveText('手札を聞く（2 語・約 1 分）');
+  await expect(byTest(page, 'home-open-hand')).toHaveText('手札 1 / 10');
 
   // 今日の手札から詳細を開いて、使えたを押す
   await byTest(page, 'home-hand-card').click();

@@ -22,8 +22,8 @@ function captureMessage(r: CaptureResult, wantToUse: boolean): string {
 }
 
 /**
- * 書き留める欄（Figma の 1-capture・1d。ホームの一番上）。ことばの欄と「拾う」「AI で拾う」。
- * ことばの欄を押す（書き始める）と、どこで・題・場面・例文・使いたい・たたんだ「探すときの手がかり」が開く。
+ * 書き留める欄（Figma のホーム・1-capture・1d。ホームの一番上）。1 行のことばの欄と、右に小さな「AI で拾う」。
+ * ことばの欄に書き始めると「拾う」と、どこで・題・場面・例文・使いたい・たたんだ「探すときの手がかり」が開く。
  * 保存したあとも開いたまま（場所と題を残して、続けて拾える）。onSaved は保存した表現の ID（さっき拾ったの墨のにじみ）
  */
 export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
@@ -126,13 +126,14 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
   const seedName = selected && SEED_SOURCE_IDS.has(selected) ? sources.find((x) => x.id === selected)?.name ?? null : null;
   return (
     <View testID="capture-form">
-      <View style={{ gap: space.xs }}>
-        <T variant="label" color={colors.accent}>書き留める</T>
+      <T variant="label" color={colors.accent}>書き留める</T>
+      <View style={s.lineRow}>
         <TextInput
-          value={text} onChangeText={(v) => { setText(v); setOpen(true); }} onFocus={() => setOpen(true)}
+          value={text} onChangeText={(v) => { setText(v); if (v.trim()) setOpen(true); }}
           placeholder="出会った言葉" placeholderTextColor={colors.faint}
-          accessibilityLabel="ことば" style={s.word} maxLength={200} testID="capture-text" multiline
+          accessibilityLabel="ことば" style={s.word} maxLength={200} testID="capture-text"
         />
+        <AiCaptureButton small prompt={() => ({ kind: 'capture', seedSource: seedName, wantToUse })} />
       </View>
 
       {open && (
@@ -218,11 +219,12 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
         </>
       )}
 
-      <View style={{ gap: space.m, marginTop: open ? space.xl : space.l }}>
-        <Button label="拾う" onPress={capture} disabled={!text.trim()} busy={busy} testID="capture-save" />
-        <AiCaptureButton prompt={() => ({ kind: 'capture', seedSource: seedName, wantToUse })} />
-        {open && <T variant="bodyS" color={colors.sub} style={{ textAlign: 'center' }}>話す・ページを撮る・ハイライトを共有、どれでも拾えます</T>}
-      </View>
+      {open && text.trim() !== '' && (
+        <View style={{ gap: space.m, marginTop: space.xl }}>
+          <Button label="拾う" onPress={capture} busy={busy} testID="capture-save" />
+          <T variant="bodyS" color={colors.sub} style={{ textAlign: 'center' }}>話す・ページを撮る・ハイライトを共有、どれでも拾えます</T>
+        </View>
+      )}
       <Notice message={notice} testID="capture-notice" />
     </View>
   );
@@ -233,7 +235,8 @@ const s = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: space.m, marginTop: space.s, gap: space.s },
   titleInput: { fontFamily: fonts.sans, fontSize: 17, color: colors.ink, minHeight: 36 },
   same: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
-  word: { fontFamily: fonts.mincho, fontSize: 32, lineHeight: 46, color: colors.ink, borderBottomWidth: 2, borderBottomColor: colors.accent, paddingVertical: space.s, minHeight: 64 },
+  lineRow: { flexDirection: 'row', alignItems: 'center', gap: space.l },
+  word: { flex: 1, minWidth: 0, width: 0, fontFamily: fonts.mincho, fontSize: 24, lineHeight: 34, color: colors.ink, borderBottomWidth: 2, borderBottomColor: colors.accent, paddingVertical: space.xs, minHeight: 44 },
   matches: { marginTop: space.m, gap: space.s },
   matchRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s, borderWidth: 1, borderColor: colors.line },
   examples: { gap: space.xs, paddingVertical: space.m, borderBottomWidth: 1, borderBottomColor: colors.line },

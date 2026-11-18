@@ -47,6 +47,9 @@ test('画面の写し', async ({ page, context }) => {
   await byTest(page, 'used').click();
   await button(page, '戻る').click();
   await expect(byTest(page, 'home-week-seals')).toBeVisible();
+  // 最初の表示に「手札を聞く」まで入る（手札が 3 つのとき）
+  await expect(byTest(page, 'home-hand-card')).toHaveCount(3);
+  await expect(byTest(page, 'home-listen')).toBeInViewport({ ratio: 1 });
   await shot(page, '02-home');
   await page.mouse.wheel(0, 900);
   await shot(page, '02-home-scrolled');

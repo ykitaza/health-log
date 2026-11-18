@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { ListItem } from '@/db/repositories/words';
 import { isDue } from '@/lib/schedule';
 import { Source, STAGE_LABELS, STAGE_STEPS } from '@/lib/types';
@@ -17,9 +17,7 @@ export function StageDashes({ step }: { step: number }) {
 }
 
 /** 手札の札（Figma の 3-hand）。段階・表現・出どころ・そろそろの印。使えたは朱の落款 */
-export function HandCard({ e, sources, today, style, testID = 'hand-card' }: {
-  e: ListItem; sources: Source[]; today: string; style?: StyleProp<ViewStyle>; testID?: string;
-}) {
+export function HandCard({ e, sources, today }: { e: ListItem; sources: Source[]; today: string }) {
   const stage = e.stage ?? 'understood';
   const src = sources.find((s) => s.id === e.firstSourceId)?.name;
   const where = [e.firstTitle ? null : src, e.firstTitle || null].filter(Boolean).join(' · ') || src || '';
@@ -29,8 +27,8 @@ export function HandCard({ e, sources, today, style, testID = 'hand-card' }: {
       accessibilityRole="button"
       accessibilityLabel={`${e.text}、${STAGE_LABELS[stage]}${due ? '、そろそろ' : ''}`}
       onPress={() => router.push(`/word/${e.id}`)}
-      style={({ pressed }) => [s.card, style, pressed && { opacity: 0.7 }]}
-      testID={testID}
+      style={({ pressed }) => [s.card, pressed && { opacity: 0.7 }]}
+      testID="hand-card"
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
         <StageDashes step={STAGE_STEPS[stage]} />
