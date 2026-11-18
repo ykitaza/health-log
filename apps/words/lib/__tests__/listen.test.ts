@@ -36,7 +36,7 @@ describe('再生の土台', () => {
     };
     return { out, log, progress: (p: number, d: number) => ev?.onProgress(p, d), end: () => ev?.onEnd() };
   }
-  const tracks: Track[] = ['a', 'b', 'c', 'd'].map((id) => ({ id, title: id, reading: '', speech: id }));
+  const tracks: Track[] = ['a', 'b', 'c', 'd'].map((id) => ({ id, title: id, reading: '', speech: id, sections: [id] }));
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it('最後まで聞いたら聞いたに数えて次へ。音声のないものは飛ばす', async () => {

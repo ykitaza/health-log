@@ -2,13 +2,15 @@
  * 時計で進むだけの音のない出力（web と、端末の声の進み具合の目安）。読み上げる文の長さから、かかる時間を見積もる
  */
 import type { Output } from './controller';
-import type { Track } from './types';
+import { DEFAULT_PACE, ListenPace, paceSeconds } from './pace';
+import { sectionsOf, Track } from './types';
 
-/** 1文字を読むのにかかる秒（日本語の読み上げのおおよそ） */
-export const SECONDS_PER_CHAR = 0.13;
-export const estimateSeconds = (t: Track) => Math.max(3, Math.round(t.speech.length * SECONDS_PER_CHAR));
+export { SECONDS_PER_CHAR } from './pace';
+/** 1 語にかかる秒の見積もり（読み方の設定を入れて。既定は速さ 1・くり返し 1・ふつうの間） */
+export const estimateSeconds = (t: Pick<Track, 'speech' | 'sections'>, pace: ListenPace = DEFAULT_PACE) => paceSeconds(sectionsOf(t), pace);
 
-export function createTimerOutput(tickMs = 250): Output {
+/** secondsOf：i 番目にかかる秒（web は準備のときに読んだ読み方で見積もる） */
+export function createTimerOutput(tickMs = 250, secondsOf: (t: Track, i: number) => number = (t) => estimateSeconds(t)): Output {
   let timer: ReturnType<typeof setInterval> | null = null;
   let position = 0;
   let duration = 0;
@@ -25,10 +27,10 @@ export function createTimerOutput(tickMs = 250): Output {
   return {
     mode: 'speech',
     async prepare() { return true; },
-    start(track, _i, ev) {
+    start(track, i, ev) {
       events = ev;
       position = 0;
-      duration = estimateSeconds(track);
+      duration = secondsOf(track, i);
       ev.onProgress(0, duration);
       run();
     },

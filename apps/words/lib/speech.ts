@@ -64,3 +64,6 @@ export function buildScript(
  * 改行と句点の間で区切る）
  */
 export const spokenText = (s: Script) => s.sections.map(([, t]) => t).join('\n\n');
+
+/** 端末の読み上げで区切りごとに書き出すときの文（あいだの間は設定の読み方で決める。lib/listen/pace.ts） */
+export const spokenSections = (s: Script) => s.sections.map(([, t]) => t);

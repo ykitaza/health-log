@@ -90,6 +90,14 @@ test('画面の写し', async ({ page, context }) => {
 
   await goTab(page, 'hand');
   await shot(page, '11-hand');
+  // 手札の「聞く」：手札だけを聞くへ移って鳴らす
+  await byTest(page, 'start-listen').click();
+  await expect(byTest(page, 'listen-scope-hand')).toBeVisible();
+  await page.waitForTimeout(800);
+  await shot(page, '11b-listen-hand');
+  await byTest(page, 'listen-pause').click();
+  await byTest(page, 'listen-scope-all').click();
+  await expect(byTest(page, 'listen-scope-hand')).toHaveCount(0);
   await goTab(page, 'listen');
   await expect(byTest(page, 'listen-current')).toBeVisible();
   await byTest(page, 'listen-play').click();
@@ -107,6 +115,11 @@ test('画面の写し', async ({ page, context }) => {
   await byTest(page, 'natural-voice').click();
   await expect(byTest(page, 'natural-voice')).toHaveAttribute('aria-checked', 'true');
   await shot(page, '14-settings');
+  // 聞くの読み方（速さ・くり返し・間）
+  await byTest(page, 'pace-repeat-2').click();
+  await expect(byTest(page, 'pace-repeat-2')).toHaveAttribute('aria-selected', 'true');
+  await byTest(page, 'pace-pause-normal').scrollIntoViewIfNeeded();
+  await shot(page, '14b-settings-listen');
   await byTest(page, 'settings-account').click();
   await shot(page, '15-account');
   await byTest(page, 'open-connect').click();
