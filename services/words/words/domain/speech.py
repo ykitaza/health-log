@@ -1,7 +1,7 @@
 """「聞く」の読み上げの台本（docs/words-design.md の「読み上げ（TTS）」）。
 
 表現の項目から、決まった型で台本を作る：表現 → 読み → 説明（意味とニュアンス）→ 使い方 → 例文（1〜2個）。
-区切りには SSML の <break> で間を入れる。
+区切りには SSML の <break> で間を入れる（区切りのあいだは pause の short／normal／long で 400／800／1600ms）。
 既定はアプリが端末の読み上げ（Android の TTS）で同じ型の台本を読む（testdata/words/speech.json で同じ台本になることを確かめる）。
 設定の「自然な声」をオンにしたときだけ、アプリ用の API（POST /v1/audio）がこの SSML を Amazon Polly（neural）で読む。
 音声はどこにも置かない（毎回作る）。台本の型を変えたら SPEECH_VERSION を上げる。
@@ -18,6 +18,9 @@ SPEECH_VERSION = 1
 DEFAULT_VOICE, ENGINE = "Kazuha", "neural"
 VOICES = ("Kazuha", "Takumi", "Tomoko")  # ja-JP の neural の声
 SECTION_BREAK_MS, EXAMPLE_BREAK_MS, LEAD_BREAK_MS = 800, 500, 300
+# 区切りのあいだの間（設定の「間」。アプリの lib/listen/pace.ts の SECTION_GAP_MS と同じ。ふつうが SECTION_BREAK_MS）
+DEFAULT_PAUSE = "normal"
+PAUSES = {"short": 400, "normal": SECTION_BREAK_MS, "long": 1600}
 MAX_EXAMPLES_SPOKEN = 2
 # 1回の読み上げの文字数の上限（Polly は1回 3,000 文字まで課金・6,000 文字まで受け付ける）。項目ごとに切り詰める
 MAX_SECTION_CHARS = {"text": 200, "reading": 100, "explanation": 400, "usage": 200, "example": 200}
@@ -49,7 +52,7 @@ def spoken_examples(expression: Expression) -> list[str]:
     return [x.text for x in ordered[:MAX_EXAMPLES_SPOKEN]]
 
 
-def build_script(expression: Expression, tags: list[tuple[Tag, TagStatus]]) -> Script:
+def build_script(expression: Expression, tags: list[tuple[Tag, TagStatus]], pause: str = DEFAULT_PAUSE) -> Script:
     sections: list[tuple[str, str]] = [("text", _cut(expression.text, MAX_SECTION_CHARS["text"]))]
     if expression.reading and expression.reading != expression.text:
         sections.append(("reading", "読みは、" + _sentence(_cut(expression.reading, MAX_SECTION_CHARS["reading"]))))
@@ -72,7 +75,7 @@ def build_script(expression: Expression, tags: list[tuple[Tag, TagStatus]]) -> S
     parts = []
     for i, (name, text) in enumerate(sections):
         if i:
-            gap = EXAMPLE_BREAK_MS if name == "example" and sections[i - 1][0] == "example" else SECTION_BREAK_MS
+            gap = EXAMPLE_BREAK_MS if name == "example" and sections[i - 1][0] == "example" else PAUSES[pause]
             parts.append(f'<break time="{gap}ms"/>')
         if name == "example" and text.startswith("例えば。"):
             parts.append(f'例えば<break time="{LEAD_BREAK_MS}ms"/>{escape(text.removeprefix("例えば。"))}')

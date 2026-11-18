@@ -11,7 +11,7 @@ import app_api
 from tests.conftest import Clock
 from words.application.service import CaptureInput, EnrichInput, TagRequest
 from words.domain import model as m
-from words.domain.speech import build_script
+from words.domain.speech import PAUSES, build_script
 from words.main import create_engine, create_service
 
 APP_CLIENT = "torelog-app-client-id"
@@ -59,13 +59,14 @@ def test_記号は_SSML_のために逃がし_長い項目は切り詰める():
 def test_アプリと同じ台本になる():
     """既定はアプリが端末の読み上げで同じ型の台本を読むので、testdata/words/speech.json で同じになることを確かめる。"""
     data = json.loads((Path(__file__).parents[3] / "testdata" / "words" / "speech.json").read_text())
+    assert PAUSES == data["pause_ms"]
     for case in data["cases"]:
         e = expression(**{k: v for k, v in case["expression"].items() if k != "examples"},
                        examples=tuple(m.Example(x["text"], m.By(x["origin"]), x["confirmed"])
                                       for x in case["expression"].get("examples", [])))
         tags = [(m.Tag(f"t{n}", m.TagKind(t["kind"]), t["name"], n), m.TagStatus(t["status"]))
                 for n, t in enumerate(case["tags"])]
-        script = build_script(e, tags)
+        script = build_script(e, tags, case.get("pause", "normal"))
         assert [[name, text] for name, text in script.sections] == case["sections"], case["name"]
         assert script.ssml == case["ssml"], case["name"]
 
@@ -116,6 +117,21 @@ def test_音声を_MP3_で返し_置かない():
     assert "心から納得する。" in polly.calls[-1][0]
     other = api.handle(event({"expression_id": expression_id, "voice": "Takumi"}))
     assert other["statusCode"] == 200 and polly.calls[-1][1] == "Takumi"
+
+
+def test_間_pause_で区切りのあいだの_break_が変わり_省けば_800ms():
+    api, polly, _, expression_id = setup()
+    for pause, ms in (("short", 400), ("normal", 800), ("long", 1600)):
+        assert api.handle(event({"expression_id": expression_id, "pause": pause}))["statusCode"] == 200
+        ssml = polly.calls[-1][0]
+        assert f'腑に落ちる<break time="{ms}ms"/>' in ssml and ssml.count(f'<break time="{ms}ms"/>') >= 2
+        assert '<break time="300ms"/>' in ssml  # 「例えば」のあとは変わらない
+    api.handle(event({"expression_id": expression_id}))
+    assert polly.calls[-1][0] == polly.calls[1][0]  # 省くと normal と同じ（古いアプリ）
+    n = len(polly.calls)
+    for bad in ("fast", 1, None, ["short"]):
+        assert api.handle(event({"expression_id": expression_id, "pause": bad}))["statusCode"] == 400
+    assert len(polly.calls) == n
 
 
 def test_音声の入口の確かめ():

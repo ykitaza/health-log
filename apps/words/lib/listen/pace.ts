@@ -4,7 +4,7 @@
  * - 速さ：再生の並びの速さ（expo-audio の playbackRate。声の高さは変えない）。その場の読み上げでは読み上げの速さ
  * - くり返し：1 語の音声を、間を挟んで続けて並べる（ファイルは 1 つのまま。今の語と次の語だけの決まりを守る）
  * - 間：区切り（表現・読み・説明…）のあいだ、くり返しのあいだ、語のあと。
- *   自然な声はサーバー（Polly の SSML）が区切りの間を決めるので、くり返しのあいだと語のあとだけに効く
+ *   自然な声の区切りのあいだは、POST /v1/audio の pause でサーバー（Polly の SSML の break）に頼む（SECTION_GAP_MS と同じ長さ。testdata/words/speech.json）
  * 設定は1つ書き出す（準備する）ごとに読むので、変えたら次に準備する語から効く
  */
 /** 1文字を読むのにかかる秒（日本語の読み上げのおおよそ） */
@@ -25,7 +25,7 @@ export const SPEED_LABEL: Record<ListenSpeed, string> = { 0.8: '0.8 倍', 1: '1.
 export const REPEAT_LABEL: Record<ListenRepeat, string> = { 1: '1 回', 2: '2 回', 3: '3 回' };
 export const PAUSE_LABEL: Record<ListenPause, string> = { short: '短い', normal: 'ふつう', long: '長い' };
 
-/** 区切り（表現・読み・説明・使い方・例文）のあいだ。ふつうはサーバーの SSML と同じ 800ms（lib/speech.ts の SECTION_BREAK_MS） */
+/** 区切り（表現・読み・説明・使い方・例文）のあいだ。サーバーの SSML の break と同じ（services/words の PAUSES。speech.json の pause_ms）。ふつうは 800ms（lib/speech.ts の SECTION_BREAK_MS） */
 export const SECTION_GAP_MS: Record<ListenPause, number> = { short: 400, normal: 800, long: 1600 };
 /** 同じ語のくり返しのあいだと、語のあと（次の語の前） */
 export const WORD_GAP_MS: Record<ListenPause, number> = { short: 700, normal: 1500, long: 3000 };

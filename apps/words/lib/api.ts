@@ -121,12 +121,16 @@ export function createApiClient({ baseUrl, getAccessToken, fetch: f = (...a) => 
 
     /**
      * 表現の読み上げ（MP3。サーバーが台本を作り Amazon Polly で読む。POST /v1/audio。設定の「自然な声」のときだけ呼ぶ）。
-     * まだサーバーにない（同期の前。404）・つながらないときは ApiError。音声はどこにも置かない
+     * まだサーバーにない（同期の前。404）・つながらないときは ApiError。音声はどこにも置かない。
+     * pause は区切りのあいだの間（short／normal／long）。ふつう（normal）は送らない（サーバーの既定が同じ 800ms）。
+     * 古いサーバーは知らない引数を 400 で断るので、pause を付けて 400 なら、付けずにもう一度頼む
      */
-    async audio(id: string): Promise<ArrayBuffer> {
-      const body = { expression_id: id };
+    async audio(id: string, pause: 'short' | 'normal' | 'long' = 'normal'): Promise<ArrayBuffer> {
+      const plain = { expression_id: id };
+      const body = pause === 'normal' ? plain : { ...plain, pause };
       let res = await send('POST', AUDIO_PATH, await token(false), body);
       if (res.status === 401) res = await send('POST', AUDIO_PATH, await token(true), body);
+      if (res.status === 400 && body !== plain) res = await send('POST', AUDIO_PATH, await token(false), plain);
       if (res.status === 401) throw new ApiError('signedOut', 401);
       if (!res.ok) throw new ApiError(res.status === 429 ? 'throttled' : 'server', res.status);
       try {

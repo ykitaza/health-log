@@ -76,6 +76,21 @@ test('オンにすると、聞くを開き直さなくても次の表現から�
   expect(ids.length).toBeGreaterThan(0);
 });
 
+test('自然な声には、設定の区切りのあいだの間（pause）を付けて頼む（ふつうは付けない）', async ({ page, context }) => {
+  await signIn(page, context);
+  const bodies: { expression_id?: string; pause?: string }[] = [];
+  await routeAudio(context, 200, bodies);
+  await byTest(page, 'home-settings').click();
+  await toggle(page).click();
+  await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
+  await byTest(page, 'pace-pause-long').click();
+  await button(page, '戻る').click();
+  await goTab(page, 'listen');
+  await expect(byTest(page, 'listen-voice')).toHaveText('自然な声（Polly）で読んでいます');
+  expect(bodies.length).toBeGreaterThan(0);
+  expect(bodies.every((b) => b.pause === 'long')).toBe(true);
+});
+
 test('サーバーが自然な声を作れないときは、端末の声に戻して理由を出す', async ({ page, context }) => {
   await signIn(page, context);
   const ids = await routeAudio(context, 500);

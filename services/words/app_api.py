@@ -23,7 +23,7 @@ from sync.registry import UUID_PATTERN
 from words.application.service import WordsService
 from words.domain.errors import WordsError
 from words.domain.schedule import JST
-from words.domain.speech import DEFAULT_VOICE, ENGINE, VOICES
+from words.domain.speech import DEFAULT_PAUSE, DEFAULT_VOICE, ENGINE, PAUSES, VOICES
 from words.main import create_engine, create_service
 
 logging.getLogger().setLevel(logging.INFO)
@@ -54,7 +54,7 @@ def polly_synthesizer() -> Synthesizer:
 
 
 class AudioApi:
-    """POST /v1/audio：{"expression_id": "...", "voice": "Kazuha"}（voice は省ける）。"""
+    """POST /v1/audio：{"expression_id": "...", "voice": "Kazuha", "pause": "normal"}（voice と pause は省ける）。"""
 
     def __init__(self, sync_api: SyncHttpApi, service: WordsService, synthesize: Synthesizer):
         self.sync_api, self.service, self.synthesize = sync_api, service, synthesize
@@ -65,24 +65,28 @@ class AudioApi:
             if not caller.can("training", "read"):
                 raise HttpError(403, "forbidden", "読む scope（torelog-api/training.read）がありません")
             body = parse_body(event, MAX_AUDIO_BODY)
-            if not isinstance(body, dict) or set(body) - {"expression_id", "voice"}:
-                raise HttpError(400, "invalid-request", "本文は expression_id と voice だけにしてください")
+            if not isinstance(body, dict) or set(body) - {"expression_id", "voice", "pause"}:
+                raise HttpError(400, "invalid-request", "本文は expression_id と voice と pause だけにしてください")
             expression_id, voice = body.get("expression_id"), body.get("voice", DEFAULT_VOICE)
+            pause = body.get("pause", DEFAULT_PAUSE)
             if not isinstance(expression_id, str) or not UUID_PATTERN.match(expression_id):
                 raise HttpError(400, "invalid-request", "expression_id は UUID にしてください",
                                 [{"field": "expression_id", "message": "UUID"}])
             if voice not in VOICES:
                 raise HttpError(400, "invalid-request", f"voice は {'・'.join(VOICES)} のどれかにしてください",
                                 [{"field": "voice", "message": "・".join(VOICES)}])
+            if not isinstance(pause, str) or pause not in PAUSES:
+                raise HttpError(400, "invalid-request", f"pause は {'・'.join(PAUSES)} のどれかにしてください",
+                                [{"field": "pause", "message": "・".join(PAUSES)}])
             try:
-                script = anyio.run(self.service.speech_script, caller.user, expression_id)
+                script = anyio.run(self.service.speech_script, caller.user, expression_id, pause)
             except WordsError as e:
                 raise HttpError(404, "not-found", str(e)) from e
             audio = self.synthesize(script.ssml, voice, ENGINE)
             if len(audio) > MAX_AUDIO_BYTES:
                 raise HttpError(500, "internal", "音声が大きすぎます")
             # 利用者と中身は出さない（文字数だけ。費用の見積もりに使う）
-            logger.info("speech chars=%d bytes=%d voice=%s", len(script.text), len(audio), voice)
+            logger.info("speech chars=%d bytes=%d voice=%s pause=%s", len(script.text), len(audio), voice, pause)
             return {"statusCode": 200, "headers": {"content-type": "audio/mpeg", "cache-control": "no-store"},
                     "body": base64.b64encode(audio).decode(), "isBase64Encoded": True}
         except HttpError as e:

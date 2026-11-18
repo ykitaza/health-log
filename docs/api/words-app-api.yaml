@@ -187,6 +187,14 @@ paths:
                   - Takumi
                   - Tomoko
                   default: Kazuha
+                pause:
+                  type: string
+                  enum:
+                  - short
+                  - normal
+                  - long
+                  default: normal
+                  description: 区切り（表現・読み・説明・使い方・例文）のあいだの間。short 400ms・normal 800ms・long 1600ms。アプリの設定の「区切りのあいだの間」と同じ
       responses:
         '200':
           description: MP3（24kHz）

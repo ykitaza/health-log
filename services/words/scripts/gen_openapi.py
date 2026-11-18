@@ -121,7 +121,9 @@ def build() -> dict:
         "requestBody": {"required": True, "content": {"application/json": {"schema": {
             "type": "object", "additionalProperties": False, "required": ["expression_id"],
             "properties": {"expression_id": {"type": "string", "format": "uuid"},
-                           "voice": {"type": "string", "enum": ["Kazuha", "Takumi", "Tomoko"], "default": "Kazuha"}}}}}},
+                           "voice": {"type": "string", "enum": ["Kazuha", "Takumi", "Tomoko"], "default": "Kazuha"},
+                           "pause": {"type": "string", "enum": ["short", "normal", "long"], "default": "normal",
+                                     "description": "区切り（表現・読み・説明・使い方・例文）のあいだの間。short 400ms・normal 800ms・long 1600ms。アプリの設定の「区切りのあいだの間」と同じ"}}}}}},
         "responses": {
             "200": {"description": "MP3（24kHz）",
                     "content": {"audio/mpeg": {"schema": {"type": "string", "format": "binary"}}}},

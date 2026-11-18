@@ -651,7 +651,7 @@ class WordsService:
     def use_days(state: WordsState, expression_id: str) -> set[date]:
         return {u.used_on for u in state.usages.get(expression_id, ())}
 
-    async def speech_script(self, user: str, expression_id: str):
+    async def speech_script(self, user: str, expression_id: str, pause: str = "normal"):
         """「聞く」の読み上げの台本（アプリ用の API の音声のルートが使う）。"""
         from words.domain.speech import build_script
 
@@ -659,7 +659,7 @@ class WordsService:
         e = state.expressions.get(expression_id)
         if e is None:
             raise WordsError(f"表現（{expression_id}）が見つかりません")
-        return build_script(e, state.tags_of(e.id))
+        return build_script(e, state.tags_of(e.id), pause)
 
     async def stats(self, user: str, unit: str, count: int) -> dict:
         from words.domain.stats import MAX_PERIODS, UNITS, activity_stats

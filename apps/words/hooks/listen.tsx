@@ -52,7 +52,11 @@ const Ctx = createContext<Value | null>(null);
  * 自然な声（Polly）：設定でオンにして、ログインしていて同期の先があるときだけサーバー（POST /v1/audio）から取る。
  * ほかは端末の読み上げ（既定）。取るたびにここを読むので、設定を変えると次に書き出す表現から効く
  */
-const audioSource: VoiceSource = { polly: false, signedIn: false, configured: apiBaseUrl !== '', api: null };
+const audioSource: VoiceSource = {
+  polly: false, signedIn: false, configured: apiBaseUrl !== '', api: null,
+  // 区切りのあいだの間は、準備（取る）ごとに今の設定を読む
+  get pause() { return paceSource.current.pause; },
+};
 /** 読み方。1つを書き出す（準備する）たびにここを読むので、設定を変えると次に準備する語から効く */
 const paceSource: { current: ListenPace } = { current: DEFAULT_PACE };
 

@@ -3,6 +3,7 @@
  * 表現 → 読み（表現と違うときだけ）→ 説明（意味。ニュアンス）→ 使い方（use_note、なければ使う場面のタグ3つまで）→ 例文2つまで。
  * アプリは区切り（sections）を端末の読み上げで、区切りのあいだに間を空けて読む（既定）。自然な声のときはサーバーが SSML を Polly で読む
  */
+import { ListenPause, SECTION_GAP_MS } from './listen/pace';
 import type { Example, Expression, TagKind, TagStatus } from './types';
 
 export const SPEECH_VERSION = 1;
@@ -35,6 +36,7 @@ export function spokenExamples(examples: Pick<Example, 'text' | 'origin' | 'conf
 export function buildScript(
   e: Pick<Expression, 'text' | 'reading' | 'meaning' | 'nuance' | 'use_note'> & { examples: Pick<Example, 'text' | 'origin' | 'confirmed'>[] },
   tags: { kind: TagKind; name: string; status: TagStatus }[],
+  pause: ListenPause = 'normal',
 ): Script {
   const sections: [SectionName, string][] = [['text', cut(e.text, MAX_CHARS.text)]];
   if (e.reading && e.reading !== e.text) sections.push(['reading', `読みは、${sentence(cut(e.reading, MAX_CHARS.reading))}`]);
@@ -50,7 +52,7 @@ export function buildScript(
   const parts: string[] = [];
   sections.forEach(([name, text], i) => {
     if (i > 0) {
-      const gap = name === 'example' && sections[i - 1][0] === 'example' ? EXAMPLE_BREAK_MS : SECTION_BREAK_MS;
+      const gap = name === 'example' && sections[i - 1][0] === 'example' ? EXAMPLE_BREAK_MS : SECTION_GAP_MS[pause];
       parts.push(`<break time="${gap}ms"/>`);
     }
     if (name === 'example' && text.startsWith('例えば。')) parts.push(`例えば<break time="${LEAD_BREAK_MS}ms"/>${escapeXml(text.slice('例えば。'.length))}`);
