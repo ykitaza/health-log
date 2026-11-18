@@ -97,6 +97,11 @@ jobs:
               - *workflow
               - apps/karada/**
               - testdata/**
+            # ことばのアプリ（apps/words）。サーバーと同じテストのデータ（testdata/words）で確かめる
+            words_app:
+              - *workflow
+              - apps/words/**
+              - testdata/words/**
 
   python:
     name: python (${{ matrix.service }})
@@ -234,4 +239,74 @@ jobs:
           path: |
             apps/karada/playwright-report/
             apps/karada/test-results/
+          retention-days: 7
+
+  # ことばのアプリ（apps/words）。KARADA（mobile）と同じ手順で、型・lint・jest
+  words-app:
+    name: words
+    needs: changes
+    if: needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), 'words_app')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/words
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/words/.node-version
+          cache: npm
+          cache-dependency-path: apps/words/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo lint . --max-warnings 0
+      - run: npx jest
+
+  # ことばのアプリの画面の E2E（web の書き出しを Chromium で。同期の API は偽のサーバー。apps/words/e2e）
+  words-app-e2e:
+    name: words (e2e)
+    needs: changes
+    if: needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), 'words_app')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/words
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/words/.node-version
+          cache: npm
+          cache-dependency-path: apps/words/package-lock.json
+      - run: npm ci
+      - run: npx expo export --platform web
+      - name: Get Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+      - run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - run: npx playwright test
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report-words
+          path: |
+            apps/words/playwright-report/
+            apps/words/test-results/
           retention-days: 7
