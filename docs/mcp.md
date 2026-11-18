@@ -196,7 +196,7 @@ MCP に対応したチャットに、カスタムコネクタとして登録し�
 
 #### 部位ごとのセット数（`training.part_sets`）
 
-週のレポートで AI が書く部位のセット数が、アプリのカードの数字と食い違わないよう、アプリの `apps/mobile/lib/partBalance.ts` と同じ数え方でサーバーが数えます（`services/training/training/domain/part_sets.py`。`testdata/training/part_sets.json` で両方を確かめる）。AI は数え直さず、この値をそのまま使います。
+週のレポートで AI が書く部位のセット数が、アプリのカードの数字と食い違わないよう、アプリの `apps/karada/lib/partBalance.ts` と同じ数え方でサーバーが数えます（`services/training/training/domain/part_sets.py`。`testdata/training/part_sets.json` で両方を確かめる）。AI は数え直さず、この値をそのまま使います。
 
 ```
 "part_sets": {"from": "2026-11-09", "to": "2026-11-12", "previous_from": "2026-11-02", "previous_to": "2026-11-05",

@@ -16,7 +16,7 @@ Claude や ChatGPT が MCP サーバーにつながり、ツールを呼ぶま�
 
 ## アプリの同期
 
-スマホアプリ（KARADA）がログインし、サーバーと同期する流れです。アプリの側の仕組み（outbox、やり直し、断られた変更）は [sync-design.md](sync-design.md#アプリの同期appsmobile) にあります。
+スマホアプリ（KARADA）がログインし、サーバーと同期する流れです。アプリの側の仕組み（outbox、やり直し、断られた変更）は [sync-design.md](sync-design.md#アプリの同期appskarada) にあります。
 
 ![アプリの同期のシーケンス図](sequence-app.svg)
 

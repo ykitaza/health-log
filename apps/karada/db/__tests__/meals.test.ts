@@ -231,7 +231,7 @@ describe('app_push.json：アプリが送る食事の本文', () => {
     const file = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'meals', 'app_push.json');
     if (process.env.UPDATE_TESTDATA) {
       fs.writeFileSync(file, `${JSON.stringify({
-        description: 'アプリで食事を記録・修正（量・品目の追加）・複製・削除し、いつもの・目標・日の種類を決めて送る本文（apps/mobile/db/__tests__/meals.test.ts が作る）。'
+        description: 'アプリで食事を記録・修正（量・品目の追加）・複製・削除し、いつもの・目標・日の種類を決めて送る本文（apps/karada/db/__tests__/meals.test.ts が作る）。'
           + 'services/meals/tests/sync/test_app_push.py が change_id を UUID にして本物の API に送り、MCP の食事のツールから見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);

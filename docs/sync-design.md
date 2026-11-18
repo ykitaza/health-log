@@ -37,7 +37,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 | `phase` | フェーズ（増量・減量・維持の通常のフェーズと療養。種別・向き・名前・開始日・終了日・目標体重・食事の目標・開始時の記録・状態・止めた通常のフェーズ・目標の変更の履歴・終えた日。下の注） | UUID | `training.*` |
 | `report` | レポート（MCP の `save_report` だけが作る。題・本文・種類・期間・全体の調子・要約・要点・次の一歩・つながり・目標の見直し、フェーズの振り返りならどのフェーズか `phase_id`） | UUID | `training.*` |
 
-- 筋トレの項目は、アプリのマイグレーション（`apps/mobile/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
+- 筋トレの項目は、アプリのマイグレーション（`apps/karada/db/migrations.ts`）の列に合わせます。真偽値（`hidden`・`done`）は、SQLite では 0/1、API では `true`/`false` です
 - 「トレーニング」は、SQLite に表がありません（同じ日の `workout_entry` のまとまり）。表が足されたら `workout` を足します
 - 品目（`meal_item`）は、食事の中でだけ一意です。今の MCP は、複製（`copy_meal`）といつもの（`record_template`）で、元の品目の ID をそのまま使うためです。そこで、品目は `parent_id`（食事の ID）と `entity_id`（品目の ID）の組で指します。`parent_id` が違えば別の品目です（品目を別の食事に移すことはできない）
 - いつもの（`meal_template`）は、今は名前で上書きします（同じ名前は1つ）。同期でもそうなるように、ID は名前から決めます（`uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)`。`services/meals/meals/infrastructure/sync_entities.py` の `template_id`）。名前を含む変更で ID が合わなければ断ります。名前を変えるときは、古い名前のものを消して、新しい名前で作ります。品目の一覧は1つの項目（一覧ごと置き換わる）で、品目ごとに `item_id` を持ちます（省くとサーバーが並び順から決める）
@@ -51,7 +51,7 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
   - 項目ごとに後勝ちで当てはめるので、項目の組み合わせ（左右のない部位 `abs`・`neck`・`waist` の左右、状態と直せた日、直せた日が痛めた日より前）は、同じ変更に両方の項目があるときだけ断ります。読む側（`sync_repository.py`）は、食い違った状態でも読みます（左右のない部位の左右は捨て、直せた日は `fixed` のときだけ使う）
   - ケガを消すときは、振り返りも一緒に消します（MCP の `delete_injury` は、ケガ → 振り返りの順に変更を書く）。振り返りの削除が届く前でも、消えたケガの振り返りは読みません
   - 版12までのアプリは、知らない種類として飛ばし、受け取りの位置だけ進めます。アプリにケガを足した版13では、レポートの版7と同じく、受け取りの位置を消してスナップショットを取り直します（下の「アプリの同期」）
-- フェーズ（`phase`）は、アプリだけが書きます（MCP は `list_phases`・`period_overview` で読むだけ。本人が宣言するもので、自動では始めない）。筋トレの scope（`training.*`）で扱います（新しい scope・表・キーは作らない）。上限と計算の決まりは `services/training/training/domain/phase.py`（アプリは `apps/mobile/lib/phases.ts`。`testdata/training/phases.json` で同じ結果を確かめる）
+- フェーズ（`phase`）は、アプリだけが書きます（MCP は `list_phases`・`period_overview` で読むだけ。本人が宣言するもので、自動では始めない）。筋トレの scope（`training.*`）で扱います（新しい scope・表・キーは作らない）。上限と計算の決まりは `services/training/training/domain/phase.py`（アプリは `apps/karada/lib/phases.ts`。`testdata/training/phases.json` で同じ結果を確かめる）
   - 項目：`kind`（`normal`・`rehab`）、`direction`（`bulk`・`cut`・`maintain`。通常だけ）、`name`（40字まで。空でもよい）、`start_date`、`end_date`（予定の終わり。開始日＋7×週数−1。療養で止まった日を含まない。療養は null）、`target_weight_kg`（通常だけ）、`meal_targets`（`training_day`・`rest_day` ごとの `kcal`・`protein_g`）、`snapshot`（開始時の `weight_kg`・`body_fat_pct`・`big3`〔`bench`・`squat`・`deadlift` の推定1RM〕・`growth_score`）、`status`（`active`・`ended`・`aborted`）、`paused_phase_id`（療養だけ：止めた通常のフェーズ）、`target_history`（目標と終了日の変更。最初の1件は開始日。`date`・`target_weight_kg`・`end_date`・`weight_kg`〔線の始まりの体重〕。100件まで、一覧ごと置き換わる）、`ended_on`（終えた・中断した日。この日は含まない）。create に要るのは `kind`・`start_date`・`status`
   - 2つの行にまたがる状態は持ちません（項目ごと・行ごとに後勝ちで当てはめるので、両方に持つと食い違う）。療養で止まっているか・時計のずれ（実際の終わり）は、療養の行の `paused_phase_id` と [`start_date`, `ended_on`) から読む側が求めます。通常のフェーズの `status` は、療養のあいだも `active` のままです
   - 同時に実施中は1つ、は書く側（アプリのリポジトリ）が確かめ、読む側は実施中が2つ以上あっても、開始日の新しいもの・記録の新しいもの・ID の大きいものを選びます（療養が実施中なら療養が今のフェーズ）
@@ -164,10 +164,10 @@ API の形は [docs/api/app-api.yaml](api/app-api.yaml)（OpenAPI）にありま
 - 1回のトランザクションに入れる変更は30件までで、それより多いとき（写真をまとめて記録したとき）は分けて書きます
 - MCP のツールの入力と出力、今のテストは変えません。今のテスト（リポジトリ・サービス・MCP のツール）は、同期の実装でも同じものを流しています（`services/meals/tests/sync/test_existing_suites.py`）
 
-## アプリの同期（apps/mobile）
+## アプリの同期（apps/karada）
 
 アプリは、筋トレ・種目・部位・体組成・設定（`body_part`・`exercise`・`workout_entry`・`workout_set`・`body_record`・`setting`）と、食事の5つの種類（`meal`・`meal_item`・`meal_template`・`nutrition_goal`・`day_type`。版3のマイグレーション）を同期します。体組成には、Health Connect から取り込んだ記録も入ります（版4）。Health Connect から取り込んだ睡眠（`sleep_session`。版5）と心拍の1日のまとめ（`heart_rate_day`。版6）と歩数の1日の合計（`step_day`。版11）も同期します（下の「Health Connect の取り込み」）。レポート（`report`）と食事の推定の根拠（`meals.basis`）は版7で足しました（下の「レポート」）。種目の体重に対する割合（`exercises.bodyweight_ratio`。回数だけの種目の自重の負荷量に使う）は版8で足しました（今までの種目は NULL のまま送らず、アプリとサーバーが同じ決まりで名前から決める）。種目の BIG3 の役（`exercises.big3`：`bench`・`squat`・`deadlift`）とフォームの動画のリンク（`exercises.form_video_url`）は版10で足しました（今までの種目は NULL のまま。役は、どの種目にもないあいだはアプリとサーバーが同じ決まりで名前から決め、画面で初めて役を変えたときに、名前で決めていたほかの役も保存して送る）。ケガ（`injury`）と振り返り（`injury_review`）は版13で足しました（表は `injuries`・`injury_reviews`。部位と左右、状態と直せた日は、片方だけ変えても組で update に入れる：`EntitySpec.together`。ケガを消すときは、同じトランザクションでケガ → 振り返りの順に消す。件数の上限はアプリも書くときに確かめる）。フェーズ（`phase`）は版15で足しました（表は `phases`。止めた通常のフェーズ `paused_phase_id` は同じ表を指すので、外部キーにも `refs` にもしない。履歴の列は NULL にしない）。体組成の筋肉率（`muscle_pct`）とウエスト（`waist_cm`）は版14で外しました（列と値を消し、その2つしか値のない手入力の行は消して delete を送る。サーバーは前の版のアプリが送っても断らずに捨てる。サーバーの今の状態と変更の記録に残っている値は、一度だけ動かす `services/training/scripts/drop_waist_muscle.py` で消す）。
-種類と端末の表の対応は `apps/mobile/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
+種類と端末の表の対応は `apps/karada/db/syncSpec.ts`、保存先は `db/repositories/sync.ts`、1回分の流れは `lib/sync/engine.ts`、いつ動かすかは `lib/sync/scheduler.ts` と `hooks/sync.tsx` にあります。
 
 ### 端末の変更の記録（outbox）
 
@@ -230,7 +230,7 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 - **睡眠**：Health Connect の `SleepSession` の1件を `sleep_sessions` の1行（`sleep_session`。版5）にします。`date` は起きた日（終わりの時刻の `zoneOffset` でのその土地の日付）、`asleep_min` は全体から段階の「起きていた・ベッドの外・ベッドで起きていた」を引いた分、`awake_min` はその引いた分です（段階がなければ全部を眠っていたとする）。段階の詳細は持ちません。24時間を超えるもの、終わりが始まりより前のものは取り込みません（サーバーも 0〜1440 分で確かめる）。手入力はなく、ほかの記録を指す項目（refs）もありません。体組成のタブに、その日の睡眠（合計と、いちばん長い睡眠の時刻）を小さく出します
 - **心拍**：サンプルそのものは持たず、送りません。`HeartRate` と `RestingHeartRate` の変更から、変わった記録の日（端末の暦の日付）を集め、その日を `aggregateRecord` で集計し直して `heart_rate_days` の1行（`heart_rate_day`。版6）を作るか直します。項目は `date`・`resting_bpm`（安静時心拍の平均）・`avg_bpm`・`min_bpm`・`max_bpm`・`samples`（サンプルの数）。ID は `uuid5(同じ名前空間, "hc-hr-day:" + 日付)` で、どの端末で集計しても同じ行になります。心拍も安静時心拍もなくなった日は消し、また記録があれば戻します（`restore`）。消えた記録は ID しか届かず、どの日のものか分からないので、過去30日を集計し直します。初めてのとき・トークンが切れたときは、記録を読まず（ウォッチの心拍は数が多いため）、その期間の日を集計します。値は 1〜300 拍/分で確かめます。refs なし。体組成のタブに、その日の心拍を小さく出します
 - **歩数**：1件ごとの記録は持たず、送りません。`Steps` の変更から変わった記録の日（端末の暦の日付）を集め、その日（0時〜24時）を `aggregateRecord` の `COUNT_TOTAL` で集計し直して `step_days` の1行（`step_day`。版11）を作るか直します。集計は、同じ時間をスマホとウォッチなど複数のアプリが書いたときの重なりを Health Connect が除いた合計です（記録を足し合わせると二重に数える）。項目は `date`・`steps`。ID は `uuid5(同じ名前空間, "hc-steps-day:" + 日付)`。記録がなくなった日（集計が 0）は消し、また記録があれば戻します。消えた記録・初めてのとき・トークンが切れたときの扱いは心拍と同じです。値は 1〜1,000,000（Health Connect の `StepsRecord` の1件の範囲。サーバーも同じ）で確かめ、外の日は取り込みません。版11では受け取りの位置を消しません（`step_day` はこの版の取り込みだけが作るので、前の版の端末が飛ばしたものはサーバーにない）。体組成のタブに、その日の歩数と直近7日を出します
-- **歩数の許可と前の APK**：`READ_STEPS` は `app.json` の `android.permissions` に足したので、前の APK の AndroidManifest にはありません。`runtimeVersion` は `fingerprint` なので、`app.json` を変えたこの JS は前の APK には配信されません（[eas.md](../apps/mobile/docs/eas.md#runtimeversion-の方針)）。それでも前の APK で動いたときに備え、権限を求めて失敗したら歩数を外して求め直し（`requestReadPermissions`）、許可のない型は読まないので、ほかの取り込みは止まりません。連携したあとに足した歩数の許可は、設定 → Health Connect の「歩数を許可する」で求めます（許可がないあいだ、からだのタブの歩数の行に「新しいアプリで許可すると取り込めます」と出す）
+- **歩数の許可と前の APK**：`READ_STEPS` は `app.json` の `android.permissions` に足したので、前の APK の AndroidManifest にはありません。`runtimeVersion` は `fingerprint` なので、`app.json` を変えたこの JS は前の APK には配信されません（[eas.md](../apps/karada/docs/eas.md#runtimeversion-の方針)）。それでも前の APK で動いたときに備え、権限を求めて失敗したら歩数を外して求め直し（`requestReadPermissions`）、許可のない型は読まないので、ほかの取り込みは止まりません。連携したあとに足した歩数の許可は、設定 → Health Connect の「歩数を許可する」で求めます（許可がないあいだ、からだのタブの歩数の行に「新しいアプリで許可すると取り込めます」と出す）
 - **消したもの**：Health Connect で消えた記録は、端末の行も消します（`delete`、`import`）。アプリで消した取り込みの行（体組成の画面の ×）は、Health Connect で直されても戻しません（同じ `external_id` の行が消えたまま残るため。サーバーでも、取り込みの `create` で消えた記録は戻らない）
 - **手入力が先**：1日の値は、項目ごとに手入力の記録（いちばん新しいもの）を使い、手入力がない項目だけ取り込みを使います（`lib/body.ts` の `dailyBodyValues`、サーバーの `daily_body_values`、`testdata/training/body.json`）。体組成の画面では、取り込みの値に「取り込み」の印を付けます。同じ記録の同じ項目を手（アプリ・MCP）で直した値も、サーバーで取り込みより強く当てはめるので、次の取り込みで負けません
 - **ログインの前の記録・アカウントを変えたとき**：`backfillOutbox` は、`source = 'health_connect'` の行を `import` で積みます。「端末の記録を消して受け取り直す」では、Health Connect のトークンと読んだ時刻も消し、次の取り込みで過去30日から読み直します。ログアウトではトークンを残します
@@ -242,10 +242,10 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 
 - 端末の表と列の名前は、同期の項目と同じです（`meals`・`meal_items`・`meal_templates`・`nutrition_goals`・`day_types`）。いつものの品目の一覧と目標の `targets` は、SQLite では JSON の文字列、API ではその値です（`db/syncSpec.ts` の `json`）
 - 品目（`meal_item`）は食事の中でだけ一意なので、端末の表は `(meal_id, id)` を主キーにし、outbox に `parent_id` を足しました（版3。品目の変更にだけ付け、送るときに `parent_id` に入れる）。`sync_seen`・`sync_held` では「食事の ID/品目の ID」で指します。食事が端末にないうちは、品目を `sync_held` に取っておきます
-- 一覧と合計に出す食事は、サーバー（`meal_from_doc`）と同じ決まりで選びます（`apps/mobile/lib/meals.ts` の `readableMeals`：消えた食事・品目がない食事は出さない、品目は並び順と ID の順）
+- 一覧と合計に出す食事は、サーバー（`meal_from_doc`）と同じ決まりで選びます（`apps/karada/lib/meals.ts` の `readableMeals`：消えた食事・品目がない食事は出さない、品目は並び順と ID の順）
 - 版2までの端末は、食事の状態を当てはめずに受け取りの位置だけ進めていました。版3のマイグレーションで受け取りの位置を消し、次の同期でスナップショットを1回取り直します（サーバーが正本で、消えたものも含めて全部返る。筋トレなどは、当てはめた `seq` より古い状態では上書きしない）
-- アプリ → MCP：アプリが送る食事の本文（`testdata/meals/app_push.json`。`apps/mobile/db/__tests__/meals.test.ts` が作る）を、pytest（`services/meals/tests/sync/test_app_push.py`）が本物の `SyncHttpApi` に送り、MCP の `list_meals`・`today_status`・`record_template` から見えることと、2回送っても二重にならないことを確かめます
-- 確かめ方：`testdata/meals/summaries.json` の変更を、サーバー（`services/meals/tests/test_shared_testdata.py`）が当てはめた状態（同じ項目は新しい方、削除が勝つ）と、そこからの1日のまとめ・週のふり返りを、アプリ（`apps/mobile/lib/__tests__/meals-shared.test.ts`、`db/__tests__/meals.test.ts`。端末に当てはめて読む）でも同じになることを確かめます
+- アプリ → MCP：アプリが送る食事の本文（`testdata/meals/app_push.json`。`apps/karada/db/__tests__/meals.test.ts` が作る）を、pytest（`services/meals/tests/sync/test_app_push.py`）が本物の `SyncHttpApi` に送り、MCP の `list_meals`・`today_status`・`record_template` から見えることと、2回送っても二重にならないことを確かめます
+- 確かめ方：`testdata/meals/summaries.json` の変更を、サーバー（`services/meals/tests/test_shared_testdata.py`）が当てはめた状態（同じ項目は新しい方、削除が勝つ）と、そこからの1日のまとめ・週のふり返りを、アプリ（`apps/karada/lib/__tests__/meals-shared.test.ts`、`db/__tests__/meals.test.ts`。端末に当てはめて読む）でも同じになることを確かめます
 
 ### レポート
 
@@ -258,10 +258,10 @@ Android の端末で、Health Connect から体組成（体重・体脂肪率・
 
 ### 確かめ方
 
-- 衝突の決まり：`testdata/sync/conflicts.json` を、サーバー（`services/training/tests/test_shared_sync_testdata.py`）と、アプリ（`apps/mobile/db/__tests__/sync-shared.test.ts`）で流します。アプリでは、偽のサーバー（`test-utils/fakeSyncServer.ts`。当てはめの決まりをサーバーと同じに書いたもの）と、端末を通したもの（端末の変更は端末の表を変えてトリガーで送り、最後に受け取った表を見る）の両方で、同じ結果になることを確かめます
+- 衝突の決まり：`testdata/sync/conflicts.json` を、サーバー（`services/training/tests/test_shared_sync_testdata.py`）と、アプリ（`apps/karada/db/__tests__/sync-shared.test.ts`）で流します。アプリでは、偽のサーバー（`test-utils/fakeSyncServer.ts`。当てはめの決まりをサーバーと同じに書いたもの）と、端末を通したもの（端末の変更は端末の表を変えてトリガーで送り、最後に受け取った表を見る）の両方で、同じ結果になることを確かめます
 - アプリ → MCP：アプリが送る本文（`testdata/sync/app_push.json`。jest が作る）を、pytest（`services/training/tests/test_app_sync.py`）が本物の `SyncHttpApi` に送り、MCP の `get_workout`・`list_exercises`・`body_progress` から見えることと、2回送っても二重にならないことを確かめます
-- MCP → アプリ：pytest が MCP の `record_workout`・`record_body`・`record_injury`・`add_injury_review` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/mobile/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます（ケガと振り返りは、版13のアプリのリポジトリから読めることを jest で、筋トレのタブの「ケガ」に出ることを E2E で確かめる）
-- アカウントが変わったとき：止める・送り直す・消して受け取り直すの決まりは jest（`apps/mobile/db/__tests__/sync.test.ts`）、確認の画面が出る流れだけを E2E（`e2e/sync.spec.ts`）で確かめます
+- MCP → アプリ：pytest が MCP の `record_workout`・`record_body`・`record_injury`・`add_injury_review` のあとの受け取りのページを `testdata/sync/mcp_pull.json` と比べ、jest と E2E（`apps/karada/e2e/sync.spec.ts`）が同じページを端末に当てはめて、画面に出ることを確かめます（ケガと振り返りは、版13のアプリのリポジトリから読めることを jest で、筋トレのタブの「ケガ」に出ることを E2E で確かめる）
+- アカウントが変わったとき：止める・送り直す・消して受け取り直すの決まりは jest（`apps/karada/db/__tests__/sync.test.ts`）、確認の画面が出る流れだけを E2E（`e2e/sync.spec.ts`）で確かめます
 - E2E は本物の API に当てず、`execute-api` への通信を偽のサーバーに向けます
 
 ## 今あるデータの移行

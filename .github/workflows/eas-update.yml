@@ -1,6 +1,6 @@
 name: eas-update
 
-# アプリ（apps/mobile）の JS の変更を、EAS Update で preview のチャンネルに配信する（apps/mobile/docs/eas.md）。
+# アプリ（apps/karada）の JS の変更を、EAS Update で preview のチャンネルに配信する（apps/karada/docs/eas.md）。
 # main への push で test のワークフローが通ったあとに動く。手動でも動かせる（main だけ）
 on:
   workflow_run:
@@ -37,7 +37,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: apps/mobile
+        working-directory: apps/karada
     steps:
       - name: EXPO_TOKEN があるかを確かめる
         id: token
@@ -46,7 +46,7 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::notice::environment expo に EXPO_TOKEN がまだないので、配信を飛ばします（apps/mobile/docs/eas.md）"
+            echo "::notice::environment expo に EXPO_TOKEN がまだないので、配信を飛ばします（apps/karada/docs/eas.md）"
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
@@ -77,9 +77,9 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # main には PR のマージコミットが入るので、1つ前（first parent）との差で apps/mobile の変更を見る
+          # main には PR のマージコミットが入るので、1つ前（first parent）との差で apps/karada の変更を見る
           if git diff --quiet HEAD^1 HEAD -- .; then
-            echo "::notice::apps/mobile に変更がないので飛ばします"
+            echo "::notice::apps/karada に変更がないので飛ばします"
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
@@ -89,7 +89,7 @@ jobs:
       - if: steps.target.outputs.ok == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: apps/mobile/.node-version
+          node-version-file: apps/karada/.node-version
 
       - if: steps.target.outputs.ok == 'true'
         uses: expo/expo-github-action@5273c2136bd09c2a341fe3340d3e767ce5a13015 # 9.0.2

@@ -1,6 +1,6 @@
 """ブラウザに出す画面（同意画面、プライバシーポリシー、エラー画面）。外部の CSS や JS は読み込まない。
 
-見た目はアプリ（apps/mobile/theme）と Cognito のマネージドログインのブランディング（cdk/lib/infra-stack.ts）に合わせる。
+見た目はアプリ（apps/karada/theme）と Cognito のマネージドログインのブランディング（cdk/lib/infra-stack.ts）に合わせる。
 CSS と JS はページに埋め込み、CSP（CONTENT_SECURITY_POLICY）でその中身のハッシュだけを許す。
 """
 
@@ -16,7 +16,7 @@ SCOPE_DESCRIPTIONS = {
     "training:write": "筋トレと体組成の記録を書く（追加・修正・削除）",
 }
 
-# 色・余白・角はアプリ（apps/mobile/theme/index.ts）と同じ値。ダークモードだけ（アプリとログイン画面と同じ）。
+# 色・余白・角はアプリ（apps/karada/theme/index.ts）と同じ値。ダークモードだけ（アプリとログイン画面と同じ）。
 # 余白は 8px 刻み、画面の左右は 16px、押せるものは 48px 以上。文字は地に対して 4.5:1 以上
 STYLE = """
 :root {
@@ -106,7 +106,7 @@ CONTENT_SECURITY_POLICY = "; ".join([
     "frame-ancestors 'none'",
 ])
 
-# アプリのアイコン（apps/mobile/assets/icon-src/icon.svg の写し）。飾りなので読み上げない
+# アプリのアイコン（apps/karada/assets/icon-src/icon.svg の写し）。飾りなので読み上げない
 ICON = """<svg viewBox="0 0 1024 1024" aria-hidden="true" focusable="false"><rect width="1024" height="1024" fill="#0E1013"/>\
 <g transform="translate(512 512) translate(-570 -512)"><path d="M330 250 V774 M570 250 L350 515 L570 774" \
 fill="none" stroke="#5BE49B" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>\
@@ -199,7 +199,7 @@ def render_privacy_page() -> str:    return _page("プライバシーポリシ�
 <p>このポリシーを変えるときは、このページで知らせます。</p>""")
 
 
-# アプリ（KARADA）の Android のパッケージ名と、独自の URL（apps/mobile/app.json の android.package と scheme）
+# アプリ（KARADA）の Android のパッケージ名と、独自の URL（apps/karada/app.json の android.package と scheme）
 APP_PACKAGE = "com.ykitaza.torelog"
 APP_SCHEME = "torelog"
 

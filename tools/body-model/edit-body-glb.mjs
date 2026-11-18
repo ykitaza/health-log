@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// 3D の体（apps/mobile/assets/models/body.glb）に、あとから入れた手直しを、元の GLB から同じように作り直すためのスクリプト。
+// 3D の体（apps/karada/assets/models/body.glb）に、あとから入れた手直しを、元の GLB から同じように作り直すためのスクリプト。
 // 依存なし（node だけ）。部品の名前・並び・頂点の数と並び（皮膚）・材質のない作りはそのまま。
 //
 //   node tools/body-model/edit-body-glb.mjs <入力の body.glb> <出力の body.glb>
 //
 // 入力は、手直しの前の body.glb（git の 2f6f7cc の apps/mobile/assets/models/body.glb）。
-// 何をするかは apps/mobile/assets/models/README.md の「手を入れたこと」にも書く。
+// 何をするかは apps/karada/assets/models/README.md の「手を入れたこと」にも書く。
 //
 // 1. 皮膚（skin）の性器をなくす：股の前の範囲（GENITALS）の頂点だけを動かし、まわりの皮膚は動かさずに、
 //    範囲の中を「曲がり方がいちばん少ない面」（双調和の面。範囲の外の 2 周の頂点が縁の形と傾きを決める）に置き直す。

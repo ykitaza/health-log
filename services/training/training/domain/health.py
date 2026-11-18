@@ -1,5 +1,5 @@
 """睡眠・心拍・歩数のまとめ（アプリが Health Connect から取り込んだものを読むだけ）。アプリの体組成のタブと同じ選び方にする
-（apps/mobile/db/repositories/health.ts）：睡眠は起きた日ごとに足し、寝た時刻・起きた時刻はいちばん長い睡眠のもの。"""
+（apps/karada/db/repositories/health.ts）：睡眠は起きた日ごとに足し、寝た時刻・起きた時刻はいちばん長い睡眠のもの。"""
 
 from __future__ import annotations
 

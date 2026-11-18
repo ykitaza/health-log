@@ -1,4 +1,4 @@
-"""BIG3（ベンチプレス・スクワット・デッドリフト）の役と種目の対応。アプリ（apps/mobile/lib/exercises.ts）と同じ結果になるようにする
+"""BIG3（ベンチプレス・スクワット・デッドリフト）の役と種目の対応。アプリ（apps/karada/lib/exercises.ts）と同じ結果になるようにする
 （testdata/training/big3.json で確かめる）。
 
 - 種目の big3（bench・squat・deadlift）で決める。1つの役は1つの種目だけ（アプリが前の種目から外して送る）。

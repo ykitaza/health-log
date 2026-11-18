@@ -57,7 +57,7 @@ MCP の仕様は、クライアント（Claude・ChatGPT）を事前登録せず
 - 食事・筋トレ・レポートは、互いを import しません。レポートは記録の数字を読まず、AI が記録のツールで読んで書いたものを保存するだけです。またぐもの（筋トレの日、アプリの最後の同期の時刻）は、使う側のポートを組み立てがつなぎます（下の「MCP サーバーの組み立て」）
 - 食事の MCP が変更の記録を通して書く処理は、食事の `meals/infrastructure/sync_repositories.py` に、筋トレの分は `training/infrastructure/sync_repository.py` にあります（同期の部品を使う）
 - 食事・筋トレ・レポート・同期を組み合わせるのは、2つの組み立て（`services/app_api/main.py`、`services/mcp/main.py`）だけです
-- 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/mobile/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
+- 筋トレの計算（推定1RM、負荷量、週ごとの集計、体組成）は、アプリ（`apps/karada/lib/`）と同じ結果になるようにし、入力と期待する結果を `testdata/training/*.json` に置いて、pytest とアプリの jest の両方で確かめます
 
 - 本人確認 → 認可：`services/authorization/infrastructure/cognito_login.py`（腐敗防止層、Authlib）が IDトークンを `Subject` に変えます
 - 認可 → MCP の入口：受け渡すのはアクセストークン（JWT）だけです。MCP の入口（`services/mcp/connector/access_token_verifier.py`）は、認可API の iss と JWKS を手で設定して信じます
@@ -87,18 +87,18 @@ Claude・ChatGPT のコネクタは1つ（URL は `MealsMcpServerUrl` のまま�
 - **種目の名前**：名前の完全一致（全角半角・大文字小文字・空白は同じに扱う）か ID でだけ選びます。「ベンチ」のような略した名前は、候補（「ベンチプレス」など）を添えて断り、AI に選び直させます（違う種目を推測で選んで記録が混ざるのを防ぐため）
 - **種目の変更（`update_exercise`）**：名前・部位を変える、隠す（`hidden`）・表示に戻すを1つのツールで行います。記録（`workout_entry`）は種目の ID でつながっているので、過去の記録・推移・週のふり返りも新しい名前と部位で出ます。同じ部位に同じ名前は断ります（`add_exercise` と同じく、比べる形で）。部位を変えたら、新しい部位の最後に並べます。種目を消すツールは作りません（過去の記録を残すため、代わりに隠す）。記録のしかた（`record_type`）は、今のセットと合わなくなるので変えられません
   - 初期の種目で、同期にまだ届いていないもの（アプリが送っていない）は、変えた項目だけを `update` で送ります。変えていない項目まで今の時刻で書くと、アプリがまだ送っていない変更（例：隠した）に、項目ごとの当てはめで勝ってしまうためです
-  - アプリでは、種目と部位の管理の画面で種目を押すと、編集の画面（`apps/mobile/app/exercises/[id].tsx`：名前・部位・選択に表示するか）が開きます。部位の名前は、管理の画面の部位の名前の横の鉛筆から変えます
-- **自重の種目の負荷量**：回数だけ（`reps_only`）の種目も総負荷量に入れます。セットごとに、その日の体重 × 種目の割合（`exercise.bodyweight_ratio`、0〜1）× 回数です（`training/domain/bodyweight.py`、アプリは `apps/mobile/lib/bodyweight.ts`。`testdata/training/bodyweight.json` で両方を確かめる）
+  - アプリでは、種目と部位の管理の画面で種目を押すと、編集の画面（`apps/karada/app/exercises/[id].tsx`：名前・部位・選択に表示するか）が開きます。部位の名前は、管理の画面の部位の名前の横の鉛筆から変えます
+- **自重の種目の負荷量**：回数だけ（`reps_only`）の種目も総負荷量に入れます。セットごとに、その日の体重 × 種目の割合（`exercise.bodyweight_ratio`、0〜1）× 回数です（`training/domain/bodyweight.py`、アプリは `apps/karada/lib/bodyweight.ts`。`testdata/training/bodyweight.json` で両方を確かめる）
   - 体重は体組成の日ごとの値（手入力を先に、なければ Health Connect の取り込み）。その日になければ、その前のいちばん近い日（30日以内）。それもなければ、その日の自重の分は入れず、アプリは「体重の記録がないので自重の種目は入っていません」、MCP は `note` で知らせます
   - 負荷量は保存せず、読むたびに計算します。体重や割合を直すと、過去の記録の総負荷量も変わります
   - 割合を持たない種目（割合を足す前の種目、割合を省いて足した種目）は、名前から決めます：懸垂・チンニング 1、ディップス 0.95、スクワット（自重）0.7、腕立て伏せ 0.65、膝つき腕立て 0.5、腹筋（クランチ・レッグレイズ・アブローラーなど）0.3、プランク 0（入れない）、それ以外 0.65。初期の種目は割合を持たず、名前から決めます。アプリも版8のマイグレーションで列を足すだけで、今までの種目は NULL（読むときに同じ決まりで名前から決める）にしています（入れたばかりの端末に初期の種目の変更を送らせないため、また値を入れて送らないと名前を変えたときに食い違うため）。アプリの種目の追加・編集の画面で割合を保存すると、その値を送ります（編集で保存すると、名前を変えても割合はそのまま）
   - 推定1RM と自己ベストは、今までどおり重量のあるセットだけで出します
 - **BIG3 の役**：種目に BIG3 の役（`exercise.big3`：`bench`・`squat`・`deadlift`）を持たせます。アプリの種目の追加・編集で選び、1つの役は1つの種目だけです（別の種目に付けると、前の種目から外す）。筋トレの推移の「BIG3 の推定1RM（合計）」と、名前の横の「BIG3」の印に使います
-  - どの種目にも役がないあいだは、名前で決めます：名前に「ベンチプレス」「スクワット」「デッドリフト」を含み、インクライン・ダンベル・ルーマニアン・ブルガリアンなど別の種目を表す言葉を含まない、表示中の重量×回数の種目（いくつもあれば、名前がちょうど同じもの、短いもの、ID の小さいもの）。アプリ（`apps/mobile/lib/exercises.ts`）とサーバー（`training/domain/big3.py`）で同じ決まりにし、`testdata/training/big3.json` で両方を確かめます
+  - どの種目にも役がないあいだは、名前で決めます：名前に「ベンチプレス」「スクワット」「デッドリフト」を含み、インクライン・ダンベル・ルーマニアン・ブルガリアンなど別の種目を表す言葉を含まない、表示中の重量×回数の種目（いくつもあれば、名前がちょうど同じもの、短いもの、ID の小さいもの）。アプリ（`apps/karada/lib/exercises.ts`）とサーバー（`training/domain/big3.py`）で同じ決まりにし、`testdata/training/big3.json` で両方を確かめます
   - 名前で決めた役は保存しません（初期の種目の変更を送らないため。割合と同じ）。アプリで初めて役を変えたときに、名前で決めていたほかの役も保存して送ります（保存した役が1つでもあると、名前では決めないため）。端末どうしの同期で同じ役が2つの種目に付いたときは、ID の小さいほうを使います
   - MCP の `list_exercises` は、役のある種目に `big3` を付けます（名前で決めた役も）。MCP からは変えません
 - **フォームの動画のリンク**：種目に `exercise.form_video_url`（`https://` で始まり空白を含まない、2000文字まで）を持たせます。アプリの種目の追加・編集で入れ、記録の入力の画面の右上の「フォーム」で外のアプリ（YouTube など）を開きます。MCP の `list_exercises` は、リンクのある種目に `form_video_url` を付けます
-- **初期の部位と種目**：アプリ（`apps/mobile/db/seed.ts`）と同じ固定の ID で、筋トレのドメイン（`training/domain/catalog.py`）にも持ちます。アプリがまだ同期で送っていなくても、MCP から同じ ID で記録できるようにするためです（同じ内容かはテストで確かめる）
+- **初期の部位と種目**：アプリ（`apps/karada/db/seed.ts`）と同じ固定の ID で、筋トレのドメイン（`training/domain/catalog.py`）にも持ちます。アプリがまだ同期で送っていなくても、MCP から同じ ID で記録できるようにするためです（同じ内容かはテストで確かめる）
 
 ## 認可API の作り
 
@@ -132,7 +132,7 @@ OAuth の中心は、保守されているライブラリに任せて、自分�
 | `services/sync/` | 同期の共通の部品（パッケージ `sync`）。変更の記録、当てはめ、冪等、カーソル、DynamoDB、同期の API の入口 |
 | `services/app_api/` | スマホアプリ用の Lambda の組み立て（`main.py`）。同期の入口に、食事と筋トレの種類とルートを登録する |
 | `services/composition/` | 組み立ての場所（`services/mcp` と `services/app_api`）が共有するもの。同期で扱う種類の登録（`create_registry`） |
-| `apps/mobile/` | 筋トレのアプリ（KARADA、Expo）。今は端末の SQLite だけで動く（下の「筋トレのアプリとの関係」、[apps/mobile/README.md](../apps/mobile/README.md)） |
+| `apps/karada/` | 筋トレのアプリ（KARADA、Expo）。今は端末の SQLite だけで動く（下の「筋トレのアプリとの関係」、[apps/karada/README.md](../apps/karada/README.md)） |
 | `testdata/training/` | 筋トレの計算の、入力と期待する結果（サーバーとアプリで共有） |
 | `cdk/` | AWS の構成（CDK）。Cognito（新規登録は不可、パスキー、認可API 用とスマホアプリ用のクライアント）、Lambda 3つ（入口は API Gateway の HTTP API、流量の制限付き）、DynamoDB 2つ、SSM パラメータ。監視（[monitoring.md](monitoring.md)） |
 | `tools/inspector/` | MCP Inspector 用の CIMD の文書（PC で MCP サーバーを試すとき） |
@@ -307,13 +307,13 @@ Cognito から消したパスキーは、端末に残っていても、もうロ
 | scope | `openid`、`torelog-api/meals.read`・`meals.write`・`training.read`・`training.write` | アプリ用の API のルートで必須にし、ID トークンや認可API 用のクライアントのトークンを断る |
 
 scope はリソースサーバー `torelog-api` に置き、名前は「対象.操作」にして、食事（`meals.*`）と筋トレ（`training.*`）を分けています（MCP の認可API の scope `meals:read` とは別の名前空間です）。
-アプリの側（`apps/mobile/lib/auth/`、`hooks/auth.tsx`、`app/account.tsx`）：
+アプリの側（`apps/karada/lib/auth/`、`hooks/auth.tsx`、`app/account.tsx`）：
 
 - ログインは任意で、設定の画面から入ります。expo-auth-session（PKCE・state）で認可の画面を Chrome Custom Tabs に開き、毎回 `prompt=login` を付けます
 - アプリが求める scope は `torelog-api/` の4つだけです（ID トークンもユーザー情報も使わないので、`openid` は求めない）
 - **カスタムスキームの横取りの対策**：マネージドログインは、画面でログインすると、ブラウザにセッションの Cookie を置きます。Cookie は1時間有効で、Cookie でのログインでは延びません（[AWS の資料](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-managed-login.html)の「The one-hour managed login and hosted UI session cookie」）。そのあいだ、同じ端末で `torelog://` を登録した別のアプリが、自分の PKCE で `/oauth2/authorize` を開くと、画面なしでコードを受け取り、トークンに換えられます（`prompt=login` は正規のアプリの要求にしか付かない）。そこで、認可コードをトークンに換えたあと（うまくいってもいかなくても）、同じ Custom Tabs で `/logout`（`client_id`、`logout_uri=torelog://signout`）を開いて Cookie を消します。`/logout` はすぐ `torelog://signout` に戻すので、利用者の操作は増えません。根本の対策（https の戻り先と Android App Links）は、まだ入れていません
 - トークンは expo-secure-store に置き、自動バックアップから外します。アクセストークンは切れる1分前から更新し、リフレッシュトークンが切れていたら、ログインしていない状態に戻します。ログアウトでは端末のトークンを消してから `/oauth2/revoke` を呼びます
-- ログインしたら同期を始めます。つながったかどうかは、アカウントの画面の同期の表示（最後に同期した時刻、エラー）で分かります。本人の情報を返すルートは足していません（API とインフラを変えずに済むため）。同期の仕組みは [sync-design.md](sync-design.md#アプリの同期appsmobile)
+- ログインしたら同期を始めます。つながったかどうかは、アカウントの画面の同期の表示（最後に同期した時刻、エラー）で分かります。本人の情報を返すルートは足していません（API とインフラを変えずに済むため）。同期の仕組みは [sync-design.md](sync-design.md#アプリの同期appskarada)
 
 アプリが使う値（issuer、クライアント ID、Cognito のドメイン、API の URL）は、`cdk deploy` の出力（`CognitoIssuer`・`AppClientId`・`CognitoDomain`・`AppApiUrl`）と SSM パラメータ（`/cognito-study/app/*`）にあります。どれも秘密ではありません。
 
@@ -339,7 +339,7 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 
 ## 筋トレのアプリとの関係
 
-筋トレのアプリ（KARADA、`apps/mobile/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。アプリでログインすると、同期でつながります。
+筋トレのアプリ（KARADA、`apps/karada/`）と MCP は、同じ人の筋トレと体組成の記録を扱います。アプリでログインすると、同期でつながります。
 
 | 段階 | アプリ | サーバー |
 |---|---|---|
@@ -348,6 +348,6 @@ Claude・ChatGPT ──アクセストークン（認可API）──► HTTP API
 
 - 記録の置き場所は、アプリから送られた分も MCP から書いた分も、食事のテーブル（`MealsTable`）の同期の項目（`SYNC#…`）です。どちらの変更も同じ「変更の記録」を通るので、同期でもう一方に届きます（[sync-design.md](sync-design.md)）
 - 同じ人かどうかは、Cognito の `sub` で決まります（上の「スマホアプリ（KARADA）のログイン」）
-- 計算（総負荷量、推定1RM、自己ベスト、体組成）は、アプリの `apps/mobile/lib/` と筋トレのドメインで同じ式にし、`testdata/training/*.json` で両方を確かめます
-- 初期の部位と種目は、アプリの `apps/mobile/db/seed.ts` と同じ固定の ID です（上の「MCP サーバーの組み立て」）
-- アプリの表の列（ID、作成・更新の時刻、論理削除）は、同期の対象の項目と同じにしています（`apps/mobile/db/migrations.ts`）
+- 計算（総負荷量、推定1RM、自己ベスト、体組成）は、アプリの `apps/karada/lib/` と筋トレのドメインで同じ式にし、`testdata/training/*.json` で両方を確かめます
+- 初期の部位と種目は、アプリの `apps/karada/db/seed.ts` と同じ固定の ID です（上の「MCP サーバーの組み立て」）
+- アプリの表の列（ID、作成・更新の時刻、論理削除）は、同期の対象の項目と同じにしています（`apps/karada/db/migrations.ts`）

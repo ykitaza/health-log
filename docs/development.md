@@ -17,17 +17,17 @@ MCP Inspector で試すときの CIMD の文書は `tools/inspector/` にあり�
 ```sh
 for s in authorization meals sync training app_api mcp; do (cd services/$s && uv run pytest); done
 (cd cdk && npm ci && npx tsc --noEmit && npm test)
-(cd apps/mobile && npm ci && npx tsc --noEmit && npx jest)   # testdata/training/*.json で、アプリの計算がサーバーと同じかも確かめる
+(cd apps/karada && npm ci && npx tsc --noEmit && npx jest)   # testdata/training/*.json で、アプリの計算がサーバーと同じかも確かめる
 ```
 
-アプリの画面の E2E テストは [apps/mobile/e2e/README.md](../apps/mobile/e2e/README.md) にあります。
+アプリの画面の E2E テストは [apps/karada/e2e/README.md](../apps/karada/e2e/README.md) にあります。
 GitHub Actions（`.github/workflows/test.yml`）が同じテストと E2E を動かします。PR では変わった部分のジョブだけを、main への push と手での起動では全部を動かします。
 
 ## フォルダごとの開発
 
 | フォルダ | 見るもの |
 |---|---|
-| `apps/mobile/` | 動かし方、テスト、依存の更新：[apps/mobile/README.md](../apps/mobile/README.md) |
+| `apps/karada/` | 動かし方、テスト、依存の更新：[apps/karada/README.md](../apps/karada/README.md) |
 | `cdk/` | 型チェック、テスト、差分、デプロイのコマンド：[cdk/README.md](../cdk/README.md) |
 | `services/` | 層とフォルダの中身：[全体の設計のフォルダ](design.md#フォルダ) |
 

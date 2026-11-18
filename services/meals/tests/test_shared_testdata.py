@@ -1,4 +1,4 @@
-"""アプリ（apps/mobile/lib/__tests__/meals-shared.test.ts）と同じテストのデータ（testdata/meals/*.json）で確かめる。
+"""アプリ（apps/karada/lib/__tests__/meals-shared.test.ts）と同じテストのデータ（testdata/meals/*.json）で確かめる。
 
 summaries.json：アプリから届く変更（changes）を同期の仕組みで当てはめ、
 - 当てはめたあとの状態（states。同じ項目は新しい方、削除が勝つ）が、アプリが受け取る状態と同じ

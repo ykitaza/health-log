@@ -1,6 +1,6 @@
 """アプリと MCP が、同期を通して同じ記録を見ること（testdata/sync の app_push.json・mcp_pull.json）。
 
-- アプリ → MCP：アプリが送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る app_push.json。Health Connect の取り込みも含む）を、
+- アプリ → MCP：アプリが送る本文（apps/karada/db/__tests__/sync-shared.test.ts が作る app_push.json。Health Connect の取り込みも含む）を、
   アプリ用の API（SyncHttpApi）に送り、MCP のツール（get_workout など）から見えることを確かめる。同じ本文を2回送っても二重にならない
 - MCP → アプリ：MCP のツールで記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes）が返すページを、
   mcp_pull.json と比べる（ID は置き換える）。アプリの jest が同じファイルを端末に当てはめて、画面から見えることを確かめる。
@@ -174,7 +174,7 @@ def test_MCP_で記録したものを_アプリが受け取るページ(app_api,
             "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成、ケガ（右の三角筋（前））とその振り返りを"
                            "記録したあと、アプリ用の API の受け取り"
                            "（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。"
-                           "services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
+                           "services/training/tests/test_app_sync.py が作り、apps/karada/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
             "page": page,
         }, ensure_ascii=False, indent=2) + "\n")
     assert page == json.loads(path.read_text())["page"]

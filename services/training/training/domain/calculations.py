@@ -1,4 +1,4 @@
-"""筋トレの計算。アプリ（apps/mobile/lib/training.ts・date.ts）と同じ結果になるようにする。
+"""筋トレの計算。アプリ（apps/karada/lib/training.ts・date.ts）と同じ結果になるようにする。
 
 同じ入力と期待する結果を testdata/training/ の JSON に置き、ここの pytest とアプリの jest の両方で確かめる。
 足し算の順番もアプリと同じ（行の順）にして、小数の誤差まで同じにする。

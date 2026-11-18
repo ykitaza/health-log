@@ -512,7 +512,7 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: アプリでは40文字まで（apps/mobile/lib/limits.ts）
+          description: アプリでは40文字まで（apps/karada/lib/limits.ts）
         sort_order:
           type: integer
           minimum: 0
@@ -533,7 +533,7 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: アプリでは40文字まで（apps/mobile/lib/limits.ts）
+          description: アプリでは40文字まで（apps/karada/lib/limits.ts）
         record_type:
           type: string
           enum:

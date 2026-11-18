@@ -1,7 +1,7 @@
 # サーバーの CD（GitHub Actions からのデプロイ）
 
 サーバーのスタック（`CognitoStudy`、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`）を、GitHub Actions（`.github/workflows/deploy.yml`）からデプロイします。
-初めてのときの手でのデプロイと、スタックの片付けもここに書きます。アプリの配信は [apps/mobile/docs/eas.md](../apps/mobile/docs/eas.md) にあります。
+初めてのときの手でのデプロイと、スタックの片付けもここに書きます。アプリの配信は [apps/karada/docs/eas.md](../apps/karada/docs/eas.md) にあります。
 
 ## 流れ
 
@@ -107,7 +107,7 @@ AWS_PROFILE=yuki npx cdk deploy CognitoStudyCiCd
 
 ## アプリの配信
 
-アプリは EAS Build で APK を作り、JS の変更は EAS Update で配信します（Play ストアには出しません）。main の test が通ったあと、`apps/mobile/` が変わっていれば配信します（[EAS の手順](../apps/mobile/docs/eas.md)）。
+アプリは EAS Build で APK を作り、JS の変更は EAS Update で配信します（Play ストアには出しません）。main の test が通ったあと、`apps/karada/` が変わっていれば配信します（[EAS の手順](../apps/karada/docs/eas.md)）。
 
 ## 片付け
 

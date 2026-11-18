@@ -1,6 +1,6 @@
 """アプリと MCP が、次の一歩のチェック（レポートの next_steps_done）を同じ形で扱うこと（testdata/sync/report_checks.json）。
 
-アプリの jest（apps/mobile/db/__tests__/reports.test.ts）は、同じ report を端末に受け取り、checks をチェックしたときに送る変更が
+アプリの jest（apps/karada/db/__tests__/reports.test.ts）は、同じ report を端末に受け取り、checks をチェックしたときに送る変更が
 app_change と同じになることを確かめる。ここでは、その変更を本物のアプリ用の API（SyncHttpApi）に送り、
 週のまとめの材料の previous_next_steps（MCP の weekly_review・period_overview が返す）に出ることを確かめる。
 """

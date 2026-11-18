@@ -1,6 +1,6 @@
 """食事の目標（筋トレの日・休みの日の kcal と PFC）を、体のデータから自動で計算する（Claude に数字を考えさせないため）。
 
-アプリ（apps/mobile/lib/autoGoal.ts）と同じ式・定数・丸めにする（testdata/meals/auto_goal.json で、同じ入力で同じ数字になることを確かめる）。
+アプリ（apps/karada/lib/autoGoal.ts）と同じ式・定数・丸めにする（testdata/meals/auto_goal.json で、同じ入力で同じ数字になることを確かめる）。
 数字は一般的な目安で、医療のための計算ではない。保存はしない（本人が案を見て決めてから保存する）。
 
 1. 基礎代謝（BMR）：直近の体脂肪率があれば Katch-McArdle（370 + 21.6 × 除脂肪体重）。なければ Mifflin-St Jeor

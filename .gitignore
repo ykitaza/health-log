@@ -2,8 +2,8 @@
 __pycache__/
 *.py[oc]
 build/
-# EAS のカスタムビルドの設定（apps/mobile/eas.json の config）は置く場所が決まっているので、追跡する
-!apps/mobile/.eas/build/
+# EAS のカスタムビルドの設定（apps/karada/eas.json の config）は置く場所が決まっているので、追跡する
+!apps/karada/.eas/build/
 dist/
 wheels/
 *.egg-info
@@ -19,4 +19,4 @@ wheels/
 .session-secret
 
 # 使わなくなったコードの署名の鍵を誤ってコミットしないため
-apps/mobile/keys/
+apps/karada/keys/

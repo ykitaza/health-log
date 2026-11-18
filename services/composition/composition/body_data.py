@@ -3,7 +3,7 @@
 - 体重・体脂肪率：筋トレの体組成の日ごとの値（その日の手入力のいちばん新しい値。手入力がなければ Health Connect の取り込み。
   アプリの dailyBodyValues と同じ）
 - 身長・目標体重・活動の量：アプリの設定（同期の setting。ID は height_cm・goal_weight_kg・activity_level）。
-  読み方はアプリ（apps/mobile/db/repositories/settings.ts）と同じで、数でない値や知らない活動の量は、ないものとする
+  読み方はアプリ（apps/karada/db/repositories/settings.ts）と同じで、数でない値や知らない活動の量は、ないものとする
 性別と生まれた年はアプリの端末の中だけにあり、ここでは読まない。
 
 今週の目標（レポートの材料。MCP の period_overview が返す）も、同じアプリの設定から読む（weekly_goals）。

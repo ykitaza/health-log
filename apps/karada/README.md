@@ -61,7 +61,7 @@
 Node の版は `.node-version` で決めています。[fnm](https://github.com/Schniz/fnm) で合わせます。
 
 ```sh
-cd apps/mobile
+cd apps/karada
 fnm install && fnm use   # .node-version の版を入れて使う
 npm ci
 npx expo start
@@ -90,7 +90,7 @@ Cognito のマネージドログイン（MCP と同じユーザーのパスキ�
 
 ## 同期
 
-設計は [docs/sync-design.md](../../docs/sync-design.md#アプリの同期appsmobile) にあります。
+設計は [docs/sync-design.md](../../docs/sync-design.md#アプリの同期appskarada) にあります。
 
 - 記録・編集・削除のたびに、表のトリガーが `sync_outbox` に変更を積む（`db/syncSpec.ts`、`db/migrations.ts` の版2）。ログインの前の記録も、版2のマイグレーションで積む
 - ログインしているときだけ、起動・前面に戻ったとき・保存のあと（3秒まとめる）・アカウントの画面の「今すぐ同期」で、送る → 受け取る → 当てはめる（`lib/sync/engine.ts`、`lib/sync/scheduler.ts`、`hooks/sync.tsx`）
@@ -120,7 +120,7 @@ CI（`.github/workflows/test.yml`）では、型チェック・lint・jest・E2E
 
 EAS Build で APK を作って Pixel に入れ、JS の変更は EAS Update で配信します（Play ストアには出しません）。設定の中身と、Expo のアカウントの作り方からの手順は [docs/eas.md](docs/eas.md) にあります。
 
-- `.github/workflows/eas-update.yml`：main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` のチャンネルに配信する
+- `.github/workflows/eas-update.yml`：main の test が通ったあと、`apps/karada/` が変わっていれば `preview` のチャンネルに配信する
 - `.github/workflows/eas-build.yml`：手動で APK を作る（ネイティブを変えたとき）
 
 ## フォルダの構成

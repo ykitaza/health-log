@@ -20,7 +20,7 @@ KARADA を、Expo の EAS（Expo Application Services）で APK にして、自�
 | `eas.json` | `development` | 開発用のアプリ KARADA (dev)。PC の Metro につなぐ開発ビルド・内部配信（[dev-client.md](dev-client.md)） |
 | `eas.json` | `cli.version`：`>= 27.5.0` | 確かめた EAS CLI の版より古いものでは動かさない |
 | `eas.json` | `cli.appVersionSource`：`remote` | `versionCode` を Expo のサーバーで数え、`preview` のビルドのたびに1つ上げる（`autoIncrement`）。公式が勧める方法 |
-| `.github/workflows/eas-update.yml` | JS の配信 | main の test が通ったあと、`apps/mobile/` が変わっていれば `preview` に配信する |
+| `.github/workflows/eas-update.yml` | JS の配信 | main の test が通ったあと、`apps/karada/` が変わっていれば `preview` に配信する |
 | `.github/workflows/eas-build.yml` | APK のビルド | 手動で動かす |
 
 `production` のプロファイルは作っていません。公式では、`production` はストアに出すためのもので、既定で AAB（ストアからしか入れられない形式）になります。ストアに出さないので要りません。
@@ -45,7 +45,7 @@ KARADA を、Expo の EAS（Expo Application Services）で APK にして、自�
 ### 2. CLI でログインする
 
 ```sh
-cd apps/mobile
+cd apps/karada
 npx eas-cli login
 npx eas-cli whoami   # ログインできたかを確かめる
 ```
@@ -54,7 +54,7 @@ npx eas-cli whoami   # ログインできたかを確かめる
 
 ```sh
 git switch -c eas-init
-cd apps/mobile
+cd apps/karada
 npx eas-cli init               # Expo にプロジェクトを作り、app.json の extra.eas.projectId に ID を書く
 npx eas-cli update:configure   # app.json の updates.url に https://u.expo.dev/<projectId> を書く
 git diff                       # 下の3つだけが変わっているかを確かめる
@@ -75,7 +75,7 @@ git diff                       # 下の3つだけが変わっているかを確�
 ### 4. 最初の APK を作る
 
 ```sh
-cd apps/mobile
+cd apps/karada
 npx eas-cli build --profile preview --platform android
 ```
 
@@ -122,8 +122,8 @@ Expo のダッシュボードの [Access tokens](https://expo.dev/settings/acces
 | JS・画像だけ（画面、計算など） | PR を main に入れるだけ。test が通ると `eas-update` のワークフローが `preview` に配信する。Pixel でアプリを2回起動し直すと入る（1回目の起動で取ってきて、次の起動で使う） |
 | ネイティブ（ライブラリを足す、`npx expo install --fix` で SDK を上げる、`app.json` のネイティブの設定） | main に入れたあと、GitHub の Actions → `eas-build` → Run workflow（main）で APK を作り、手順5と同じように入れる。上書きで入るので、記録は消えない |
 
-- `eas-update` は、手動でも動かせます（Actions → `eas-update` → Run workflow。main だけ）。そのときは `apps/mobile/` が変わったかを見ずに配信します
-- 自動の配信は、main の最新のコミットとその1つ前（first parent）の差で `apps/mobile/` の変更を見ます。PR のマージコミットなら PR の全部の変更が入ります。いくつものコミットを main に直接 push したときは最後のコミットだけを見るので、漏れたら手動で動かします
+- `eas-update` は、手動でも動かせます（Actions → `eas-update` → Run workflow。main だけ）。そのときは `apps/karada/` が変わったかを見ずに配信します
+- 自動の配信は、main の最新のコミットとその1つ前（first parent）の差で `apps/karada/` の変更を見ます。PR のマージコミットなら PR の全部の変更が入ります。いくつものコミットを main に直接 push したときは最後のコミットだけを見るので、漏れたら手動で動かします
 - ネイティブを変えたかどうかが分からないときは、`npx expo-doctor` のあとに APK を作り直せば確実です。作り直さなくても、`fingerprint` のおかげで合わない JS は届きません
 
 ## 気をつけること

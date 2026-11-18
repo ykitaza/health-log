@@ -1,5 +1,5 @@
 {
-  "description": "体組成の計算（apps/mobile/lib/body.ts と同じ）",
+  "description": "体組成の計算（apps/karada/lib/body.ts と同じ）",
   "bmi": [
     {
       "weight_kg": 70,

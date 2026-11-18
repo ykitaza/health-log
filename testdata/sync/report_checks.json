@@ -1,5 +1,5 @@
 {
-  "description": "次の一歩のチェック（レポートの next_steps_done）。アプリ（apps/mobile/db/__tests__/reports.test.ts）は report を受け取り、ホームと同じ操作で checks の番号をチェックして、送る変更が app_change と同じになることを確かめる。サーバー（services/reports/tests/test_shared_report_checks.py）は report を MCP で保存し、app_change を本物のアプリ用の API に送り、前の週の次の一歩（MCP の previous_next_steps）が previous_next_steps と同じになることを確かめる",
+  "description": "次の一歩のチェック（レポートの next_steps_done）。アプリ（apps/karada/db/__tests__/reports.test.ts）は report を受け取り、ホームと同じ操作で checks の番号をチェックして、送る変更が app_change と同じになることを確かめる。サーバー（services/reports/tests/test_shared_report_checks.py）は report を MCP で保存し、app_change を本物のアプリ用の API に送り、前の週の次の一歩（MCP の previous_next_steps）が previous_next_steps と同じになることを確かめる",
   "report_id": "6c0f3b9e-2a41-4d7e-9b25-3f8a1c7d5e60",
   "report": {
     "title": "今週のまとめ",
