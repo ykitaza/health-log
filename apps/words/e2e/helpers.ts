@@ -17,29 +17,29 @@ export const button = (scope: Page | Locator, name: string | RegExp) =>
 export const byTest = (page: Page, id: string) => page.getByTestId(id).filter({ visible: true });
 export const see = (page: Page, text: string | RegExp) => page.getByText(text, { exact: typeof text === 'string' }).filter({ visible: true });
 
-/** 初めの画面で「ログインせずに使う」を選んで、書き留めるを開く */
+/** 初めの画面で「ログインせずに使う」を選んで、ホームを開く */
 export async function openApp(page: Page) {
   await setNow(page);
   await page.goto('/');
   await byTest(page, 'skip-signin').click();
-  await expect(byTest(page, 'capture-screen')).toBeVisible();
+  await expect(byTest(page, 'home-screen')).toBeVisible();
 }
 
-const TAB_SCREENS = { index: 'capture-screen', collected: 'collected-screen', hand: 'hand-screen', listen: 'listen-screen' } as const;
+const TAB_SCREENS = { index: 'home-screen', collected: 'collected-screen', hand: 'hand-screen', listen: 'listen-screen' } as const;
 
 export async function goTab(page: Page, name: keyof typeof TAB_SCREENS) {
   await page.getByTestId(`tab-${name}`).click();
   await expect(byTest(page, TAB_SCREENS[name])).toBeVisible();
 }
 
-/** 書き留めるで1つ拾う */
+/** ホームの書き留める欄で1つ拾う（ことばの欄に書くと、場所・題などが開く） */
 export async function capture(page: Page, o: { text: string; source?: string; title?: string; scene?: string; example?: string; want?: boolean }) {
+  await byTest(page, 'capture-text').fill(o.text);
   if (o.source) {
     const chip = byTest(page, `source-${o.source}`);
     if ((await chip.getAttribute('aria-selected')) !== 'true') await chip.click();
   }
   if (o.title !== undefined) await byTest(page, 'capture-title').fill(o.title);
-  await byTest(page, 'capture-text').fill(o.text);
   if (o.scene) await byTest(page, 'capture-scene').fill(o.scene);
   if (o.example) await byTest(page, 'capture-example-0').fill(o.example);
   if (o.want) await byTest(page, 'capture-want').click();

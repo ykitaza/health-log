@@ -5,6 +5,7 @@ import { colors } from '@/theme';
 type Shape = { p?: string[]; c?: [number, number, number][]; r?: [number, number, number, number, number][]; fill?: boolean };
 
 const SHAPES = {
+  home: { p: ['M3 10.5 12 3l9 7.5', 'M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5'] },
   pencil: { p: ['M12 20h9', 'M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z'] },
   book: { p: ['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'] },
   cards: { r: [[8, 8, 14, 14, 2]], p: ['M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'] },

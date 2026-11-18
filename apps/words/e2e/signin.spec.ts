@@ -14,7 +14,7 @@ test('ログインに失敗したら案内を出す。ログインせずにも�
   await expect(byTest(page, 'signin-error')).toHaveText('ログインできませんでした。もう一度ログインしてください。');
   await expect(byTest(page, 'signin')).toHaveText('もう一度ログイン');
   await byTest(page, 'skip-signin').click();
-  await expect(byTest(page, 'capture-screen')).toBeVisible();
+  await expect(byTest(page, 'home-screen')).toBeVisible();
 });
 
 test('ログインのサーバーにつながらないときは、その案内を出す', async ({ page, context }) => {
@@ -37,7 +37,7 @@ test('ログインすると同期し、Claude が拾った言葉と例文・タ�
   await setNow(page);
   await page.goto('/');
   await byTest(page, 'signin').click();
-  await expect(byTest(page, 'capture-screen')).toBeVisible();
+  await expect(byTest(page, 'home-screen')).toBeVisible();
   await expect(byTest(page, 'recent-row').first()).toContainText('腑に落ちる');
   await expect(byTest(page, 'recent-row').first()).toContainText('Claude から');
 

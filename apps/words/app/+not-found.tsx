@@ -6,7 +6,7 @@ export default function NotFoundScreen() {
   return (
     <Screen>
       <T variant="wordS" style={{ marginTop: space.xxl }}>この画面は見つかりませんでした</T>
-      <Button label="書き留めるへ" variant="outline" onPress={() => router.replace('/')} style={{ marginTop: space.xl }} />
+      <Button label="ホームへ" variant="outline" onPress={() => router.replace('/')} style={{ marginTop: space.xl }} />
     </Screen>
   );
 }

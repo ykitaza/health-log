@@ -63,8 +63,9 @@ test('AI で拾う：決まった文だけを入れて Claude を開く。場所
     window.open = ((url: string) => { w.__opened.push(url); return null; }) as typeof window.open;
   });
   await openApp(page);
-  await byTest(page, 'source-紙の本').click();
+  // ことばの欄に書くと、場所のチップが開く
   await byTest(page, 'capture-text').fill('私だけの言葉');
+  await byTest(page, 'source-紙の本').click();
   await byTest(page, 'ai-capture').click();
   await expect(byTest(page, 'chat-prompt')).toContainText('紙の本で出会ったものです。');
   await byTest(page, 'chat-open-claude').click();
