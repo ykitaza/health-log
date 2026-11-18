@@ -75,13 +75,13 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "582f783c-941d-46ca-940d-6cca5599bdd4"
       },
       "kotoba": {
         "clientId": "3evio7n5uuik3u1jlshp1ld645",
         "cognitoDomain": "https://oidc-study-969624666976.auth.ap-northeast-1.amazoncognito.com",
         "apiUrl": "https://grm9a7ydz6.execute-api.ap-northeast-1.amazonaws.com",
-        "mcpUrl": ""
+        "mcpUrl": "https://sihhxutbqd.execute-api.ap-northeast-1.amazonaws.com/mcp"
       }
     },
     "owner": "ponchulove"
