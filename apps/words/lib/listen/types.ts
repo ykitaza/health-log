@@ -21,9 +21,11 @@ export type EngineState = {
   duration: number;
   mode: EngineMode;
   loading: boolean;
+  /** 鳴らせなかった理由（画面に出す。持ち主が画面で原因を伝えられるように）。ないときは null */
+  error: string | null;
 };
 
-export const IDLE_STATE: EngineState = { index: 0, length: 0, playing: false, position: 0, duration: 0, mode: 'idle', loading: false };
+export const IDLE_STATE: EngineState = { index: 0, length: 0, playing: false, position: 0, duration: 0, mode: 'idle', loading: false, error: null };
 
 /** サーバーの音声（MP3）を取る。自然な声がオフ・つながらない・まだ同期していないときは null（端末の読み上げにする） */
 export type FetchAudio = (id: string) => Promise<ArrayBuffer | null>;

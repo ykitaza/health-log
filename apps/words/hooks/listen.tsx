@@ -49,6 +49,8 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   const notifications = useNotifications();
   const [state, setState] = useState<EngineState>(IDLE_STATE);
   const [queue, setQueue] = useState<ListItem[]>([]);
+  /** 並びを作れなかった理由（画面に出す） */
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
   useEffect(() => {
     audioSource.online = status === 'signedIn' && apiBaseUrl !== '';
     audioSource.api = api;
@@ -84,22 +86,29 @@ export function ListenProvider({ children }: { children: ReactNode }) {
 
   const rebuild = useCallback(async () => {
     if (engine.getState().playing) return;
-    audioSource.polly = await repos.local.naturalVoice().catch(() => false);
-    const all = await repos.words.listAll();
-    const q = listenQueue(all, reviewDay(new Date())).map((x) => x.expression);
-    const tracks: Track[] = [];
-    for (const e of q) {
-      const tags = (await repos.words.tagsOf(e.id)).map((t) => ({ kind: t.kind, name: t.name, status: t.status }));
-      tracks.push({ id: e.id, title: e.text, reading: e.reading, speech: spokenText(buildScript(e, tags)) });
+    try {
+      audioSource.polly = await repos.local.naturalVoice().catch(() => false);
+      const all = await repos.words.listAll();
+      const q = listenQueue(all, reviewDay(new Date())).map((x) => x.expression);
+      const tracks: Track[] = [];
+      for (const e of q) {
+        const tags = (await repos.words.tagsOf(e.id)).map((t) => ({ kind: t.kind, name: t.name, status: t.status }));
+        tracks.push({ id: e.id, title: e.text, reading: e.reading, speech: spokenText(buildScript(e, tags)) });
+      }
+      setQueue(q);
+      setRebuildError(null);
+      await engine.load(tracks, 0);
+    } catch (e) {
+      // 握りつぶさず、画面に理由を出す
+      setRebuildError(`聞く準備に失敗しました：${e instanceof Error ? e.message : String(e)}`);
     }
-    setQueue(q);
-    await engine.load(tracks, 0);
   }, [engine, repos]);
 
+  const shown = useMemo(() => (rebuildError && !state.error ? { ...state, error: rebuildError } : state), [state, rebuildError]);
   const value = useMemo(() => ({
-    state, queue, rebuild,
+    state: shown, queue, rebuild,
     play: () => engine.play(), pause: () => engine.pause(), next: () => engine.next(), previous: () => engine.previous(),
-  }), [state, queue, rebuild, engine]);
+  }), [shown, queue, rebuild, engine]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

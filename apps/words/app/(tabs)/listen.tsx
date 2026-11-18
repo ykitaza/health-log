@@ -60,6 +60,8 @@ export default function ListenScreen() {
               <View style={[s.bar, { width: `${progressOf(state.position, state.duration) * 100}%` }]} testID="listen-progress" />
             </View>
             {state.mode === 'speech' && <T variant="label" color={colors.sub} testID="listen-mode">端末の声で読んでいます</T>}
+            {/* 鳴らせなかった理由（次に同じことが起きたとき、画面で原因を伝えられるように） */}
+            {state.error ? <T variant="label" color={colors.ink} testID="listen-error" selectable>{state.error}</T> : null}
           </View>
           <View style={s.controls}>
             <Control icon="skipPrev" label="前へ" onPress={previous} size={80} testID="listen-prev" />

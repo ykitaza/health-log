@@ -83,6 +83,28 @@ describe('再生の土台', () => {
     expect(c.getState().index).toBe(1);
   });
 
+  it('鳴らせなかったら止まって理由を残す。次に鳴らし始めたら理由を消す', async () => {
+    let ev: Parameters<Output['start']>[2] | null = null;
+    const out: Output = {
+      mode: 'speech',
+      prepare: async () => true,
+      start: (_t, _i, events) => { ev = events; },
+      pause: () => {},
+      resume: () => {},
+      stop: () => {},
+    };
+    const c = createController(out);
+    await c.load(tracks, 0);
+    expect(c.getState().error).toBeNull();
+    c.play();
+    await flush();
+    ev!.onError?.('端末の読み上げが使えません：テスト');
+    expect(c.getState()).toMatchObject({ playing: false, loading: false, error: '端末の読み上げが使えません：テスト' });
+    c.play();
+    await flush();
+    expect(c.getState()).toMatchObject({ playing: true, error: null });
+  });
+
   it('一時停止と再開。最後まで聞いたら止まる', async () => {
     const f = fakeOutput();
     const c = createController(f.out);

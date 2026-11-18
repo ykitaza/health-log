@@ -9,7 +9,12 @@ import { EngineState, IDLE_STATE, ListenEngine, Track } from './types';
 export interface Output {
   /** i 番目を鳴らす準備（音声を取る・写しを読む）。鳴らせなければ false（飛ばす） */
   prepare(track: Track, i: number): Promise<boolean>;
-  start(track: Track, i: number, events: { onProgress: (position: number, duration: number) => void; onEnd: () => void }): void;
+  start(track: Track, i: number, events: {
+    onProgress: (position: number, duration: number) => void;
+    onEnd: () => void;
+    /** 鳴らせなかった（理由を画面に出して止まる） */
+    onError?: (message: string) => void;
+  }): void;
   pause(): void;
   resume(): void;
   stop(): void;
@@ -46,7 +51,7 @@ export function createController(output: Output): ListenEngine {
     const my = ++token;
     output.stop();
     let j = i;
-    set({ loading: true, playing: autoplay, position: 0, duration: 0 });
+    set({ loading: true, playing: autoplay, position: 0, duration: 0, error: null });
     while (j >= 0 && j < tracks.length) {
       const ok = await output.prepare(tracks[j], j).catch(() => false);
       if (my !== token) return;
@@ -68,6 +73,10 @@ export function createController(output: Output): ListenEngine {
         count(j, true);
         if (j + 1 < tracks.length) void go(j + 1, 1, true);
         else set({ playing: false });
+      },
+      onError: (message) => {
+        if (my !== token) return;
+        set({ playing: false, loading: false, error: message });
       },
     });
   }
