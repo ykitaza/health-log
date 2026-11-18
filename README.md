@@ -180,6 +180,7 @@ for s in authorization meals sync training app_api mcp; do (cd services/$s && uv
 | [cdk/README.md](cdk/README.md) | AWS の構成（CDK）のコマンド |
 | [docs/design.md](docs/design.md) | 背景、制限、全体の設計、パスキー（作る・なくしたとき・消す）、アプリのログイン |
 | [docs/meals-design.md](docs/meals-design.md) | 食事記録の設計 |
+| [docs/words-design.md](docs/words-design.md) | ことば（日本語の表現を集めて話せるようにする、新しいアプリ）の設計メモ。データ、MCP、AWS、スタックの組み替えの計画 |
 | [docs/sync-design.md](docs/sync-design.md) | アプリとサーバーの同期の設計、今あるデータの移行 |
 | [docs/sequence.md](docs/sequence.md) | ログインからツールの呼び出し、アプリの同期の流れ（シーケンス図） |
 | [docs/monitoring.md](docs/monitoring.md) | 監視、通知が来たときに見るもの、メールの購読の足し方 |
