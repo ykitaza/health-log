@@ -5,6 +5,7 @@
 
 import json
 import uuid
+from datetime import UTC, datetime
 
 import boto3
 import pytest
@@ -51,7 +52,9 @@ def push(api, changes):
 
 def app_change(entity_type, op, fields=None, entity_id=None):
     c = {"change_id": str(uuid.uuid4()), "entity_type": entity_type, "entity_id": entity_id or str(uuid.uuid4()),
-         "parent_id": None, "op": op, "changed_at": "2026-11-18T12:00:00Z"}
+         "parent_id": None, "op": op,
+         # 日付を直書きすると、日が変わってサーバーの書いた時刻より古くなり、後勝ちで負ける。今の時刻を使う
+         "changed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
     if fields is not None:
         c["fields"] = fields
     return c
