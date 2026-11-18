@@ -24,7 +24,7 @@ import {
 import type { LatestSession } from '@/lib/homeHud';
 import { HERO_TAG_MAX, HERO_TAG_MAX_WITH_RECOVERED, recoveryCandidates, selectHeroTags, TagCandidate, pickByMesh, pickByNames, volumeCandidates } from '@/lib/heroTags';
 import { MuscleView, partsAt } from '@/lib/muscleFigure';
-import { HeroBodyMode, heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeMuscleLevels } from '@/lib/partVolume';
+import { HeroBodyMode, heroVolumeCaptionParts, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, PhaseVolume, volumeMuscleLevels } from '@/lib/partVolume';
 import { PHASE_TICKS } from '@/lib/phases';
 import { INJURY_RED, muscleFills, PartRecovery } from '@/lib/recoveryMap';
 import { claimsSwipe, dragOffset, rubberBand, SWIPE_CLAIM_DX, swipeDirection } from '@/lib/swipe';
@@ -382,10 +382,14 @@ const BODY_MODES: { key: HeroBodyMode; label: string }[] = [{ key: 'recovery', l
 /** LATEST の体に部位の光（ミント）を重ねない（描くたびに新しい配列を渡さない） */
 /** 部位の量の見出し（「増量 8週で 64セット」）：体の面の下の 1 行。長いと折り返す */
 function VolumeCaption({ volume }: { volume: PhaseVolume }) {
-  const text = heroVolumeCaption(volume);
+  // 「〜で」と「80セット」を別の塊にして、塊ごとに折り返す（日本語は RN の折り返しの設定では言葉の途中で折れるため）。
+  // 1 行に収まるときは、間に空白 1 つの 1 行（これまでと同じ見た目）
+  const [head, sets] = heroVolumeCaptionParts(volume);
   return (
-    <View style={s.caption} pointerEvents="none" testID="hero-body-caption">
-      {isHud ? <Mono size={11} color={colors.sub}>{text}</Mono> : <T size={12} color={colors.sub} style={s.captionText}>{text}</T>}
+    <View style={s.captionRow} pointerEvents="none" testID="hero-body-caption">
+      {isHud
+        ? <><Mono size={11} color={colors.sub}>{head}</Mono><Mono size={11} color={colors.sub}>{` ${sets}`}</Mono></>
+        : <><T size={12} color={colors.sub} style={s.captionText}>{head}</T><T size={12} color={colors.sub} style={s.captionText}>{` ${sets}`}</T></>}
     </View>
   );
 }
@@ -663,7 +667,7 @@ const s = StyleSheet.create({
   corner: { position: 'absolute', minWidth: size.touch, minHeight: size.touch, padding: space.s },
   shield: { position: 'absolute', top: 0, bottom: 0 },
   // 部位の量の見出しは体の面の外（輪の下）に出す。体の頭や輪の上の弧に重ならない。長いフェーズ名は折り返す
-  caption: { alignItems: 'center', paddingHorizontal: space.l, marginTop: space.xs },
+  captionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: space.l, marginTop: space.xs },
   captionText: { textAlign: 'center' },
   mode: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
   modeBox: { width: 176 },

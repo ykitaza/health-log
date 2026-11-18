@@ -322,7 +322,10 @@ export const setsText = (total: number): string => `${total}セット`;
 export const phaseTotalSets = (v: Pick<PhaseVolume, 'parts'>): number => v.parts.reduce((n, p) => n + p.total, 0);
 
 /** ヒーローの「部位の量」の見出し：「増量 8週で 61セット」「直近4週で 12セット」。数えた期間の合計を、頑張りとして見せる */
-export const heroVolumeCaption = (v: Pick<PhaseVolume, 'label' | 'parts'>): string => `${v.label}で ${setsText(phaseTotalSets(v))}`;
+export const heroVolumeCaption = (v: Pick<PhaseVolume, 'label' | 'parts'>): string => heroVolumeCaptionParts(v).join(' ');
+
+/** 見出しを折り返す塊に分ける：[「増量 8週で」, 「61セット」]。長い名前でも「80セ／ット」のように言葉の途中で折れず、塊ごとに折り返す */
+export const heroVolumeCaptionParts = (v: Pick<PhaseVolume, 'label' | 'parts'>): [string, string] => [`${v.label}で`, setsText(phaseTotalSets(v))];
 
 /** 読み上げの、期間の言い方：「11月8日から11月16日」 */
 const spanSpoken = (v: PhaseVolume) => `${formatMonthDay(v.from)}から${formatMonthDay(v.to)}`;

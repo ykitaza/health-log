@@ -1,6 +1,6 @@
 import { BALANCE_PARTS } from '../partBalance';
 import {
-  heroVolumeCaption, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, parseHeroBodyMode, partVolume, phaseLevel, phasePartVolume, phaseTotalSets, phaseVolumeLabel,
+  heroVolumeCaption, heroVolumeCaptionParts, heroVolumeGlow, heroVolumeLevels, heroVolumeSpoken, parseHeroBodyMode, partVolume, phaseLevel, phasePartVolume, phaseTotalSets, phaseVolumeLabel,
   phaseWindowOf, setsText, volumeDeltaText, volumeGlowLevel, volumeLabel, volumeLevel, volumeMuscleLevels, volumeRowText, volumeWindow, weekRoundedText,
 } from '../partVolume';
 import { endDateFor, Phase } from '../phases';
@@ -408,6 +408,13 @@ describe('phaseVolumeLabel・heroVolumeCaption：セット数が主で、目安�
     expect(phaseTotalSets(v)).toBe(76);
     expect(heroVolumeCaption(v)).toBe('増量 8週で 76セット');
     expect(heroVolumeCaption(phasePartVolume([], nameOf, { ...w, kind: 'recent', title: '直近4週の部位', label: '直近4週' }))).toBe('直近4週で 0セット');
+  });
+
+  test('折り返す塊：長いフェーズの名前でも、数と単位（「76セット」）は 1 つの塊で、言葉の途中で分かれない', () => {
+    expect(heroVolumeCaptionParts(v)).toEqual(['増量 8週で', '76セット']);
+    const long = phasePartVolume([...chestRows('2026-11-05', 80)], nameOf, { ...w, label: '夏に向けた長い名前の増量フェーズ二〇二六' });
+    expect(heroVolumeCaptionParts(long)).toEqual(['夏に向けた長い名前の増量フェーズ二〇二六で', '80セット']);
+    expect(heroVolumeCaptionParts(long).join(' ')).toBe(heroVolumeCaption(long));
   });
 
   test('行の文字：「23セット」と、四捨五入の「週18」', () => {
