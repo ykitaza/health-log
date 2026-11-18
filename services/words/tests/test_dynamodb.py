@@ -97,7 +97,7 @@ def test_アプリからは決まりに合わない変更を断る(table):
     status, body = push(api, [
         app_change("expression", "update", {"meaning": "補う項目"}),
         app_change("source", "delete"),
-        app_change("review", "update", {"result": "said"}),
+        app_change("usage", "update", {"note": "直す"}),
         app_change("expression", "create", {"text": "腑に落ちる", "normalized_key": "腑に落ちる", "place": "collected"}),
     ])
     assert status == 200

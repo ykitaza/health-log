@@ -13,44 +13,52 @@ from words.domain.search_doc import SEARCH_DOC_VERSION, search_document, search_
 D0 = date(2026, 11, 1)
 
 
-def test_メモの例のとおりに間隔が延びる():
+def at(day: date, hm: str = "08:30") -> str:
+    return f"{day.isoformat()}T{hm}:00+09:00"
+
+
+def test_聞くたびに間隔が延び_使えたで大きく延びる():
     s = sch.enter_hand(m.Schedule(), D0)
     assert (s.interval_days, s.due_on, s.stage) == (1, D0 + timedelta(days=1), m.Stage.UNDERSTOOD)
     intervals, day = [], D0
     for _ in range(7):
         day += timedelta(days=s.interval_days)
-        s = sch.apply_recall(s, m.RecallResult.SAID, day)
+        s = sch.apply_listen(s, at(day))
         intervals.append(s.interval_days)
-    assert intervals == [2, 3, 5, 8, 12, 14, 14]
-    # 3日のところで使えたら 9日、次に使えたら 27日、その次は 60日
+    assert intervals == [2, 3, 5, 8, 12, 14, 14] and s.listen_count == 7
+    # 3日のところで使えたら 9日、次に使えたら 27日、その次は 60日。そのあと聞いても縮めない
     s = sch.enter_hand(m.Schedule(), D0)
     for n in (1, 3):
-        s = sch.apply_recall(s, m.RecallResult.SAID, D0 + timedelta(days=n))
+        s = sch.apply_listen(s, at(D0 + timedelta(days=n)))
     used = []
     for n in (6, 15, 42):
         s = sch.apply_use(s, D0 + timedelta(days=n))
         used.append(s.interval_days)
     assert used == [9, 27, 60] and s.stage is m.Stage.USED
+    assert sch.apply_listen(s, at(D0 + timedelta(days=100))).interval_days == 60
 
 
-def test_手札でない表現が使えたときは回数だけ():
+def test_手札でない表現は回数だけ():
     s = m.Schedule(interval_days=3)
     after = sch.apply_use(s, D0, in_hand=False)
     assert (after.use_count, after.last_used_on, after.interval_days, after.stage) == (1, D0, 3, None)
+    listened = sch.apply_listen(s, at(D0), in_hand=False)
+    assert (listened.listen_count, listened.interval_days, listened.due_on) == (1, 3, None)
 
 
 def test_戻すのを勧める条件():
     base = m.Expression("x", "x", "x", m.Place.HAND, m.Schedule(stage=m.Stage.UNDERSTOOD), hand_since=D0)
     assert not sch.should_suggest_demote(base, D0 + timedelta(days=44))
     assert sch.should_suggest_demote(base, D0 + timedelta(days=45))
-    lapsed = m.Expression("x", "x", "x", m.Place.HAND, m.Schedule(stage=m.Stage.SAYABLE, lapse_streak=3), hand_since=D0)
-    assert sch.should_suggest_demote(lapsed, D0)
+    used = m.Expression("x", "x", "x", m.Place.HAND, m.Schedule(stage=m.Stage.USED, use_count=1), hand_since=D0)
+    assert not sch.should_suggest_demote(used, D0 + timedelta(days=90))
     assert sch.own_ready({D0, D0 + timedelta(days=1)}) and not sch.own_ready({D0})
 
 
 def test_探すための文は決まった順で空の項目を省く():
     e = m.Expression("x", "腑に落ちる", "腑に落ちる", m.Place.COLLECTED, reading="ふにおちる", meaning="納得できる",
-                     register=m.Register.SPOKEN, scene="上司の説明で", use_note="納得したとき")
+                     register=m.Register.SPOKEN, scene="上司の説明で", use_note="納得したとき",
+                     examples=(m.Example("やっと腑に落ちた", m.By.USER, True), m.Example("それなら腑に落ちるね", m.By.CLAUDE, False)))
     tags = [(m.Tag("t1", m.TagKind.SITUATION, "会議で", 9), m.TagStatus.CONFIRMED),
             (m.Tag("t2", m.TagKind.SITUATION, "雑談で", 10), m.TagStatus.PROPOSED),
             (m.Tag("t3", m.TagKind.SITUATION, "謝る", 2), m.TagStatus.REJECTED),
@@ -60,7 +68,7 @@ def test_探すための文は決まった順で空の項目を省く():
     assert SEARCH_DOC_VERSION == 1
     assert search_document(e, tags, encounters) == "\n".join([
         "表現：腑に落ちる", "読み：ふにおちる", "意味：納得できる", "硬さ：話し言葉", "使う場面：会議で、雑談で", "気持ち：安堵",
-        "こういう時に使えそう：納得したとき", "場面：上司の説明で", "出会いの場面：場面7、場面6、場面5、場面4、場面3"])
+        "こういう時に使えそう：納得したとき", "例文：やっと腑に落ちた／それなら腑に落ちるね", "場面：上司の説明で", "出会いの場面：場面7、場面6、場面5、場面4、場面3"])
     assert "surrounding_text" not in search_fields(e, tags, encounters)
     assert search_fields(e, tags, encounters, extra=True)["title"] == "本"
 

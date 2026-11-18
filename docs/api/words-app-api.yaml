@@ -158,6 +158,63 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/audio:
+    post:
+      operationId: synthesizeAudio
+      summary: 「聞く」の読み上げ（MP3。設定の「自然な声」のときだけ）
+      description: '表現の項目から決まった型の台本（表現 → 読み → 説明（意味とニュアンス）→ 使い方 → 例文1〜2個。区切りは SSML の間）を作り、Amazon Polly（ja-JP、neural）で読んだ MP3
+        を返す。音声はサーバーにもアプリにも置かない（毎回作る。cache-control: no-store）。既定のアプリは端末の読み上げ（Android の TTS）で同じ型の台本を読み、この API は呼ばない。'
+      security:
+      - cognito:
+        - torelog-api/training.read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - expression_id
+              properties:
+                expression_id:
+                  type: string
+                  format: uuid
+                voice:
+                  type: string
+                  enum:
+                  - Kazuha
+                  - Takumi
+                  - Tomoko
+                  default: Kazuha
+      responses:
+        '200':
+          description: MP3（24kHz）
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: 本文の形が違う
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 表現がない（消した・まだ同期していない）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     cognito:
@@ -206,7 +263,8 @@ components:
       - tag
       - expression_tag
       - encounter
-      - review
+      - usage
+      - listen_session
       description: 対象の種類。どれも torelog-api/training.* の scope で扱う
     SourceFields:
       additionalProperties: false
@@ -228,6 +286,32 @@ components:
           type: boolean
       type: object
       description: 出会った場所。アプリからは create・update・restore だけ（消すのは hidden）。create で要る項目：name・icon_key・sort_order・hidden
+    ExampleFields:
+      additionalProperties: false
+      description: 例文1つ。本人のもの（origin user）と Claude のもの（補う）。confirmed は本人が確かめたか（本人のものはいつも true）。
+      properties:
+        text:
+          maxLength: 200
+          minLength: 1
+          type: string
+        origin:
+          enum:
+          - user
+          - claude
+          type: string
+        confirmed:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+      - text
+      - origin
+      - confirmed
+      - created_at
+      - updated_at
+      type: object
     ExpressionFields:
       additionalProperties: false
       properties:
@@ -264,7 +348,6 @@ components:
           anyOf:
           - enum:
             - understood
-            - sayable
             - used
             type: string
           - type: 'null'
@@ -282,23 +365,11 @@ components:
           anyOf:
           - type: string
           - type: 'null'
-        last_reviewed_on:
+        listened_at:
           anyOf:
           - type: string
           - type: 'null'
-        success_streak:
-          maximum: 1000000
-          minimum: 0
-          type: integer
-        lapse_streak:
-          maximum: 1000000
-          minimum: 0
-          type: integer
-        review_count:
-          maximum: 1000000
-          minimum: 0
-          type: integer
-        lapse_count:
+        listen_count:
           maximum: 1000000
           minimum: 0
           type: integer
@@ -343,10 +414,8 @@ components:
           - type: 'null'
         examples:
           items:
-            maxLength: 200
-            minLength: 1
-            type: string
-          maxItems: 3
+            $ref: '#/components/schemas/ExampleFields'
+          maxItems: 8
           type: array
         similar:
           items:
@@ -374,8 +443,8 @@ components:
           - type: string
           - type: 'null'
       type: object
-      description: 表現。補う項目（meaning・nuance・examples・similar・usefulness・usefulness_reason・usefulness_until・enriched_at）はアプリから書けない。間隔の項目（stage〜last_used_on）は組で送る。create
-        で要る項目：text・normalized_key・place
+      description: 表現。補う項目（meaning・nuance・similar・usefulness・usefulness_reason・usefulness_until・enriched_at）はアプリから書けない。間隔の項目（stage・interval_days・due_on・listened_at・listen_count・use_count・last_used_on）は組で送る。例文（examples）は本人と
+        Claude の両方が書く一覧（一覧ごと置き換わる）。create で要る項目：text・normalized_key・place
     TagFields:
       additionalProperties: false
       properties:
@@ -479,54 +548,41 @@ components:
           type: string
       type: object
       description: 出会い1回。表現と一緒に消す。create で要る項目：expression_id
-    ReviewFields:
+    UsageFields:
       additionalProperties: false
       properties:
         expression_id:
           pattern: ^[A-Za-z0-9_-]{1,64}$
           type: string
-        kind:
-          enum:
-          - recall
-          - use
+        used_on:
           type: string
-        result:
-          anyOf:
-          - enum:
-            - said
-            - close
-            - blank
-            type: string
-          - type: 'null'
-        reviewed_at:
+        scene:
+          maxLength: 300
+          minLength: 0
           type: string
-        interval_before:
-          anyOf:
-          - maximum: 60
-            minimum: 1
-            type: integer
-          - type: 'null'
-        interval_after:
-          anyOf:
-          - maximum: 60
-            minimum: 1
-            type: integer
-          - type: 'null'
-        session_id:
-          anyOf:
-          - pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
-            type: string
-          - type: 'null'
-        trigger:
-          anyOf:
-          - enum:
-            - self
-            - notification
-            - chat
-            type: string
-          - type: 'null'
+        note:
+          maxLength: 300
+          minLength: 0
+          type: string
       type: object
-      description: 振り返りの記録（と使えたの報告）。追記だけ（create・delete）。表現と一緒に消す。create で要る項目：expression_id・kind・reviewed_at
+      description: 実際の会話で使えた1回。追記だけ（create・delete）。表現と一緒に消す。create で要る項目：expression_id・used_on
+    ListenSessionFields:
+      additionalProperties: false
+      properties:
+        started_at:
+          type: string
+        listened_on:
+          type: string
+        seconds:
+          maximum: 86400
+          minimum: 0
+          type: integer
+        items:
+          maximum: 1000
+          minimum: 0
+          type: integer
+      type: object
+      description: アプリで聞いた1回（続けて流したまとまり）。追記だけ（create・delete）。活動の記録に使う。create で要る項目：started_at・listened_on・seconds・items
     SourceChange:
       type: object
       additionalProperties: false
@@ -770,7 +826,7 @@ components:
         fields:
           $ref: '#/components/schemas/EncounterFields'
           description: create・update の項目。delete・restore には入れない
-    ReviewChange:
+    UsageChange:
       type: object
       additionalProperties: false
       required:
@@ -782,7 +838,7 @@ components:
       properties:
         entity_type:
           type: string
-          const: review
+          const: usage
         change_id:
           type: string
           format: uuid
@@ -815,7 +871,54 @@ components:
           default: app
           description: app は手入力、import は Health Connect の取り込み
         fields:
-          $ref: '#/components/schemas/ReviewFields'
+          $ref: '#/components/schemas/UsageFields'
+          description: create・update の項目。delete・restore には入れない
+    ListenSessionChange:
+      type: object
+      additionalProperties: false
+      required:
+      - change_id
+      - entity_type
+      - entity_id
+      - op
+      - changed_at
+      properties:
+        entity_type:
+          type: string
+          const: listen_session
+        change_id:
+          type: string
+          format: uuid
+          description: 変更の ID。送り直すときも同じ値にする（冪等）
+        entity_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_-]+$
+          description: 対象の ID（UUID）
+        parent_id:
+          type: 'null'
+          description: ことばの種類は親と一緒に保存しない（子は expression_id で指す）。null か省く
+        op:
+          type: string
+          enum:
+          - create
+          - delete
+          description: アプリから送れる op：create・delete
+        changed_at:
+          type: string
+          format: date-time
+          description: 端末で変えた時刻（UTC、ミリ秒まで）
+          example: '2026-11-08T03:15:22.123Z'
+        origin:
+          type: string
+          enum:
+          - app
+          - import
+          default: app
+          description: app は手入力、import は Health Connect の取り込み
+        fields:
+          $ref: '#/components/schemas/ListenSessionFields'
           description: create・update の項目。delete・restore には入れない
     Change:
       oneOf:
@@ -824,7 +927,8 @@ components:
       - $ref: '#/components/schemas/TagChange'
       - $ref: '#/components/schemas/ExpressionTagChange'
       - $ref: '#/components/schemas/EncounterChange'
-      - $ref: '#/components/schemas/ReviewChange'
+      - $ref: '#/components/schemas/UsageChange'
+      - $ref: '#/components/schemas/ListenSessionChange'
       discriminator:
         propertyName: entity_type
         mapping:
@@ -833,7 +937,8 @@ components:
           tag: '#/components/schemas/TagChange'
           expression_tag: '#/components/schemas/ExpressionTagChange'
           encounter: '#/components/schemas/EncounterChange'
-          review: '#/components/schemas/ReviewChange'
+          usage: '#/components/schemas/UsageChange'
+          listen_session: '#/components/schemas/ListenSessionChange'
     PushRequest:
       type: object
       additionalProperties: false

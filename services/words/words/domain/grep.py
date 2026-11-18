@@ -20,8 +20,9 @@ SNIPPET_MAX = 40
 _META = set(".*+?|^$")
 _FORBIDDEN = set("(){}\\")
 
-# 当たった項目の順位（小さいほど先）：表現・読み → 意味・ニュアンス → 使う場面・気持ち・こういう時に使えそう → それ以外
-FIELD_RANK = {"text": 0, "reading": 0, "meaning": 1, "nuance": 1, "situations": 2, "feelings": 2, "use_note": 2}
+# 当たった項目の順位（小さいほど先）：表現・読み → 意味・ニュアンス → 使う場面・気持ち・こういう時に使えそう・例文 → それ以外
+FIELD_RANK = {"text": 0, "reading": 0, "meaning": 1, "nuance": 1, "situations": 2, "feelings": 2, "use_note": 2,
+              "examples": 2}
 
 
 def field_rank(name: str) -> int:

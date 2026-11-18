@@ -8,6 +8,7 @@ import pytest
 from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver import MCPServer
 
+from sync.model import to_timestamp
 from words.domain.schedule import JST
 from words.main import create_engine, create_service
 from words.presentation import mcp_tools
@@ -34,8 +35,11 @@ def clock():
 
 
 @pytest.fixture
-def engine():
-    return create_engine(None)
+def engine(clock):
+    """同期の受け付けの時刻も、テストの時計に合わせる（拾った日などが、テストを流す日によって変わらないように）。"""
+    engine = create_engine(None)
+    engine.clock = lambda: to_timestamp(clock())
+    return engine
 
 
 @pytest.fixture

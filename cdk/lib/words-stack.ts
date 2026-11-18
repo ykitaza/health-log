@@ -18,7 +18,7 @@ import {
 // ことばのアプリが使う同期の API の URL（issuer・クライアント ID・ドメインは KARADA の /cognito-study/app/* をそのまま使う）
 export const WORDS_APP_API_URL_PARAM = `${PARAM_PREFIX}/words/app/api-url`;
 
-// ことば（docs/words-design.md）のサーバー：MCP の Lambda とアプリ用の同期の Lambda、HTTP API 2つ、テーブル1つ。
+// ことば（docs/words-design.md）のサーバー：MCP の Lambda とアプリ用の同期・読み上げの Lambda、HTTP API 2つ、テーブル1つ。
 // CloudFormation のスタックの名前は CognitoStudyWords。共有の資源（認可API の URL、Cognito の issuer、torelog-app のクライアント ID）は
 // SSM パラメータの名前で参照し、スタックをまたぐ Export は作らない（今の監視のスタックと同じ）。
 // 認可API は、このスタックが置く /cognito-study/words/url を名前で読む（なければ、ことばを足さずに起動する）
@@ -110,6 +110,9 @@ export class WordsStack extends cdk.Stack {
       environment: { WORDS_TABLE: table.tableName, APP_CLIENT_ID: appClientId },
     });
     appFn.addToRolePolicy(tableAccess);
+    // 「聞く」の読み上げ（POST /v1/audio）。Polly の音声を作る操作だけ（語彙の登録などは与えない）。
+    // SynthesizeSpeech は資源を絞れない（語彙を使うときだけ lexicon の ARN）ので、資源は *
+    appFn.addToRolePolicy(new iam.PolicyStatement({ actions: ['polly:SynthesizeSpeech'], resources: ['*'] }));
 
     const appApi = new apigw.HttpApi(this, 'WordsAppApi', { createDefaultStage: false });
     this.loggedStage('WordsAppApi', appApi, APP_THROTTLE);
@@ -122,6 +125,7 @@ export class WordsStack extends cdk.Stack {
       ['/v1/sync/changes', apigw.HttpMethod.POST, 'training.write'],
       ['/v1/sync/changes', apigw.HttpMethod.GET, 'training.read'],
       ['/v1/sync/snapshot', apigw.HttpMethod.GET, 'training.read'],
+      ['/v1/audio', apigw.HttpMethod.POST, 'training.read'], // 「聞く」の読み上げ（MP3。Polly）
     ];
     for (const [routePath, method, s] of routes) {
       appApi.addRoutes({

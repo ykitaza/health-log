@@ -52,13 +52,31 @@ def test_場所とタグは消せない_隠す(entity_type):
     assert not isinstance(change(entity_type, "update", {"hidden": True}), Rejection)
 
 
-def test_振り返りの記録は追記だけ():
-    fields = {"expression_id": str(uuid.uuid4()), "kind": "recall", "result": "said", "reviewed_at": AT}
-    assert not isinstance(change("review", fields=fields), Rejection)
-    assert isinstance(change("review", "update", {"result": "blank"}), Rejection)
-    assert not isinstance(change("review", "delete"), Rejection)
-    r = change("review", fields={**fields, "kind": "use"})
-    assert isinstance(r, Rejection) and r.errors[0]["field"] == "fields.result"
+def test_使えたと聞いた記録は追記だけ():
+    usage = {"expression_id": str(uuid.uuid4()), "used_on": "2026-11-18", "scene": "会議で"}
+    assert not isinstance(change("usage", fields=usage), Rejection)
+    assert isinstance(change("usage", "update", {"note": "x"}), Rejection)
+    assert not isinstance(change("usage", "delete"), Rejection)
+    listen = {"started_at": AT, "listened_on": "2026-11-18", "seconds": 600, "items": 12}
+    assert not isinstance(change("listen_session", fields=listen), Rejection)
+    assert isinstance(change("listen_session", fields={**listen, "seconds": -1}), Rejection)
+    assert isinstance(change("listen_session", "update", {"items": 1}), Rejection)
+
+
+def test_例文は本人も書ける_形を確かめる():
+    example = {"text": "やっと腑に落ちた", "origin": "user", "confirmed": True, "created_at": AT, "updated_at": AT}
+    assert not isinstance(change("expression", "update", {"examples": [example]}), Rejection)
+    assert isinstance(change("expression", "update", {"examples": [{**example, "origin": "bot"}]}), Rejection)
+    assert isinstance(change("expression", "update", {"examples": [example] * 9}), Rejection)
+    assert isinstance(change("expression", "update", {"examples": ["文字だけ"]}), Rejection)
+
+
+def test_振り返りの項目と種類はない():
+    assert "review" not in REGISTRY.specs
+    for name in ("last_reviewed_on", "success_streak", "lapse_streak", "review_count", "lapse_count"):
+        assert isinstance(change("expression", "update", {name: 0}), Rejection)
+    assert isinstance(change("expression", fields={**EXPRESSION, "place": "hand", "stage": "sayable"}), Rejection)
+    assert not isinstance(change("expression", "update", {"listened_at": AT, "listen_count": 3}), Rejection)
 
 
 def test_つながりの_ID_は表現とタグから決める():
@@ -70,7 +88,7 @@ def test_つながりの_ID_は表現とタグから決める():
 
 
 def test_子は表現と一緒に消える():
-    for entity_type in ("expression_tag", "encounter", "review"):
+    for entity_type in ("expression_tag", "encounter", "usage"):
         assert REGISTRY.owner(entity_type) == ("expression", "expression_id")
 
 

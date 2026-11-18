@@ -26,14 +26,17 @@ TARGET = ROOT / "docs" / "api" / "words-app-api.yaml"
 MODELS = {
     se.SOURCE: ("SourceFields", se.SourceFields, "出会った場所。アプリからは create・update・restore だけ（消すのは hidden）"),
     se.EXPRESSION: ("ExpressionFields", se.ExpressionFields,
-                    "表現。補う項目（meaning・nuance・examples・similar・usefulness・usefulness_reason・usefulness_until・enriched_at）は"
-                    "アプリから書けない。間隔の項目（stage〜last_used_on）は組で送る"),
+                    "表現。補う項目（meaning・nuance・similar・usefulness・usefulness_reason・usefulness_until・enriched_at）は"
+                    "アプリから書けない。間隔の項目（stage・interval_days・due_on・listened_at・listen_count・use_count・last_used_on）は"
+                    "組で送る。例文（examples）は本人と Claude の両方が書く一覧（一覧ごと置き換わる）"),
     se.TAG: ("TagFields", se.TagFields, "使う場面・気持ちのタグ。アプリからは create・update・restore だけ（消すのは hidden）"),
     se.EXPRESSION_TAG: ("ExpressionTagFields", se.ExpressionTagFields,
                         "表現とタグのつながり。entity_id は uuid5(ことばの名前空間, \"<expression_id>:<tag_id>\")"
                         "（testdata/words/catalog.json）。added_by・status・confirmed_at は組で送る。表現と一緒に消す"),
     se.ENCOUNTER: ("EncounterFields", se.EncounterFields, "出会い1回。表現と一緒に消す"),
-    se.REVIEW: ("ReviewFields", se.ReviewFields, "振り返りの記録（と使えたの報告）。追記だけ（create・delete）。表現と一緒に消す"),
+    se.USAGE: ("UsageFields", se.UsageFields, "実際の会話で使えた1回。追記だけ（create・delete）。表現と一緒に消す"),
+    se.LISTEN_SESSION: ("ListenSessionFields", se.ListenSessionFields,
+                        "アプリで聞いた1回（続けて流したまとまり）。追記だけ（create・delete）。活動の記録に使う"),
 }
 ENVELOPE = ["PushRequest", "PushResult", "ChangeError", "PushResponse", "EntityState", "ChangeRecord", "ChangesPage",
             "SnapshotPage", "FieldError", "Problem", "GatewayError"]
@@ -43,8 +46,34 @@ def camel(entity_type: str) -> str:
     return "".join(part.capitalize() for part in entity_type.split("_"))
 
 
-def fields_schema(model, description: str, entity_type: str) -> dict:
+def _strip_titles(node):
+    if isinstance(node, dict):
+        node.pop("title", None)
+        for value in node.values():
+            _strip_titles(value)
+    elif isinstance(node, list):
+        for value in node:
+            _strip_titles(value)
+
+
+def _defs_to_components(node):
+    if isinstance(node, dict):
+        if isinstance(node.get("$ref"), str):
+            node["$ref"] = node["$ref"].replace("#/$defs/", "#/components/schemas/")
+        for value in node.values():
+            _defs_to_components(value)
+    elif isinstance(node, list):
+        for value in node:
+            _defs_to_components(value)
+
+
+def fields_schema(model, description: str, entity_type: str, shared: dict) -> dict:
     schema = model.model_json_schema()
+    for name, sub in schema.pop("$defs", {}).items():  # 入れ子の型（例文 ExampleFields）は components に出す
+        _strip_titles(sub)
+        sub["additionalProperties"] = False
+        shared[name] = sub
+    _defs_to_components(schema)
     schema.pop("title", None)
     for prop in schema.get("properties", {}).values():
         prop.pop("title", None)
@@ -81,6 +110,31 @@ def build() -> dict:
             scopes = {s for req in operation.get("security", []) for s in req.get("cognito", [])}
             action = "write" if any(s.endswith(".write") for s in scopes) else "read"
             operation["security"] = [{"cognito": [f"torelog-api/training.{action}"]}]
+    paths["/v1/audio"] = {"post": {
+        "operationId": "synthesizeAudio",
+        "summary": "「聞く」の読み上げ（MP3。設定の「自然な声」のときだけ）",
+        "description": (
+            "表現の項目から決まった型の台本（表現 → 読み → 説明（意味とニュアンス）→ 使い方 → 例文1〜2個。区切りは SSML の間）を作り、"
+            "Amazon Polly（ja-JP、neural）で読んだ MP3 を返す。音声はサーバーにもアプリにも置かない（毎回作る。cache-control: no-store）。"
+            "既定のアプリは端末の読み上げ（Android の TTS）で同じ型の台本を読み、この API は呼ばない。"),
+        "security": [{"cognito": ["torelog-api/training.read"]}],
+        "requestBody": {"required": True, "content": {"application/json": {"schema": {
+            "type": "object", "additionalProperties": False, "required": ["expression_id"],
+            "properties": {"expression_id": {"type": "string", "format": "uuid"},
+                           "voice": {"type": "string", "enum": ["Kazuha", "Takumi", "Tomoko"], "default": "Kazuha"}}}}}},
+        "responses": {
+            "200": {"description": "MP3（24kHz）",
+                    "content": {"audio/mpeg": {"schema": {"type": "string", "format": "binary"}}}},
+            "400": {"description": "本文の形が違う",
+                    "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}},
+            "404": {"description": "表現がない（消した・まだ同期していない）",
+                    "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}},
+            "401": {"$ref": "#/components/responses/Unauthorized"},
+            "403": {"$ref": "#/components/responses/Forbidden"},
+            "429": {"$ref": "#/components/responses/TooManyRequests"},
+            "500": {"$ref": "#/components/responses/InternalError"},
+        },
+    }}
     components = copy.deepcopy(base["components"])
     components["securitySchemes"]["cognito"]["flows"]["authorizationCode"]["scopes"] = {
         "openid": "OIDC", "torelog-api/training.read": "ことばの記録を読む（KARADA の筋トレと同じ scope）",
@@ -90,7 +144,7 @@ def build() -> dict:
     registry = se.create_registry()
     template = base["components"]["schemas"]["ReportChange"]
     for entity_type, (name, model, description) in MODELS.items():
-        schemas[name] = fields_schema(model, description, entity_type)
+        schemas[name] = fields_schema(model, description, entity_type, schemas)
     for entity_type in MODELS:
         schemas[f"{camel(entity_type)}Change"] = change_schema(template, entity_type, registry.specs[entity_type])
     schemas["Change"] = {

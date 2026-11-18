@@ -8,8 +8,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 from words.domain.catalog import SEED_SOURCES, SEED_TAGS
 
 ALL_TOOLS = {"capture_expression", "capture_expressions", "enrich_expressions", "tag_expressions", "move_expression",
-             "record_review", "record_use", "update_expression", "delete_expression", "add_source", "list_facets",
-             "grep_words", "get_words", "reflection_material", "logout"}
+             "record_use", "update_expression", "delete_expression", "add_source", "list_facets",
+             "grep_words", "get_words", "reflection_material", "stats", "logout"}
 
 
 def capture(call, text, **kw):
@@ -143,12 +143,15 @@ def test_補うのは補う項目だけで_本人の項目と本人が決めた�
     call("update_expression", id=e["id"], register="formal")
     r = call("enrich_expressions", items=[{
         "id": e["id"], "reading": "ふにおちる", "meaning": "納得がいく", "nuance": "腹の底から", "register": "spoken",
-        "examples": ["やっと腑に落ちたよ"], "similar": ["納得する"], "situations": ["会議で"], "usefulness": 3}])
+        "examples": ["やっと腑に落ちたよ", "それで腑に落ちた"], "similar": ["納得する"], "situations": ["会議で"],
+        "usefulness": 3}])
     result = r["results"][0]
     assert result["status"] == "enriched" and result["proposed_tags"] == ["会議で"] and "note" in result
     word = call("get_words", ids=[e["id"]])["words"][0]
     assert (word["scene"], word["note"], word["register"], word["register_by"]) == ("本人の場面", "本人のメモ", "formal", "user")
-    assert (word["meaning"], word["examples"], word["usefulness"]) == ("納得がいく", ["やっと腑に落ちたよ"], 3)
+    assert (word["meaning"], word["usefulness"]) == ("納得がいく", 3)
+    assert word["examples"] == [{"text": "やっと腑に落ちたよ", "origin": "claude", "confirmed": False},
+                                {"text": "それで腑に落ちた", "origin": "claude", "confirmed": False}]
     assert word["usefulness_until"] == "2026-12-02"  # 既定は決めた日から14日
     assert word["enriched_at"] is not None
 
@@ -207,7 +210,45 @@ def test_手札に入れる_戻す_いっぱいなら_hand_full(call):
     assert own["expression"]["place"] == "own"
 
 
-# --- 振り返りと使えた ---
+# --- 例文 ---
+
+
+def test_拾うときの本人の例文と_補う_Claude_の例文(call):
+    e = capture(call, "腑に落ちる", examples=["やっと腑に落ちた"])["expression"]
+    capture(call, "腑に落ちる。", examples=["やっと腑に落ちた", "話を聞いて腑に落ちた"])  # また出会ったときは足す（同じ文は足さない）
+    word = call("get_words", ids=[e["id"]])["words"][0]
+    assert [(x["text"], x["origin"], x["confirmed"]) for x in word["examples"]] == [
+        ("やっと腑に落ちた", "user", True), ("話を聞いて腑に落ちた", "user", True)]
+    call("enrich_expressions", items=[{"id": e["id"], "examples": ["それなら腑に落ちるね", "説明で腑に落ちたよ"]}])
+    call("update_expression", id=e["id"], confirm_examples=["それなら腑に落ちるね"])
+    call("enrich_expressions", items=[{"id": e["id"], "examples": ["なるほど、腑に落ちた", "うん、腑に落ちる", "腑に落ちない？"]}])
+    texts = [(x["text"], x["origin"], x["confirmed"]) for x in call("get_words", ids=[e["id"]])["words"][0]["examples"]]
+    # 本人の例文と、本人が確かめた Claude の例文は残り、確かめていない Claude の例文は入れ替わる
+    assert texts == [("やっと腑に落ちた", "user", True), ("話を聞いて腑に落ちた", "user", True),
+                     ("それなら腑に落ちるね", "claude", True), ("なるほど、腑に落ちた", "claude", False),
+                     ("うん、腑に落ちる", "claude", False), ("腑に落ちない？", "claude", False)]
+    call("update_expression", id=e["id"], remove_examples=["腑に落ちない？"], add_examples=["今日の会議で腑に落ちた"])
+    texts = [x["text"] for x in call("get_words", ids=[e["id"]])["words"][0]["examples"]]
+    assert "腑に落ちない？" not in texts and texts[-1] == "今日の会議で腑に落ちた"
+    with pytest.raises(ToolError):
+        call("update_expression", id=e["id"], confirm_examples=["ない例文"])
+
+
+def test_補う例文は2から3個(call):
+    e = capture(call, "腑に落ちる")["expression"]
+    with pytest.raises(ToolError):
+        call("enrich_expressions", items=[{"id": e["id"], "examples": ["一つだけ"]}])
+    with pytest.raises(ToolError):
+        call("enrich_expressions", items=[{"id": e["id"], "examples": ["1", "2", "3", "4"]}])
+
+
+def test_例文でも探せる(call):
+    e = capture(call, "腑に落ちる", examples=["部長の説明でやっと納得"])["expression"]
+    r = call("grep_words", patterns=["部長の説明"])
+    assert [(h["id"], h["field"]) for h in r["hits"]] == [(e["id"], "examples")]
+
+
+# --- 使えた ---
 
 
 def test_使えたで間隔が延び_違う日に2回で自分の言葉を勧める(call, clock):
@@ -215,49 +256,31 @@ def test_使えたで間隔が延び_違う日に2回で自分の言葉を勧め
     r = call("record_use", id=e["id"], scene="会議で", note="うまく言えた")
     assert (r["interval_days"], r["expression"]["stage"], r["own_ready"]) == (7, "used", False)
     word = call("get_words", ids=[e["id"]])["words"][0]
-    assert word["note"] == "2026-11-18 使えた：会議で うまく言えた"
-    assert word["recent_reviews"][0]["kind"] == "use"
+    assert word["note"] == "" and word["recent_uses"] == [{"used_on": "2026-11-18", "scene": "会議で", "note": "うまく言えた"}]
     again = call("record_use", id=e["id"])  # 同じ日の2回目は間隔を変えない
-    assert again["interval_days"] == 7 and again["own_ready"] is False
+    assert again["interval_days"] == 7 and again["own_ready"] is False and again["use_count"] == 2
     clock.advance(days=3)
     r = call("record_use", id=e["id"])
     assert r["interval_days"] == 21 and r["own_ready"] is True and "自分の言葉" in r["message"]
     assert call("get_words", ids=[e["id"]])["words"][0]["place"] == "hand"  # 自動では移さない
 
 
-def test_使えた日は今日か前の日(call, clock):
+def test_使えた日は今日か前の日_夜中は前の日(call, clock):
     e = capture(call, "腑に落ちる", want_to_use=True)["expression"]
     with pytest.raises(ToolError):
         call("record_use", id=e["id"], used_on="2026-11-19")
     r = call("record_use", id=e["id"], used_on="2026-11-17")
     assert r["due_on"] == "2026-11-24"
-
-
-def test_振り返りの結果_同じ日の2回目は変えず_3回続けて出てこなければ戻すのを勧める(call, clock):
-    e = capture(call, "腑に落ちる", want_to_use=True)["expression"]
-    clock.advance(days=1)
-    r = call("record_review", id=e["id"], result="said")
-    assert (r["interval_days"], r["success_streak"]) == (2, 1)
-    r = call("record_review", id=e["id"], result="blank")
-    assert r["interval_days"] == 2 and "note" in r
-    for _ in range(3):
-        clock.advance(days=1)
-        r = call("record_review", id=e["id"], result="blank")
-    assert r["lapse_streak"] == 3 and r["suggest_demote"] is True
-    assert call("get_words", ids=[e["id"]])["words"][0]["place"] == "hand"  # 自動では戻さない
-
-
-def test_手札でない表現は振り返れない(call):
-    e = capture(call, "腑に落ちる")["expression"]
-    with pytest.raises(ToolError):
-        call("record_review", id=e["id"], result="said")
-
-
-def test_夜中の振り返りは前の日に数える(call, clock):
-    e = capture(call, "腑に落ちる", want_to_use=True)["expression"]  # 11-18 21:00
     clock.advance(hours=6)  # 11-19 03:00 はまだ 11-18
-    r = call("record_review", id=e["id"], result="said")
-    assert r["due_on"] == "2026-11-20"
+    r = call("record_use", id=e["id"])
+    assert call("get_words", ids=[e["id"]])["words"][0]["recent_uses"][0]["used_on"] == "2026-11-18"
+
+
+def test_振り返りのツールはない(call):
+    import asyncio
+
+    names = {t.name for t in asyncio.run(call.mcp.list_tools())}
+    assert "record_review" not in names
 
 
 # --- 直す・消す ---
@@ -277,19 +300,19 @@ def test_本人が言ったとおりに直す_出会いも直せる(call):
         call("update_expression", id=e["id"], encounter={"title": "x"})  # encounter_id がない
 
 
-def test_消すのは確かめてから_出会いと振り返りも一緒に消える(call, engine):
+def test_消すのは確かめてから_出会いと使えたも一緒に消える(call, engine):
     e = capture(call, "腑に落ちる", want_to_use=True, situations=["励ます"], by="user")["expression"]
     call("record_use", id=e["id"])
     preview = call("delete_expression", id=e["id"])
     assert preview["status"] == "needs_confirmation" and preview["encounter_count"] == 1
-    assert preview["review_count"] == 1
+    assert preview["usage_count"] == 1
     assert call("get_words", ids=[e["id"]])["words"]  # まだ消えていない
     done = call("delete_expression", id=e["id"], confirmed=True)
     assert done["status"] == "deleted"
     assert call("get_words", ids=[e["id"]])["not_found"] == [e["id"]]
-    deleted = {d.entity_type for t in ("expression", "encounter", "review", "expression_tag")
+    deleted = {d.entity_type for t in ("expression", "encounter", "usage", "expression_tag")
                for d in engine.docs_of_type("alice", t) if d.own and d.own.deleted}
-    assert deleted == {"expression", "encounter", "review", "expression_tag"}
+    assert deleted == {"expression", "encounter", "usage", "expression_tag"}
 
 
 # --- 出会った場所 ---
@@ -386,25 +409,49 @@ def test_読むのは10個まで_ないものは_not_found(call):
         call("get_words", ids=["x"] * 11)
 
 
-def test_振り返りの材料(call, clock):
+def test_手札の見直しの材料(call, clock):
     hand = [capture(call, f"手札{n}{'の' * n}", want_to_use=True, same_as="new")["expression"] for n in range(4)]
+    call("record_use", id=hand[1]["id"])
+    clock.advance(days=46)
     star = capture(call, "気が置けない", star=True)["expression"]
     capture(call, "やぶさかでない")
-    call("move_expression", id=hand[3]["id"], to="collected")  # 空きを作ってから、また出会う
-    call("move_expression", id=hand[3]["id"], to="hand")
-    clock.advance(days=2)
-    for _ in range(3):
-        clock.advance(days=1)
-        call("record_review", id=hand[0]["id"], result="blank")
+    call("record_use", id=hand[1]["id"])
     r = call("reflection_material")
     assert r["days"] == 14 and len(r["hand"]) == 4 and r["hand_count"]["count"] == 4
-    assert 3 <= len(r["review_queue"]) <= 5
-    assert r["review_results"] == {"said": 0, "close": 0, "blank": 3, "use": 0}
+    assert {x["group"] for x in r["listen_queue"]} <= {"due", "hand", "star", "recent"}
+    assert r["listen_queue"][0]["group"] == "due"
+    assert r["activity"] == {"used": 1, "listened_items": 0, "listened_minutes": 0.0}
     assert {x["id"] for x in r["suggest_to_hand"]} == {star["id"]}
-    assert [x["id"] for x in r["suggest_demote"]] == [hand[0]["id"]]
-    assert r["captured_total"] == 6
+    assert {x["id"] for x in r["suggest_demote"]} == {hand[0]["id"], hand[2]["id"], hand[3]["id"]}  # 使えていない
+    assert [x["id"] for x in r["suggest_own"]] == [hand[1]["id"]]
+    assert r["captured_total"] == 2  # 期間（14日）に拾ったもの
     with pytest.raises(ToolError):
         call("reflection_material", days=6)
+
+
+def test_活動の記録(call, engine, clock):
+    import uuid
+
+    from sync.model import Change
+
+    a = capture(call, "腑に落ちる", source="Audible", want_to_use=True)["expression"]
+    capture(call, "気が置けない", source="会話")
+    capture(call, "やぶさかでない")
+    call("record_use", id=a["id"])
+    engine.append("alice", [Change(str(uuid.uuid4()), "listen_session", str(uuid.uuid4()), None, "create",
+                                   {"started_at": "2026-11-18T08:00:00+09:00", "listened_on": "2026-11-18",
+                                    "seconds": 900, "items": 15}, "2026-11-18T00:00:00.000Z", "app")])
+    r = call("stats")
+    assert r["unit"] == "week" and len(r["periods"]) == 8 and r["to"] == "2026-11-22"
+    this_week = r["periods"][-1]
+    assert (this_week["captured"], this_week["used"], this_week["hand_entered"], this_week["listened_items"],
+            this_week["listened_minutes"]) == (3, 1, 1, 15, 15.0)
+    assert {x["source"]: x["captured"] for x in r["captured_by_source"]} == {"Audible": 1, "会話": 1, "（場所なし）": 1}
+    assert r["now"] == {"collected": 2, "hand": 1, "own": 0, "total": 3} and "last_app_sync_at" in r
+    month = call("stats", unit="month", count=3)
+    assert [p["from"] for p in month["periods"]] == ["2026-09-01", "2026-10-01", "2026-11-01"]
+    with pytest.raises(ToolError):
+        call("stats", unit="month", count=13)
 
 
 # --- 許可と利用者 ---

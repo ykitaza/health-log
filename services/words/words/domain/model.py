@@ -1,4 +1,4 @@
-"""ことばのドメインの型（表現・出会い・出会った場所・タグとつながり・振り返りの記録）。設計は docs/words-design.md の「データ」。
+"""ことばのドメインの型（表現と例文・出会い・出会った場所・タグとつながり・使えた・聞いた記録）。設計は docs/words-design.md の「データ」。
 
 どれも読み取り専用（frozen）。書き換えは dataclasses.replace で新しいものを作る（読んだものを使い回しても壊れないように）。
 """
@@ -17,7 +17,8 @@ MAX_READING = 100
 MAX_USE_NOTE = 300
 MAX_MEANING = 300
 MAX_NUANCE = 500
-MAX_EXAMPLES, MAX_EXAMPLE = 3, 200
+MAX_EXAMPLES, MAX_EXAMPLE = 8, 200  # 例文は本人のものと Claude のものを合わせて8件まで、各200文字
+CLAUDE_EXAMPLES_MIN, CLAUDE_EXAMPLES_MAX = 2, 3  # 補うときに Claude が書く話し言葉の例文の数
 MAX_SIMILAR, MAX_SIMILAR_TEXT = 5, 100
 MAX_USEFULNESS_REASON = 200
 MAX_SOURCE_NAME = 40
@@ -32,7 +33,9 @@ MAX_INTERVAL = 60
 
 MAX_EXPRESSIONS = 5000  # 1人
 MAX_ENCOUNTERS = 50  # 表現1つ
-MAX_REVIEWS = 500  # 表現1つ
+MAX_USAGES = 500  # 使えたの記録。表現1つ
+MAX_USAGE_NOTE = 300
+MAX_LISTEN_SECONDS = 24 * 3600  # 聞いた記録1回の秒数
 MAX_SOURCES = 50  # 1人
 MAX_TAGS = 200  # 1人
 
@@ -44,8 +47,7 @@ class Place(StrEnum):
 
 
 class Stage(StrEnum):
-    UNDERSTOOD = "understood"  # 意味がわかる
-    SAYABLE = "sayable"  # 言えそう
+    UNDERSTOOD = "understood"  # 意味がわかる（手札に入れたとき）
     USED = "used"  # 使えた
 
 
@@ -57,7 +59,7 @@ class Register(StrEnum):
 
 REGISTER_NAMES = {Register.SPOKEN: "話し言葉", Register.WRITTEN: "書き言葉", Register.FORMAL: "改まった"}
 PLACE_NAMES = {Place.COLLECTED: "拾った", Place.HAND: "手札", Place.OWN: "自分の言葉"}
-STAGE_NAMES = {Stage.UNDERSTOOD: "意味がわかる", Stage.SAYABLE: "言えそう", Stage.USED: "使えた"}
+STAGE_NAMES = {Stage.UNDERSTOOD: "意味がわかる", Stage.USED: "使えた"}
 
 
 class By(StrEnum):
@@ -79,37 +81,28 @@ class TagStatus(StrEnum):
 TAG_WEIGHTS = {TagStatus.CONFIRMED: 1.0, TagStatus.PROPOSED: 0.5}  # rejected は使わない
 
 
-class ReviewKind(StrEnum):
-    RECALL = "recall"
-    USE = "use"
-
-
-class RecallResult(StrEnum):
-    SAID = "said"  # 言えた
-    CLOSE = "close"  # 惜しい
-    BLANK = "blank"  # 出てこなかった
-
-
-class Trigger(StrEnum):
-    SELF = "self"
-    NOTIFICATION = "notification"
-    CHAT = "chat"
-
-
 @dataclass(frozen=True)
 class Schedule:
-    """手札の間隔の項目（1回の振り返りで一緒に変わる組）。"""
+    """手札の間隔の項目（聞いた・使えたで一緒に変わる組）。"""
 
     stage: Stage | None = None
     interval_days: int = 1
     due_on: date | None = None
-    last_reviewed_on: date | None = None
-    success_streak: int = 0
-    lapse_streak: int = 0
-    review_count: int = 0
-    lapse_count: int = 0
+    listened_at: str | None = None  # 最後に聞いた時刻（RFC 3339）
+    listen_count: int = 0
     use_count: int = 0
     last_used_on: date | None = None
+
+
+@dataclass(frozen=True)
+class Example:
+    """例文1つ。本人のもの（origin user。いつも確かめた扱い）と Claude のもの（補うときに書く。本人が確かめたら confirmed）。"""
+
+    text: str
+    origin: By
+    confirmed: bool
+    created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -131,7 +124,7 @@ class Expression:
     nuance: str = ""
     register: Register | None = None
     register_by: By | None = None
-    examples: tuple[str, ...] = ()
+    examples: tuple[Example, ...] = ()
     similar: tuple[str, ...] = ()
     usefulness: int | None = None
     usefulness_reason: str = ""
@@ -159,16 +152,26 @@ class Encounter:
 
 
 @dataclass(frozen=True)
-class Review:
+class Usage:
+    """実際の会話で使えた1回（追記だけ）。"""
+
     id: str
     expression_id: str
-    kind: ReviewKind
-    reviewed_at: str
-    result: RecallResult | None = None
-    interval_before: int | None = None
-    interval_after: int | None = None
-    session_id: str | None = None
-    trigger: Trigger | None = None
+    used_on: date
+    scene: str = ""
+    note: str = ""
+    created_at: str = ""
+
+
+@dataclass(frozen=True)
+class ListenSession:
+    """アプリで聞いた1回（車の中などで続けて流したまとまり。追記だけ）。"""
+
+    id: str
+    started_at: str
+    listened_on: date
+    seconds: int
+    items: int
 
 
 @dataclass(frozen=True)

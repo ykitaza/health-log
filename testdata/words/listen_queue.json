@@ -1,0 +1,224 @@
+{
+  "description": "聞く順。risk ＝ 最後に聞いた日（午前4時区切り）からの日数 ÷ 間隔（まだなら手札に入れてからの日数）、3で止める。優先度 ＝ risk × 今の役立ち度（1〜3。null と期限切れは2）× ★（1.5）。並びは 手札の期限のもの（due。優先度の順）→ 手札のほか（hand。優先度の順）→ ★の拾った・自分の言葉（star。新しく拾った順）→ 最近14日に拾ったもの（recent。新しい順）。同じ表現は1回だけ、同じ優先度は ID の順。limit 件まで",
+  "today": "2026-11-20",
+  "expressions": [
+    {
+      "id": "a",
+      "interval_days": 2,
+      "due_on": "2026-11-19",
+      "listened_at": "2026-11-17T08:00:00+09:00",
+      "hand_since": "2026-11-10"
+    },
+    {
+      "id": "b",
+      "interval_days": 1,
+      "due_on": "2026-11-15",
+      "listened_at": "2026-11-14T08:00:00+09:00",
+      "hand_since": "2026-11-10",
+      "star": true
+    },
+    {
+      "id": "c",
+      "interval_days": 5,
+      "due_on": "2026-11-20",
+      "listened_at": "2026-11-15T08:00:00+09:00",
+      "hand_since": "2026-11-01",
+      "usefulness": 3,
+      "usefulness_until": "2026-11-30"
+    },
+    {
+      "id": "d",
+      "interval_days": 5,
+      "due_on": "2026-11-20",
+      "listened_at": "2026-11-15T08:00:00+09:00",
+      "hand_since": "2026-11-01",
+      "usefulness": 3,
+      "usefulness_until": "2026-11-19"
+    },
+    {
+      "id": "e",
+      "interval_days": 8,
+      "due_on": "2026-11-24",
+      "listened_at": "2026-11-16T08:00:00+09:00",
+      "hand_since": "2026-11-01"
+    },
+    {
+      "id": "f",
+      "interval_days": 14,
+      "due_on": "2026-12-01",
+      "listened_at": "2026-11-17T08:00:00+09:00",
+      "hand_since": "2026-10-01",
+      "usefulness": 1
+    },
+    {
+      "id": "g",
+      "interval_days": 1,
+      "due_on": "2026-11-21",
+      "listened_at": null,
+      "hand_since": "2026-11-20"
+    },
+    {
+      "id": "h",
+      "place": "collected",
+      "star": true,
+      "created_at": "2026-09-01T00:00:00.000Z"
+    },
+    {
+      "id": "i",
+      "place": "own",
+      "star": true,
+      "created_at": "2026-10-05T00:00:00.000Z"
+    },
+    {
+      "id": "j",
+      "place": "collected",
+      "created_at": "2026-11-18T00:00:00.000Z"
+    },
+    {
+      "id": "k",
+      "place": "collected",
+      "created_at": "2026-11-19T22:00:00.000Z"
+    },
+    {
+      "id": "l",
+      "place": "collected",
+      "created_at": "2026-11-01T00:00:00.000Z"
+    }
+  ],
+  "expected_each": [
+    {
+      "id": "a",
+      "risk": 1.5,
+      "usefulness": 2,
+      "priority": 3.0
+    },
+    {
+      "id": "b",
+      "risk": 3.0,
+      "usefulness": 2,
+      "priority": 9.0
+    },
+    {
+      "id": "c",
+      "risk": 1.0,
+      "usefulness": 3,
+      "priority": 3.0
+    },
+    {
+      "id": "d",
+      "risk": 1.0,
+      "usefulness": 2,
+      "priority": 2.0
+    },
+    {
+      "id": "e",
+      "risk": 0.5,
+      "usefulness": 2,
+      "priority": 1.0
+    },
+    {
+      "id": "f",
+      "risk": 0.214286,
+      "usefulness": 1,
+      "priority": 0.214286
+    },
+    {
+      "id": "g",
+      "risk": 0.0,
+      "usefulness": 2,
+      "priority": 0.0
+    }
+  ],
+  "cases": [
+    {
+      "limit": 20,
+      "expected": [
+        {
+          "id": "b",
+          "group": "due",
+          "priority": 9.0
+        },
+        {
+          "id": "a",
+          "group": "due",
+          "priority": 3.0
+        },
+        {
+          "id": "c",
+          "group": "due",
+          "priority": 3.0
+        },
+        {
+          "id": "d",
+          "group": "due",
+          "priority": 2.0
+        },
+        {
+          "id": "e",
+          "group": "hand",
+          "priority": 1.0
+        },
+        {
+          "id": "f",
+          "group": "hand",
+          "priority": 0.214
+        },
+        {
+          "id": "g",
+          "group": "hand",
+          "priority": 0.0
+        },
+        {
+          "id": "i",
+          "group": "star",
+          "priority": 0.0
+        },
+        {
+          "id": "h",
+          "group": "star",
+          "priority": 0.0
+        },
+        {
+          "id": "k",
+          "group": "recent",
+          "priority": 0.0
+        },
+        {
+          "id": "j",
+          "group": "recent",
+          "priority": 0.0
+        }
+      ]
+    },
+    {
+      "limit": 5,
+      "expected": [
+        {
+          "id": "b",
+          "group": "due",
+          "priority": 9.0
+        },
+        {
+          "id": "a",
+          "group": "due",
+          "priority": 3.0
+        },
+        {
+          "id": "c",
+          "group": "due",
+          "priority": 3.0
+        },
+        {
+          "id": "d",
+          "group": "due",
+          "priority": 2.0
+        },
+        {
+          "id": "e",
+          "group": "hand",
+          "priority": 1.0
+        }
+      ]
+    }
+  ]
+}

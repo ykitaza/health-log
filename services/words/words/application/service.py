@@ -24,7 +24,7 @@ from words.infrastructure.sync_entities import (
     ENCOUNTER,
     EXPRESSION,
     EXPRESSION_TAG,
-    REVIEW,
+    USAGE,
     SOURCE,
     TAG,
 )
@@ -34,7 +34,7 @@ MAX_BATCH_CAPTURE = 30
 MAX_BATCH_ENRICH = 20
 MAX_GET = 10
 GREP_DEFAULT_LIMIT, GREP_MAX_LIMIT = 20, 50
-GET_ENCOUNTERS, GET_REVIEWS = 10, 5
+GET_ENCOUNTERS, GET_USAGES = 10, 5
 MAX_PROPOSED_ON_CAPTURE = 2  # Claude が拾うときに付けるタグの案の数
 MAX_MATERIAL_ITEMS = 30  # reflection_material の一覧それぞれの件数
 SAME_AS_NEW = "new"
@@ -59,10 +59,39 @@ def schedule_fields(s: m.Schedule) -> dict:
     """間隔の項目の組（いつも一緒に書く）。"""
     return {
         "stage": s.stage.value if s.stage else None, "interval_days": s.interval_days, "due_on": _iso(s.due_on),
-        "last_reviewed_on": _iso(s.last_reviewed_on), "success_streak": s.success_streak,
-        "lapse_streak": s.lapse_streak, "review_count": s.review_count, "lapse_count": s.lapse_count,
+        "listened_at": s.listened_at, "listen_count": s.listen_count,
         "use_count": s.use_count, "last_used_on": _iso(s.last_used_on),
     }
+
+
+def example_fields(x: m.Example) -> dict:
+    return {"text": x.text, "origin": x.origin.value, "confirmed": x.confirmed, "created_at": x.created_at,
+            "updated_at": x.updated_at}
+
+
+def _clean_examples(texts) -> list[str]:
+    out = []
+    for t in texts or ():
+        t = " ".join(str(t).split())
+        if t and len(t) <= m.MAX_EXAMPLE and t not in out:
+            out.append(t)
+    return out
+
+
+def add_user_examples(current: tuple[m.Example, ...], texts, stamp: str) -> tuple[m.Example, ...] | None:
+    """本人の例文を足す（同じ文は足さない。8件を超える分は足さない）。変わらなければ None。"""
+    have = {x.text for x in current}
+    new = [m.Example(t, m.By.USER, True, stamp, stamp) for t in _clean_examples(texts) if t not in have]
+    room = max(m.MAX_EXAMPLES - len(current), 0)
+    return (*current, *new[:room]) if new[:room] else None
+
+
+def replace_claude_examples(current: tuple[m.Example, ...], texts, stamp: str) -> tuple[m.Example, ...]:
+    """Claude の例文を入れ替える：本人の例文と、本人が確かめた Claude の例文は残し、確かめていない Claude の例文を新しくする。"""
+    kept = [x for x in current if x.origin is m.By.USER or x.confirmed]
+    have = {x.text for x in kept}
+    new = [m.Example(t, m.By.CLAUDE, False, stamp, stamp) for t in _clean_examples(texts) if t not in have]
+    return (*kept, *new[:max(m.MAX_EXAMPLES - len(kept), 0)])
 
 
 # --- 入力 ---
@@ -95,6 +124,7 @@ class CaptureInput:
     star: bool = False
     want_to_use: bool = False
     same_as: str | None = None
+    examples: tuple[str, ...] = ()  # 本人の例文
 
 
 @dataclass(frozen=True)
@@ -105,7 +135,7 @@ class EnrichInput:
     nuance: str | None = None
     register: m.Register | None = None
     tags: tuple[TagRequest, ...] = ()  # Claude の案として proposed で付ける
-    examples: tuple[str, ...] | None = None
+    examples: tuple[str, ...] | None = None  # Claude の話し言葉の例文（2〜3個）
     similar: tuple[str, ...] | None = None
     usefulness: int | None = None
     usefulness_reason: str | None = None
@@ -148,6 +178,9 @@ class ExpressionEdit:
     use_note: str | None = None
     reading: str | None = None
     register: m.Register | None = None
+    add_examples: tuple[str, ...] = ()  # 本人の例文を足す
+    confirm_examples: tuple[str, ...] = ()  # Claude の例文のうち、本人が「それでいい」と言ったもの（文で指す）
+    remove_examples: tuple[str, ...] = ()  # 外す例文（文で指す）
     encounter_id: str | None = None
     encounter: dict | None = None  # 直す出会いの項目（title・locator・met_on・time_hint・scene・surrounding_text・wording・note・source）
 
@@ -281,10 +314,13 @@ class WordsService:
                       "scene": item.scene, "note": item.note, "star": item.star, "place": place.value,
                       "moved_at": stamp, "hand_since": today.isoformat() if to_hand else None,
                       "use_note": item.use_note, **schedule_fields(schedule)}
+            examples = add_user_examples((), item.examples, stamp) or ()
+            if examples:
+                fields["examples"] = [example_fields(x) for x in examples]
             draft.write(EXPRESSION, expression_id, "create", fields)
             expression = m.Expression(expression_id, text, search_key(text), place, schedule, source_id,
                                       item.scene, item.note, item.star, stamp, today if to_hand else None,
-                                      use_note=item.use_note)
+                                      use_note=item.use_note, examples=examples)
             outcome = "promoted" if to_hand else "created"
         else:
             expression = target
@@ -297,6 +333,9 @@ class WordsService:
                 updates["use_note"] = item.use_note
             if not expression.scene and item.scene:
                 updates["scene"] = item.scene
+            if (examples := add_user_examples(expression.examples, item.examples, stamp)) is not None:
+                updates["examples"] = [example_fields(x) for x in examples]
+                expression = replace(expression, examples=examples)
             outcome = "reencountered"
             if expression.place is m.Place.COLLECTED:
                 if len(draft.hand()) < sch.HAND_LIMIT:
@@ -444,7 +483,12 @@ class WordsService:
                 elif e.register_by is not m.By.USER:
                     fields.update({"register": item.register.value, "register_by": "claude"})
             if item.examples is not None:
-                fields["examples"] = list(item.examples)
+                texts = _clean_examples(item.examples)
+                if not m.CLAUDE_EXAMPLES_MIN <= len(texts) <= m.CLAUDE_EXAMPLES_MAX:
+                    results.append({"id": item.id, "status": "error", "error":
+                                    f"例文は話し言葉で{m.CLAUDE_EXAMPLES_MIN}〜{m.CLAUDE_EXAMPLES_MAX}個にしてください"})
+                    continue
+                fields["examples"] = [example_fields(x) for x in replace_claude_examples(e.examples, texts, stamp)]
             if item.similar is not None:
                 fields["similar"] = list(item.similar)
             if item.usefulness is not None:
@@ -563,7 +607,7 @@ class WordsService:
     def _hand_count(state) -> dict:
         return {"count": len(state.hand()), "limit": sch.HAND_LIMIT}
 
-    # --- 振り返りと使えた ---
+    # --- 使えた・聞く・活動の記録 ---
 
     def _moment(self, day: date) -> str:
         """その日の記録の時刻。今日なら今、前の日なら正午（日本時間）。"""
@@ -582,26 +626,20 @@ class WordsService:
         day = used_on or today
         if day > today:
             raise WordsError("使えた日（used_on）は今日か前の日にしてください")
-        if len(draft.state.reviews.get(e.id, ())) >= m.MAX_REVIEWS:
-            raise WordsError(f"振り返りの記録は表現1つに{m.MAX_REVIEWS}件までです")
+        if len(draft.state.usages.get(e.id, ())) >= m.MAX_USAGES:
+            raise WordsError(f"使えたの記録は表現1つに{m.MAX_USAGES}件までです")
         in_hand = e.place is m.Place.HAND
         schedule = sch.apply_use(e.schedule, day, in_hand)
         fields = schedule_fields(schedule)
         if not in_hand:  # 手札でなければ、使えた回数と日だけ
-            fields = {k: fields[k] for k in ("use_count", "last_used_on", "lapse_streak")}
-        memo = " ".join(x.strip() for x in (scene, note) if x and x.strip())
-        if memo:  # 振り返りの記録には場面とメモの項目がないので、表現のメモに本人の言葉のまま足す
-            line = f"{day.isoformat()} 使えた：{memo}"
-            fields["note"] = (f"{e.note}\n{line}" if e.note else line)[:m.MAX_NOTE]
+            fields = {k: fields[k] for k in ("use_count", "last_used_on")}
         draft.write(EXPRESSION, e.id, "update", fields)
-        draft.write(REVIEW, str(uuid.uuid4()), "create", {
-            "expression_id": e.id, "kind": m.ReviewKind.USE.value, "result": None, "reviewed_at": self._moment(day),
-            "interval_before": e.schedule.interval_days, "interval_after": schedule.interval_days,
-            "session_id": None, "trigger": m.Trigger.CHAT.value})
+        draft.write(USAGE, str(uuid.uuid4()), "create", {
+            "expression_id": e.id, "used_on": day.isoformat(), "scene": scene.strip()[:m.MAX_USAGE_NOTE],
+            "note": note.strip()[:m.MAX_USAGE_NOTE]})
         state = await self._commit(user, draft)
         updated = state.expressions[e.id]
-        use_days = self.use_days(state, e.id)
-        ready = sch.own_ready(use_days) and updated.place is m.Place.HAND
+        ready = sch.own_ready(self.use_days(state, e.id)) and updated.place is m.Place.HAND
         result = {"expression": brief(updated), "interval_days": updated.schedule.interval_days,
                   "due_on": _iso(updated.schedule.due_on), "use_count": updated.schedule.use_count,
                   "own_ready": ready}
@@ -611,39 +649,29 @@ class WordsService:
 
     @staticmethod
     def use_days(state: WordsState, expression_id: str) -> set[date]:
-        return {sch.business_day(datetime.fromisoformat(r.reviewed_at.replace("Z", "+00:00")))
-                for r in state.reviews.get(expression_id, ()) if r.kind is m.ReviewKind.USE}
+        return {u.used_on for u in state.usages.get(expression_id, ())}
 
-    async def record_review(self, user: str, expression_id: str, result: m.RecallResult,
-                            session_id: str | None = None) -> dict:
-        draft = await self._draft(user)
-        e = draft.expressions.get(expression_id)
+    async def speech_script(self, user: str, expression_id: str):
+        """「聞く」の読み上げの台本（アプリ用の API の音声のルートが使う）。"""
+        from words.domain.speech import build_script
+
+        state = await self.repo.state(user)
+        e = state.expressions.get(expression_id)
         if e is None:
             raise WordsError(f"表現（{expression_id}）が見つかりません")
-        if e.place is not m.Place.HAND:
-            raise WordsError("振り返るのは手札の表現だけです（拾った・自分の言葉には振り返りがありません）")
-        if len(draft.state.reviews.get(e.id, ())) >= m.MAX_REVIEWS:
-            raise WordsError(f"振り返りの記録は表現1つに{m.MAX_REVIEWS}件までです")
-        today = self.today()
-        schedule = sch.apply_recall(e.schedule, result, today)
-        if schedule != e.schedule:
-            draft.write(EXPRESSION, e.id, "update", schedule_fields(schedule))
-        draft.write(REVIEW, str(uuid.uuid4()), "create", {
-            "expression_id": e.id, "kind": m.ReviewKind.RECALL.value, "result": result.value,
-            "reviewed_at": _now_text(self.now()), "interval_before": e.schedule.interval_days,
-            "interval_after": schedule.interval_days, "session_id": session_id, "trigger": m.Trigger.CHAT.value})
-        state = await self._commit(user, draft)
-        updated = state.expressions[e.id]
-        out = {"expression": brief(updated), "interval_days": updated.schedule.interval_days,
-               "due_on": _iso(updated.schedule.due_on), "success_streak": updated.schedule.success_streak,
-               "lapse_streak": updated.schedule.lapse_streak,
-               "counted": schedule != e.schedule or e.schedule.last_reviewed_on != today}
-        if e.schedule.last_reviewed_on == today:
-            out["note"] = "今日はもう振り返っているので、記録だけを残し、間隔は変えていません。"
-        if updated.schedule.lapse_streak >= sch.DEMOTE_LAPSES:
-            out["suggest_demote"] = True
-            out["message"] = "出てこなかったが3回続きました。拾ったに戻すかを利用者に聞いてください（自動では戻しません）。"
-        return out
+        return build_script(e, state.tags_of(e.id))
+
+    async def stats(self, user: str, unit: str, count: int) -> dict:
+        from words.domain.stats import MAX_PERIODS, UNITS, activity_stats
+
+        if unit not in UNITS:
+            raise WordsError("unit は week か month にしてください")
+        if not 1 <= count <= MAX_PERIODS[unit]:
+            raise WordsError(f"count は1〜{MAX_PERIODS[unit]}にしてください")
+        state = await self.repo.state(user)
+        return activity_stats(list(state.expressions.values()), [x for v in state.encounters.values() for x in v],
+                              [u for v in state.usages.values() for u in v], list(state.listens), list(state.sources),
+                              self.today(), unit, count)
 
     # --- 直す・消す ---
 
@@ -663,6 +691,15 @@ class WordsService:
                 fields[name] = value
         if edit.register is not None:
             fields.update({"register": edit.register.value, "register_by": "user"})  # 本人が決めた硬さ
+        if edit.add_examples or edit.confirm_examples or edit.remove_examples:
+            stamp = _now_text(self.now())
+            remove, confirm = set(edit.remove_examples), set(edit.confirm_examples)
+            if unknown := (remove | confirm) - {x.text for x in e.examples}:
+                raise WordsError(f"この表現にない例文です：{'、'.join(sorted(unknown))}（get_words の examples の文で指してください）")
+            examples = tuple(replace(x, confirmed=True, updated_at=stamp) if x.text in confirm and not x.confirmed else x
+                             for x in e.examples if x.text not in remove)
+            examples = add_user_examples(examples, edit.add_examples, stamp) or examples
+            fields["examples"] = [example_fields(x) for x in examples]
         if fields:
             draft.write(EXPRESSION, e.id, "update", fields)
         if edit.encounter_id is not None:
@@ -695,14 +732,14 @@ class WordsService:
         if e is None:
             raise WordsError(f"表現（{expression_id}）が見つかりません")
         state = draft.state
-        encounters, reviews = state.encounters.get(e.id, ()), state.reviews.get(e.id, ())
+        encounters, usages = state.encounters.get(e.id, ()), state.usages.get(e.id, ())
         links = state.links.get(e.id, ())
-        summary = {"expression": brief(e), "encounter_count": len(encounters), "review_count": len(reviews)}
+        summary = {"expression": brief(e), "encounter_count": len(encounters), "usage_count": len(usages)}
         if not confirmed:
             return {"status": "needs_confirmation", **summary,
-                    "message": "まだ消していません。消すもの（表現と、出会い・振り返りの記録）を利用者に見せて了承を得てから、"
+                    "message": "まだ消していません。消すもの（表現と、出会い・使えたの記録）を利用者に見せて了承を得てから、"
                                "confirmed=true で呼び直してください。手札から外したいだけなら、消さずに move_expression で拾ったに戻します。"}
-        for child_type, items in ((ENCOUNTER, encounters), (REVIEW, reviews), (EXPRESSION_TAG, links)):
+        for child_type, items in ((ENCOUNTER, encounters), (USAGE, usages), (EXPRESSION_TAG, links)):
             for item in items:
                 draft.write(child_type, item.id, "delete")
         draft.write(EXPRESSION, e.id, "delete")
@@ -851,15 +888,8 @@ class WordsService:
                 captured.append(e)
             elif any(day_of(x.created_at) >= start for x in state.encounters.get(e.id, ()) if x.created_at):
                 reencountered.append(e)
-        results = {"said": 0, "close": 0, "blank": 0, "use": 0}
-        for reviews in state.reviews.values():
-            for r in reviews:
-                if day_of(r.reviewed_at) < start:
-                    continue
-                if r.kind is m.ReviewKind.USE:
-                    results["use"] += 1
-                elif r.result is not None:  # 結果のない振り返り（アプリが項目ごとに送る途中など）は数えない
-                    results[r.result.value] += 1
+        used = sum(1 for v in state.usages.values() for u in v if u.used_on >= start)
+        listened = [x for x in state.listens if x.listened_on >= start]
         to_hand = [e for e in state.expressions.values() if e.place is m.Place.COLLECTED
                    and (len(state.encounters.get(e.id, ())) >= 2 or e.star)]
         demote = [e for e in hand if sch.should_suggest_demote(e, today)]
@@ -872,16 +902,17 @@ class WordsService:
             "from": start.isoformat(), "to": today.isoformat(), "days": days,
             "hand": [hand_view(state, e, today) for e in hand],
             "hand_count": self._hand_count(state),
-            "review_queue": [{"id": i.expression.id, "text": i.expression.text, "priority": i.priority, "due": i.due}
-                             for i in sch.review_queue(hand, today)],
+            "listen_queue": [{"id": i.expression.id, "text": i.expression.text, "group": i.group,
+                              "priority": i.priority} for i in sch.listen_queue(list(state.expressions.values()), today, 10)],
             "captured": [brief(e) for e in newest(captured)], "captured_total": len(captured),
             "reencountered": [{**brief(e), "encounter_count": len(state.encounters.get(e.id, ()))}
                               for e in newest(reencountered)],
-            "review_results": results,
+            "activity": {"used": used, "listened_items": sum(x.items for x in listened),
+                         "listened_minutes": round(sum(x.seconds for x in listened) / 60, 1)},
             "suggest_to_hand": [{**brief(e), "encounter_count": len(state.encounters.get(e.id, ())), "star": e.star}
                                 for e in newest(to_hand)],
-            "suggest_demote": [{**brief(e), "lapse_streak": e.schedule.lapse_streak,
-                                "hand_since": _iso(e.hand_since)} for e in demote],
+            "suggest_demote": [{**brief(e), "hand_since": _iso(e.hand_since),
+                                "listen_count": e.schedule.listen_count} for e in demote],
             "suggest_own": [{**brief(e), "use_count": e.schedule.use_count} for e in own],
         }
 
@@ -915,7 +946,7 @@ def tag_views(state: WordsState, expression_id: str) -> list[dict]:
 def hand_view(state: WordsState, e: m.Expression, today: date) -> dict:
     s = e.schedule
     return {**brief(e), "interval_days": s.interval_days, "due_on": _iso(s.due_on), "due": sch.is_due(e, today),
-            "success_streak": s.success_streak, "lapse_streak": s.lapse_streak, "use_count": s.use_count,
+            "listen_count": s.listen_count, "listened_at": jst(s.listened_at), "use_count": s.use_count,
             "usefulness": e.usefulness, "usefulness_until": _iso(e.usefulness_until), "star": e.star,
             "hand_since": _iso(e.hand_since), "scene": e.scene}
 
@@ -924,18 +955,18 @@ def full_view(state: WordsState, e: m.Expression, today: date | None = None) -> 
     s = e.schedule
     source = state.source(e.source_id)
     encounters = newest_encounters(list(state.encounters.get(e.id, ())), GET_ENCOUNTERS)
-    reviews = list(state.reviews.get(e.id, ()))[-GET_REVIEWS:][::-1]
+    usages = list(state.usages.get(e.id, ()))[-GET_USAGES:][::-1]
     return {
         **brief(e), "reading": e.reading, "meaning": e.meaning, "nuance": e.nuance,
         "register": e.register.value if e.register else None,
         "register_by": e.register_by.value if e.register_by else None,
-        "examples": list(e.examples), "similar": list(e.similar), "use_note": e.use_note, "scene": e.scene,
+        "examples": [{"text": x.text, "origin": x.origin.value, "confirmed": x.confirmed} for x in e.examples],
+        "similar": list(e.similar), "use_note": e.use_note, "scene": e.scene,
         "note": e.note, "star": e.star, "source": source.name if source else None,
         "usefulness": e.usefulness, "usefulness_reason": e.usefulness_reason,
         "usefulness_until": _iso(e.usefulness_until),
         "schedule": {"interval_days": s.interval_days, "due_on": _iso(s.due_on),
-                     "last_reviewed_on": _iso(s.last_reviewed_on), "success_streak": s.success_streak,
-                     "lapse_streak": s.lapse_streak, "review_count": s.review_count, "use_count": s.use_count,
+                     "listened_at": jst(s.listened_at), "listen_count": s.listen_count, "use_count": s.use_count,
                      "last_used_on": _iso(s.last_used_on)},
         "tags": tag_views(state, e.id),
         "encounters": [{"id": x.id, "source": (src.name if (src := state.source(x.source_id)) else None),
@@ -944,9 +975,7 @@ def full_view(state: WordsState, e: m.Expression, today: date | None = None) -> 
                         "captured_via": x.captured_via, "note": x.note, "created_at": jst(x.created_at)}
                        for x in encounters],
         "encounter_count": len(state.encounters.get(e.id, ())),
-        "recent_reviews": [{"kind": r.kind.value, "result": r.result.value if r.result else None,
-                            "reviewed_at": jst(r.reviewed_at),
-                            "interval_after": r.interval_after} for r in reviews],
+        "recent_uses": [{"used_on": u.used_on.isoformat(), "scene": u.scene, "note": u.note} for u in usages],
         "captured_at": jst(e.created_at), "enriched_at": jst(e.enriched_at),
     }
 

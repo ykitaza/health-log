@@ -1,8 +1,9 @@
-"""手札の振り返りと間隔（v1）。docs/words-design.md の「振り返りと間隔（v1）」と「一度に見せるもの」。
+"""手札の間隔と、聞く順（v1）。docs/words-design.md の「聞くと間隔（v1）」。
 
-数字はメモのとおり。アプリと同じ計算にし、testdata/words/schedule.json・priority.json で両方を確かめる。
-日付の区切りは日本時間の午前4時（夜中の振り返りは前の日に数える）。
-同じ日に2回振り返っても、間隔の項目を変えるのはその日の最初の1回だけ（記録は残す）。
+自己採点の振り返りはやめ、車などで「聞く」ことを触れた回数（exposure）として間隔に使う。数字はメモのとおり。
+アプリと同じ計算にし、testdata/words/schedule.json・listen_queue.json で両方を確かめる。
+日付の区切りは日本時間の午前4時（夜中に聞いたものは前の日に数える）。
+同じ日に何度聞いても、間隔を延ばすのはその日の最初の1回だけ（回数は数える）。使えたも同じ。
 """
 
 from __future__ import annotations
@@ -11,24 +12,23 @@ import math
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 
-from words.domain.model import Expression, RecallResult, Schedule, Stage
+from words.domain.model import Expression, Place, Schedule, Stage
 
 JST = timezone(timedelta(hours=9))
 DAY_BOUNDARY_HOURS = 4
 
 HAND_LIMIT = 10
-RECALL_FACTOR, RECALL_CAP = 1.5, 14  # 思い出すだけの間隔は14日で止める
+LISTEN_FACTOR, LISTEN_CAP = 1.5, 14  # 聞くだけの間隔は14日で止める
 USE_FACTOR, USE_MIN, USE_CAP = 3, 7, 60  # 延びるのは「使えた」だけ
-SAYABLE_STREAK = 2  # 言えたが2回続いたら、意味がわかる → 言えそう
-DEMOTE_LAPSES = 3  # 出てこなかったが3回続いたら、拾ったに戻すかを聞く
-STALE_UNDERSTOOD_DAYS = 45  # 手札に45日以上いて意味がわかるのまま → 戻すのを勧める
+STALE_HAND_DAYS = 45  # 手札に45日以上いて、まだ使えていない → 拾ったに戻すのを勧める
 OWN_USES = 2  # 使えたが違う日に2回 → 自分の言葉にするかを聞く
 
 RISK_CAP = 3.0
 STAR_WEIGHT = 1.5
 DEFAULT_USEFULNESS = 2
 USEFULNESS_DAYS = 14  # 役立ち度の期限の既定（決めた日から）
-QUEUE_MAX, QUEUE_MIN, QUEUE_RISK = 5, 3, 0.5
+RECENT_DAYS = 14  # 聞く順の「最近拾ったもの」
+LISTEN_QUEUE_MAX = 20  # 1回に流す数の既定
 
 
 def business_day(moment: datetime) -> date:
@@ -36,36 +36,31 @@ def business_day(moment: datetime) -> date:
     return (moment.astimezone(JST) - timedelta(hours=DAY_BOUNDARY_HOURS)).date()
 
 
+def moment_day(text: str | None) -> date | None:
+    """RFC 3339 の時刻の「日」。"""
+    if not text:
+        return None
+    return business_day(datetime.fromisoformat(text.replace("Z", "+00:00")))
+
+
 def enter_hand(schedule: Schedule, day: date) -> Schedule:
-    """手札に入れたとき：間隔1日、明日が期限、意味がわかる、連続の回数は0。回数（振り返った・使えた）は残す。"""
-    return replace(schedule, stage=Stage.UNDERSTOOD, interval_days=1, due_on=day + timedelta(days=1),
-                   success_streak=0, lapse_streak=0)
+    """手札に入れたとき：間隔1日、明日が期限、意味がわかる。回数（聞いた・使えた）は残す。"""
+    return replace(schedule, stage=Stage.UNDERSTOOD, interval_days=1, due_on=day + timedelta(days=1))
 
 
 def leave_hand(schedule: Schedule) -> Schedule:
-    """手札から出したとき：段階と期限を外す（間隔の項目はそのまま残す）。"""
+    """手札から出したとき：段階と期限を外す（回数と間隔はそのまま残す）。"""
     return replace(schedule, stage=None, due_on=None)
 
 
-def apply_recall(schedule: Schedule, result: RecallResult, day: date) -> Schedule:
-    """振り返りの結果を当てはめる。その日の2回目からは何も変えない。"""
-    if schedule.last_reviewed_on == day:
-        return schedule
-    s, interval, stage = schedule, schedule.interval_days, schedule.stage
-    success, lapse, lapses = s.success_streak, s.lapse_streak, s.lapse_count
-    if result is RecallResult.SAID:
-        # 14日で止めるのは「延ばす」ほうだけ。使えたで14日より長くなっていた間隔は、言えたで縮めない
-        interval = max(interval, min(math.ceil(interval * RECALL_FACTOR), RECALL_CAP))
-        success, lapse = success + 1, 0
-        if stage is Stage.UNDERSTOOD and success >= SAYABLE_STREAK:
-            stage = Stage.SAYABLE
-    elif result is RecallResult.BLANK:
-        interval = max(interval // 2, 1)
-        stage = {Stage.SAYABLE: Stage.UNDERSTOOD, Stage.USED: Stage.SAYABLE}.get(stage, stage)
-        success, lapse, lapses = 0, lapse + 1, lapses + 1
-    # 惜しい（close）は、間隔・段階・連続の回数を変えない
-    return replace(s, stage=stage, interval_days=interval, due_on=day + timedelta(days=interval), last_reviewed_on=day,
-                   success_streak=success, lapse_streak=lapse, review_count=s.review_count + 1, lapse_count=lapses)
+def apply_listen(schedule: Schedule, at: str, in_hand: bool = True) -> Schedule:
+    """聞いた（アプリが流し終えた）。回数と時刻を残し、手札ならその日の最初の1回だけ間隔を延ばす（14日まで、縮めない）。"""
+    day, before = moment_day(at), moment_day(schedule.listened_at)
+    s = replace(schedule, listened_at=at, listen_count=schedule.listen_count + 1)
+    if not in_hand or before == day:
+        return s
+    interval = max(schedule.interval_days, min(math.ceil(schedule.interval_days * LISTEN_FACTOR), LISTEN_CAP))
+    return replace(s, interval_days=interval, due_on=day + timedelta(days=interval))
 
 
 def apply_use(schedule: Schedule, day: date, in_hand: bool = True) -> Schedule:
@@ -73,13 +68,13 @@ def apply_use(schedule: Schedule, day: date, in_hand: bool = True) -> Schedule:
 
     手札でないとき（拾った・自分の言葉）は、使えた回数と日だけを残し、段階と間隔は変えない。
     """
-    s = replace(schedule, use_count=schedule.use_count + 1, last_used_on=day, lapse_streak=0)
+    s = replace(schedule, use_count=schedule.use_count + 1, last_used_on=day)
     if not in_hand:
         return s
-    if schedule.last_reviewed_on == day:
+    if schedule.last_used_on == day:
         return replace(s, stage=Stage.USED)
     interval = min(max(schedule.interval_days * USE_FACTOR, USE_MIN), USE_CAP)
-    return replace(s, stage=Stage.USED, interval_days=interval, due_on=day + timedelta(days=interval), last_reviewed_on=day)
+    return replace(s, stage=Stage.USED, interval_days=interval, due_on=day + timedelta(days=interval))
 
 
 # --- 並べる順 ---
@@ -94,9 +89,9 @@ def usefulness(expression: Expression, today: date) -> int:
 
 
 def risk(expression: Expression, today: date) -> float:
-    """忘れそうな度合い：最後に振り返ってからの日数 ÷ 間隔（まだなら手札に入れてからの日数）。3で止める。"""
+    """忘れそうな度合い：最後に聞いた日からの日数 ÷ 間隔（まだなら手札に入れてからの日数）。3で止める。"""
     s = expression.schedule
-    since = s.last_reviewed_on or expression.hand_since
+    since = moment_day(s.listened_at) or expression.hand_since
     if since is None:
         return 0.0
     return min(max((today - since).days, 0) / max(s.interval_days, 1), RISK_CAP)
@@ -114,28 +109,35 @@ def is_due(expression: Expression, today: date) -> bool:
 @dataclass(frozen=True)
 class QueueItem:
     expression: Expression
+    group: str  # due（手札の期限のもの）・hand（手札のほか）・star（★の拾った・自分の言葉）・recent（最近拾ったもの）
     priority: float
-    due: bool
 
 
-def review_queue(hand: list[Expression], today: date) -> list[QueueItem]:
-    """一度に見せるもの。期限のものを優先度の順に5つまで。3つに満たなければ、今日まだ振り返っていない、
-    risk が 0.5 以上のものを優先度の順に足して3つにする。手札が3つより少なければ全部。"""
-    def order(e: Expression):
+def listen_queue(expressions: list[Expression], today: date, limit: int = LISTEN_QUEUE_MAX) -> list[QueueItem]:
+    """聞く順：手札の期限のもの（優先度の順）→ 手札のほか（優先度の順）→ ★のもの（新しい順）→ 最近14日に拾ったもの（新しい順）。
+    同じ表現は1回だけ。同じ優先度は ID の順。"""
+    def by_priority(e: Expression):
         return (-priority(e, today), e.id)
 
-    def item(e: Expression) -> QueueItem:
-        return QueueItem(e, round(priority(e, today), 3), is_due(e, today))
+    def newest(e: Expression):
+        return ("".join(chr(0x10FFFF - ord(c)) for c in e.created_at), e.id)
 
-    if len(hand) < QUEUE_MIN:
-        return [item(e) for e in sorted(hand, key=order)]
-    due = sorted((e for e in hand if is_due(e, today)), key=order)[:QUEUE_MAX]
-    if len(due) < QUEUE_MIN:
-        chosen = {e.id for e in due}
-        extra = sorted((e for e in hand if e.id not in chosen and e.schedule.last_reviewed_on != today
-                        and risk(e, today) >= QUEUE_RISK), key=order)
-        due += extra[:QUEUE_MIN - len(due)]
-    return [item(e) for e in due]
+    hand = [e for e in expressions if e.place is Place.HAND]
+    rest = [e for e in expressions if e.place is not Place.HAND]
+    recent_from = today - timedelta(days=RECENT_DAYS - 1)
+    groups = [
+        ("due", sorted((e for e in hand if is_due(e, today)), key=by_priority)),
+        ("hand", sorted((e for e in hand if not is_due(e, today)), key=by_priority)),
+        ("star", sorted((e for e in rest if e.star), key=newest)),
+        ("recent", sorted((e for e in rest if (d := moment_day(e.created_at)) and d >= recent_from), key=newest)),
+    ]
+    out, seen = [], set()
+    for group, items in groups:
+        for e in items:
+            if e.id not in seen and len(out) < limit:
+                seen.add(e.id)
+                out.append(QueueItem(e, group, round(priority(e, today), 3)))
+    return out
 
 
 def own_ready(use_days: set[date]) -> bool:
@@ -144,9 +146,6 @@ def own_ready(use_days: set[date]) -> bool:
 
 
 def should_suggest_demote(expression: Expression, today: date) -> bool:
-    """拾ったに戻すのを勧める：出てこないが3回続いた、または手札に45日以上いて意味がわかるのまま。"""
-    s = expression.schedule
-    if s.lapse_streak >= DEMOTE_LAPSES:
-        return True
-    return (s.stage is Stage.UNDERSTOOD and expression.hand_since is not None
-            and (today - expression.hand_since).days >= STALE_UNDERSTOOD_DAYS)
+    """拾ったに戻すのを勧める：手札に45日以上いて、まだ一度も使えていない。"""
+    return (expression.place is Place.HAND and expression.schedule.use_count == 0
+            and expression.hand_since is not None and (today - expression.hand_since).days >= STALE_HAND_DAYS)

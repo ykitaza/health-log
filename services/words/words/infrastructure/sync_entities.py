@@ -8,7 +8,9 @@ scope の対象（area）は training（torelog-api/training.read・training.wri
 - expression：補う項目（意味・ニュアンス・例文・言い換え・役立ち度）はアプリから書けない（app_fields）。
   並びのキー（LSI by_day の day_key）に normalized_key を入れ、同じ表現を範囲の検索で探す
 - expression_tag：ID は表現とタグから決める（違えば断る）。表現と一緒に消える（owner）
-- encounter・review：表現と一緒に消える（owner）。review は追記だけ（アプリからは create・delete）
+- encounter・usage（使えた）：表現と一緒に消える（owner）。usage は追記だけ（アプリからは create・delete）
+- listen_session（聞いた1回）：アプリだけが書く。追記だけ（create・delete）。活動の記録（stats）に使う
+- 例文（expression.examples）は本人と Claude の両方が書く一覧（項目ごとの後勝ちなので、一覧ごと置き換わる）
 項目ごとに後勝ちで当てはめるので、項目の組み合わせは、同じ変更に両方の項目があるときだけ確かめる。
 """
 
@@ -26,9 +28,9 @@ from words.domain import model as m
 from words.domain.catalog import expression_tag_id
 
 AREA = "training"
-SOURCE, EXPRESSION, TAG, EXPRESSION_TAG, ENCOUNTER, REVIEW = (
-    "source", "expression", "tag", "expression_tag", "encounter", "review")
-ENTITY_TYPES = (SOURCE, EXPRESSION, TAG, EXPRESSION_TAG, ENCOUNTER, REVIEW)
+SOURCE, EXPRESSION, TAG, EXPRESSION_TAG, ENCOUNTER, USAGE, LISTEN_SESSION = (
+    "source", "expression", "tag", "expression_tag", "encounter", "usage", "listen_session")
+ENTITY_TYPES = (SOURCE, EXPRESSION, TAG, EXPRESSION_TAG, ENCOUNTER, USAGE, LISTEN_SESSION)
 
 
 def _text(max_length: int, min_length: int = 0):
@@ -54,6 +56,16 @@ class TagFields(FieldsModel):
     created_by: Literal["user", "claude", "seed"] = None
 
 
+class ExampleFields(FieldsModel):
+    """例文1つ。本人のもの（origin user）と Claude のもの（補う）。confirmed は本人が確かめたか（本人のものはいつも true）。"""
+
+    text: _text(m.MAX_EXAMPLE, 1)
+    origin: Literal["user", "claude"]
+    confirmed: bool
+    created_at: Moment
+    updated_at: Moment
+
+
 # 項目の名前 register（硬さ）は設計どおり。pydantic の ABC の register と名前が重なる警告は出さない
 warnings.filterwarnings("ignore", message='Field name "register"', category=UserWarning)
 
@@ -66,16 +78,13 @@ class ExpressionFields(FieldsModel):
     note: _text(m.MAX_NOTE) = None
     star: bool = None
     place: Literal["collected", "hand", "own"] = None
-    stage: Literal["understood", "sayable", "used"] | None = None
+    stage: Literal["understood", "used"] | None = None
     moved_at: Moment = None
     hand_since: Day | None = None
     interval_days: Annotated[int, Field(ge=1, le=m.MAX_INTERVAL)] = None
     due_on: Day | None = None
-    last_reviewed_on: Day | None = None
-    success_streak: Count = None
-    lapse_streak: Count = None
-    review_count: Count = None
-    lapse_count: Count = None
+    listened_at: Moment | None = None  # 最後に聞いた時刻
+    listen_count: Count = None
     use_count: Count = None
     last_used_on: Day | None = None
     reading: _text(m.MAX_READING) = None
@@ -84,7 +93,7 @@ class ExpressionFields(FieldsModel):
     nuance: _text(m.MAX_NUANCE) = None
     register: Literal["spoken", "written", "formal"] | None = None
     register_by: Literal["user", "claude"] | None = None
-    examples: Annotated[list[_text(m.MAX_EXAMPLE, 1)], Field(max_length=m.MAX_EXAMPLES)] = None
+    examples: Annotated[list[ExampleFields], Field(max_length=m.MAX_EXAMPLES)] = None
     similar: Annotated[list[_text(m.MAX_SIMILAR_TEXT, 1)], Field(max_length=m.MAX_SIMILAR)] = None
     usefulness: Annotated[int, Field(ge=1, le=3)] | None = None
     usefulness_reason: _text(m.MAX_USEFULNESS_REASON) = None
@@ -92,13 +101,11 @@ class ExpressionFields(FieldsModel):
     enriched_at: Moment | None = None
 
 
-# 補う項目（Claude だけが書く）。アプリは書けない
-ENRICH_FIELDS = ("meaning", "nuance", "examples", "similar", "usefulness", "usefulness_reason", "usefulness_until",
-                 "enriched_at")
+# 補う項目（Claude だけが書く）。アプリは書けない（例文は本人も書くので、ここに入れない）
+ENRICH_FIELDS = ("meaning", "nuance", "similar", "usefulness", "usefulness_reason", "usefulness_until", "enriched_at")
 EXPRESSION_APP_FIELDS = tuple(f for f in ExpressionFields.model_fields if f not in ENRICH_FIELDS)
-# 間隔の項目（1回の振り返りで一緒に変わる組。アプリは syncSpec.ts の together で送る）
-SCHEDULE_FIELDS = ("stage", "interval_days", "due_on", "last_reviewed_on", "success_streak", "lapse_streak",
-                   "review_count", "lapse_count", "use_count", "last_used_on")
+# 間隔の項目（聞いた・使えたで一緒に変わる組。アプリは syncSpec.ts の together で送る）
+SCHEDULE_FIELDS = ("stage", "interval_days", "due_on", "listened_at", "listen_count", "use_count", "last_used_on")
 
 
 class ExpressionTagFields(FieldsModel):
@@ -123,15 +130,18 @@ class EncounterFields(FieldsModel):
     note: _text(m.MAX_ENCOUNTER_NOTE) = None
 
 
-class ReviewFields(FieldsModel):
+class UsageFields(FieldsModel):
     expression_id: Ref = None
-    kind: Literal["recall", "use"] = None
-    result: Literal["said", "close", "blank"] | None = None
-    reviewed_at: Moment = None
-    interval_before: Annotated[int, Field(ge=1, le=m.MAX_INTERVAL)] | None = None
-    interval_after: Annotated[int, Field(ge=1, le=m.MAX_INTERVAL)] | None = None
-    session_id: Annotated[str, Field(pattern=UUID_PATTERN.pattern)] | None = None
-    trigger: Literal["self", "notification", "chat"] | None = None
+    used_on: Day = None  # 使えた日（日本時間の午前4時で区切った日）
+    scene: _text(m.MAX_USAGE_NOTE) = None  # どんな場面で使えたか（本人の言葉）
+    note: _text(m.MAX_USAGE_NOTE) = None
+
+
+class ListenSessionFields(FieldsModel):
+    started_at: Moment = None
+    listened_on: Day = None
+    seconds: Annotated[int, Field(ge=0, le=m.MAX_LISTEN_SECONDS)] = None  # 流した時間
+    items: Annotated[int, Field(ge=0, le=1000)] = None  # 流し終えた表現の数
 
 
 REQUIRED: dict[str, tuple[str, ...]] = {
@@ -140,7 +150,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     EXPRESSION: ("text", "normalized_key", "place"),
     EXPRESSION_TAG: ("expression_id", "tag_id", "added_by", "status"),
     ENCOUNTER: ("expression_id",),
-    REVIEW: ("expression_id", "kind", "reviewed_at"),
+    USAGE: ("expression_id", "used_on"),
+    LISTEN_SESSION: ("started_at", "listened_on", "seconds", "items"),
 }
 
 
@@ -179,13 +190,6 @@ def _check_expression_tag(entity_id: str, fields: dict) -> Rejection | None:
     return None
 
 
-def _check_review(entity_id: str, fields: dict) -> Rejection | None:
-    if "kind" in fields and "result" in fields and (fields["kind"] == "recall") != (fields["result"] is not None):
-        return _reject("result", "結果（result）は振り返り（kind が recall）のときだけ入れてください",
-                       "recall なら said・close・blank、use なら null")
-    return None
-
-
 def expression_index_key(doc: Doc) -> str | None:
     """表現の並びのキー（LSI by_day の day_key）。空の形はキーにできないので None。"""
     if doc.entity_type != EXPRESSION or doc.own is None:
@@ -211,8 +215,10 @@ def register(registry: Registry) -> None:
                                                  check=_check_expression_tag, owner=(EXPRESSION, "expression_id")))
     registry.register(ENCOUNTER, EntitySpec(EncounterFields, REQUIRED[ENCOUNTER], AREA, valid_id=_uuid,
                                             owner=(EXPRESSION, "expression_id")))
-    registry.register(REVIEW, EntitySpec(ReviewFields, REQUIRED[REVIEW], AREA, valid_id=_uuid, check=_check_review,
-                                         owner=(EXPRESSION, "expression_id"), app_ops=("create", "delete")))
+    registry.register(USAGE, EntitySpec(UsageFields, REQUIRED[USAGE], AREA, valid_id=_uuid,
+                                        owner=(EXPRESSION, "expression_id"), app_ops=("create", "delete")))
+    registry.register(LISTEN_SESSION, EntitySpec(ListenSessionFields, REQUIRED[LISTEN_SESSION], AREA, valid_id=_uuid,
+                                                 app_ops=("create", "delete")))
 
 
 def create_registry() -> Registry:

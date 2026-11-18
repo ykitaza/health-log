@@ -28,10 +28,11 @@ from words.infrastructure.sync_entities import (
     ENCOUNTER,
     EXPRESSION,
     EXPRESSION_TAG,
+    LISTEN_SESSION,
     REQUIRED,
-    REVIEW,
     SOURCE,
     TAG,
+    USAGE,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,8 @@ def expression_from_state(state: EntityState) -> m.Expression | None:
             stage=m.Stage(v["stage"]) if v.get("stage") and place is m.Place.HAND else None,
             interval_days=int(v.get("interval_days") or 1),
             due_on=_day(v.get("due_on")) if place is m.Place.HAND else None,
-            last_reviewed_on=_day(v.get("last_reviewed_on")),
-            success_streak=int(v.get("success_streak") or 0),
-            lapse_streak=int(v.get("lapse_streak") or 0),
-            review_count=int(v.get("review_count") or 0),
-            lapse_count=int(v.get("lapse_count") or 0),
+            listened_at=v.get("listened_at"),
+            listen_count=int(v.get("listen_count") or 0),
             use_count=int(v.get("use_count") or 0),
             last_used_on=_day(v.get("last_used_on")),
         )
@@ -72,7 +70,7 @@ def expression_from_state(state: EntityState) -> m.Expression | None:
             reading=v.get("reading") or "", use_note=v.get("use_note") or "", meaning=v.get("meaning") or "",
             nuance=v.get("nuance") or "", register=m.Register(v["register"]) if v.get("register") else None,
             register_by=m.By(v["register_by"]) if v.get("register_by") else None,
-            examples=tuple(v.get("examples") or ()), similar=tuple(v.get("similar") or ()),
+            examples=tuple(_example(x) for x in v.get("examples") or ()), similar=tuple(v.get("similar") or ()),
             usefulness=v.get("usefulness"), usefulness_reason=v.get("usefulness_reason") or "",
             usefulness_until=_day(v.get("usefulness_until")), enriched_at=v.get("enriched_at"),
             created_at=state.created_at, updated_at=state.updated_at)
@@ -97,18 +95,32 @@ def encounter_from_state(state: EntityState) -> m.Encounter | None:
         return None
 
 
-def review_from_state(state: EntityState) -> m.Review | None:
+def _example(x: dict) -> m.Example:
+    return m.Example(x["text"], m.By(x["origin"]), bool(x.get("confirmed")), x.get("created_at") or "",
+                     x.get("updated_at") or "")
+
+
+def usage_from_state(state: EntityState) -> m.Usage | None:
     v = state.values
-    if not _complete(state, REVIEW):
+    if not _complete(state, USAGE):
         return None
     try:
-        return m.Review(
-            id=state.entity_id, expression_id=v["expression_id"], kind=m.ReviewKind(v["kind"]),
-            reviewed_at=v["reviewed_at"], result=m.RecallResult(v["result"]) if v.get("result") else None,
-            interval_before=v.get("interval_before"), interval_after=v.get("interval_after"),
-            session_id=v.get("session_id"), trigger=m.Trigger(v["trigger"]) if v.get("trigger") else None)
+        return m.Usage(state.entity_id, v["expression_id"], date.fromisoformat(v["used_on"]), v.get("scene") or "",
+                       v.get("note") or "", state.created_at)
     except (ValueError, KeyError, TypeError) as e:
-        logger.warning("読めない review を飛ばしました（id=%s）: %s", state.entity_id, e)
+        logger.warning("読めない usage を飛ばしました（id=%s）: %s", state.entity_id, e)
+        return None
+
+
+def listen_from_state(state: EntityState) -> m.ListenSession | None:
+    v = state.values
+    if not _complete(state, LISTEN_SESSION):
+        return None
+    try:
+        return m.ListenSession(state.entity_id, v["started_at"], date.fromisoformat(v["listened_on"]),
+                               int(v["seconds"]), int(v["items"]))
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning("読めない listen_session を飛ばしました（id=%s）: %s", state.entity_id, e)
         return None
 
 
@@ -156,10 +168,11 @@ class WordsState:
     head: int
     expressions: dict[str, m.Expression]
     encounters: dict[str, tuple[m.Encounter, ...]]  # 表現の ID → 出会い（古い順）
-    reviews: dict[str, tuple[m.Review, ...]]  # 表現の ID → 振り返りの記録（古い順）
+    usages: dict[str, tuple[m.Usage, ...]]  # 表現の ID → 使えたの記録（古い順）
     links: dict[str, tuple[m.ExpressionTag, ...]]  # 表現の ID → タグのつながり（rejected も入る）
     sources: tuple[m.Source, ...]  # 並び順・ID の順
     tags: tuple[m.Tag, ...]  # 種類・並び順・ID の順
+    listens: tuple[m.ListenSession, ...] = ()  # 聞いた記録（古い順）
     _tags_by_id: dict[str, m.Tag] = field(default_factory=dict)
 
     def tag(self, tag_id: str) -> m.Tag | None:
@@ -217,8 +230,10 @@ class SyncWordsRepository:
 
         encounters = children(sorted((e for e in map(encounter_from_state, states(ENCOUNTER)) if e),
                                      key=lambda e: (e.created_at, e.id)))
-        reviews = children(sorted((r for r in map(review_from_state, states(REVIEW)) if r),
-                                  key=lambda r: (r.reviewed_at, r.id)))
+        usages = children(sorted((u for u in map(usage_from_state, states(USAGE)) if u),
+                                 key=lambda u: (u.used_on, u.created_at, u.id)))
+        listens = tuple(sorted((x for x in map(listen_from_state, states(LISTEN_SESSION)) if x),
+                               key=lambda x: (x.started_at, x.id)))
         links = children(link_from_state(s) for s in states(EXPRESSION_TAG))
 
         synced_sources = {s.entity_id: s for s in states(SOURCE)}
@@ -247,7 +262,7 @@ class SyncWordsRepository:
                     logger.warning("読めない tag を飛ばしました（id=%s）: %s", s.entity_id, e)
         sources.sort(key=lambda s: (s.sort_order, s.id))
         tags.sort(key=lambda t: (t.kind != m.TagKind.SITUATION, t.sort_order, t.id))
-        return WordsState(head, expressions, encounters, reviews, links, tuple(sources), tuple(tags),
+        return WordsState(head, expressions, encounters, usages, links, tuple(sources), tuple(tags), listens,
                           {t.id: t for t in tags})
 
     async def state(self, user: str) -> WordsState:

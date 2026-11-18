@@ -78,6 +78,13 @@ describe('Lambda', () => {
     expect(JSON.stringify(s.Resource)).not.toContain('MealsTable');
   });
 
+  test('Polly は、アプリ用の Lambda が音声を作る操作だけ（MCP には与えない）', () => {
+    const polly = (fn: string) => statementsOf(fn).filter((x: any) => actionsOf(x).some((a: string) => a.startsWith('polly:')));
+    expect(polly('WordsAppApiFunction').map((x: any) => [actionsOf(x), x.Resource]))
+      .toEqual([[['polly:SynthesizeSpeech'], '*']]);
+    expect(polly('WordsMcpFunction')).toHaveLength(0);
+  });
+
   test('SSM は MCP が自分の URL を読むだけ', () => {
     const ssm = statementsOf('WordsMcpFunction').filter((x: any) => actionsOf(x).some((a: string) => a.startsWith('ssm:')));
     expect(ssm).toHaveLength(1);
@@ -118,6 +125,7 @@ describe('HTTP API', () => {
     expect(routes.map((r: any) => [r.RouteKey, r.AuthorizationScopes]).sort()).toEqual([
       ['GET /v1/sync/changes', ['torelog-api/training.read']],
       ['GET /v1/sync/snapshot', ['torelog-api/training.read']],
+      ['POST /v1/audio', ['torelog-api/training.read']],
       ['POST /v1/sync/changes', ['torelog-api/training.write']],
     ]);
   });
