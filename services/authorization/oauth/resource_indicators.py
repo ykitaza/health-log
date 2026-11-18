@@ -21,6 +21,7 @@ class ResourceServer:
 
     indicator: str
     scopes: tuple[str, ...]
+    name: str = "KARADA"  # 同意画面の見出し（製品の名前）
 
     def grant(self, requested: str | None) -> str:
         """求められた scope のうち、このリソースサーバーで使えるものだけを許す（RFC 6749 3.3 で狭めてよい）。
@@ -39,8 +40,10 @@ class ResourceServer:
 class ResourceIndicators:
     """認可コードのグラントに付ける拡張。/authorize で resource を確かめ、scope を狭める。"""
 
-    def __init__(self, servers: list[ResourceServer]):
+    def __init__(self, servers: list[ResourceServer], default: ResourceServer | None = None):
         self.servers = servers
+        # resource を送らないクライアントの宛先（KARADA）。リソースサーバーを足しても、今のコネクタがつなぎ直せるように
+        self.default = default
 
     def __call__(self, grant):
         # Authlib が scope を確かめたあとに呼ぶ。ここで出したエラーは、クライアントの redirect_uri へ返る
@@ -56,7 +59,9 @@ class ResourceIndicators:
         if len(resources) > 1:
             raise InvalidTargetError("Only one 'resource' is supported.")
         if not resources:
-            # resource を送ってこなければ、リソースサーバーが1つのときに限りそこ宛てにする（2つ以上だと決められない）
+            # resource を送ってこなければ、既定の宛先（KARADA）にする。既定がなければ、リソースサーバーが1つのときに限りそこ宛て
+            if self.default is not None:
+                return self.default
             if len(self.servers) == 1:
                 return self.servers[0]
             raise InvalidTargetError("Missing 'resource'.")

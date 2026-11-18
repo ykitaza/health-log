@@ -239,7 +239,7 @@ class IssuerParameter(rfc9207.IssuerParameter):
 
 class AuthorizationServer(FlaskAuthorizationServer):
     def __init__(self, issuer: str, signing_key_pem: str, store: Store, resource_servers: list[ResourceServer],
-                 *, allow_loopback_http: bool = False,
+                 *, default_resource_server: ResourceServer | None = None, allow_loopback_http: bool = False,
                  refresh_reuse_grace_seconds: float = REFRESH_REUSE_GRACE_SECONDS,
                  clock: Callable[[], float] = time.time):
         super().__init__()
@@ -251,11 +251,14 @@ class AuthorizationServer(FlaskAuthorizationServer):
         self.issuer_parameter = IssuerParameter(issuer)
 
         self.register_grant(AuthorizationCodeGrant, [S256CodeChallenge(required=True),
-                                                     ResourceIndicators(resource_servers)])
+                                                     ResourceIndicators(resource_servers, default_resource_server)])
         self.register_grant(RefreshTokenGrant)
         self.register_endpoint(TokenRevocationEndpoint)
         self.register_extension(self.issuer_parameter)
         self.register_token_generator("default", AccessTokenGenerator(issuer, self.keys))
+
+    def resource_server(self, indicator: str | None) -> ResourceServer | None:
+        return next((s for s in self.resource_servers if s.indicator == indicator), None)
 
     def query_client(self, client_id):
         # /authorize と /consent では、CIMD の文書から作ったクライアントを use_client で置いておく

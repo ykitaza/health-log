@@ -58,6 +58,17 @@ jobs:
               - *workflow
               - services/reports/**
               - services/sync/**
+            mcp_connector:
+              - *workflow
+              - services/mcp_connector/**
+            words:
+              - *workflow
+              - services/words/**
+              - services/sync/**
+              - services/mcp_connector/**
+              - testdata/words/**
+              # docs/api/words-app-api.yaml は app-api.yaml の同期の封筒から作る（tests/test_openapi.py）
+              - docs/api/**
             app_api:
               - *workflow
               - services/app_api/**
@@ -70,6 +81,7 @@ jobs:
             mcp:
               - *workflow
               - services/mcp/**
+              - services/mcp_connector/**
               - services/meals/**
               - services/training/**
               - services/reports/**
@@ -95,7 +107,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [authorization, meals, sync, training, reports, app_api, mcp]
+        service: [authorization, meals, sync, training, reports, app_api, mcp, mcp_connector, words]
     env:
       RUN: ${{ needs.changes.outputs.all == 'true' || contains(fromJSON(needs.changes.outputs.filters), matrix.service) }}
     defaults:

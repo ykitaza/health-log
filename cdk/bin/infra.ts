@@ -3,8 +3,9 @@ import * as cdk from 'aws-cdk-lib/core';
 import { CiCdStack } from '../lib/cicd-stack';
 import { InfraStack } from '../lib/infra-stack';
 import { MonitoringGlobalStack, MonitoringStack } from '../lib/monitoring-stack';
+import { WordsStack } from '../lib/words-stack';
 
-// スタックは4つ。アカウントは CLI の認証情報（AWS_PROFILE など）から決まり、リージョンはスタックごとに固定する
+// スタックは5つ。アカウントは CLI の認証情報（AWS_PROFILE など）から決まり、リージョンはスタックごとに固定する
 const app = new cdk.App();
 // Cognito（パスキー、認可API 用とアプリ用のクライアント）、認可API・MCP サーバー・アプリ用の API の
 // API Gateway と Lambda、DynamoDB、SSM パラメータ
@@ -12,16 +13,25 @@ const infra = new InfraStack(app, 'CognitoStudy', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
 });
 
-// 監視（怪しいアクセスや異常を検知して SNS に送る）。CognitoStudy とは SSM パラメータの名前だけでつなぐ（Export を作らない）
+// ことば（docs/words-design.md）：MCP の Lambda とアプリ用の同期の Lambda、HTTP API 2つ、WordsTable。
+// 共有の資源（認可API・Cognito・torelog-app）は SSM パラメータの名前で読む（Export を作らない。CognitoStudy との依存は作らない）
+const words = new WordsStack(app, 'CognitoStudyWords', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
+});
+
+// 監視（怪しいアクセスや異常を検知して SNS に送る）。CognitoStudy・CognitoStudyWords とは SSM パラメータの名前だけでつなぐ（Export を作らない）。
+// KARADA の分を先に並べる（アラームの式の中のメトリクスの ID を変えないため）
 const monitoring = new MonitoringStack(app, 'CognitoStudyMonitoring', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'ap-northeast-1' },
-  accessLogGroupParams: infra.accessLogGroupParams,
-  functionNameParams: infra.functionNameParams,
-  tableNameParams: infra.tableNameParams,
+  accessLogGroupParams: { ...infra.accessLogGroupParams, ...words.accessLogGroupParams },
+  functionNameParams: { ...infra.functionNameParams, ...words.functionNameParams },
+  tableNameParams: { ...infra.tableNameParams, ...words.tableNameParams },
   appApiLogGroupParam: infra.appApiLogGroupParam,
+  extraAppApiLogGroupParams: { WordsAppApiFunction: words.appApiLogGroupParam },
   tokenEndpointApi: 'AuthzApi',
 });
 monitoring.addStackDependency(infra); // SSM パラメータができてから作る
+monitoring.addStackDependency(words);
 // IAM の操作は us-east-1 にだけ届くので、そこから東京に転送する
 const monitoringGlobal = new MonitoringGlobalStack(app, 'CognitoStudyMonitoringGlobal', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'us-east-1' },
@@ -35,5 +45,5 @@ new CiCdStack(app, 'CognitoStudyCiCd', {
   subjectPrefix: 'repo:ykitaza@104138874/health-log@1416443559',
   diffBranch: 'main',
   deployEnvironment: 'aws-prod',
-  targetStacks: [infra, monitoring, monitoringGlobal],
+  targetStacks: [infra, words, monitoring, monitoringGlobal],
 });

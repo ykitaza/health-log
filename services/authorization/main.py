@@ -20,6 +20,8 @@ from presentation.routes import LoginGateway, create_blueprint
 
 # MCP サーバーで使える scope。名前は「対象:操作」（アプリ用の API の torelog-api/meals.read とは別の名前空間）
 MCP_SCOPES = ("meals:read", "meals:write", "training:read", "training:write")
+# ことばの MCP サーバーで使える scope（docs/words-design.md の「MCP の宛先」。宛先をコネクタごとに分ける）
+WORDS_SCOPES = ("words:read", "words:write")
 # Lambda で CIMD の文書を取りに行ってよいホスト。使うクライアントは Claude（claude.ai と Claude Code）と ChatGPT、
 # それと下の Muse（文書は自分で公開し、取りに行かない）だけなので、ほかのホストには取りに行かない
 # （知らないクライアントを断り、外への通信を絞る）。PC で動かすときは絞らない（MCP Inspector など）
@@ -65,12 +67,16 @@ def create_app(
     if store is None:
         store = DynamoDBStore(settings.state_table) if settings.state_table else MemoryStore()
     # 知っているリソースサーバーと、そこで使える scope。信頼関係は手で設定する。
-    # MCP サーバー（食事と筋トレのツールを1つにまとめたもの。resource の URL は食事記録のときのまま）
-    resource_servers = [ResourceServer(settings.meals_resource, MCP_SCOPES)]
+    # KARADA の MCP サーバー（食事と筋トレのツールを1つにまとめたもの。resource の URL は食事記録のときのまま）と、
+    # ことばの MCP サーバー（URL のパラメータがあるときだけ）。resource を送らないクライアントは KARADA 宛てにする
+    karada = ResourceServer(settings.meals_resource, MCP_SCOPES, "KARADA")
+    resource_servers = [karada]
+    if settings.words_resource:
+        resource_servers.append(ResourceServer(settings.words_resource, WORDS_SCOPES, "ことば"))
     # localhost の http の client_id（MCP Inspector など）は PC で動かすときだけ認める（Lambda では SSRF になる）
     local = not settings.on_lambda
     server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers,
-                                 allow_loopback_http=local,
+                                 default_resource_server=karada, allow_loopback_http=local,
                                  refresh_reuse_grace_seconds=settings.refresh_reuse_grace_seconds, clock=clock)
     if login is None:
         from infrastructure.cognito_login import CognitoLogin

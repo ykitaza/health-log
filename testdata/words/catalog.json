@@ -1,0 +1,195 @@
+{
+  "description": "ことばの名前空間と初期の行（出会った場所・タグ）の固定の ID。ID は uuid5(namespace, key)。表現とタグのつながり（expression_tag）の ID は uuid5(namespace, \"<expression_id>:<tag_id>\")（ID は小文字）",
+  "namespace": "8a3f5c2e-6d1b-4c7a-9e0f-2b4d6a8c1e3f",
+  "sources": [
+    {
+      "key": "source:audible",
+      "id": "24892adf-fd1d-5589-9062-d28dfd19e755",
+      "name": "Audible",
+      "icon_key": "headphones",
+      "sort_order": 0
+    },
+    {
+      "key": "source:kindle",
+      "id": "a109a3dc-f225-52aa-bf2d-ecb3e3b3640d",
+      "name": "Kindle",
+      "icon_key": "tablet",
+      "sort_order": 1
+    },
+    {
+      "key": "source:book",
+      "id": "c8c59c25-e0b0-5261-aaff-f1f83cdb8c40",
+      "name": "紙の本",
+      "icon_key": "book",
+      "sort_order": 2
+    },
+    {
+      "key": "source:conversation",
+      "id": "165b9d87-a526-5a6c-a5fc-b626c218babf",
+      "name": "会話",
+      "icon_key": "chat",
+      "sort_order": 3
+    },
+    {
+      "key": "source:video",
+      "id": "3a710c88-d0ae-5036-b7fe-7a383f0a6fe3",
+      "name": "動画",
+      "icon_key": "film",
+      "sort_order": 4
+    }
+  ],
+  "tags": [
+    {
+      "key": "tag:situation:励ます",
+      "id": "468ef762-a375-555a-9987-acb91ff8de1f",
+      "kind": "situation",
+      "name": "励ます",
+      "sort_order": 0
+    },
+    {
+      "key": "tag:situation:慰める",
+      "id": "d8142dbd-39ec-5165-b41d-2dafb4d67270",
+      "kind": "situation",
+      "name": "慰める",
+      "sort_order": 1
+    },
+    {
+      "key": "tag:situation:謝る",
+      "id": "a4958143-a9c1-5ed0-9f7d-1a30c53f21fe",
+      "kind": "situation",
+      "name": "謝る",
+      "sort_order": 2
+    },
+    {
+      "key": "tag:situation:断る",
+      "id": "2f339b3b-ad8b-5741-b949-fd13dcdce39a",
+      "kind": "situation",
+      "name": "断る",
+      "sort_order": 3
+    },
+    {
+      "key": "tag:situation:頼む",
+      "id": "7bde32fe-8f6c-528f-a08c-30d60cc20114",
+      "kind": "situation",
+      "name": "頼む",
+      "sort_order": 4
+    },
+    {
+      "key": "tag:situation:お礼",
+      "id": "e81a3fb5-aeba-5e23-bad6-46ecdb8c11c2",
+      "kind": "situation",
+      "name": "お礼",
+      "sort_order": 5
+    },
+    {
+      "key": "tag:situation:ほめる",
+      "id": "daec3d33-63e8-580b-b569-3559acea3a16",
+      "kind": "situation",
+      "name": "ほめる",
+      "sort_order": 6
+    },
+    {
+      "key": "tag:situation:反論する",
+      "id": "6bae2284-6e5c-5c53-aa30-caea25980050",
+      "kind": "situation",
+      "name": "反論する",
+      "sort_order": 7
+    },
+    {
+      "key": "tag:situation:まとめる",
+      "id": "84ca43a1-786c-5ab3-806b-eb45d836c8bb",
+      "kind": "situation",
+      "name": "まとめる",
+      "sort_order": 8
+    },
+    {
+      "key": "tag:situation:会議で",
+      "id": "eda97851-30c9-5d28-bbee-9dc869717295",
+      "kind": "situation",
+      "name": "会議で",
+      "sort_order": 9
+    },
+    {
+      "key": "tag:situation:雑談で",
+      "id": "c017b117-0d7d-5e2e-86e8-8b3c9590f92f",
+      "kind": "situation",
+      "name": "雑談で",
+      "sort_order": 10
+    },
+    {
+      "key": "tag:situation:目上に",
+      "id": "d2ca5cad-5890-5f87-b65d-0e9556a8f321",
+      "kind": "situation",
+      "name": "目上に",
+      "sort_order": 11
+    },
+    {
+      "key": "tag:situation:初対面で",
+      "id": "7475af26-5e5d-5fe6-86cb-6ffaafa1e1aa",
+      "kind": "situation",
+      "name": "初対面で",
+      "sort_order": 12
+    },
+    {
+      "key": "tag:feeling:安堵",
+      "id": "01d74642-768b-5021-8eeb-9a26ce9496a7",
+      "kind": "feeling",
+      "name": "安堵",
+      "sort_order": 0
+    },
+    {
+      "key": "tag:feeling:皮肉",
+      "id": "55f2dfb2-80be-5157-90ba-6a1eecb3544d",
+      "kind": "feeling",
+      "name": "皮肉",
+      "sort_order": 1
+    },
+    {
+      "key": "tag:feeling:敬意",
+      "id": "3047c2a7-10e2-5c32-84bb-fae53450eaf4",
+      "kind": "feeling",
+      "name": "敬意",
+      "sort_order": 2
+    },
+    {
+      "key": "tag:feeling:共感",
+      "id": "06f1a143-7bc7-5c5d-82d0-405b7fbc514f",
+      "kind": "feeling",
+      "name": "共感",
+      "sort_order": 3
+    },
+    {
+      "key": "tag:feeling:ためらい",
+      "id": "adf16fbb-7dd7-5c94-a88c-e3b92e56cc7d",
+      "kind": "feeling",
+      "name": "ためらい",
+      "sort_order": 4
+    },
+    {
+      "key": "tag:feeling:驚き",
+      "id": "41ed1392-5101-53ea-9270-ed8a254cb686",
+      "kind": "feeling",
+      "name": "驚き",
+      "sort_order": 5
+    },
+    {
+      "key": "tag:feeling:感心",
+      "id": "9b7d593c-e904-5f9d-8474-dcc9ec6f2e01",
+      "kind": "feeling",
+      "name": "感心",
+      "sort_order": 6
+    }
+  ],
+  "expression_tag_ids": [
+    {
+      "expression_id": "0b6f2a8e-3c1d-4e5f-8a9b-0c1d2e3f4a5b",
+      "tag_id": "468ef762-a375-555a-9987-acb91ff8de1f",
+      "expected": "1863beb5-1c52-5db9-8f65-ea795e605b31"
+    },
+    {
+      "expression_id": "0B6F2A8E-3C1D-4E5F-8A9B-0C1D2E3F4A5B",
+      "tag_id": "01d74642-768b-5021-8eeb-9a26ce9496a7",
+      "expected": "24ac00d5-3170-59e8-aa03-595b72484431"
+    }
+  ]
+}

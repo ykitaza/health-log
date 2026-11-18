@@ -1,0 +1,330 @@
+{
+  "description": "手札の間隔（v1。聞く・使えた）。手札に入れた日 start に enter_hand（間隔1日・明日が期限・意味がわかる）、そのあと steps を順に当てる。listen 聞いた（at は時刻）：回数と時刻を残し、その日の最初の1回だけ max(間隔, min(ceil(間隔×1.5), 14))、期限は その日＋間隔。use 使えた：min(max(間隔×3, 7), 60)、段階は使えた、同じ日の2回目は回数だけ。日付は日本時間の午前4時で区切った日",
+  "cases": [
+    {
+      "name": "聞くたびに延びる（14日で止まる）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "event": "listen",
+          "at": "2026-11-02T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-02T08:30:00+09:00",
+            "listen_count": 1,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-04T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 3,
+            "due_on": "2026-11-07",
+            "listened_at": "2026-11-04T08:30:00+09:00",
+            "listen_count": 2,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-07T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 5,
+            "due_on": "2026-11-12",
+            "listened_at": "2026-11-07T08:30:00+09:00",
+            "listen_count": 3,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-12T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 8,
+            "due_on": "2026-11-20",
+            "listened_at": "2026-11-12T08:30:00+09:00",
+            "listen_count": 4,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-20T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 12,
+            "due_on": "2026-12-02",
+            "listened_at": "2026-11-20T08:30:00+09:00",
+            "listen_count": 5,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-12-02T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 14,
+            "due_on": "2026-12-16",
+            "listened_at": "2026-12-02T08:30:00+09:00",
+            "listen_count": 6,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-12-16T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 14,
+            "due_on": "2026-12-30",
+            "listened_at": "2026-12-16T08:30:00+09:00",
+            "listen_count": 7,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "3日のところで使えた（9 → 27 → 60）",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "event": "listen",
+          "at": "2026-11-02T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-02T08:30:00+09:00",
+            "listen_count": 1,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-04T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 3,
+            "due_on": "2026-11-07",
+            "listened_at": "2026-11-04T08:30:00+09:00",
+            "listen_count": 2,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "use",
+          "day": "2026-11-07",
+          "expected": {
+            "stage": "used",
+            "interval_days": 9,
+            "due_on": "2026-11-16",
+            "listened_at": "2026-11-04T08:30:00+09:00",
+            "listen_count": 2,
+            "use_count": 1,
+            "last_used_on": "2026-11-07"
+          }
+        },
+        {
+          "event": "use",
+          "day": "2026-11-16",
+          "expected": {
+            "stage": "used",
+            "interval_days": 27,
+            "due_on": "2026-12-13",
+            "listened_at": "2026-11-04T08:30:00+09:00",
+            "listen_count": 2,
+            "use_count": 2,
+            "last_used_on": "2026-11-16"
+          }
+        },
+        {
+          "event": "use",
+          "day": "2026-12-13",
+          "expected": {
+            "stage": "used",
+            "interval_days": 60,
+            "due_on": "2027-02-11",
+            "listened_at": "2026-11-04T08:30:00+09:00",
+            "listen_count": 2,
+            "use_count": 3,
+            "last_used_on": "2026-12-13"
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2027-02-11T08:30:00+09:00",
+          "expected": {
+            "stage": "used",
+            "interval_days": 60,
+            "due_on": "2027-04-12",
+            "listened_at": "2027-02-11T08:30:00+09:00",
+            "listen_count": 3,
+            "use_count": 3,
+            "last_used_on": "2026-12-13"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ日に何度聞いても延ばすのは1回",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "event": "listen",
+          "at": "2026-11-02T08:30:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-02T08:30:00+09:00",
+            "listen_count": 1,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-02T18:00:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-02T18:00:00+09:00",
+            "listen_count": 2,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-03T02:00:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-03T02:00:00+09:00",
+            "listen_count": 3,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "夜中に聞いたものは前の日",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "event": "listen",
+          "at": "2026-11-02T23:00:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-02T23:00:00+09:00",
+            "listen_count": 1,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-03T03:59:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 2,
+            "due_on": "2026-11-04",
+            "listened_at": "2026-11-03T03:59:00+09:00",
+            "listen_count": 2,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        },
+        {
+          "event": "listen",
+          "at": "2026-11-03T04:00:00+09:00",
+          "expected": {
+            "stage": "understood",
+            "interval_days": 3,
+            "due_on": "2026-11-06",
+            "listened_at": "2026-11-03T04:00:00+09:00",
+            "listen_count": 3,
+            "use_count": 0,
+            "last_used_on": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "同じ日の2回目の使えたは回数だけ",
+      "start": "2026-11-01",
+      "steps": [
+        {
+          "event": "use",
+          "day": "2026-11-02",
+          "expected": {
+            "stage": "used",
+            "interval_days": 7,
+            "due_on": "2026-11-09",
+            "listened_at": null,
+            "listen_count": 0,
+            "use_count": 1,
+            "last_used_on": "2026-11-02"
+          }
+        },
+        {
+          "event": "use",
+          "day": "2026-11-02",
+          "expected": {
+            "stage": "used",
+            "interval_days": 7,
+            "due_on": "2026-11-09",
+            "listened_at": null,
+            "listen_count": 0,
+            "use_count": 2,
+            "last_used_on": "2026-11-02"
+          }
+        }
+      ]
+    }
+  ],
+  "business_day": [
+    {
+      "at": "2026-11-18T03:59:59+09:00",
+      "expected": "2026-11-17"
+    },
+    {
+      "at": "2026-11-18T04:00:00+09:00",
+      "expected": "2026-11-18"
+    },
+    {
+      "at": "2026-11-17T18:59:00Z",
+      "expected": "2026-11-17"
+    },
+    {
+      "at": "2026-11-17T19:00:00Z",
+      "expected": "2026-11-18"
+    },
+    {
+      "at": "2026-11-18T23:30:00+09:00",
+      "expected": "2026-11-18"
+    }
+  ]
+}

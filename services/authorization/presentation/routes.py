@@ -91,6 +91,7 @@ def create_blueprint(
             "params": request.args.to_dict(),  # 同意のあと、Authlib にもう一度確かめさせる
             "client": grant.client.to_dict(),
             "scope": grant.request.scope,
+            "resource": grant.request.resource,  # 同意画面の見出し（宛先の製品）に使う
             "subject": None,
         }, REQUEST_TTL_SECONDS)
         session[SESSION_KEY] = request_id
@@ -110,7 +111,9 @@ def create_blueprint(
             return error_page(EXPIRED)
         store.put("request", request_id, {**pending, "subject": subject.to_dict()}, REQUEST_TTL_SECONDS)
         client = Client.from_dict(pending["client"])
-        page = render_consent_page(client.client_name, client.host, subject.email, pending["scope"].split())
+        target = server.resource_server(pending.get("resource"))
+        page = render_consent_page(client.client_name, client.host, subject.email, pending["scope"].split(),
+                                   product=target.name if target else "KARADA")
         return Response(page, mimetype="text/html")
 
     @bp.post("/consent")

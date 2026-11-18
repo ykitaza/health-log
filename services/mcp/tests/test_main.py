@@ -641,7 +641,7 @@ def test_今週の目標は0から7の整数だけを読む(server, value, expec
 
 
 def test_JWKS_が取れないときは_401_ではなく_503_を返す(server):
-    from connector.access_token_verifier import JwksUnavailableError
+    from mcp_connector.access_token_verifier import JwksUnavailableError
 
     class DownVerifier:
         async def verify_token(self, token):

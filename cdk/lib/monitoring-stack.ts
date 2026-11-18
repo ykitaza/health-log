@@ -74,7 +74,9 @@ export const CLOUDTRAIL_TAMPER_PATTERN: events.EventPattern = {
 
 // 自分のスタック。CloudFormation の操作は、これ以外のスタックへのものを通知する（CDK のデプロイ・cdk diff で鳴らないように）。
 // 前方一致（CognitoStudy*）にすると、CognitoStudyEvil のような名前のスタックで紛れ込めるので、名前を並べる
-export const OWN_STACK_NAMES = ['CognitoStudy', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit'];
+export const OWN_STACK_NAMES = [
+  'CognitoStudy', 'CognitoStudyWords', 'CognitoStudyMonitoring', 'CognitoStudyMonitoringGlobal', 'CDKToolkit',
+];
 
 // CDK のデプロイと cdk diff で、変更セットを作る・実行する・消すロール（cdk-*-deploy-role）
 const CDK_DEPLOY_ROLE_PREFIX = 'cdk-hnb659fds-deploy-role-';
@@ -153,6 +155,9 @@ export interface MonitoringStackProps extends cdk.StackProps {
   readonly tableNameParams: Record<string, string>;
   // アプリ用の API の Lambda のロググループ名を入れた SSM パラメータの名前（InfraStack.appApiLogGroupParam）
   readonly appApiLogGroupParam: string;
+  // ほかのアプリ用の同期の Lambda（Lambda の ID → ロググループ名の SSM パラメータの名前。ことばの WordsStack.appApiLogGroupParam）。
+  // 同じ BulkDeletes のメトリクスに足し込む（アラームは1つのまま）
+  readonly extraAppApiLogGroupParams?: Record<string, string>;
 }
 
 // 東京に置く監視。通知の送り先（SNS）、アラーム、CloudTrail の証跡、東京で起きる操作の EventBridge のルール
@@ -259,7 +264,7 @@ export class MonitoringStack extends cdk.Stack {
     alarm('LambdaErrorsAlarm', new cloudwatch.MathExpression({
       expression: `SUM([${Object.keys(functionErrors).join(', ')}])`, usingMetrics: functionErrors,
       period: cdk.Duration.hours(1), label: 'Errors',
-    }), 3, 'このアプリの Lambda（認可API・MCP・アプリ用の API）のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
+    }), 3, 'このアプリの Lambda（認可API・MCP・アプリ用の API。KARADA とことば）のエラーが1時間に3件以上（30日間0件）。Lambda のログでエラーを見る');
 
     // ---- DynamoDB とデータ ----
 
@@ -277,7 +282,7 @@ export class MonitoringStack extends cdk.Stack {
     alarm('DynamoDbWritesAlarm', new cloudwatch.MathExpression({
       expression: `SUM([${Object.keys(tableWrites).join(', ')}])`, usingMetrics: tableWrites,
       period: cdk.Duration.hours(1), label: 'ConsumedWriteCapacityUnits',
-    }), 3000, 'DynamoDB（MealsTable と StateTable）の書き込みが1時間に3,000 WCU 以上（これまでの最大は1時間886）。費用を膨らませる攻撃の兆し。アプリ用の API のアクセスログで送信元 IP と回数を見る');
+    }), 3000, 'DynamoDB（MealsTable・StateTable・WordsTable）の書き込みが1時間に3,000 WCU 以上（これまでの最大は1時間886）。費用を膨らませる攻撃の兆し。アプリ用の API のアクセスログで送信元 IP と回数を見る');
 
     // 1回の送信で消される親（種目・食事・体組成の記録など）が多い（services/sync の BULK_DELETE_THRESHOLD 以上）。
     // 親といっしょに消える子（セット・品目）は親ごとに1つに数える。データを壊す操作の兆し。
@@ -288,6 +293,14 @@ export class MonitoringStack extends cdk.Stack {
       logGroup: appApiLogGroup, metricNamespace: METRIC_NAMESPACE, metricName: 'BulkDeletes', metricValue: '1',
       filterPattern: logs.FilterPattern.literal('"bulk_delete deletes="'),
     });
+    for (const [fnId, paramName] of Object.entries(props.extraAppApiLogGroupParams ?? {})) {
+      const logGroup = logs.LogGroup.fromLogGroupName(
+        this, `${fnId}Logs`, ssm.StringParameter.valueForStringParameter(this, paramName));
+      new logs.MetricFilter(this, `${fnId}BulkDeletesFilter`, {
+        logGroup, metricNamespace: METRIC_NAMESPACE, metricName: 'BulkDeletes', metricValue: '1',
+        filterPattern: logs.FilterPattern.literal('"bulk_delete deletes="'),
+      });
+    }
     alarm('BulkDeletesAlarm', sumPerHour('BulkDeletes'), 1,
       'アプリからの1回の送信で、消される親（種目・食事など。セット・品目は親ごとに1つ）が10以上あった。データを壊す操作の兆し。Lambda のログの bulk_delete と、変更の記録を見る（戻し方は docs/monitoring.md）');
 

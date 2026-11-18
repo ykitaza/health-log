@@ -1,6 +1,6 @@
 name: deploy
 
-# サーバー（CDK の CognitoStudy と監視の2つ）を AWS にデプロイする（docs/cd.md）。
+# サーバー（CDK の CognitoStudy、ことばの CognitoStudyWords と監視の2つ）を AWS にデプロイする（docs/cd.md）。
 # 手で動かす（main だけ）→ テスト → cdk diff → environment aws-prod の承認 → デプロイ。
 # AWS へは OIDC で入る（アクセスキーは置かない）。ロールは CognitoStudyCiCd のスタックにあり、そのスタックはここではデプロイしない
 on:
@@ -18,7 +18,7 @@ env:
   AWS_ACCOUNT_ID: '969624666976'
   AWS_REGION: ap-northeast-1
   # 差分を見て、デプロイするスタック（CognitoStudyCiCd は入れない）
-  STACKS: CognitoStudy CognitoStudyMonitoring CognitoStudyMonitoringGlobal
+  STACKS: CognitoStudy CognitoStudyWords CognitoStudyMonitoring CognitoStudyMonitoringGlobal
 
 jobs:
   # test.yml と同じテスト。必須のチェックの名前（python (…)・cdk）と重ならないように、名前に test- を付ける
@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [authorization, meals, sync, training, app_api, mcp]
+        service: [authorization, meals, sync, training, app_api, mcp, mcp_connector, words]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
@@ -176,6 +176,8 @@ jobs:
             exit 1
           fi
 
-      # 承認は environment で済んでいるので、CDK の確認は出さない。CognitoStudy → 監視の2つの順
+      # 承認は environment で済んでいるので、CDK の確認は出さない。CognitoStudy → CognitoStudyWords → 監視の2つの順
+      # （ことばは認可API・Cognito の SSM パラメータを読み、監視はことばの SSM パラメータを読む）
       - run: npx cdk deploy --app cdk.out --require-approval never CognitoStudy
+      - run: npx cdk deploy --app cdk.out --require-approval never --exclusively CognitoStudyWords
       - run: npx cdk deploy --app cdk.out --require-approval never --exclusively CognitoStudyMonitoring CognitoStudyMonitoringGlobal

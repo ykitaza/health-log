@@ -1,0 +1,209 @@
+{
+  "description": "活動の記録。日は日本時間の午前4時で区切る。週は月曜〜日曜、月は暦の月で、今日を含む期間から count 個（古い順）。captured は表現を作った日、reencountered は表現を作った日より後の日に足した出会い、used は使えたの記録の日、hand_entered は今の手札の hand_since、moved_to_own は今 own の表現の moved_at、listened は listen_session の合計（分は秒÷60 を小数1桁に丸める）。captured_by_source は期間に拾ったものの場所ごとの数（多い順、場所なしは「（場所なし）」）",
+  "today": "2026-11-18",
+  "sources": [
+    {
+      "id": "s1",
+      "name": "Audible"
+    },
+    {
+      "id": "s2",
+      "name": "会話"
+    }
+  ],
+  "expressions": [
+    {
+      "id": "e1",
+      "source_id": "s1",
+      "place": "hand",
+      "created_at": "2026-11-16T00:00:00.000Z",
+      "hand_since": "2026-11-16"
+    },
+    {
+      "id": "e2",
+      "source_id": "s1",
+      "place": "collected",
+      "created_at": "2026-11-10T00:00:00.000Z"
+    },
+    {
+      "id": "e3",
+      "source_id": null,
+      "place": "own",
+      "created_at": "2026-10-20T00:00:00.000Z",
+      "moved_at": "2026-11-17T12:00:00+09:00"
+    },
+    {
+      "id": "e4",
+      "source_id": "s2",
+      "place": "collected",
+      "created_at": "2026-11-17T19:30:00.000Z"
+    }
+  ],
+  "encounters": [
+    {
+      "id": "x1",
+      "expression_id": "e2",
+      "created_at": "2026-11-10T00:00:00.000Z"
+    },
+    {
+      "id": "x2",
+      "expression_id": "e2",
+      "created_at": "2026-11-17T01:00:00.000Z"
+    },
+    {
+      "id": "x3",
+      "expression_id": "e1",
+      "created_at": "2026-11-16T00:00:00.000Z"
+    }
+  ],
+  "usages": [
+    {
+      "id": "u1",
+      "expression_id": "e1",
+      "used_on": "2026-11-17"
+    },
+    {
+      "id": "u2",
+      "expression_id": "e3",
+      "used_on": "2026-11-05"
+    }
+  ],
+  "listen_sessions": [
+    {
+      "id": "l1",
+      "started_at": "2026-11-17T08:00:00+09:00",
+      "listened_on": "2026-11-17",
+      "seconds": 600,
+      "items": 12
+    },
+    {
+      "id": "l2",
+      "started_at": "2026-11-11T08:00:00+09:00",
+      "listened_on": "2026-11-11",
+      "seconds": 300,
+      "items": 5
+    }
+  ],
+  "cases": [
+    {
+      "unit": "week",
+      "count": 2,
+      "expected": {
+        "unit": "week",
+        "from": "2026-11-09",
+        "to": "2026-11-22",
+        "periods": [
+          {
+            "from": "2026-11-09",
+            "to": "2026-11-15",
+            "captured": 1,
+            "reencountered": 0,
+            "used": 0,
+            "hand_entered": 0,
+            "moved_to_own": 0,
+            "listened_items": 5,
+            "listened_minutes": 5.0
+          },
+          {
+            "from": "2026-11-16",
+            "to": "2026-11-22",
+            "captured": 2,
+            "reencountered": 1,
+            "used": 1,
+            "hand_entered": 1,
+            "moved_to_own": 1,
+            "listened_items": 12,
+            "listened_minutes": 10.0
+          }
+        ],
+        "totals": {
+          "captured": 3,
+          "reencountered": 1,
+          "used": 1,
+          "hand_entered": 1,
+          "moved_to_own": 1,
+          "listened_items": 17,
+          "listened_minutes": 15.0
+        },
+        "captured_by_source": [
+          {
+            "source": "Audible",
+            "captured": 2
+          },
+          {
+            "source": "会話",
+            "captured": 1
+          }
+        ],
+        "now": {
+          "collected": 2,
+          "hand": 1,
+          "own": 1,
+          "total": 4
+        }
+      }
+    },
+    {
+      "unit": "month",
+      "count": 2,
+      "expected": {
+        "unit": "month",
+        "from": "2026-10-01",
+        "to": "2026-11-30",
+        "periods": [
+          {
+            "from": "2026-10-01",
+            "to": "2026-10-31",
+            "captured": 1,
+            "reencountered": 0,
+            "used": 0,
+            "hand_entered": 0,
+            "moved_to_own": 0,
+            "listened_items": 0,
+            "listened_minutes": 0.0
+          },
+          {
+            "from": "2026-11-01",
+            "to": "2026-11-30",
+            "captured": 3,
+            "reencountered": 1,
+            "used": 2,
+            "hand_entered": 1,
+            "moved_to_own": 1,
+            "listened_items": 17,
+            "listened_minutes": 15.0
+          }
+        ],
+        "totals": {
+          "captured": 4,
+          "reencountered": 1,
+          "used": 2,
+          "hand_entered": 1,
+          "moved_to_own": 1,
+          "listened_items": 17,
+          "listened_minutes": 15.0
+        },
+        "captured_by_source": [
+          {
+            "source": "Audible",
+            "captured": 2
+          },
+          {
+            "source": "（場所なし）",
+            "captured": 1
+          },
+          {
+            "source": "会話",
+            "captured": 1
+          }
+        ],
+        "now": {
+          "collected": 2,
+          "hand": 1,
+          "own": 1,
+          "total": 4
+        }
+      }
+    }
+  ]
+}

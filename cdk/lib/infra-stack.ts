@@ -16,34 +16,37 @@ import { Construct } from 'constructs';
 const LOCAL_AUTHZ_ORIGIN = 'http://localhost:3000'; // PC で動かす認可API（Cognito から見た RP）
 
 // Lambda が起動時に読む SSM パラメータの名前
-const PARAM_PREFIX = '/cognito-study';
-const AUTHZ_URL_PARAM = `${PARAM_PREFIX}/authorization/url`;
+export const PARAM_PREFIX = '/cognito-study';
+export const AUTHZ_URL_PARAM = `${PARAM_PREFIX}/authorization/url`;
 const MEALS_URL_PARAM = `${PARAM_PREFIX}/meals/url`;
 const COGNITO_CLIENT_ID_PARAM = `${PARAM_PREFIX}/authorization/cognito-client-id`;
 const SIGNING_KEY_PARAM = `${PARAM_PREFIX}/authorization/signing-key`; // 認可APIが初回起動時に作る（SecureString）
 const SESSION_SECRET_PARAM = `${PARAM_PREFIX}/authorization/session-secret`; // 同上。セッション Cookie の署名用
-// スマホアプリ（KARADA）が使う値。どれも秘密ではない
-const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
-const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
+// ことばの MCP の URL（ことばのスタック CognitoStudyWords が置く）。認可API が読み、ことばの MCP をトークンの宛先に足す。
+// 名前だけでつなぐので、2つのスタックの間に CloudFormation の依存はできない（docs/words-design.md の「スタックの組み替え」）
+export const WORDS_URL_PARAM = `${PARAM_PREFIX}/words/url`;
+// スマホアプリ（KARADA。ことばのアプリも同じものを使う）が使う値。どれも秘密ではない
+export const APP_ISSUER_PARAM = `${PARAM_PREFIX}/app/issuer`;
+export const APP_CLIENT_ID_PARAM = `${PARAM_PREFIX}/app/client-id`;
 const APP_COGNITO_DOMAIN_PARAM = `${PARAM_PREFIX}/app/cognito-domain`;
 const APP_API_URL_PARAM = `${PARAM_PREFIX}/app/api-url`;
 
 // アプリ用の API の名前（Cognito のリソースサーバーの識別子）。アクセストークンの scope は「torelog-api/meals.read」の形になる。
 // scope は「対象.操作」にし、食事（meals.*）と筋トレ（training.*）を分ける
-const APP_API_IDENTIFIER = 'torelog-api';
+export const APP_API_IDENTIFIER = 'torelog-api';
 
 // HTTP API の流量の制限（認可API と MCP それぞれに）。超えた分は 429 で断る。
 // 使うのは本人だけなので、1秒あたり1回・瞬間的に5回まで（Claude は接続のときに数回まとめて送る）。
 // ずっと上限で叩かれても、月の費用に上限がかかる
-const THROTTLE = { rateLimit: 1, burstLimit: 5 };
+export const THROTTLE = { rateLimit: 1, burstLimit: 5 };
 // アプリ用の API の流量の制限。アプリはまだ使っていないので、使い始めるまでは低くしておく（1秒2回・瞬間10回）。
 // 使い始めたら、アプリを開いたときの送信（25件ずつ）と受け取りのページ送り（続けて数回から十数回）に合わせて上げる。
 // トークンのない通信はオーソライザーが Lambda の前で断る
-const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
+export const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
 
 // 監視のスタック（monitoring-stack.ts）が読む、アクセスログのロググループ名の置き場所。
 // 認可APIが書き込める /cognito-study/* の外に置く
-const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
+export const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
 
 // マネージドログイン（パスキーでログインする画面）の KARADA のブランディング。アプリと MCP の接続のログインで同じものを使う。
 // 色はアプリ（apps/karada/theme/index.ts）と同じで、ダークモードの画面だけにする。文言は Cognito が決めるので変えない。
@@ -252,6 +255,7 @@ export class InfraStack extends cdk.Stack {
       SESSION_SECRET_PARAM,
       AUTHZ_URL_PARAM,
       MEALS_URL_PARAM,
+      WORDS_URL_PARAM, // まだないときは、ことばを足さずに起動する（services/authorization/infrastructure/settings.py）
     }));
     const authzUrl = publicApi('AuthzApi', authzFn);
     // ログインの途中の状態とリフレッシュトークンの系列を、置く・読む・取り出して消す（services/authorization/infrastructure/stores.py）
@@ -261,10 +265,11 @@ export class InfraStack extends cdk.Stack {
     }));
     // パラメータの資源を直接参照すると循環するので、名前から ARN を組み立てる
     const paramArn = (name: string) => `arn:aws:ssm:${this.region}:${this.account}:parameter${name}`;
-    // 読むのは、起動時に読む5つだけ（services/authorization/infrastructure/settings.py の load_lambda_settings）
+    // 読むのは、起動時に読む6つだけ（services/authorization/infrastructure/settings.py の load_lambda_settings）
     authzFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
-      resources: [COGNITO_CLIENT_ID_PARAM, AUTHZ_URL_PARAM, MEALS_URL_PARAM, SIGNING_KEY_PARAM, SESSION_SECRET_PARAM].map(paramArn),
+      resources: [COGNITO_CLIENT_ID_PARAM, AUTHZ_URL_PARAM, MEALS_URL_PARAM, SIGNING_KEY_PARAM, SESSION_SECRET_PARAM,
+        WORDS_URL_PARAM].map(paramArn),
     }));
     // 書けるのは、署名鍵とセッションの秘密を初めて作るときだけ。上書き（Overwrite=true）は許さないので、
     // 関数が乗っ取られても、鍵を差し替えたり、URL のパラメータを書き換えたりはできない。
@@ -381,9 +386,11 @@ export class InfraStack extends cdk.Stack {
           cognito.OAuthScope.OPENID,
           ...[mealsRead, mealsWrite, trainingRead, trainingWrite].map((s) => cognito.OAuthScope.resourceServer(appApi, s)),
         ],
-        // torelog-dev は開発用のアプリ KARADA (dev)（apps/karada/app.config.ts。PC の Metro につなぐ開発ビルド）
-        callbackUrls: ['torelog://callback', 'torelog-dev://callback'],
-        logoutUrls: ['torelog://signout', 'torelog-dev://signout'],
+        // torelog-dev は開発用のアプリ KARADA (dev)（apps/karada/app.config.ts。PC の Metro につなぐ開発ビルド）。
+        // kotoba・kotoba-dev は、同じクライアントを使うことばのアプリ（apps/words。スキームは仮。docs/words-design.md）。
+        // 戻り先を足すのは、クライアントを作り直さない更新
+        callbackUrls: ['torelog://callback', 'torelog-dev://callback', 'kotoba://callback', 'kotoba-dev://callback'],
+        logoutUrls: ['torelog://signout', 'torelog-dev://signout', 'kotoba://signout', 'kotoba-dev://signout'],
       },
       // 盗まれたときの被害を小さくするため、アクセストークンと ID トークンは短くする
       accessTokenValidity: cdk.Duration.minutes(15),

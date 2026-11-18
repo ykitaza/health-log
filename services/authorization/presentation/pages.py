@@ -14,6 +14,8 @@ SCOPE_DESCRIPTIONS = {
     "meals:write": "食事の記録と目標を書く（追加・修正・削除）",
     "training:read": "筋トレ（種目・重量・回数）と体組成の記録を読む",
     "training:write": "筋トレと体組成の記録を書く（追加・修正・削除）",
+    "words:read": "ことば（集めた表現・出会い・振り返り）を読む",
+    "words:write": "ことばを書く（拾う・補う・手札の入れ替え・削除）",
 }
 
 # 色・余白・角はアプリ（apps/karada/theme/index.ts）と同じ値。ダークモードだけ（アプリとログイン画面と同じ）。
@@ -117,21 +119,21 @@ CHECK = """<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d
 fill="none" stroke="#5BE49B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
 
 
-def _page(title: str, body: str) -> str:
+def _page(title: str, body: str, product: str = "KARADA") -> str:
     return f"""<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{html.escape(title)} - KARADA</title>
+<title>{html.escape(title)} - {html.escape(product)}</title>
 <style>{STYLE}</style>
 </head>
 <body>
 <main>
 <header class="brand">
 {ICON}
-<div><p class="logo" aria-label="KARADA">KARADA</p><p class="brand-sub">アカウント連携</p></div>
+<div><p class="logo" aria-label="{html.escape(product)}">{html.escape(product)}</p><p class="brand-sub">アカウント連携</p></div>
 </header>
 {body}
 </main>
@@ -140,7 +142,8 @@ def _page(title: str, body: str) -> str:
 </html>"""
 
 
-def render_consent_page(client_name: str, client_host: str, email: str, scopes: list[str]) -> str:
+def render_consent_page(client_name: str, client_host: str, email: str, scopes: list[str], product: str = "KARADA") -> str:
+    """同意画面。product は宛先（リソースサーバー）の製品の名前（KARADA・ことば）で、見出しに出す。"""
     # client_name はクライアントが自由に書ける値なので、必ずエスケープする。偽の名前に備えてドメインも並べて出す
     items = "".join(f"<li>{CHECK}<span>{html.escape(SCOPE_DESCRIPTIONS.get(s, s))}</span></li>" for s in scopes)
     meals = any(s.startswith("meals:") for s in scopes)
@@ -158,7 +161,7 @@ def render_consent_page(client_name: str, client_host: str, email: str, scopes: 
 <form method="post" action="/consent" class="actions" data-once>
 <button name="decision" value="allow" class="allow">許可する</button>
 <button name="decision" value="deny" class="deny">やめる</button>
-</form>""")
+</form>""", product)
 
 
 def render_privacy_page() -> str:    return _page("プライバシーポリシー", """<h1>プライバシーポリシー</h1>

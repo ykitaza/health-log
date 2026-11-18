@@ -24,6 +24,8 @@ class Settings:
     on_lambda: bool
     # 1つ前のリフレッシュトークンを受け付ける猶予（秒）。環境変数 REFRESH_REUSE_GRACE_SECONDS で変えられる
     refresh_reuse_grace_seconds: int = 60
+    # ことばの MCP サーバー（RFC 8707 の resource）。None なら足さない（ことばのスタックがまだない）
+    words_resource: str | None = None
 
 
 def new_private_key_pem() -> str:
@@ -56,6 +58,7 @@ def load_local_settings() -> Settings:
         state_table=None,
         on_lambda=False,
         refresh_reuse_grace_seconds=refresh_reuse_grace_seconds(),
+        words_resource=os.environ.get("WORDS_RESOURCE", "http://localhost:8002/mcp") or None,
     )
 
 
@@ -82,6 +85,14 @@ def load_lambda_settings() -> Settings:
     # 自分の関数 URL は作成後に決まるので、CDK が SSM に書いたものを読む。
     # Cognito のクライアント ID も同じ理由で SSM から、シークレットは環境変数に置かずに Cognito から読む
     cognito_client_id = param(env["COGNITO_CLIENT_ID_PARAM"])
+    words_resource = None
+    if env.get("WORDS_URL_PARAM"):
+        # ことばの MCP の URL は、ことばのスタック（CognitoStudyWords）が置く。デプロイの順番でまだないときは、
+        # ことばを足さずに起動する（起動で失敗しない。KARADA はそのまま使える）
+        try:
+            words_resource = param(env["WORDS_URL_PARAM"]).rstrip("/") + "/mcp"
+        except ssm.exceptions.ParameterNotFound:
+            words_resource = None
     cognito_client_secret = boto3.client("cognito-idp").describe_user_pool_client(
         UserPoolId=env["COGNITO_USER_POOL_ID"], ClientId=cognito_client_id)["UserPoolClient"]["ClientSecret"]
     return Settings(
@@ -95,6 +106,7 @@ def load_lambda_settings() -> Settings:
         state_table=env["STATE_TABLE"],
         on_lambda=True,
         refresh_reuse_grace_seconds=refresh_reuse_grace_seconds(),
+        words_resource=words_resource,
     )
 
 

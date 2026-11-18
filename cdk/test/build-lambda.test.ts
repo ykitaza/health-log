@@ -15,4 +15,13 @@ describe('build-lambda.sh が作る run.sh', () => {
     expect(lines.filter((l) => l.includes('gunicorn --bind'))).toHaveLength(1);
     expect(script).toContain("mcp) server='uvicorn main:app");
   });
+
+  test('ことばの MCP は uvicorn で mcp_main:app を動かす（アプリ用の同期は app_api.handler を直接呼ぶ）', () => {
+    expect(script).toContain("words) server='uvicorn mcp_main:app");
+    expect(script).toMatch(/for app in authorization mcp app_api words; do/);
+  });
+
+  test('KARADA とことばの MCP に、共有のコネクタの部品（mcp_connector）を載せる', () => {
+    expect(script).toContain('mcp | words) cp -R "$services/mcp_connector/mcp_connector" "$out/"');
+  });
 });

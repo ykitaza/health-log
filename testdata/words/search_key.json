@@ -1,0 +1,101 @@
+{
+  "description": "search_key（正規化）。NFKC → 英字を小文字に → カタカナ（U+30A1〜U+30F6）をひらがなに、ヽヾ を ゝゞ に（ー と 々 は残す） → 空白・改行・タブと、Unicode の分類 Z・P・S を除く。normalized_key は表現そのものにこれをかけたもの",
+  "cases": [
+    {
+      "input": "腑に落ちる",
+      "expected": "腑に落ちる"
+    },
+    {
+      "input": "腑に落ちた。",
+      "expected": "腑に落ちた"
+    },
+    {
+      "input": "フニオチル",
+      "expected": "ふにおちる"
+    },
+    {
+      "input": "ﾌﾆｵﾁﾙ",
+      "expected": "ふにおちる"
+    },
+    {
+      "input": "ＡＢＣ　ｄｅｆ",
+      "expected": "abcdef"
+    },
+    {
+      "input": "Hello, World!",
+      "expected": "helloworld"
+    },
+    {
+      "input": "「〜に尽きる」",
+      "expected": "に尽きる"
+    },
+    {
+      "input": "ヴァイオリン",
+      "expected": "ゔぁいおりん"
+    },
+    {
+      "input": "コーヒー",
+      "expected": "こーひー"
+    },
+    {
+      "input": "人々",
+      "expected": "人々"
+    },
+    {
+      "input": "ヽヾ",
+      "expected": "ゝゞ"
+    },
+    {
+      "input": "いすゞ",
+      "expected": "いすゞ"
+    },
+    {
+      "input": "…！？、。・",
+      "expected": ""
+    },
+    {
+      "input": "  改行\nと\tタブ  ",
+      "expected": "改行とたぶ"
+    },
+    {
+      "input": "㌔",
+      "expected": "きろ"
+    },
+    {
+      "input": "①②",
+      "expected": "12"
+    },
+    {
+      "input": "ヷ",
+      "expected": "ヷ"
+    },
+    {
+      "input": "Ⅳ",
+      "expected": "iv"
+    },
+    {
+      "input": "ｶﾞｷﾞ",
+      "expected": "がぎ"
+    },
+    {
+      "input": "お疲れさまです☺",
+      "expected": "お疲れさまです"
+    },
+    {
+      "input": "＄100",
+      "expected": "100"
+    },
+    {
+      "input": "café",
+      "expected": "café"
+    },
+    {
+      "input": "",
+      "expected": ""
+    },
+    {
+      "input": "ＫＡＲＡＤＡ",
+      "expected": "karada"
+    }
+  ]
+}
