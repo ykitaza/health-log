@@ -4,6 +4,9 @@ PC：uv run flask --app main run --port 3000
 Lambda：gunicorn "main:create_app()"（cdk/build-lambda.sh の run.sh）
 """
 
+import time
+from collections.abc import Callable
+
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -45,6 +48,7 @@ def create_app(
     store: Store | None = None,
     clients: CimdClientDirectory | None = None,
     login: LoginGateway | None = None,
+    clock: Callable[[], float] = time.time,
 ) -> Flask:
     settings = settings or load_settings()
     app = Flask(__name__, static_folder=None)  # 静的ファイルは配らない
@@ -66,7 +70,8 @@ def create_app(
     # localhost の http の client_id（MCP Inspector など）は PC で動かすときだけ認める（Lambda では SSRF になる）
     local = not settings.on_lambda
     server = AuthorizationServer(settings.issuer, settings.signing_key_pem, store, resource_servers,
-                                 allow_loopback_http=local)
+                                 allow_loopback_http=local,
+                                 refresh_reuse_grace_seconds=settings.refresh_reuse_grace_seconds, clock=clock)
     if login is None:
         from infrastructure.cognito_login import CognitoLogin
 

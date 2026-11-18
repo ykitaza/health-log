@@ -6,6 +6,7 @@ Authlib が求めるメソッド（ClientMixin など）を実装し、保存で
 import hashlib
 import hmac
 from dataclasses import dataclass
+from enum import StrEnum
 from urllib.parse import urlsplit
 
 from authlib.oauth2.rfc6749 import AuthorizationCodeMixin, ClientMixin, TokenMixin
@@ -151,12 +152,22 @@ def hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()
 
 
+class TokenMatch(StrEnum):
+    """出されたリフレッシュトークンが、系列のどれに当たるか。"""
+
+    CURRENT = "current"  # 最新のもの
+    PREVIOUS_IN_GRACE = "previous_in_grace"  # 1つ前のもの。ローテーションから猶予の間（応答が届かなかった・同時の更新）
+    PREVIOUS_AFTER_GRACE = "previous_after_grace"  # 1つ前のもの。猶予を過ぎた（盗まれた可能性）
+    OLDER = "older"  # 2つ以上前のもの（盗まれた可能性）
+
+
 @dataclass(frozen=True)
 class RefreshTokenFamily(TokenMixin):
     """リフレッシュトークンの系列。ログインして同意するたびに1つでき、ローテーションしても続く。
 
-    リフレッシュトークンは「<系列ID>.<ランダムな値>」の形。覚えているのは最新のランダムな値のハッシュだけ
-    （DB が漏れても、そのままでは使えない）。
+    リフレッシュトークンは「<系列ID>.<ランダムな値>」の形。覚えているのは最新と1つ前のランダムな値のハッシュだけ
+    （DB が漏れても、そのままでは使えない）。1つ前のもの（previous_hash）は、ローテーションした時刻（rotated_at）から
+    短い猶予の間だけ受け付ける（RFC 9700 4.14.2。応答が届かずに出し直したときや、同時に更新したときに系列を消さないため）。
     """
 
     id: str
@@ -166,9 +177,19 @@ class RefreshTokenFamily(TokenMixin):
     resource: str
     current_hash: str
     expires_at: float
+    # 最初の発行のときと、この2つを足す前に保存した系列では None
+    previous_hash: str | None = None
+    rotated_at: float | None = None
 
-    def is_current(self, secret: str) -> bool:
-        return hmac.compare_digest(hash_secret(secret), self.current_hash)
+    def match(self, secret: str, now: float, grace_seconds: float) -> TokenMatch:
+        presented = hash_secret(secret)
+        if hmac.compare_digest(presented, self.current_hash):
+            return TokenMatch.CURRENT
+        if self.previous_hash is not None and hmac.compare_digest(presented, self.previous_hash):
+            if self.rotated_at is not None and now < self.rotated_at + grace_seconds:
+                return TokenMatch.PREVIOUS_IN_GRACE
+            return TokenMatch.PREVIOUS_AFTER_GRACE
+        return TokenMatch.OLDER
 
     def check_client(self, client):
         return client.get_client_id() == self.client_id
@@ -191,8 +212,11 @@ class RefreshTokenFamily(TokenMixin):
 
     @classmethod
     def from_dict(cls, d: dict) -> "RefreshTokenFamily":
+        # previous_hash・rotated_at がない（足す前に保存した）系列も読めるようにする
+        rotated_at = d.get("rotated_at")
         return cls(**{**d, "subject": Subject.from_dict(d["subject"]), "scope": " ".join(d["scope"]),
-                      "expires_at": float(d["expires_at"])})
+                      "expires_at": float(d["expires_at"]), "previous_hash": d.get("previous_hash"),
+                      "rotated_at": None if rotated_at is None else float(rotated_at)})
 
 
 def parse_refresh_token(value: str) -> tuple[str, str] | None:

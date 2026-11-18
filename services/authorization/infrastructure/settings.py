@@ -22,10 +22,16 @@ class Settings:
     session_secret: str  # ブラウザのセッション Cookie に署名する鍵
     state_table: str | None  # DynamoDB のテーブル名。None ならメモリーに置く
     on_lambda: bool
+    # 1つ前のリフレッシュトークンを受け付ける猶予（秒）。環境変数 REFRESH_REUSE_GRACE_SECONDS で変えられる
+    refresh_reuse_grace_seconds: int = 60
 
 
 def new_private_key_pem() -> str:
     return RSAKey.generate_key(2048, private=True).as_pem(private=True).decode()
+
+
+def refresh_reuse_grace_seconds() -> int:
+    return int(os.environ.get("REFRESH_REUSE_GRACE_SECONDS", "60"))
 
 
 def load_local_settings() -> Settings:
@@ -49,6 +55,7 @@ def load_local_settings() -> Settings:
         session_secret=secret_file(".session-secret", lambda: secrets.token_urlsafe(32)),
         state_table=None,
         on_lambda=False,
+        refresh_reuse_grace_seconds=refresh_reuse_grace_seconds(),
     )
 
 
@@ -87,6 +94,7 @@ def load_lambda_settings() -> Settings:
         session_secret=secret_param(env["SESSION_SECRET_PARAM"], lambda: secrets.token_urlsafe(32)),
         state_table=env["STATE_TABLE"],
         on_lambda=True,
+        refresh_reuse_grace_seconds=refresh_reuse_grace_seconds(),
     )
 
 
