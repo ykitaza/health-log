@@ -8,7 +8,7 @@
 | `CognitoStudyMonitoring` | ap-northeast-1 | SNS のトピック、CloudWatch のアラーム9個、CloudTrail の証跡（S3 と CloudWatch Logs）、EventBridge のルール6個 |
 | `CognitoStudyMonitoringGlobal` | us-east-1 | IAM の操作を東京の既定のイベントバスに転送するルール |
 
-`CognitoStudy` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group`、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`、DynamoDB のテーブル名 `/cognito-study-monitoring/<テーブル>/table-name`、アプリ用の API の Lambda のロググループ名 `/cognito-study-monitoring/AppApiFunction/log-group`）だけでつないでいます。スタックをまたぐ Export は作りません。
+`CognitoStudy` と、ことばの `CognitoStudyWords` とは、SSM パラメータの名前（アクセスログのロググループ名 `/cognito-study-monitoring/<API>/access-log-group`、Lambda の関数名 `/cognito-study-monitoring/<関数>/function-name`、DynamoDB のテーブル名 `/cognito-study-monitoring/<テーブル>/table-name`、アプリ用の API の Lambda のロググループ名 `/cognito-study-monitoring/AppApiFunction/log-group`・`/cognito-study-monitoring/WordsAppApiFunction/log-group`）だけでつないでいます。スタックをまたぐ Export は作りません。監視は、2つのスタックが SSM パラメータを置いたあとに作られます（`addStackDependency`）。
 
 ## 何を検知するか
 
@@ -25,14 +25,14 @@
 | `ServerErrorsAlarm` | 5xx（アクセスログ） | 1時間に3件以上 | 30日間0件。1件だけなら一時的な失敗のこともあるので、3件から |
 | `ThrottledAlarm` | 429（流量の制限での拒否。認可API と MCP は1秒1回・瞬間5回、アプリ用の API は1秒2回・瞬間10回。アクセスログ） | 1時間に10件以上 | 30日間0件。Claude は接続のときに数回まとめて送るので、数件の 429 はありうる |
 | `TokenFailuresAlarm` | 認可API の `/token` の 4xx（アクセスログ） | 1時間に10件以上 | これまでの最大は1時間1件。認可コードやリフレッシュトークンの総当たりの兆し |
-| `LambdaErrorsAlarm` | このアプリの3つの Lambda（`AuthzFunction`・`MealsFunction`・`AppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
+| `LambdaErrorsAlarm` | このアプリの5つの Lambda（KARADA の `AuthzFunction`・`MealsFunction`・`AppApiFunction`、ことばの `WordsMcpFunction`・`WordsAppApiFunction`）の `Errors` の合計（`AWS/Lambda`。関数ごとのメトリクスを、メトリクスの計算 `SUM` でまとめる。式は `SUM([e0, e1, e2, e3, e4])`で、ことばの2つが `e3`・`e4`） | 1時間に3件以上 | 30日間0件。関数ごとにアラームを作らず、1つのアラームにまとめる。ほかのスタックの Lambda のエラーは数えない |
 
 ### DynamoDB とデータ（CloudWatch のアラーム）
 
 | アラーム | 数えるもの | しきい値 | 根拠 |
 |---|---|---|---|
-| `DynamoDbWritesAlarm` | `MealsTable` と `StateTable` の `ConsumedWriteCapacityUnits` の合計（`AWS/DynamoDB`。メトリクスの計算 `SUM` でまとめる） | 1時間に 3,000 WCU 以上 | 2026-11-08 までの30日で、2つのテーブルの合計の最大は1時間886（11-08 の18時台。同期の仕組みへの移行の書き込み）、ほかの時間は206以下。普段の最大の10倍以上、移行の3倍ほど。盗まれたトークンで送信を続けると費用が膨らむ（Denial of Wallet）ので、その兆し。予算の通知は月の合計でしか知らせないので、1時間ごとに見る。3,000 WCU は $0.002 ほど（東京のオンデマンドの書き込みは100万で $0.715 ほど）。アプリで大きな取り込み（CSV など）をした時間には鳴ることがある。Health Connect の初めての取り込み（過去30日。体重計を毎日使って体重・体脂肪率・除脂肪体重で約90件、あとで足す睡眠と心拍の日のまとめを合わせて約120件）は、1件が数 WCU（変更の記録・印・状態）なので数百 WCU で、このしきい値より下の見込み |
-| `BulkDeletesAlarm` | アプリ用の API の1回の送信で、消される「親」が10以上あった回数。親は種目（`workout_entry`）・食事（`meal`）・体組成の記録などで、親といっしょに消える子（セット `workout_set`・品目 `meal_item`）は親ごとに1つに数える（品目は `parent_id`、セットは保存してある `entry_id` でまとめる。親がわからない子はそれぞれを1つに数える）。Lambda（`AppApiFunction`）がログに `bulk_delete deletes=<親の数> delete_changes=<delete の件数> changes=<数>` を出し（`services/sync/sync/presentation/http_api.py` の `BULK_DELETE_THRESHOLD` と `_delete_groups`）、メトリクスフィルター `BulkDeletes` が数える | 1時間に1回以上 | アプリは種目を1つずつ消し（種目を外すと、その種目とセットの delete が1回の送信で届く）、1日の記録をまとめて消す機能はない。親が10以上になるのは、続けて保存したものをまとめる3秒のあいだや、つながらないあいだに10種目以上を消したときだけで、ふつうはない。1日に10種目以上を記録して全部消すことはありうるが、まれで、鳴っても1回の通知なので、しきい値は10のままにする（下げると見逃しが減るが、ふつうの操作で鳴りやすくなる）。9セット以上ある種目を外しただけで鳴っていたので、2026-11-08 に件数から親の数に変えた。データを壊す操作の兆し。ログには数だけを出す（利用者の ID と中身は出さない）。Health Connect で一度に10件以上の記録を消すと（体重計のアプリで記録をまとめて消した、など）、次の取り込みでその delete（`origin = import`）がまとめて送られて鳴る。そのときは、Health Connect で消したかどうかを本人に確かめる |
+| `DynamoDbWritesAlarm` | `MealsTable`・`StateTable`・ことばの `WordsTable` の `ConsumedWriteCapacityUnits` の合計（`AWS/DynamoDB`。メトリクスの計算 `SUM` でまとめる。式は `SUM([w0, w1, w2])` で、`WordsTable` が `w2`） | 1時間に 3,000 WCU 以上 | 2026-11-08 までの30日で、2つのテーブルの合計の最大は1時間886（11-08 の18時台。同期の仕組みへの移行の書き込み）、ほかの時間は206以下。普段の最大の10倍以上、移行の3倍ほど。盗まれたトークンで送信を続けると費用が膨らむ（Denial of Wallet）ので、その兆し。予算の通知は月の合計でしか知らせないので、1時間ごとに見る。3,000 WCU は $0.002 ほど（東京のオンデマンドの書き込みは100万で $0.715 ほど）。アプリで大きな取り込み（CSV など）をした時間には鳴ることがある。Health Connect の初めての取り込み（過去30日。体重計を毎日使って体重・体脂肪率・除脂肪体重で約90件、あとで足す睡眠と心拍の日のまとめを合わせて約120件）は、1件が数 WCU（変更の記録・印・状態）なので数百 WCU で、このしきい値より下の見込み |
+| `BulkDeletesAlarm` | アプリ用の API（KARADA の `AppApiFunction` と、ことばの `WordsAppApiFunction`。同じ `BulkDeletes` のメトリクスに足し込む）の1回の送信で、消される「親」が10以上あった回数。親は種目（`workout_entry`）・食事（`meal`）・体組成の記録などで、親といっしょに消える子（セット `workout_set`・品目 `meal_item`）は親ごとに1つに数える（品目は `parent_id`、セットは保存してある `entry_id` でまとめる。親がわからない子はそれぞれを1つに数える）。Lambda（`AppApiFunction`）がログに `bulk_delete deletes=<親の数> delete_changes=<delete の件数> changes=<数>` を出し（`services/sync/sync/presentation/http_api.py` の `BULK_DELETE_THRESHOLD` と `_delete_groups`）、メトリクスフィルター `BulkDeletes` が数える | 1時間に1回以上 | アプリは種目を1つずつ消し（種目を外すと、その種目とセットの delete が1回の送信で届く）、1日の記録をまとめて消す機能はない。親が10以上になるのは、続けて保存したものをまとめる3秒のあいだや、つながらないあいだに10種目以上を消したときだけで、ふつうはない。1日に10種目以上を記録して全部消すことはありうるが、まれで、鳴っても1回の通知なので、しきい値は10のままにする（下げると見逃しが減るが、ふつうの操作で鳴りやすくなる）。9セット以上ある種目を外しただけで鳴っていたので、2026-11-08 に件数から親の数に変えた。データを壊す操作の兆し。ログには数だけを出す（利用者の ID と中身は出さない）。Health Connect で一度に10件以上の記録を消すと（体重計のアプリで記録をまとめて消した、など）、次の取り込みでその delete（`origin = import`）がまとめて送られて鳴る。そのときは、Health Connect で消したかどうかを本人に確かめる |
 
 送信の本文は 64KB まで（超えると 413）にして、1回の送信で書ける量も抑えています（`MAX_PUSH_BYTES`）。品目50件のいつもの（名前が最大の200文字）でも、1件は 40KB ほどに収まります。
 
@@ -47,7 +47,7 @@
 | IAM の変更（ユーザー、アクセスキー、パスワード、MFA、ポリシー、ロール、ID プロバイダー。名前が Create・Delete・Update・Put・Attach・Detach・Add・Remove・Set・Enable・Deactivate・Upload・Change・Resync で始まる操作） | us-east-1 の EventBridge → 東京の既定のイベントバス → `IamChangeRule` | CDK のデプロイ |
 | Cognito の変更（名前が Admin・Create・Update・Delete・Set・Add・Start・Complete で始まる操作と、SignUp・ChangePassword・ConfirmForgotPassword）。パスキーの登録と削除（`StartWebAuthnRegistration`・`CompleteWebAuthnRegistration`・`DeleteWebAuthnCredential`）と、マネージドログインの画面からのパスキーの登録（`passkeys_add_POST`）を含む | 東京の EventBridge `CognitoChangeRule` | CDK のデプロイ |
 | CloudTrail の停止・削除・変更（StopLogging、DeleteTrail、UpdateTrail、PutEventSelectors） | 東京の EventBridge `CloudTrailTamperRule` | なし（CDK のデプロイでも通知する） |
-| 自分のスタック以外への CloudFormation の変更（名前が Create・Update・Delete・Execute・Set・Import・Continue・Cancel・Rollback・Signal・Activate・Deactivate・Register・Deregister・Publish で始まる操作） | 東京の EventBridge `CloudFormationChangeRule` | `stackName` が `CognitoStudy`・`CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`・`CDKToolkit` のもの。CDK のデプロイのロールによる、`stackName` のない操作 |
+| 自分のスタック以外への CloudFormation の変更（名前が Create・Update・Delete・Execute・Set・Import・Continue・Cancel・Rollback・Signal・Activate・Deactivate・Register・Deregister・Publish で始まる操作） | 東京の EventBridge `CloudFormationChangeRule` | `stackName` が `CognitoStudy`・`CognitoStudyWords`・`CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`・`CDKToolkit` のもの。CDK のデプロイのロールによる、`stackName` のない操作 |
 | 監視の改ざん（アラームの削除と通知の無効化 `DeleteAlarms`・`DisableAlarmActions`、EventBridge のルールの削除・無効化・送り先の取り外し `DeleteRule`・`DisableRule`・`RemoveTargets`、SNS のトピックと購読の削除 `DeleteTopic`・`Unsubscribe`、アラームのもとになるメトリクスフィルターの削除 `DeleteMetricFilter`） | 東京の EventBridge `MonitoringTamperRule` | CDK のデプロイ |
 | データを壊す操作（DynamoDB の `DeleteTable`、削除の保護を外す `UpdateTable`、ポイントインタイムリカバリを外す `UpdateContinuousBackups`、Cognito の `DeleteUserPool`、削除の保護を外す `UpdateUserPool`） | 東京の EventBridge `DataDestructionRule` | なし（CDK のデプロイでも通知する） |
 
@@ -71,20 +71,36 @@
 - ログファイルの検証を有効にしています。改ざんを確かめるには `aws cloudtrail validate-logs --trail-arn <証跡の ARN> --start-time <時刻>` を使います
 - CloudWatch Logs のロググループ（`CognitoStudyMonitoring-TrailLogGroup...`）にも送り、30日残します
 
+### ことばの分
+
+ことば（`CognitoStudyWords`。[words-design.md](words-design.md)）の監視は、新しいアラームを作らず、KARADA と同じアラームとメトリクスに足し込んでいます。足したものは次のとおりです（`cdk/lib/words-stack.ts`・`cdk/lib/monitoring-stack.ts`・`cdk/bin/infra.ts`）。
+
+| 足したもの | 中身 |
+|---|---|
+| メトリクスフィルター9個 | ことばの API は2つ（MCP の `WordsMcpApi` とアプリ用の `WordsAppApi`）で、アクセスログに `Requests`・`ClientErrors`・`ServerErrors`・`Throttled` の4つのフィルターを付けます（2 × 4 = 8個）。もう1個は、アプリ用の API の Lambda（`WordsAppApiFunction`）のログに付ける `BulkDeletes` のフィルター（`WordsAppApiFunctionBulkDeletesFilter`）。名前空間とメトリクスの名前は KARADA と同じで、ディメンションがないので、KARADA の数に足し込まれます。`TokenFailures` は認可API だけなので、ことばには付けません |
+| `LambdaErrorsAlarm` の式 | `e3`（`WordsMcpFunction`）と `e4`（`WordsAppApiFunction`）を足しました。式は `SUM([e0, e1, e2, e3, e4])` |
+| `DynamoDbWritesAlarm` の式 | `w2`（`WordsTable`）を足しました。式は `SUM([w0, w1, w2])` |
+| `CloudFormationChangeRule` の対象 | 自分のスタックの名前（`OWN_STACK_NAMES`）に `CognitoStudyWords` を足しました。これで、ことばのデプロイは通知されず、ほかのスタックへの変更は今までどおり通知されます |
+
+- 式の中のメトリクスの ID（`e0`〜、`w0`〜）は、KARADA の分を先に並べて変えていません（ID が変わるとアラームが作り直しになるため）。足すときは、あとに足します
+- 関数名とテーブル名は SSM パラメータ（`/cognito-study-monitoring/WordsMcpFunction/function-name`、`/cognito-study-monitoring/WordsAppApiFunction/function-name`、`/cognito-study-monitoring/WordsTable/table-name`）から読みます
+- `WordsTable` の削除と、保護を外す操作は、`DATA_DESTRUCTION_PATTERN` がテーブル名を見ないので、そのまま `DataDestructionRule` で通知されます
+- しきい値は変えていません。ことばの使い始めの量を見て、必要なら見直します（`Requests` の 300 件、`DynamoDbWritesAlarm` の 3,000 WCU）
+
 ## 通知が来たときに見るもの
 
 | 通知 | 見るもの |
 |---|---|
-| API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...` |
-| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）。90日残す |
-| DynamoDbWrites | アプリ用の API のアクセスログ `CognitoStudy-AppApiAccessLogs...` で、`POST /v1/sync/changes` の送信元 IP と回数。MCP のアクセスログも見る。トークンが盗まれていそうなら、下の「データを壊されたときの戻し方」の手順1でトークンを止める |
-| BulkDeletes | Lambda のログ `/aws/lambda/CognitoStudy-AppApiFunction...` の `bulk_delete` と、同じ時刻のアクセスログの送信元 IP。本人の操作でなければ、下の「データを壊されたときの戻し方」 |
+| API のアラーム（Requests・ClientErrors・Throttled・TokenFailures） | アクセスログ `CognitoStudy-AuthzApiAccessLogs...`、`CognitoStudy-MealsApiAccessLogs...`、`CognitoStudy-AppApiAccessLogs...`、ことばの `CognitoStudyWords-WordsMcpApiAccessLogs...`、`CognitoStudyWords-WordsAppApiAccessLogs...` |
+| ServerErrors・LambdaErrors | Lambda のログ `/aws/lambda/CognitoStudy-AuthzFunction...`、`/aws/lambda/CognitoStudy-MealsFunction...`（MCP サーバー）、`/aws/lambda/CognitoStudy-AppApiFunction...`（アプリ用の API）、ことばの `/aws/lambda/CognitoStudyWords-WordsMcpFunction...`・`/aws/lambda/CognitoStudyWords-WordsAppApiFunction...`。90日残す |
+| DynamoDbWrites | アプリ用の API のアクセスログ `CognitoStudy-AppApiAccessLogs...`（ことばは `CognitoStudyWords-WordsAppApiAccessLogs...`）で、`POST /v1/sync/changes` の送信元 IP と回数。MCP のアクセスログも見る。トークンが盗まれていそうなら、下の「データを壊されたときの戻し方」の手順1でトークンを止める |
+| BulkDeletes | Lambda のログ `/aws/lambda/CognitoStudy-AppApiFunction...`（ことばは `/aws/lambda/CognitoStudyWords-WordsAppApiFunction...`）の `bulk_delete` と、同じ時刻のアクセスログの送信元 IP。本人の操作でなければ、下の「データを壊されたときの戻し方」 |
 | SuspiciousConsoleLogin | 証跡のロググループ、または CloudTrail のイベント履歴（記録されたリージョンで開く） |
 | IAM・Cognito・CloudTrail・CloudFormation・監視の改ざん・データを壊す操作 | メールの JSON の `userIdentity`、`sourceIPAddress`、`eventName`。続けて証跡のロググループで、同じ人の前後の操作を見る |
 
 Logs Insights のクエリの例です（CloudWatch → Logs Insights で、ロググループを選んで実行します）。
 
-送信元 IP と path ごとの 4xx（アクセスログを3つとも選ぶ）：
+送信元 IP と path ごとの 4xx（アクセスログを5つとも選ぶ）：
 
 ```
 fields @timestamp, sourceIp, method, path, status, userAgent
@@ -94,7 +110,7 @@ fields @timestamp, sourceIp, method, path, status, userAgent
 | limit 50
 ```
 
-どの API で増えたか（アクセスログを3つとも選ぶ）：
+どの API で増えたか（アクセスログを5つとも選ぶ）：
 
 ```
 stats count(*) as n by @log, bin(10m)
@@ -225,7 +241,7 @@ EOF
    cd cdk && npx cdk bootstrap aws://<アカウント ID>/us-east-1
    ```
 
-2. デプロイする（`CognitoStudy` が先で、監視のスタックはそのあとに作られる）
+2. デプロイする（`CognitoStudy` が先、次に `CognitoStudyWords`、監視のスタックはそのあとに作られる。初めてのときの順は [CD](cd.md#初めてのデプロイ)）
 
    ```sh
    ./build-lambda.sh && npx cdk deploy --all
@@ -249,7 +265,7 @@ EOF
 
 | もの | 量 | 費用 |
 |---|---|---|
-| CloudWatch のアラーム | 9個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は3つの関数の3個、`DynamoDbWritesAlarm` は2つのテーブルの2個なので、合わせて12個（ほかに us-east-1 の請求のアラームが1個で、全部で13個） | 無料枠（標準の解像度のアラームのメトリクス10個）を3個超えるので、月 $0.30。アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる |
+| CloudWatch のアラーム | 9個。料金と無料枠はアラームの中のメトリクスの数で数え、`LambdaErrorsAlarm` は5つの関数の5個、`DynamoDbWritesAlarm` は3つのテーブルの3個なので、合わせて15個（ほかに us-east-1 の請求のアラームが1個で、全部で16個） | 無料枠（標準の解像度のアラームのメトリクス10個）を6個超えるので、月 $0.60。アラームやメトリクスを足すと、1個ごとに月 $0.10 かかる |
 | カスタムメトリクス（メトリクスフィルター） | 7個 | 無料枠（10個）の中 |
 | CloudTrail の証跡 | 管理イベントの1つ目の写し | 無料 |
 | CloudTrail → CloudWatch Logs | 管理イベントは1日 1,200件ほど（東京 1,070件、us-east-1 126件）。月 60MB ほど | 取り込みと保存は無料枠（5GB）の中。CloudTrail の配信の料金（$0.25/GB）が月 $0.02 ほど |
@@ -259,7 +275,7 @@ EOF
 
 出典：[CloudWatch の料金](https://aws.amazon.com/cloudwatch/pricing/)、[CloudTrail の料金](https://aws.amazon.com/cloudtrail/pricing/)、[EventBridge の料金](https://aws.amazon.com/eventbridge/pricing/)、[SNS の FAQ](https://aws.amazon.com/sns/faqs/)、[S3 の料金](https://aws.amazon.com/s3/pricing/)。東京の単価は AWS Price List API で確かめました（2026-11-08）。
 
-API が増えても、アラームとカスタムメトリクスの数は増えません（同じメトリクスに足し込むため）。
+API が増えても、アラームとカスタムメトリクスの数は増えません（同じメトリクスに足し込むため）。ことばの分で、メトリクスフィルターは9個増えますが（下の「ことばの分」）、数えるメトリクスは同じ7個なので、カスタムメトリクスは増えません。Lambda を足すと `LambdaErrorsAlarm` の式の中のメトリクスが、テーブルを足すと `DynamoDbWritesAlarm` の式の中のメトリクスが1つ増え、アラームの料金が1個ごとに月 $0.10 増えます。
 
 ## 片付け
 

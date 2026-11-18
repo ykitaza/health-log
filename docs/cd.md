@@ -1,18 +1,20 @@
 # サーバーの CD（GitHub Actions からのデプロイ）
 
-サーバーのスタック（`CognitoStudy`、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`）を、GitHub Actions（`.github/workflows/deploy.yml`）からデプロイします。
-初めてのときの手でのデプロイと、スタックの片付けもここに書きます。アプリの配信は [apps/karada/docs/eas.md](../apps/karada/docs/eas.md) にあります。
+サーバーのスタック（`CognitoStudy`、ことばの `CognitoStudyWords`、監視の `CognitoStudyMonitoring`・`CognitoStudyMonitoringGlobal`）を、GitHub Actions（`.github/workflows/deploy.yml`）からデプロイします。
+初めてのときの手でのデプロイと、スタックの片付けもここに書きます。KARADA のアプリの配信は [apps/karada/docs/eas.md](../apps/karada/docs/eas.md) に、ことばのアプリの配信は下の「[アプリの配信](#アプリの配信)」にあります。
 
 ## 流れ
 
 [構成図](architecture.drawio.svg) の左下の緑の線（GitHub から AWS への cdk deploy）が、この文書の中身です。
 
-手で起動する（Actions の画面で deploy を選び、main で Run workflow）→ テスト → `cdk diff` → environment `aws-prod` の承認 → `cdk deploy CognitoStudy` → `cdk deploy CognitoStudyMonitoring CognitoStudyMonitoringGlobal`
+手で起動する（Actions の画面で deploy を選び、main で Run workflow）→ テスト → `cdk diff` → environment `aws-prod` の承認 → `cdk deploy CognitoStudy` → `cdk deploy CognitoStudyWords` → `cdk deploy CognitoStudyMonitoring CognitoStudyMonitoringGlobal`
 
 - 差分は、ジョブの Summary に出ます。承認する前に読みます
 - 差分のジョブで合成したもの（`cdk.out`）を、承認のあとにそのままデプロイします。承認で見た差分と、デプロイするものが同じになります
 - どちらのジョブも、AWS のアカウントが 969624666976 であることを確かめてから進みます
 - 同時に2つは動きません（あとから起動したものは、前のものが終わるまで待ちます）
+- デプロイの順は `CognitoStudy` → `CognitoStudyWords` → 監視の2つです。`CognitoStudyWords` は、認可API と Cognito の SSM パラメータ（認可API の URL、アプリのクライアントの ID と issuer）を名前で読みます。スタックの依存は作っていない（Export を作らない）ので、順はワークフローが決めます。監視は、`CognitoStudy` と `CognitoStudyWords` が置く SSM パラメータ（ログ・関数・テーブルの名前）を読むので、いちばん最後です
+- `CognitoStudyWords` と監視は `--exclusively` で、指定したスタックだけをデプロイします（依存するスタックまで動かさず、順をワークフローで決めるため）
 
 ## AWS への入り方
 
@@ -21,7 +23,7 @@ ID プロバイダーとロールは、スタック `CognitoStudyCiCd`（`cdk/li
 
 | ロール | 使えるところ（トークンの `sub`） | できること |
 |---|---|---|
-| `health-log-github-diff` | `repo:ykitaza@104138874/health-log@1416443559:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 3つのスタックのテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
+| `health-log-github-diff` | `repo:ykitaza@104138874/health-log@1416443559:ref:refs/heads/main`（main のブランチのジョブで、environment なし） | 4つのスタック（`CognitoStudy`・`CognitoStudyWords`・監視の2つ）のテンプレートを読むことだけ（`cloudformation:DescribeStacks`・`GetTemplate`） |
 | `health-log-github-deploy` | `repo:ykitaza@104138874/health-log@1416443559:environment:aws-prod`（承認のある environment のジョブ） | CDK のブートストラップの `deploy-role` と `file-publishing-role` を引き受けることだけ（東京と us-east-1） |
 
 このリポジトリは、OIDC のトークンの sub に immutable subject（`repo:<owner>@<owner_id>/<name>@<repo_id>`）を使う設定です。リポジトリの名前を変えても ID の部分は変わりませんが、名前の部分は変わるので、名前を変えたら `cdk/bin/infra.ts` の `subjectPrefix` も直します。今の値は `gh api repos/ykitaza/health-log/actions/oidc/customization/sub` の `sub_claim_prefix` で確かめられます。
@@ -54,6 +56,10 @@ cd cdk && ./build-lambda.sh && npx cdk deploy --all
 すでにデプロイしてあって、同期の仕組みを入れる前の記録があるときは、**デプロイの前に**移行のスクリプトを動かします（[今あるデータの移行](sync-design.md#今あるデータの移行)）。
 
 通知のメールは、デプロイのあとに SNS のトピックへ購読を足すと届きます（[監視](monitoring.md#デプロイとメールの購読の足し方)）。
+
+ことば（`CognitoStudyWords`）は、`CognitoStudy` が置く SSM パラメータ（認可API の URL、アプリのクライアントの ID と issuer）を読みます。まだ `CognitoStudy` がないときは、**先に `CognitoStudy` をデプロイします**（`npx cdk deploy CognitoStudy` → `npx cdk deploy --exclusively CognitoStudyWords` → 監視の2つ）。`cdk deploy --all` は、スタックの依存の順にしか並べないので、この順を保証しません。
+
+ことばのデプロイのあとは、出力 `WordsMcpServerUrl`（Claude・ChatGPT のコネクタの URL）と `WordsAppApiUrl`（ことばのアプリの同期の API）を使います（コネクタは [MCP のつなぎ方](mcp.md#つなぎ方)、アプリは [apps/words/README.md](../apps/words/README.md)）。
 
 デプロイしたら、Claude・ChatGPT にコネクタを登録します（[MCP のつなぎ方](mcp.md#つなぎ方)）。
 
@@ -107,19 +113,29 @@ AWS_PROFILE=yuki npx cdk deploy CognitoStudyCiCd
 
 ## アプリの配信
 
-アプリは EAS Build で APK を作り、JS の変更は EAS Update で配信します（Play ストアには出しません）。main の test が通ったあと、`apps/karada/` が変わっていれば配信します（[EAS の手順](../apps/karada/docs/eas.md)）。
+KARADA のアプリは EAS Build で APK を作り、JS の変更は EAS Update で配信します（Play ストアには出しません）。main の test が通ったあと、`apps/karada/` が変わっていれば配信します（[EAS の手順](../apps/karada/docs/eas.md)）。
+
+ことばのアプリ（`apps/words/`）の JS の変更は、`.github/workflows/eas-update-words.yml`（`eas-update-words`）が EAS Update で配信します。作りは KARADA の `eas-update` と同じです。
+
+- 起動：main の test が通ったあと（`workflow_run`。push で起きた main のものだけ）。手でも動かせます（Actions → `eas-update-words` → Run workflow。main だけ）
+- 配信するか：main の最新のコミットと、その1つ前（first parent）の差で、`apps/words/` が変わったかを見ます。変わっていなければ飛ばします。test のあとに main が進んでいたときも飛ばします（新しいコミットの実行で配信します）。手で動かしたときは、変わったかを見ずに配信します
+- 配信先：チャンネル `preview`、環境 `preview`、Android。`eas-version` は 27.5.0、依存は `npm ci --ignore-scripts` で入れます
+- 秘密：environment `expo` の `EXPO_TOKEN`（KARADA と同じ environment。トークンで両方のプロジェクトを配信できる必要があります）。ないあいだは失敗せずに、理由を出して飛ばします
+- 配信のあとに、更新が届くネイティブの指紋（runtime version）をログに出します。この値のビルドにだけ、更新が届きます
+- ネイティブを変えたとき（ライブラリを足す、SDK を上げる、`app.json` のネイティブの設定）は、EAS Build で APK を作り直します（手順は [apps/words/README.md](../apps/words/README.md)）。`eas-build` のワークフローは KARADA だけで、ことばのビルドは手で行います
 
 ## 片付け
 
-`cdk destroy --all` で4つのスタックを消します。
+`cdk destroy --all` で5つのスタックを消します。
 次のものは、スタックを消しても残ります。
 
 | 残るもの | 理由 | 消し方 |
 |---|---|---|
 | Cognito のユーザープール（`cognito-study`） | 削除の保護と RETAIN。ユーザーが消えると `sub` が変わり、記録がたどれなくなるため | コンソールで削除の保護を外してから消す |
 | DynamoDB の `MealsTable`（記録）と `StateTable`（ログインの途中の状態、リフレッシュトークン） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
+| DynamoDB の `WordsTable`（ことばの記録） | 削除の保護と RETAIN。記録を守るため | コンソールで削除の保護を外してから消す |
 | CloudTrail の証跡のバケット | RETAIN。証拠として残すため | 中身を消してから消す（[監視の片付け](monitoring.md#片付け)） |
-| Lambda のロググループ（`/aws/lambda/CognitoStudy-*`。90日で古いものから消える） | RETAIN（CDK の既定）。消したあとに調べられるように残す | 要らなければコンソールか `aws logs delete-log-group` で消す |
+| Lambda のロググループ（`/aws/lambda/CognitoStudy-*`・`/aws/lambda/CognitoStudyWords-*`。90日で古いものから消える） | RETAIN（CDK の既定）。消したあとに調べられるように残す | 要らなければコンソールか `aws logs delete-log-group` で消す |
 | SSM パラメータ（署名鍵とセッションの秘密） | 認可API が初回の起動で作り、スタックの外にあるため | 下のコマンド |
 
 ```sh
