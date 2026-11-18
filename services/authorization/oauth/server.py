@@ -10,10 +10,12 @@ import hashlib
 import logging
 import secrets
 import time
+from collections.abc import Callable
+from dataclasses import replace
 
 from authlib.integrations.flask_oauth2 import AuthorizationServer as FlaskAuthorizationServer
 from authlib.oauth2 import rfc9207
-from authlib.oauth2.rfc6749 import InvalidRequestError, OAuth2Error, OAuth2Request, grants
+from authlib.oauth2.rfc6749 import InvalidGrantError, InvalidRequestError, OAuth2Error, OAuth2Request, grants
 from authlib.oauth2.rfc6749.requests import BasicOAuth2Payload
 from authlib.oauth2.rfc7009 import RevocationEndpoint
 from authlib.oauth2.rfc7636 import CodeChallenge
@@ -28,18 +30,22 @@ from oauth.models import (
     Client,
     Connection,
     RefreshTokenFamily,
+    TokenMatch,
     hash_secret,
     is_client_id_url,
     parse_refresh_token,
 )
 from oauth.resource_indicators import ResourceIndicators, ResourceServer, check_token_resource
-from oauth.store import Store
+from oauth.store import ConditionFailed, Store
 
 KEY_ID = "authz-key-1"
 # 5分：取り消し（ログアウト）しても、発行済みのアクセストークンは期限まで使えてしまうため短くする
 ACCESS_TOKEN_TTL_SECONDS = 300
 CODE_TTL_SECONDS = 60
 REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60  # 使うたびに、ここから数え直す
+# 1つ前のリフレッシュトークンを受け付ける猶予（RFC 9700 4.14.2）。応答が届かずに出し直したときや、同時に更新したときに
+# 系列を消さないため。盗まれた1つ前のものが使えるのはこの間だけなので、短くする（設定で変えられる）
+REFRESH_REUSE_GRACE_SECONDS = 60
 
 
 def new_id() -> str:
@@ -112,15 +118,48 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
             self.log_rejected("unknown family", family_id)
             return None
         family = RefreshTokenFamily.from_dict(data)
-        if family.expires_at <= time.time():
+        now = self.server.clock()
+        if family.expires_at <= now:
             self.log_rejected("expired", family_id)
             return None
-        if not family.is_current(secret):
-            # ローテーションで古くなったものが使われた。盗まれた可能性があるので、系列ごと無効にする
+        match = family.match(secret, now, self.server.refresh_reuse_grace_seconds)
+        if match is TokenMatch.OLDER or match is TokenMatch.PREVIOUS_AFTER_GRACE:
+            # ローテーションで古くなったもの（2つ以上前か、猶予を過ぎた1つ前）が使われた。
+            # 盗まれた可能性があるので、系列ごと無効にする
             self.server.store.pop("refresh", family_id)
-            self.log_rejected("reuse detected", family_id)
+            self.log_rejected("reuse detected" if match is TokenMatch.OLDER else "reuse after grace", family_id)
             return None
+        # 1つ前のもの（猶予の間）なら、応答が届かずに出し直したか、同時に更新した。save_token でもう一度
+        # ローテーションする（系列は残す）
         return family
+
+    def save_token(self, token):
+        """ローテーション：読んだときの最新（refresh_token.current_hash）が、まだ最新のときだけ置き換える。
+
+        読んでから書くまでの間に、同じリフレッシュトークンでほかの更新が先に置き換えていたら、読み直す。
+        出されたものが、その更新で1つ前になったもの（猶予の間）なら、その次にローテーションする（上書きしない）。
+        """
+        server, request = self.server, self.request
+        read: RefreshTokenFamily = request.refresh_token
+        now = server.clock()
+        family = server.new_family(token, request, now)
+        _, presented = parse_refresh_token(request.form["refresh_token"])
+        for _attempt in range(2):
+            rotated = replace(family, previous_hash=read.current_hash, rotated_at=now)
+            try:
+                server.store.put("refresh", family.id, rotated.to_dict(), REFRESH_TOKEN_TTL_SECONDS,
+                                 expected=("current_hash", read.current_hash))
+                return
+            except ConditionFailed:
+                data = server.store.get("refresh", family.id)
+                if data is None:
+                    self.log_rejected("revoked during rotation", family.id)
+                    raise InvalidGrantError() from None
+                read = RefreshTokenFamily.from_dict(data)
+                if read.match(presented, now, server.refresh_reuse_grace_seconds) is not TokenMatch.PREVIOUS_IN_GRACE:
+                    break
+        self.log_rejected("rotation conflict", family.id)
+        raise InvalidGrantError()
 
     def log_rejected(self, reason, family_id):
         # 原因の調査用。トークンや秘密は出さず、系列の ID も短いハッシュだけにする
@@ -200,8 +239,11 @@ class IssuerParameter(rfc9207.IssuerParameter):
 
 class AuthorizationServer(FlaskAuthorizationServer):
     def __init__(self, issuer: str, signing_key_pem: str, store: Store, resource_servers: list[ResourceServer],
-                 *, allow_loopback_http: bool = False):
+                 *, allow_loopback_http: bool = False,
+                 refresh_reuse_grace_seconds: float = REFRESH_REUSE_GRACE_SECONDS,
+                 clock: Callable[[], float] = time.time):
         super().__init__()
+        self.refresh_reuse_grace_seconds, self.clock = refresh_reuse_grace_seconds, clock
         self.issuer, self.store, self.resource_servers = issuer, store, resource_servers
         self.allow_loopback_http = allow_loopback_http  # localhost の http の client_id を認めるか（PC だけ）
         self.keys = KeySet([RSAKey.import_key(
@@ -225,20 +267,27 @@ class AuthorizationServer(FlaskAuthorizationServer):
         return None
 
     def save_token(self, token, request):
-        """トークンを発行したら、連携（リフレッシュトークンの系列）に最新のリフレッシュトークンのハッシュを置く。"""
+        """認可コードを引き換えたら、新しい連携（リフレッシュトークンの系列）を置く。
+
+        リフレッシュのとき（ローテーション）は RefreshTokenGrant.save_token が条件つきで置き換える。
+        """
+        family = self.new_family(token, request, self.clock())
+        self.store.put("refresh", family.id, family.to_dict(), REFRESH_TOKEN_TTL_SECONDS)
+
+    def new_family(self, token, request, now: float) -> RefreshTokenFamily:
+        """発行したトークンの、連携（リフレッシュトークンの系列）。最新のリフレッシュトークンのハッシュを持つ。"""
         connection: Connection = request.user
         previous: RefreshTokenFamily | None = request.refresh_token  # リフレッシュのときは、元の系列
         _, secret = parse_refresh_token(token["refresh_token"])
-        family = RefreshTokenFamily(
+        return RefreshTokenFamily(
             id=connection.id,
             client_id=request.client.client_id,
             subject=connection.subject,
             scope=previous.scope if previous else token["scope"],
             resource=connection.resource,
             current_hash=hash_secret(secret),
-            expires_at=time.time() + REFRESH_TOKEN_TTL_SECONDS,
+            expires_at=now + REFRESH_TOKEN_TTL_SECONDS,
         )
-        self.store.put("refresh", family.id, family.to_dict(), REFRESH_TOKEN_TTL_SECONDS)
 
     def create_oauth2_request(self, request):
         # 同意画面のあと（/consent）は、保存しておいた /authorize のパラメータで確かめ直す

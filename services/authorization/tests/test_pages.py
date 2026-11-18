@@ -11,7 +11,7 @@ from presentation.pages import (
     CONTENT_SECURITY_POLICY, SCRIPT, STYLE, render_consent_page, render_error_page, render_logged_out_page,
     render_open_app_page, render_privacy_page,
 )
-from tests.test_flow import authorize_params, client, login, store  # noqa: F401（同じ組み立てを使う）
+from tests.test_flow import authorize_params, client, clock, login, store  # noqa: F401（同じ組み立てを使う）
 
 EVIL = '<script>alert(1)</script>"\'&'
 

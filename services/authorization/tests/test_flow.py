@@ -4,6 +4,7 @@ Cognito でのログインは偽物に、CIMD の文書の取得は決め打ち�
 """
 
 import hashlib
+import json
 import logging
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -20,6 +21,7 @@ from infrastructure.settings import Settings, new_private_key_pem
 from infrastructure.stores import MemoryStore
 from main import create_app
 from oauth.models import Subject, hash_secret
+from oauth.server import REFRESH_REUSE_GRACE_SECONDS
 
 ISSUER = "https://authz.example"
 MEALS = "https://meals.example/mcp"
@@ -64,14 +66,37 @@ def login():
     return FakeLogin()
 
 
+class FakeClock:
+    """認可API が使う時計。猶予を過ぎたことを、待たずに確かめるため。"""
+
+    def __init__(self):
+        self.now = time.time()
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
 @pytest.fixture
-def client(store, login):
+def clock():
+    return FakeClock()
+
+
+def make_client(store, login, clock):
     settings = Settings(
         issuer=ISSUER, meals_resource=MEALS, cognito_issuer="", cognito_client_id="", cognito_client_secret="",
         signing_key_pem=new_private_key_pem(), session_secret="test-secret", state_table=None, on_lambda=False,
     )
-    app = create_app(settings, store=store, clients=CimdClientDirectory(http_get=fetch_document), login=login)
+    app = create_app(settings, store=store, clients=CimdClientDirectory(http_get=fetch_document), login=login,
+                     clock=clock)
     return app.test_client()
+
+
+@pytest.fixture
+def client(store, login, clock):
+    return make_client(store, login, clock)
 
 
 def authorize_params(**overrides):
@@ -294,11 +319,137 @@ def test_refresh_token_issues_new_tokens_for_the_same_grant(client):
     assert third.status_code == 200
 
 
-def test_reused_refresh_token_revokes_the_whole_family(client):
+def family_id_of(refresh_token: str) -> str:
+    return refresh_token.partition(".")[0]
+
+
+def secret_of(refresh_token: str) -> str:
+    return refresh_token.partition(".")[2]
+
+
+@pytest.mark.parametrize("seconds", [REFRESH_REUSE_GRACE_SECONDS, 3600])
+def test_reused_refresh_token_revokes_the_whole_family(client, store, clock, seconds):
+    # 1つ前のものを、猶予（60秒）を過ぎてからもう一度使った
     first = tokens_for(client)
     second = refresh(client, first["refresh_token"]).json
-    assert refresh(client, first["refresh_token"]).json["error"] == "invalid_grant"  # 古いものをもう一度使った
+    clock.advance(seconds)
+    assert refresh(client, first["refresh_token"]).json["error"] == "invalid_grant"
+    assert store.get("refresh", family_id_of(first["refresh_token"])) is None
     assert refresh(client, second["refresh_token"]).json["error"] == "invalid_grant"  # 系列ごと無効になった
+
+
+def test_refresh_token_two_rotations_old_revokes_the_family_at_once(client, store):
+    first = tokens_for(client)
+    second = refresh(client, first["refresh_token"]).json
+    third = refresh(client, second["refresh_token"]).json
+    # 猶予の間でも、2つ以上前のものは受け付けない
+    assert refresh(client, first["refresh_token"]).json["error"] == "invalid_grant"
+    assert store.get("refresh", family_id_of(first["refresh_token"])) is None
+    assert refresh(client, third["refresh_token"]).json["error"] == "invalid_grant"
+
+
+def test_previous_refresh_token_within_grace_rotates_again_and_keeps_the_family(client, store, clock):
+    # 応答が届かなかった（ワーカーが止まった・タイムアウト・通信が切れた）ので、同じものでもう一度更新した
+    first = tokens_for(client)
+    lost = refresh(client, first["refresh_token"]).json
+    clock.advance(REFRESH_REUSE_GRACE_SECONDS - 1)
+    retried = refresh(client, first["refresh_token"])
+    assert retried.status_code == 200, retried.json
+    retried = retried.json
+    assert len({first["refresh_token"], lost["refresh_token"], retried["refresh_token"]}) == 3
+    family_id = family_id_of(first["refresh_token"])
+    assert family_id_of(retried["refresh_token"]) == family_id  # 系列は続く
+    assert verify_like_meals(client, retried["access_token"])["sid"] == family_id
+    stored = store.get("refresh", family_id)
+    assert stored["current_hash"] == hash_secret(secret_of(retried["refresh_token"]))
+    assert stored["previous_hash"] == hash_secret(secret_of(lost["refresh_token"]))
+    assert stored["rotated_at"] == clock.now
+    # 出し直して受け取ったものは、そのまま使い続けられる
+    assert refresh(client, retried["refresh_token"]).status_code == 200
+
+
+def test_previous_refresh_token_can_be_reused_only_once(client, store):
+    # 猶予の間に1つ前のものを使うと、それは2つ前になる。盗まれた1つ前のものを何度も使わせない
+    first = tokens_for(client)
+    refresh(client, first["refresh_token"])
+    assert refresh(client, first["refresh_token"]).status_code == 200
+    assert refresh(client, first["refresh_token"]).json["error"] == "invalid_grant"
+    assert store.get("refresh", family_id_of(first["refresh_token"])) is None
+
+
+class InterleavingStore:
+    """ローテーションの書き込みの直前に、別の更新を割り込ませる（2つの更新が、どちらも書く前に読んだ）。"""
+
+    def __init__(self, inner):
+        self.inner, self.before_rotation = inner, None
+
+    def put(self, kind, key, data, ttl_seconds, *, expected=None):
+        if expected is not None and self.before_rotation is not None:
+            interleave, self.before_rotation = self.before_rotation, None
+            interleave()
+        self.inner.put(kind, key, data, ttl_seconds, expected=expected)
+
+    def get(self, kind, key):
+        return self.inner.get(kind, key)
+
+    def pop(self, kind, key):
+        return self.inner.pop(kind, key)
+
+
+def interleaving_client(request, login, clock, backend):
+    inner = MemoryStore() if backend == "memory" else request.getfixturevalue("dynamodb_store")
+    store = InterleavingStore(inner)
+    return store, make_client(store, login, clock)
+
+
+@pytest.mark.parametrize("backend", ["memory", "dynamodb"])
+def test_concurrent_refreshes_with_the_same_token_keep_the_family(request, login, clock, backend):
+    store, client = interleaving_client(request, login, clock, backend)
+    first = tokens_for(client)
+    family_id = family_id_of(first["refresh_token"])
+
+    # A が読んだあと、書く前に、B が同じリフレッシュトークンで更新を終えた。A の書き込みは条件に合わず、読み直して
+    # 猶予の道へ進む（B の書き込みを上書きせず、その次にローテーションする）
+    responses = {}
+    store.before_rotation = lambda: responses.update(b=refresh(client, first["refresh_token"]))
+    responses["a"] = refresh(client, first["refresh_token"])
+    a, b = responses["a"], responses["b"]
+    assert (a.status_code, b.status_code) == (200, 200), (a.json, b.json)
+    assert a.json["refresh_token"] != b.json["refresh_token"]
+    stored = store.get("refresh", family_id)
+    assert stored["current_hash"] == hash_secret(secret_of(a.json["refresh_token"]))
+    assert stored["previous_hash"] == hash_secret(secret_of(b.json["refresh_token"]))
+
+    # どちらの応答を受け取ったクライアントも、続けて更新できる（系列は消えない）
+    b_next = refresh(client, b.json["refresh_token"])
+    assert b_next.status_code == 200, b_next.json
+    a_next = refresh(client, a.json["refresh_token"])
+    assert a_next.status_code == 200, a_next.json
+    assert refresh(client, a_next.json["refresh_token"]).status_code == 200
+    assert store.get("refresh", family_id) is not None
+
+
+@pytest.mark.parametrize("backend", ["memory", "dynamodb"])
+def test_rotation_conflict_without_grace_is_rejected_without_overwriting(request, login, clock, backend, caplog):
+    # 読んだあと、書く前に、系列が2回ローテーションした（出されたものは2つ前になった）。上書きせずに断る
+    store, client = interleaving_client(request, login, clock, backend)
+    first = tokens_for(client)
+    family_id = family_id_of(first["refresh_token"])
+    responses = {}
+
+    def two_rotations():
+        second = refresh(client, first["refresh_token"]).json
+        responses["third"] = refresh(client, second["refresh_token"]).json
+
+    store.before_rotation = two_rotations
+    with caplog.at_level(logging.WARNING, logger="oauth.server"):
+        res = refresh(client, first["refresh_token"])
+    assert (res.status_code, res.json["error"]) == (400, "invalid_grant")
+    assert rejection_logs(caplog) == [
+        f"refresh token rejected: reason=rotation conflict client_id={CLIENT_ID} family={short_hash(family_id)}"]
+    # 割り込んだ更新の結果は残り、使える
+    assert store.get("refresh", family_id)["current_hash"] == hash_secret(secret_of(responses["third"]["refresh_token"]))
+    assert refresh(client, responses["third"]["refresh_token"]).status_code == 200
 
 
 def rejection_logs(caplog):
@@ -312,12 +463,23 @@ def short_hash(family_id):
 def test_reused_refresh_token_logs_one_warning_without_secrets(client, caplog):
     first = tokens_for(client)
     second = refresh(client, first["refresh_token"]).json
+    refresh(client, second["refresh_token"])
     with caplog.at_level(logging.WARNING, logger="oauth.server"):
-        refresh(client, first["refresh_token"])
+        refresh(client, first["refresh_token"])  # 2つ前
     family_id, _, secret = first["refresh_token"].partition(".")
     assert rejection_logs(caplog) == [
         f"refresh token rejected: reason=reuse detected client_id={CLIENT_ID} family={short_hash(family_id)}"]
     assert all(t not in caplog.text for t in (first["refresh_token"], second["refresh_token"], secret, family_id))
+
+
+def test_previous_refresh_token_after_grace_logs_a_warning(client, clock, caplog):
+    first = tokens_for(client)
+    refresh(client, first["refresh_token"])
+    clock.advance(REFRESH_REUSE_GRACE_SECONDS)
+    with caplog.at_level(logging.WARNING, logger="oauth.server"):
+        refresh(client, first["refresh_token"])
+    assert rejection_logs(caplog) == [f"refresh token rejected: reason=reuse after grace client_id={CLIENT_ID} "
+                                      f"family={short_hash(family_id_of(first['refresh_token']))}"]
 
 
 def test_unknown_family_refresh_token_logs_a_warning(client, caplog):
@@ -367,6 +529,31 @@ def test_refresh_token_issued_before_the_switch_to_authlib_still_works(client, s
     claims = verify_like_meals(client, body["access_token"])
     # 筋トレの scope は足さない（同意したときの scope のまま。筋トレを使うには同意し直す）
     assert (claims["sub"], claims["sid"], claims["scope"]) == ("user-1", "fam", "meals:read meals:write")
+
+
+@pytest.mark.parametrize("backend", ["memory", "dynamodb"])
+def test_family_stored_without_previous_hash_still_rotates(request, login, clock, backend):
+    # previous_hash・rotated_at を足す前に保存した系列（DynamoDB では current_hash の項目もない）
+    store = MemoryStore() if backend == "memory" else request.getfixturevalue("dynamodb_store")
+    client = make_client(store, login, clock)
+    legacy = {
+        "id": "fam", "client_id": CLIENT_ID, "subject": {"id": "user-1", "email": "u@example.com"},
+        "scope": ["meals:read", "meals:write"], "resource": MEALS, "current_hash": hash_secret("secret-1"),
+        "expires_at": time.time() + 3600,
+    }
+    if backend == "memory":
+        store.put("refresh", "fam", legacy, 3600)
+    else:
+        store.table.put_item(Item={"pk": "refresh#fam", "data": json.dumps(legacy),
+                                   "expires_at": int(time.time()) + 3600})
+    second = refresh(client, "fam.secret-1")
+    assert second.status_code == 200, second.json
+    stored = store.get("refresh", "fam")
+    assert (stored["previous_hash"], stored["rotated_at"]) == (hash_secret("secret-1"), clock.now)
+    # 移したあとも、猶予の道とローテーションが使える
+    retried = refresh(client, "fam.secret-1")
+    assert retried.status_code == 200, retried.json
+    assert refresh(client, retried.json["refresh_token"]).status_code == 200
 
 
 # ---- 失効（/revoke） ----
