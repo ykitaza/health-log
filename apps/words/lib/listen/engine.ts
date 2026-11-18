@@ -163,7 +163,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
   const meta = (i: number) => ({ title: tracks[i]?.title ?? '', artist: 'ことば', albumTitle: tracks[i]?.reading || undefined });
 
   /** その場の読み上げ（expo-speech）で鳴らす。理由（fallbackReason）があれば画面に出す */
-  async function useSpeech(start: number) {
+  async function startSpeech(start: number) {
     const sp = createController(speechOutput());
     speech = sp;
     subs.push({ remove: sp.subscribe((st) => set({ ...st, error: st.error ?? fallbackReason })) });
@@ -177,7 +177,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
     teardown();
     wantPlay = false;
     fallbackReason = reason;
-    await useSpeech(at);
+    await startSpeech(at);
     if (autoplay) speech?.play();
   }
 
@@ -285,13 +285,13 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
       }
       if (!KotobaTts) {
         // iOS：もともとその場で読む（理由は出さない）
-        await useSpeech(start);
+        await startSpeech(start);
         return;
       }
       const reason = await checkTts();
       if (reason) {
         fallbackReason = `端末の読み上げが使えません：${reason}`;
-        await useSpeech(start);
+        await startSpeech(start);
         return;
       }
       let p: AudioPlaylist;
@@ -300,7 +300,7 @@ export function createEngine(fetchAudio: FetchAudio): ListenEngine {
         p = createAudioPlaylist({ sources: [MARKER], loop: 'none', updateInterval: 500 });
       } catch (e) {
         fallbackReason = `再生の準備に失敗しました：${messageOf(e)}`;
-        await useSpeech(start);
+        await startSpeech(start);
         return;
       }
       playlist = p;
