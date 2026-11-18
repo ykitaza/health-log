@@ -1,6 +1,6 @@
-"""筋トレの対象の種類を、同期の仕組み（sync）に登録する。項目はアプリの SQLite（apps/mobile/db/migrations.ts）と同じ。
+"""筋トレの対象の種類を、同期の仕組み（sync）に登録する。項目はアプリの SQLite（apps/karada/db/migrations.ts）と同じ。
 
-範囲はアプリの apps/mobile/lib/limits.ts に合わせる（アプリで通った記録を、同期で断らないように）。
+範囲はアプリの apps/karada/lib/limits.ts に合わせる（アプリで通った記録を、同期で断らないように）。
 名前の長さは、アプリが書記素（絵文字も1文字）で40文字までにしているので、ここではコードポイントで200までにする。
 scope は torelog-api/training.read・training.write。
 睡眠（sleep_session）と心拍の日のまとめ（heart_rate_day）と歩数の日の合計（step_day）は、アプリが Health Connect から

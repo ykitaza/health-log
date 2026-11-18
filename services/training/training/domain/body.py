@@ -1,4 +1,4 @@
-"""体組成の計算。アプリ（apps/mobile/lib/body.ts）と同じ結果になるようにする（testdata/training/body.json で確かめる）。"""
+"""体組成の計算。アプリ（apps/karada/lib/body.ts）と同じ結果になるようにする（testdata/training/body.json で確かめる）。"""
 
 from __future__ import annotations
 

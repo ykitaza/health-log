@@ -12,7 +12,7 @@ Pixel と同じ 412×915 の画面の Chromium で操作する。計算の関数
 ## 動かし方
 
 ```sh
-cd apps/mobile
+cd apps/karada
 npm ci
 npm run e2e:build                    # npx expo export --platform web（dist/ に書き出す）
 npx playwright install chromium      # 初めてのときだけ

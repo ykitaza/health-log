@@ -20,5 +20,5 @@
     胸の下の縁が四角く削れて見えていたため。大胸筋の下の縁（x 5mm ごと）より 4mm 上、またはみぞおちの高さ 1.235m より上にある
     腹筋の三角形を消した（1,858 → 1,114。頂点の数と並びはそのまま）
   - この 2 つは `tools/body-model/edit-body-glb.mjs` で、元の body.glb（2f6f7cc の版）から同じ形に作り直せる：
-    `git show 2f6f7cc:apps/mobile/assets/models/body.glb > /tmp/body-orig.glb && node tools/body-model/edit-body-glb.mjs /tmp/body-orig.glb apps/mobile/assets/models/body.glb`
+    `git show 2f6f7cc:apps/mobile/assets/models/body.glb > /tmp/body-orig.glb && node tools/body-model/edit-body-glb.mjs /tmp/body-orig.glb apps/karada/assets/models/body.glb`
 - アプリでは、ケガの画面の体の図の下に、出典とライセンス・元のデータへのリンクを出す（components/InjuryBodyMap3D.native.tsx）

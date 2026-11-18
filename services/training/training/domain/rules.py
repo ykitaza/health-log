@@ -1,4 +1,4 @@
-"""入力の決まり。アプリ（apps/mobile/lib/limits.ts・sets.ts）と同じ範囲にする（アプリで直せない記録を作らないため）。"""
+"""入力の決まり。アプリ（apps/karada/lib/limits.ts・sets.ts）と同じ範囲にする（アプリで直せない記録を作らないため）。"""
 
 from __future__ import annotations
 

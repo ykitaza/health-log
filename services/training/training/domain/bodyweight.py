@@ -1,4 +1,4 @@
-"""自重の種目（回数だけ）の負荷量。アプリ（apps/mobile/lib/bodyweight.ts）と同じ結果になるようにする
+"""自重の種目（回数だけ）の負荷量。アプリ（apps/karada/lib/bodyweight.ts）と同じ結果になるようにする
 （testdata/training/bodyweight.json で確かめる）。
 
 自重の負荷量 ＝ その日の体重 × 種目の割合（体重に対する割合、0〜1）× 回数（セットごと）。

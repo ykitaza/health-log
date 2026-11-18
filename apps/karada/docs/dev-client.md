@@ -25,7 +25,7 @@ KARADA (dev) は、ふだん使う KARADA とは別のアプリとして並べ�
    adb reverse tcp:8081 tcp:8081
    ```
 
-3. `apps/mobile` で Metro を起動する。**`APP_VARIANT=development` を付ける**（付けないと、アプリが読む設定の scheme が `torelog` になり、ログインの戻りが KARADA (dev) に届かない）
+3. `apps/karada` で Metro を起動する。**`APP_VARIANT=development` を付ける**（付けないと、アプリが読む設定の scheme が `torelog` になり、ログインの戻りが KARADA (dev) に届かない）
 
    ```sh
    APP_VARIANT=development npx expo start --dev-client
@@ -41,7 +41,7 @@ USB を抜き差ししたら、`adb reverse` をもう一度します。
 ネイティブの部分（ライブラリ、Expo の SDK、`app.json` のプラグインなど）を変えたときだけ、作り直します。
 
 ```sh
-cd apps/mobile
+cd apps/karada
 npm install --no-save expo-dev-client@~58.0.20   # eas-cli の確認を通すため（package.json は変えない）
 eas build --profile development --platform android
 ```

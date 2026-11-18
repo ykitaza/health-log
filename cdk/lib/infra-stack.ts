@@ -46,9 +46,9 @@ const APP_THROTTLE = { rateLimit: 2, burstLimit: 10 };
 const MONITORING_PARAM_PREFIX = '/cognito-study-monitoring';
 
 // マネージドログイン（パスキーでログインする画面）の KARADA のブランディング。アプリと MCP の接続のログインで同じものを使う。
-// 色はアプリ（apps/mobile/theme/index.ts）と同じで、ダークモードの画面だけにする。文言は Cognito が決めるので変えない。
+// 色はアプリ（apps/karada/theme/index.ts）と同じで、ダークモードの画面だけにする。文言は Cognito が決めるので変えない。
 // 色は RRGGBBAA の形。ここに書かない項目は Cognito の既定の値のまま。
-// ロゴは apps/mobile/assets/icon-src/icon.svg の写し。ファビコンの ICO は、それを rsvg-convert で 16・32・48px の PNG にして ICO に詰めたもの
+// ロゴは apps/karada/assets/icon-src/icon.svg の写し。ファビコンの ICO は、それを rsvg-convert で 16・32・48px の PNG にして ICO に詰めたもの
 const BRAND = {
   bg: '0e1013ff', card: '181b20ff', input: '22262dff', line: '2c313aff',
   text: 'f3f5f7ff', sub: '9aa1adff', accent: '5be49bff', onAccent: '08130dff',
@@ -381,7 +381,7 @@ export class InfraStack extends cdk.Stack {
           cognito.OAuthScope.OPENID,
           ...[mealsRead, mealsWrite, trainingRead, trainingWrite].map((s) => cognito.OAuthScope.resourceServer(appApi, s)),
         ],
-        // torelog-dev は開発用のアプリ KARADA (dev)（apps/mobile/app.config.ts。PC の Metro につなぐ開発ビルド）
+        // torelog-dev は開発用のアプリ KARADA (dev)（apps/karada/app.config.ts。PC の Metro につなぐ開発ビルド）
         callbackUrls: ['torelog://callback', 'torelog-dev://callback'],
         logoutUrls: ['torelog://signout', 'torelog-dev://signout'],
       },
@@ -486,7 +486,7 @@ export class InfraStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'CognitoIssuer', { value: cognitoIssuer });
     new cdk.CfnOutput(this, 'CognitoDomain', { value: domain.baseUrl() });
     new cdk.CfnOutput(this, 'ClientId', { value: client.userPoolClientId });
-    // アプリ（apps/mobile/）に入れる値。issuer とドメインは上の CognitoIssuer・CognitoDomain と同じ
+    // アプリ（apps/karada/）に入れる値。issuer とドメインは上の CognitoIssuer・CognitoDomain と同じ
     new cdk.CfnOutput(this, 'AppClientId', { value: appClient.userPoolClientId });
     new cdk.CfnOutput(this, 'AppApiUrl', { value: appHttpApi.apiEndpoint });
     // Lambda で動かしている認可API と MCPサーバーの URL

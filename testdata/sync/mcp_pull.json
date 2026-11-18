@@ -1,5 +1,5 @@
 {
-  "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成、ケガ（右の三角筋（前））とその振り返りを記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。services/training/tests/test_app_sync.py が作り、apps/mobile/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
+  "description": "MCP のツールで筋トレ（2026-11-07 のベンチプレスと懸垂）と体組成、ケガ（右の三角筋（前））とその振り返りを記録したあと、アプリ用の API の受け取り（GET /v1/sync/changes?after=0）が返すページ。ID は決まった UUID に置き換えている。services/training/tests/test_app_sync.py が作り、apps/karada/db/__tests__/sync-shared.test.ts と E2E が端末に当てはめる。",
   "page": {
     "entries": [
       {

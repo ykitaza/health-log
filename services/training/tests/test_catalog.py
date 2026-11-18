@@ -9,7 +9,7 @@ from training.domain.catalog import SEED_BODY_PARTS, SEED_EXERCISES, Catalog, no
 from training.domain.errors import NotFound, TrainingError
 from training.domain.model import Exercise, RecordType
 
-SEED_TS = Path(__file__).parents[3] / "apps" / "mobile" / "db" / "seed.ts"
+SEED_TS = Path(__file__).parents[3] / "apps" / "karada" / "db" / "seed.ts"
 CATALOG = Catalog(SEED_BODY_PARTS, SEED_EXERCISES)
 
 

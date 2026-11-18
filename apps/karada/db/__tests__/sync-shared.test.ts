@@ -168,7 +168,7 @@ describe('app_push.json：アプリが送る本文（サーバーの pytest が�
     const pushes = await appPushes();
     if (process.env.UPDATE_TESTDATA) {
       fs.writeFileSync(path.join(DIR, 'app_push.json'), `${JSON.stringify({
-        description: 'アプリで記録した筋トレ・種目・体組成・設定・フェーズと、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/mobile/db/__tests__/sync-shared.test.ts が作る）。'
+        description: 'アプリで記録した筋トレ・種目・体組成・設定・フェーズと、Health Connect から取り込んだ体重・睡眠・心拍の日のまとめ・歩数の日の合計を送る本文（apps/karada/db/__tests__/sync-shared.test.ts が作る）。'
           + 'services/training/tests/test_app_sync.py が change_id を UUID にして本物の API に送り、MCP のツールから見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);

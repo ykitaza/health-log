@@ -1,4 +1,4 @@
-"""筋トレのドメインの言葉。項目はアプリの SQLite（apps/mobile/db/migrations.ts）と同じ。
+"""筋トレのドメインの言葉。項目はアプリの SQLite（apps/karada/db/migrations.ts）と同じ。
 
   部位（BodyPart）・種目（Exercise）       種目は1つの部位に属する。記録の仕方は「重量×回数」か「回数だけ」
   トレーニング（Workout）                  その日の種目（WorkoutEntry）と、種目ごとのセット（WorkoutSet）

@@ -1,4 +1,4 @@
-"""部位ごとのセット数（週の「部位の量」）。アプリ（apps/mobile/lib/partBalance.ts）と同じ数え方にする。
+"""部位ごとのセット数（週の「部位の量」）。アプリ（apps/karada/lib/partBalance.ts）と同じ数え方にする。
 
 AI が週のレポートに書く部位のセット数が、アプリのカードの数字と食い違わないよう、同じ規則を移した。
 同じ入力と期待する結果を testdata/training/part_sets.json に置き、ここの pytest とアプリの jest の両方で確かめる。

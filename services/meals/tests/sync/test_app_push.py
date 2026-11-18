@@ -1,4 +1,4 @@
-"""アプリが送る食事の本文（testdata/meals/app_push.json。apps/mobile/db/__tests__/meals.test.ts が作る）を、
+"""アプリが送る食事の本文（testdata/meals/app_push.json。apps/karada/db/__tests__/meals.test.ts が作る）を、
 本物の同期の API（SyncHttpApi）に送り、MCP の食事のツールから見えることを確かめる。同じ本文を2回送っても二重にならない。
 """
 

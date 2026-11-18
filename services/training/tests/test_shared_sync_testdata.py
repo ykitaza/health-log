@@ -1,4 +1,4 @@
-"""アプリ（apps/mobile/db/__tests__/sync-shared.test.ts）と同じテストのデータ（testdata/sync/conflicts.json）で、
+"""アプリ（apps/karada/db/__tests__/sync-shared.test.ts）と同じテストのデータ（testdata/sync/conflicts.json）で、
 同期の衝突の決まりを確かめる。端末やチャットの変更を、受け付けた順に当てはめた結果が expected になること。
 
 端末（app）と取り込み（import）の変更は、アプリの API と同じく、項目の形を確かめてから当てはめる。

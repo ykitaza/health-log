@@ -1,5 +1,5 @@
 {
-  "description": "同期の衝突の決まり（docs/sync-design.md）。changes を受け付けた順（received_at の順）に当てはめた結果が expected になる。サーバー（services/training/tests/test_shared_sync_testdata.py）と、アプリ（apps/mobile/db/__tests__/sync-shared.test.ts：偽のサーバーと、端末を通したもの）で同じ結果になることを確かめる。origin が app の変更は端末で記録したもの（端末は create で全部の項目を送る）、mcp は MCP（changed_at はサーバーが受け付けた時刻）、import は取り込み（端末を通すテストでは、端末で取り込んで origin = import で送る。端末に行がある記録の取り込みの create は、ほかの端末の取り込みとして直接サーバーへ送る）。",
+  "description": "同期の衝突の決まり（docs/sync-design.md）。changes を受け付けた順（received_at の順）に当てはめた結果が expected になる。サーバー（services/training/tests/test_shared_sync_testdata.py）と、アプリ（apps/karada/db/__tests__/sync-shared.test.ts：偽のサーバーと、端末を通したもの）で同じ結果になることを確かめる。origin が app の変更は端末で記録したもの（端末は create で全部の項目を送る）、mcp は MCP（changed_at はサーバーが受け付けた時刻）、import は取り込み（端末を通すテストでは、端末で取り込んで origin = import で送る。端末に行がある記録の取り込みの create は、ほかの端末の取り込みとして直接サーバーへ送る）。",
   "cases": [
     {
       "name": "同じ記録の違う項目は、両方が残る",

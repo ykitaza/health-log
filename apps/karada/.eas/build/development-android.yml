@@ -14,7 +14,7 @@ build:
     - run:
         name: expo-dev-client を入れる（このビルドの中だけ）
         command: |
-          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/mobile
+          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/karada
           npm install --no-audit --no-fund expo-dev-client@~58.0.20
     - eas/resolve_build_config
     - eas/prebuild
@@ -27,7 +27,7 @@ build:
         # 同時に動かす作業を2つにし、Kotlin は Gradle の中で動かす（android/ は prebuild が作るので、ここで足す）
         name: Gradle のメモリを抑える（このビルドの中だけ）
         command: |
-          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/mobile
+          [ -f package.json ] && grep -q '"name": "torelog"' package.json || cd apps/karada
           printf '\norg.gradle.workers.max=2\nkotlin.compiler.execution.strategy=in-process\n' >> android/gradle.properties
           tail -n 3 android/gradle.properties
     - eas/run_gradle

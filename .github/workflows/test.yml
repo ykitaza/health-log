@@ -83,7 +83,7 @@ jobs:
               - services/**
             mobile:
               - *workflow
-              - apps/mobile/**
+              - apps/karada/**
               - testdata/**
 
   python:
@@ -154,24 +154,24 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: apps/mobile
+        working-directory: apps/karada
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Node の版は apps/mobile/.node-version を読む
+      # Node の版は apps/karada/.node-version を読む
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: apps/mobile/.node-version
+          node-version-file: apps/karada/.node-version
           cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
+          cache-dependency-path: apps/karada/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
-      # eslint-config-expo（apps/mobile/eslint.config.js）。警告も通さない
+      # eslint-config-expo（apps/karada/eslint.config.js）。警告も通さない
       - run: npx expo lint . --max-warnings 0
       - run: npx jest
 
-  # 画面の E2E。Expo の web 向けの書き出しを、Pixel と同じ大きさの Chromium で操作する（apps/mobile/e2e/README.md）。
+  # 画面の E2E。Expo の web 向けの書き出しを、Pixel と同じ大きさの Chromium で操作する（apps/karada/e2e/README.md）。
   # テストの本体が長いので、2つのジョブに分けて同時に流す（--shard）。必須のチェックではないので、名前が変わっても PR は止まらない
   mobile-e2e:
     name: mobile (e2e ${{ matrix.shard }}/2)
@@ -187,16 +187,16 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: apps/mobile
+        working-directory: apps/karada
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: apps/mobile/.node-version
+          node-version-file: apps/karada/.node-version
           cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
+          cache-dependency-path: apps/karada/package-lock.json
       - run: npm ci
       - run: npx expo export --platform web
       # Playwright のブラウザ（~/.cache/ms-playwright）は、Playwright の版ごとにキャッシュする。
@@ -220,6 +220,6 @@ jobs:
         with:
           name: playwright-report-${{ matrix.shard }}
           path: |
-            apps/mobile/playwright-report/
-            apps/mobile/test-results/
+            apps/karada/playwright-report/
+            apps/karada/test-results/
           retention-days: 7

@@ -1,4 +1,4 @@
-"""アプリ（apps/mobile/lib/__tests__/shared-testdata.test.ts）と同じテストのデータで、計算を確かめる。"""
+"""アプリ（apps/karada/lib/__tests__/shared-testdata.test.ts）と同じテストのデータで、計算を確かめる。"""
 
 import json
 from dataclasses import asdict
