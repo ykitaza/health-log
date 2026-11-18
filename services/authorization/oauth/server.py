@@ -6,6 +6,8 @@ Authlib に任せるもの：認可コードのグラント、PKCE（RFC 7636）
 RFC 8707 は resource_indicators.py、CIMD は infrastructure/cimd_client_directory.py にある。
 """
 
+import hashlib
+import logging
 import secrets
 import time
 
@@ -93,6 +95,9 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         check_token_resource(self.request.payload.data.get("resource"), self.request.authorization_code.resource)
 
 
+logger = logging.getLogger(__name__)
+
+
 class RefreshTokenGrant(grants.RefreshTokenGrant):
     TOKEN_ENDPOINT_AUTH_METHODS = ["none"]
     INCLUDE_NEW_REFRESH_TOKEN = True  # ローテーション：使うたびに新しいリフレッシュトークンを渡す
@@ -104,15 +109,23 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         family_id, secret = parsed
         data = self.server.store.get("refresh", family_id)
         if data is None:
+            self.log_rejected("unknown family", family_id)
             return None
         family = RefreshTokenFamily.from_dict(data)
         if family.expires_at <= time.time():
+            self.log_rejected("expired", family_id)
             return None
         if not family.is_current(secret):
             # ローテーションで古くなったものが使われた。盗まれた可能性があるので、系列ごと無効にする
             self.server.store.pop("refresh", family_id)
+            self.log_rejected("reuse detected", family_id)
             return None
         return family
+
+    def log_rejected(self, reason, family_id):
+        # 原因の調査用。トークンや秘密は出さず、系列の ID も短いハッシュだけにする
+        logger.warning("refresh token rejected: reason=%s client_id=%s family=%s", reason,
+                       self.request.client.client_id, hashlib.sha256(family_id.encode()).hexdigest()[:8])
 
     def authenticate_user(self, refresh_token):
         return Connection(refresh_token.id, refresh_token.subject, refresh_token.resource)

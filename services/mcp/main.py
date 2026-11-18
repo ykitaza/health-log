@@ -19,12 +19,13 @@ from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.routes import create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
+from starlette.responses import JSONResponse, PlainTextResponse
 
 from composition.adapters import BodyRecordWeights, EngineAppSyncStatus, TrainingPhasePeriods, WorkoutTrainingDays
 from composition.body_data import SyncedBodyData
 from composition.clock import JST, today
 from composition.registry import create_registry
-from connector.access_token_verifier import AuthzApiTokenVerifier
+from connector.access_token_verifier import AuthzApiTokenVerifier, JwksUnavailableError
 from connector.authz_session import AuthzApiSession
 from connector.icons import IconMiddleware, server_icons
 from connector.period_overview import register_overview_tools
@@ -123,9 +124,19 @@ def create_server(
     return mcp
 
 
+def unhandled_error(request, exc: Exception):
+    """認証（SDK のミドルウェア）の中で起きた例外の応答。JWKS が取れないときだけ、401 ではなく 503 で再試行を促す。"""
+    if isinstance(exc, JwksUnavailableError):
+        return JSONResponse(
+            {"error": "temporarily_unavailable", "error_description": "Token verification is temporarily unavailable"},
+            status_code=503, headers={"Retry-After": "1"})
+    return PlainTextResponse("Internal Server Error", status_code=500)
+
+
 def create_app(mcp: MCPServer, host: str):
     # ステートレスで、応答は SSE ではなく JSON にする（Lambda は応答をまとめて返すため）
     app = mcp.streamable_http_app(streamable_http_path="/mcp", stateless_http=True, json_response=True, host=host)
+    app.add_exception_handler(Exception, unhandled_error)
     # RFC 9728 の文書（/.well-known/oauth-protected-resource/mcp）だけ、SDK の同じ関数で scopes_supported を4つにして先に置く。
     # SDK は required_scopes をそのまま scopes_supported にするが、必須は食事の2つにしておきたいため
     auth = mcp.settings.auth

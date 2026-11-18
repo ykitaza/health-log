@@ -3,6 +3,8 @@
 Cognito でのログインは偽物に、CIMD の文書の取得は決め打ちの応答に差し替える。保存先はメモリー。
 """
 
+import hashlib
+import logging
 import time
 from urllib.parse import parse_qs, urlsplit
 
@@ -297,6 +299,44 @@ def test_reused_refresh_token_revokes_the_whole_family(client):
     second = refresh(client, first["refresh_token"]).json
     assert refresh(client, first["refresh_token"]).json["error"] == "invalid_grant"  # 古いものをもう一度使った
     assert refresh(client, second["refresh_token"]).json["error"] == "invalid_grant"  # 系列ごと無効になった
+
+
+def rejection_logs(caplog):
+    return [r.getMessage() for r in caplog.records if "refresh token rejected" in r.getMessage()]
+
+
+def short_hash(family_id):
+    return hashlib.sha256(family_id.encode()).hexdigest()[:8]
+
+
+def test_reused_refresh_token_logs_one_warning_without_secrets(client, caplog):
+    first = tokens_for(client)
+    second = refresh(client, first["refresh_token"]).json
+    with caplog.at_level(logging.WARNING, logger="oauth.server"):
+        refresh(client, first["refresh_token"])
+    family_id, _, secret = first["refresh_token"].partition(".")
+    assert rejection_logs(caplog) == [
+        f"refresh token rejected: reason=reuse detected client_id={CLIENT_ID} family={short_hash(family_id)}"]
+    assert all(t not in caplog.text for t in (first["refresh_token"], second["refresh_token"], secret, family_id))
+
+
+def test_unknown_family_refresh_token_logs_a_warning(client, caplog):
+    first = tokens_for(client)
+    with caplog.at_level(logging.WARNING, logger="oauth.server"):
+        refresh(client, "unknown." + first["refresh_token"].partition(".")[2])
+    assert rejection_logs(caplog) == [
+        f"refresh token rejected: reason=unknown family client_id={CLIENT_ID} family={short_hash('unknown')}"]
+
+
+def test_expired_refresh_token_logs_a_warning(client, store, caplog):
+    first = tokens_for(client)
+    family_id = first["refresh_token"].partition(".")[0]
+    data, _ = store.items[f"refresh#{family_id}"]
+    data["expires_at"] = time.time() - 1  # 系列の期限は切れたが、ストアにはまだ残っている
+    with caplog.at_level(logging.WARNING, logger="oauth.server"):
+        assert refresh(client, first["refresh_token"]).status_code == 400
+    assert rejection_logs(caplog) == [
+        f"refresh token rejected: reason=expired client_id={CLIENT_ID} family={short_hash(family_id)}"]
 
 
 @pytest.mark.parametrize("change", [
