@@ -1,0 +1,58 @@
+# EAS Build / EAS Update へのアップロードから外すもの。
+# EAS は .easignore があると .gitignore を使わなくなるので、.gitignore の中身（apps/karada と apps/words の .gitignore も）をここに写している。
+# .gitignore を変えたら、ここも合わせる。
+
+# --- リポジトリ直下の .gitignore ---
+__pycache__/
+*.py[oc]
+build/
+# EAS のカスタムビルドの設定（apps/karada/eas.json の config）は、ビルドに要る
+!apps/karada/.eas/build/
+dist/
+wheels/
+*.egg-info
+.venv
+.env
+.test1-password
+.me-password
+.authz-private-key.pem
+.session-secret
+apps/karada/keys/
+
+# --- apps/karada/.gitignore と apps/words/.gitignore（どちらのアプリにも当たる形に写した） ---
+node_modules/
+.expo/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+/apps/*/ios
+/apps/*/android
+/apps/*/test-results/
+/apps/*/playwright-report/
+/apps/*/blob-report/
+
+# --- アプリのビルドに要らないもの ---
+.claude/
+.git/
+.github/
+# 古い残り（apps/mobile は今はない）
+/apps/mobile/
+/cdk/
+/services/
+/tools/
+/testdata/
+/docs/
