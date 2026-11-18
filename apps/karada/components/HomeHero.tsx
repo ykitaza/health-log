@@ -475,7 +475,7 @@ type CornerSpec = {
 };
 
 /** 帳のマス：小さな見出し・大きな数字・小さな単位（クラシック） */
-type LedgerCell = { label: string; value: string; unit?: string; labelColor?: string; valueColor?: string };
+type LedgerCell = { label: string; labelParts?: string[]; value: string; unit?: string; labelColor?: string; valueColor?: string };
 
 /**
  * 直近のトレーニングの四隅：日付（今日なら TODAY）・種目の数（セット数）・合計負荷量・自己ベストの数。
@@ -519,7 +519,7 @@ function latestCorners({ latest, today, unit, ready, recovery, volume, mode }: {
     {
       at: 'tr', label: ss ? `${ss.exercises}種目 ${ss.sets}セット。その日の記録を開く` : '種目の数', onPress: open, disabled: !ss, testID: 'home-latest-ex',
       hud: { align: 'right', label: deco.enLabels ? 'EX //' : ss ? `種目 · ${ss.sets}セット` : '種目', value: ss ? String(ss.exercises) : '—', sub: ss && deco.enLabels ? `SETS ${ss.sets}` : undefined },
-      ledger: { label: ss ? `種目 · ${ss.sets}セット` : '種目', value: ss ? String(ss.exercises) : '—' },
+      ledger: { label: ss ? `種目 · ${ss.sets}セット` : '種目', labelParts: ss ? ['種目 ·', `${ss.sets}セット`] : undefined, value: ss ? String(ss.exercises) : '—' },
     },
     {
       at: 'bl', label: ss ? `合計負荷量 ${volumeText}。その日の記録を開く` : '合計負荷量', onPress: open, disabled: !ss, testID: 'home-latest-load',
@@ -557,7 +557,10 @@ function Ledger({ cells, narrow }: { cells: CornerSpec[]; narrow: boolean }) {
             key={k.testID} accessibilityRole="button" accessibilityLabel={k.label} scaleTo={0.97} onPress={k.onPress} disabled={k.disabled}
             style={[c.cell, i === 0 ? c.cellFirst : c.cellRule]} testID={k.testID}
           >
-            <T size={12} color={v.labelColor ?? colors.sub} numberOfLines={2}>{v.label}</T>
+            {v.labelParts
+              // 「種目 ·」と「20セット」を別の塊にして塊ごとに折り返す（数と単位の途中で折れない）。1 行に収まるときは空白 1 つの 1 行
+              ? <View style={c.labelRow}>{v.labelParts.map((part, j) => <T key={j} size={12} color={v.labelColor ?? colors.sub}>{j < v.labelParts!.length - 1 ? `${part} ` : part}</T>)}</View>
+              : <T size={12} color={v.labelColor ?? colors.sub} numberOfLines={2}>{v.label}</T>}
             <View style={c.cellValue}>
               <T num={ascii} bold={!ascii} size={size} color={v.valueColor ?? colors.text} numberOfLines={ascii ? 1 : 2} style={{ lineHeight: Math.round(size * 1.15), flexShrink: ascii ? 0 : 1 }}>{v.value}</T>
               {v.unit ? <T size={12} color={colors.sub} numberOfLines={2} style={{ flexShrink: 1 }}>{v.unit}</T> : null}
@@ -658,6 +661,7 @@ const c = StyleSheet.create({
   // 直近のマスは日付と曜日が並ぶので少し広く、紙の端にそろえる（Figma の直近の帳）
   cellFirst: { flex: 1.25, paddingLeft: 0 },
   cellRule: { borderLeftWidth: 1, borderLeftColor: colors.line },
+  labelRow: { flexDirection: 'row', flexWrap: 'wrap' },
   cellValue: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
 });
 
