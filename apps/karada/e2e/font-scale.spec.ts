@@ -53,6 +53,34 @@ const clipped = (page: Page) => page.evaluate(() => {
   return out;
 });
 
+/** 12px より小さい和文（かな・漢字を含む文字の葉。隠れた画面は数えない）。クラシックの 100% で見る（#323） */
+const smallJa = (page: Page) => page.evaluate(() => {
+  const out: string[] = [];
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('div[dir="auto"], span'))) {
+    if (el.closest('[aria-hidden="true"]') || el.childElementCount > 0) continue;
+    const text = (el.textContent ?? '').trim();
+    if (!/[぀-ヿ一-鿿]/.test(text)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const size = parseFloat(getComputedStyle(el).fontSize);
+    if (size < 12) out.push(`${text} ${size}px`);
+  }
+  return out;
+});
+
+/** 「…」で切れている文字（数えるだけ。PR に残すための一覧。確かめには使わない） */
+const truncated = (page: Page) => page.evaluate(() => {
+  const out: string[] = [];
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('div[dir="auto"]'))) {
+    if (el.closest('[aria-hidden="true"]')) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const st = getComputedStyle(el);
+    if (st.textOverflow === 'ellipsis' && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) out.push((el.textContent ?? '').trim());
+  }
+  return out;
+});
+
 async function shot(page: Page, name: string) {
   const dir = process.env.SHOT_DIR;
   if (!dir) return;
@@ -84,12 +112,18 @@ for (const look of ['hud', 'classic'] as const) {
         if (l === 'classic') localStorage.setItem('appearance.look', 'classic');
       }, [scale, look] as const);
       await openWith(page, context, seed());
+      const check = async (screen: string) => {
+        expect(await clipped(page)).toEqual([]);
+        if (look === 'classic' && scale === 1) expect(await smallJa(page)).toEqual([]);
+        const cut = await truncated(page);
+        if (cut.length > 0) test.info().annotations.push({ type: `truncated ${tag} ${screen}`, description: cut.join(' | ') });
+        await shot(page, `font-${tag}-${screen}`);
+      };
 
       await test.step('ホーム', async () => {
         await goTab(page, 'ホーム');
         await expect(button(page, '記録する')).toBeVisible();
-        expect(await clipped(page)).toEqual([]);
-        await shot(page, `font-${tag}-home`);
+        await check('home');
       });
 
       await test.step('筋トレの記録', async () => {
@@ -98,8 +132,7 @@ for (const look of ['hud', 'classic'] as const) {
         await chooseExercise(page, 'デッドリフト');
         await expect(page.getByLabel('セット1の重量')).toBeVisible();
         await expect(button(page, '今日のトレーニングに追加')).toBeVisible();
-        expect(await clipped(page)).toEqual([]);
-        await shot(page, `font-${tag}-workout-entry`);
+        await check('workout-entry');
         await button(page, '戻る').click();
       });
 
@@ -109,16 +142,14 @@ for (const look of ['hud', 'classic'] as const) {
         await button(page, '品目を入力').click();
         await expect(see(page, '品目を入力', { exact: true })).toBeVisible();
         await expect(button(page, '記録する')).toBeVisible();
-        expect(await clipped(page)).toEqual([]);
-        await shot(page, `font-${tag}-meal-new`);
+        await check('meal-new');
         await button(page, '戻る').click();
       });
 
       await test.step('レポート', async () => {
         await goTab(page, 'レポート');
         await expect(page.getByTestId('report-period-tabs').filter({ visible: true })).toBeVisible();
-        expect(await clipped(page)).toEqual([]);
-        await shot(page, `font-${tag}-report`);
+        await check('report');
       });
     });
   }

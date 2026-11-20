@@ -108,7 +108,8 @@ export function WeekRhythmBlock({ date, anchor, large = false }: { date: DateKey
           const label = `${WEEKDAY_EN[weekday(d.date)]} ${future ? '' : d.trained ? '筋トレ' : '休み'}`;
           return (
             <View key={d.date} style={{ flex: 1, alignItems: 'center', gap: 5 }} accessible accessibilityLabel={`${d.date.slice(5).replace('-', '月')}日 ${isAnchor ? anchorName : ''} ${label}`}>
-              <Mono size={10} color={hud.muted} style={{ fontWeight: '700' }}>{deco.enLabels ? WEEKDAY_EN[weekday(d.date)] : WEEKDAY_JA[weekday(d.date)]}</Mono>
+              {/* クラシックは和文の曜日なので 12px（#323） */}
+              <Mono size={deco.enLabels ? 10 : 12} color={hud.muted} style={{ fontWeight: '700' }}>{deco.enLabels ? WEEKDAY_EN[weekday(d.date)] : WEEKDAY_JA[weekday(d.date)]}</Mono>
               {d.trained ? (
                 <NotchChip fill={hud.green} style={{ width: dot, height: dot }}><T bold size={large ? 14 : 11} color={hud.onGreen}>✓</T></NotchChip>
               ) : isAnchor ? (

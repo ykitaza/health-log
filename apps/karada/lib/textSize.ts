@@ -2,6 +2,8 @@ import { Platform, StyleProp, StyleSheet, TextStyle } from 'react-native';
 
 /** クラシックの和文の最小の大きさ（M3 の bodyS。これより小さい和文は読みにくい。#323） */
 export const CLASSIC_MIN_JA = 12;
+/** かな・漢字を含む文字か */
+export const JA_TEXT = /[぀-ヿ一-鿿]/;
 
 /**
  * web（E2E の写し）だけで使う、端末の文字の大きさの倍率。Android は文字（sp）を OS が大きくするが、web の書き出しは px のままなので、

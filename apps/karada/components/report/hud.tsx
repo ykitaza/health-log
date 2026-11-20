@@ -9,6 +9,7 @@ import { useFonts } from 'expo-font';
 import { createContext, ReactNode, useContext, useState } from 'react';
 import { StyleProp, TextStyle, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polygon, Polyline } from 'react-native-svg';
+import { CLASSIC_MIN_JA, JA_TEXT } from '@/lib/textSize';
 import { fmt1 } from '@/lib/units';
 import { colors, deco, fonts, isHud, radius } from '@/theme';
 import { T } from '../Text';
@@ -102,8 +103,10 @@ export function Mono({ children, size = 14, color = hud.ink, spacing = 0, style,
   numberOfLines?: number; testID?: string; accessibilityLabel?: string;
 }) {
   const family = useMono();
+  // クラシックで和文（曜日・「日」「／週」などの単位）を出すときは 12px を下回らせない（#323。T の決まりは和文の字だけに当たるため）
+  const fontSize = !isHud && size < CLASSIC_MIN_JA && typeof children === 'string' && JA_TEXT.test(children) ? CLASSIC_MIN_JA : size;
   return (
-    <T {...rest} color={color} style={[{ fontFamily: family, fontSize: size, letterSpacing: spacing, fontVariant: ['tabular-nums'] }, style]}>
+    <T {...rest} color={color} style={[{ fontFamily: family, fontSize, letterSpacing: spacing, fontVariant: ['tabular-nums'] }, style]}>
       {children}
     </T>
   );
