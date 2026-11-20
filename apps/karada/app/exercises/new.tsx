@@ -5,7 +5,7 @@ import { BodyweightRatioField } from '@/components/BodyweightRatio';
 import { Big3Field, FormVideoUrlField } from '@/components/ExerciseFields';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { Button, Card, Chip, ConfirmDialog, Header, RULED } from '@/components/ui';
 import { BodyPart, HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
@@ -85,7 +85,7 @@ export default function NewExerciseScreen() {
   });
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '追加しています…' : '追加する'} onPress={submit} busy={busy} /></>}>
+    <Screen footer={<>{error && <ErrorText size={13} align="center">{error}</ErrorText>}<Button label={busy ? '追加しています…' : '追加する'} onPress={submit} busy={busy} /></>}>
       {dialog}
       <ConfirmDialog
         visible={hiddenDup != null}

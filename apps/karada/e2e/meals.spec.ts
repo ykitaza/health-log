@@ -140,6 +140,71 @@ test('「記録する」を続けて押しても1つだけ記録し、記録し�
   await expect(button(page, '白米を開く')).toHaveCount(1);
 });
 
+test('記録の途中で戻るときは「入力をやめますか？」と確かめる（脂質だけ・kcal と PFC だけの名前・足す途中の品目も）。誤りの文は読み上げに知らせる', async ({ page }) => {
+  await openApp(page);
+  await goTab(page, '食事');
+  const openNew = async (how: '品目を入力' | 'kcal と PFC だけ') => {
+    await button(page, '昼食を記録').click();
+    await button(page, how).click();
+    await expect(see(page, how, { exact: true }).first()).toBeVisible();
+  };
+  const dialog = page.getByRole('dialog');
+
+  // 何も入れずに戻るなら確かめない
+  await openNew('品目を入力');
+  await button(page, '戻る').click();
+  await expect(see(page, '昼食はまだ記録していません')).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+
+  // 脂質だけ入れても確かめる。「入力を続ける」なら入力はそのまま、「保存せずに戻る」で戻る
+  await openNew('品目を入力');
+  await field(page, '品目1の脂質').fill('20');
+  await button(page, '戻る').click();
+  await expect(dialog).toContainText('入力をやめますか？');
+  await expect(dialog).toContainText('入力した食事は記録されません。');
+  await button(dialog, '入力を続ける').click();
+  await expect(dialog).toBeHidden();
+  await expect(field(page, '品目1の脂質')).toHaveValue('20');
+
+  // 誤りの文は role=alert・aria-live=polite（TalkBack に知らせる。#323）
+  await button(page, '記録する').click();
+  const alert = page.getByRole('alert').filter({ visible: true });
+  await expect(alert).toHaveText('品名を入れてください');
+  await expect(alert).toHaveAttribute('aria-live', 'polite');
+
+  // 欄の見た目は 44 のまま、すぐ上（押せる範囲を 48 に広げた所）を押しても欄を選ぶ
+  const name = field(page, '品目1の品名');
+  const box = (await name.boundingBox())!;
+  expect(Math.round(box.height)).toBe(44);
+  await page.mouse.click(box.x + box.width / 2, box.y - 1);
+  await expect(name).toBeFocused();
+  // 広げた外側は、キーボードの止まる所・押せるものとして読ませない（欄だけ）
+  await expect(name.locator('xpath=..')).not.toHaveAttribute('tabindex', '0');
+  await expect(name.locator('xpath=..')).not.toHaveAttribute('role', 'button');
+
+  await button(page, '戻る').click();
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
+  await expect(see(page, '昼食はまだ記録していません')).toBeVisible();
+
+  // kcal と PFC だけ：初めから入っている名前を変えただけでも確かめる。ブラウザの戻るでも
+  await openNew('kcal と PFC だけ');
+  await field(page, '品目1の品名').fill('ラーメン屋の定食');
+  await page.goBack();
+  await expect(page.getByRole('dialog')).toContainText('入力をやめますか？');
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
+  await expect(see(page, '昼食はまだ記録していません')).toBeVisible();
+
+  // 記録した食事の詳細：足す品目を入れている途中で戻ると確かめる
+  await recordItems(page, '昼食', [{ name: '白米', amount: '200', kcal: '312' }]);
+  await button(page, '白米を開く').click();
+  await button(page, '品目を追加').click();
+  await field(page, '足す品目の品名').fill('みそ汁');
+  await button(page, '戻る').click();
+  await expect(page.getByRole('dialog')).toContainText('直した内容は保存されません。');
+  await button(page.getByRole('dialog'), '保存せずに戻る').click();
+  await expect(button(page, '白米を開く')).toBeVisible();
+});
+
 test('目標の自動で計算：足りない項目を入れる → 値が入る → 直して保存。体重が変わると計算し直すかを聞く', async ({ page }) => {
   // 計算の式・境目・丸めは jest（lib/__tests__/autoGoal.test.ts）。ここは画面の流れと、代表の値が欄に入ること
   await openApp(page);

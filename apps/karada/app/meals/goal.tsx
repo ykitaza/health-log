@@ -3,9 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ActivityChoice, SexChoice } from '@/components/GoalProfile';
 import { Icon } from '@/components/Icon';
-import { Input } from '@/components/Input';
+import { RoomInput } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { Button, Card, Chip, Header, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
@@ -106,7 +106,7 @@ export default function GoalScreen() {
   const changed = goal != null && auto == null && weightChanged(ctx?.autoWeight ?? null, currentKg);
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '保存しています…' : '目標を保存'} onPress={save} disabled={goal === undefined} busy={busy} /></>}>
+    <Screen footer={<>{error && <ErrorText size={13} align="center">{error}</ErrorText>}<Button label={busy ? '保存しています…' : '目標を保存'} onPress={save} disabled={goal === undefined} busy={busy} /></>}>
       <Header title="目標" onBack={() => router.back()} />
       {goal !== undefined && (
         <Card style={{ gap: 8 }}>
@@ -251,7 +251,7 @@ function MissingInputs({ missing, ctx, onCancel, onSaved }: { missing: Missing[]
         </View>
       )}
       {need('activity') && <ActivityChoice value={activity} onChange={setActivity} />}
-      {err && <T variant="bodyS" color={colors.danger}>{err}</T>}
+      {err && <ErrorText variant="bodyS">{err}</ErrorText>}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s }}>
         <Button label="やめる" variant="text" small onPress={onCancel} />
         <Button label="保存して計算" small onPress={submit} />
@@ -293,10 +293,8 @@ function Num({ label, unit, value, onChange, a11y }: { label: string; unit: stri
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <T size={12} color={colors.sub}>{label}</T>
-      <View style={s.box}>
-        <Input value={value} onChangeText={onChange} keyboardType="decimal-pad" accessibilityLabel={a11y ?? label} placeholder="—" placeholderTextColor={colors.sub} style={s.input} />
-        <T size={11} color={colors.sub}>{unit}</T>
-      </View>
+      <RoomInput box={s.box} after={<T size={11} color={colors.sub}>{unit}</T>}
+        value={value} onChangeText={onChange} keyboardType="decimal-pad" accessibilityLabel={a11y ?? label} placeholder="—" placeholderTextColor={colors.sub} style={s.input} />
     </View>
   );
 }

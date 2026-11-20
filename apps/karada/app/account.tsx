@@ -10,7 +10,7 @@ import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { PressableScale, Sheet } from '@/components/motion';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { Badge, Button, Card, ConfirmDialog, Header, LIST_GROUP, ListRow, SectionTitle } from '@/components/ui';
 import type { AccountSwitch } from '@/db/repositories/sync';
 import { useAuth } from '@/hooks/auth';
@@ -183,7 +183,7 @@ export default function AccountScreen() {
         </PressableScale>
         <T variant="headlineS" align="center" numberOfLines={1} testID="account-name">{accountTitle(profile.displayName)}</T>
         <T variant="bodyM" color={colors.sub} align="center" testID="account-status">{loginStatusText(signedIn)}</T>
-        {photoError && <T variant="bodyS" color={colors.danger} align="center">{photoError}</T>}
+        {photoError && <ErrorText variant="bodyS" align="center">{photoError}</ErrorText>}
       </View>
 
       {signedIn && sync.error === 'accountChanged' && (
@@ -195,7 +195,7 @@ export default function AccountScreen() {
             <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
               この端末の記録は、前に同期したアカウントのものです。どうするかを選ぶまで、同期を止めています。
             </T>
-            {switchError && <T size={13} color={colors.danger}>切り替えられませんでした。通信を確かめて、もう一度選んでください。</T>}
+            {switchError && <ErrorText size={13}>切り替えられませんでした。通信を確かめて、もう一度選んでください。</ErrorText>}
             <Button label="この端末の記録を新しいアカウントに送る" variant="secondary" small onPress={() => setConfirmSwitch('send')} disabled={busy} />
             <Button label="端末の記録を消して、新しいアカウントから受け取り直す" variant="secondary" small onPress={() => setConfirmSwitch('replace')} disabled={busy} />
             <Button label="ログアウトする" variant="secondary" small onPress={() => setConfirmSignOut('signOut')} disabled={busy} />
@@ -238,7 +238,7 @@ export default function AccountScreen() {
               </T>
             </>
           )}
-          {sync.error && !sync.syncing && <T size={13} color={colors.danger}>{syncErrorMessage(sync.error)}</T>}
+          {sync.error && !sync.syncing && <ErrorText size={13}>{syncErrorMessage(sync.error)}</ErrorText>}
           <Button
             label={sync.syncing ? '同期しています…' : '今すぐ同期'}
             variant="secondary"
@@ -253,8 +253,8 @@ export default function AccountScreen() {
             <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
               ログインは任意です。ログインしなくても、今までどおりこの端末だけで使えます。ログインすると、記録をサーバーと同期し、チャット（MCP）からも読み書きできるようになります。
             </T>
-            {auth.expired && <T size={13} color={colors.danger}>ログインの期限が切れました。もう一度ログインしてください。</T>}
-            {error && <T size={13} color={colors.danger}>{error}</T>}
+            {auth.expired && <ErrorText size={13}>ログインの期限が切れました。もう一度ログインしてください。</ErrorText>}
+            {error && <ErrorText size={13}>{error}</ErrorText>}
             {notice && <T size={13} color={colors.sub}>{notice}</T>}
             {inExpoGo && <T size={12} color={colors.sub}>Expo Go ではログインできません。開発ビルドか、配った APK で使ってください。</T>}
             {!configured && <T size={12} color={colors.sub}>ログインの設定（app.json の extra.torelog）がありません。</T>}

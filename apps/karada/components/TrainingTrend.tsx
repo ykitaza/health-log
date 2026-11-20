@@ -210,14 +210,13 @@ function ExerciseLineCard({ rows, exercise, today, unit }: { rows: TrainingSetRo
             )}
           </View>
           {trend.points.length >= 2 ? (
-            <View accessible accessibilityLabel={`${title}のグラフ。${EXERCISE_MONTHS}か月。今 ${fmt(conv(trend.current))}${unit}`}>
-              <LineChart
-                points={datePoints(trend.points, (p) => conv(value(p)), from, today)}
-                xLabels={dateLabels(from, today, 4)}
-                formatY={(v) => fmtInt(v)}
-                animKey={exercise.id}
-              />
-            </View>
+            <LineChart
+              points={datePoints(trend.points, (p) => conv(value(p)), from, today)}
+              xLabels={dateLabels(from, today, 4)}
+              formatY={(v) => fmtInt(v)}
+              animKey={exercise.id}
+              accessibilityLabel={`${title}のグラフ。${EXERCISE_MONTHS}か月。今 ${fmt(conv(trend.current))}${unit}`}
+            />
           ) : (
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>{EXERCISE_MONTHS}か月の記録が2日以上になると、折れ線が出ます</T>
           )}
@@ -450,14 +449,13 @@ function Big3Card({ rows, exercises, today, unit }: {
           )}
           {partialNote != null && <T variant="labelM" color={colors.sub} style={{ marginTop: space.xs }} testID="big3-partial">{partialNote}</T>}
           {trend.points.length >= 2 && (
-            <View accessible accessibilityLabel={`BIG3 の推定1RM の合計のグラフ。${BIG3_MONTHS}か月。今 ${fmt1(conv(trend.total))}${unit}${partialNote ? `。${partialNote}` : ''}`}>
-              <LineChart
-                points={datePoints(trend.points, (p) => conv(p.total), from, today)}
-                xLabels={dateLabels(from, today, 4)}
-                formatY={(v) => fmtInt(v)}
-                animKey="big3"
-              />
-            </View>
+            <LineChart
+              points={datePoints(trend.points, (p) => conv(p.total), from, today)}
+              xLabels={dateLabels(from, today, 4)}
+              formatY={(v) => fmtInt(v)}
+              animKey="big3"
+              accessibilityLabel={`BIG3 の推定1RM の合計のグラフ。${BIG3_MONTHS}か月。今 ${fmt1(conv(trend.total))}${unit}${partialNote ? `。${partialNote}` : ''}`}
+            />
           )}
         </>
       )}

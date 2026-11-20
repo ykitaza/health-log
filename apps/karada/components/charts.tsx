@@ -98,10 +98,12 @@ type Point = { x: number; y: number };
 /**
  * 折れ線グラフ。points の x は 0〜1 に正規化した位置。
  * avg を渡すと、灰色の細い線（7日の平均など。点は打たない）を記録の線の下に重ねる。
- * goal を渡すと、目標の値が縦の範囲の中なら破線の横線と文字、範囲の外なら右下（下にあるとき）か右上（上にあるとき）に、向きの矢印を付けた文字を出す
+ * goal を渡すと、目標の値が縦の範囲の中なら破線の横線と文字、範囲の外なら右下（下にあるとき）か右上（上にあるとき）に、向きの矢印を付けた文字を出す。
+ * accessibilityLabel は読み上げの要約（lib/chart の lineSummary）。省けない：押せるカードの中など、外側の読み上げに要約を入れたときだけ null
  */
-export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey, avg, goal }: {
+export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey, avg, goal, accessibilityLabel }: {
   points: Point[];
+  accessibilityLabel: string | null;
   xLabels: { x: number; label: string }[];
   height?: number;
   showYAxis?: boolean;
@@ -137,7 +139,7 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
     label: goalIn ? goal.label : `${goal.label} ${goal.y < lo ? '↓' : '↑'}`,
   };
   return (
-    <View onLayout={onLayout}>
+    <View onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel ?? undefined}>
       <Svg width={width} height={height}>
         {ticks.map((t) => (
           <Line key={`g${t}`} x1={left} x2={width - right} y1={py(t)} y2={py(t)} stroke={colors.line} strokeWidth={1} />

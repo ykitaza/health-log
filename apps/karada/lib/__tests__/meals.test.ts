@@ -1,5 +1,5 @@
 import {
-  floatSum, GoalDraft, ItemDraft, mealTitle, parseGoal, parseItem, pfcRatio, slotAt, templateNameError, weekDates,
+  floatSum, GoalDraft, ItemDraft, itemDraftTouched, mealTitle, newMealDirty, parseGoal, parseItem, pfcRatio, slotAt, templateNameError, weekDates,
   weekLastDayFor,
 } from '../meals';
 import { uuid5 } from '../uuid5';
@@ -117,5 +117,35 @@ describe('今の時刻から近い区分（食事を追加で初めに選ぶ）'
       'dinner', 'dinner', 'dinner', 'dinner', 'dinner', 'dinner',
       'snack', 'snack', 'snack',
     ]);
+  });
+});
+
+describe('食事の記録の、まだ記録していない入力（戻る前の確認）', () => {
+  const blank: ItemDraft = { name: '', amount: '', unit: 'g', kcal: '', protein_g: '', fat_g: '', carbs_g: '' };
+  // kcal と PFC だけ：名前と量は初めから入っている
+  const numbersBlank: ItemDraft = { ...blank, name: 'kcal と PFC', amount: '1', unit: '個' };
+
+  test('何も入れていない・単位だけ変えた・空白だけなら、確かめない', () => {
+    expect(newMealDirty([blank], blank, '')).toBe(false);
+    expect(newMealDirty([blank, blank], blank, '')).toBe(false);
+    expect(newMealDirty([{ ...blank, unit: '個' }], blank, '')).toBe(false);
+    expect(newMealDirty([{ ...blank, name: '  ' }], blank, '')).toBe(false);
+    expect(newMealDirty([numbersBlank], numbersBlank, '')).toBe(false);
+  });
+
+  test.each(['name', 'amount', 'kcal', 'protein_g', 'fat_g', 'carbs_g'] as const)('%s だけ入れても確かめる', (k) => {
+    expect(itemDraftTouched({ ...blank, [k]: '5' }, blank)).toBe(true);
+    expect(newMealDirty([blank, { ...blank, [k]: '5' }], blank, '')).toBe(true);
+  });
+
+  test('kcal と PFC だけのとき、名前を変えたら確かめる。脂質・炭水化物だけでも確かめる', () => {
+    expect(newMealDirty([{ ...numbersBlank, name: 'ラーメン屋の定食' }], numbersBlank, '')).toBe(true);
+    expect(newMealDirty([{ ...numbersBlank, fat_g: '20' }], numbersBlank, '')).toBe(true);
+    expect(newMealDirty([{ ...numbersBlank, carbs_g: '80' }], numbersBlank, '')).toBe(true);
+  });
+
+  test('いつものの名前を入れたら確かめる', () => {
+    expect(newMealDirty([blank], blank, '朝の定番')).toBe(true);
+    expect(newMealDirty([blank], blank, ' ')).toBe(false);
   });
 });

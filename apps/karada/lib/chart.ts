@@ -6,6 +6,15 @@ export function datePoints<T extends { date: DateKey }>(items: T[], value: (t: T
   return items.map((i) => ({ x: Math.min(1, Math.max(0, daysBetween(from, i.date) / span)), y: value(i) }));
 }
 
+/**
+ * 線のグラフの読み上げの要約（例：「体重のグラフ。1か月。今 72.4kg、7日の平均 72.8kg、目標 70.0kg」）。
+ * 値は表示と同じ単位の文字にしてから渡す。空（null・false・''）の項目は飛ばす
+ */
+export function lineSummary(title: string, span: string, parts: (string | null | false | undefined)[]): string {
+  const body = parts.filter(Boolean).join('、');
+  return `${title}のグラフ。${span}${body ? `。${body}` : ''}`;
+}
+
 /** 横軸の目盛り（両端を含めて count 個） */
 export function dateLabels(from: DateKey, to: DateKey, count = 4) {
   const span = Math.max(1, daysBetween(from, to));

@@ -9,7 +9,7 @@ import { T } from '@/components/Text';
 import { Button, Card, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import { useFocusData } from '@/hooks/data';
-import { dateLabels, datePoints } from '@/lib/chart';
+import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
 import { formatJpDate, formatShortDate, todayKey } from '@/lib/date';
 import { average, averageClock, formatClock, formatHM, formatSteps } from '@/lib/health';
 import { sleepGauge } from '@/lib/homeHud';
@@ -175,7 +175,10 @@ function HeartTrend({ days, period, from, today }: { days: HeartRateDay[]; perio
       </View>
       <Card style={{ marginTop: space.l }}>
         {days.length >= 2 ? (
-          <LineChart points={datePoints(days, (d) => d.restingBpm!, from, today)} xLabels={dateLabels(from, today, 3)} formatY={r} animKey={animKey} />
+          <LineChart points={datePoints(days, (d) => d.restingBpm!, from, today)} xLabels={dateLabels(from, today, 3)} formatY={r} animKey={animKey}
+            accessibilityLabel={lineSummary('安静時心拍', PERIOD_LABELS[period], [
+              last.restingBpm != null && `今 ${r(last.restingBpm)} 拍/分`, avg != null && `平均 ${r(avg)} 拍/分`, `${days.length} 日の記録`,
+            ])} />
         ) : (
           <T variant="bodyM" color={colors.sub}>記録が2日以上になると、グラフが出ます</T>
         )}

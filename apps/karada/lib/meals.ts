@@ -267,6 +267,21 @@ export type ItemInput = Nutrition & { name: string; amount: number; unit: Unit }
 
 const codePoints = (s: string) => [...s].length;
 
+const DRAFT_FIELDS = ['name', 'amount', 'kcal', 'protein_g', 'fat_g', 'carbs_g'] as const;
+
+/** 品目の欄（品名・量・kcal・PFC）を、空の品目 blank から変えたか。単位だけ変えたのは入力に数えない（戻る前の確認に使う） */
+export function itemDraftTouched(d: ItemDraft, blank: ItemDraft): boolean {
+  return DRAFT_FIELDS.some((k) => d[k].trim() !== blank[k].trim());
+}
+
+/**
+ * 食事の記録の画面に、まだ記録していない入力があるか（保存せずに戻る前に「入力をやめますか？」と確かめる）。
+ * どれかの品目の欄を変えたか、いつものの名前を入れたとき。区分・単位・いつものの切り替えだけなら確かめない（すぐ選び直せる）
+ */
+export function newMealDirty(items: ItemDraft[], blank: ItemDraft, templateName: string): boolean {
+  return items.some((i) => itemDraftTouched(i, blank)) || templateName.trim() !== '';
+}
+
 function num(text: string, label: string, max: number, positive = false): number | string {
   const n = parseNumber(text);
   if (n == null) return `${label}を数字で入れてください`;
