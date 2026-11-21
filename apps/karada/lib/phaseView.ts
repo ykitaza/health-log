@@ -344,7 +344,8 @@ export function metricNote(m: SuccessMetric, direction: PhaseDirection, targetKg
     if (direction === 'maintain') return m.ok ? 'ほぼ同じ（±1 kg の中）' : '±1 kg の外';
     if (targetKg != null && m.now != null) {
       const left = direction === 'bulk' ? targetKg - m.now : m.now - targetKg;
-      return left > 0 ? `目標まで あと ${fmt(left)}` : '目標に届いた';
+      // 表示の丸めで 0 になる残り（「あと 0.0 kg」）は届いたとする
+      return left > 0 && fmt(left) !== fmt(0) ? `目標まで あと ${fmt(left)}` : '目標に届いた';
     }
     return m.ok ? '向きどおり' : '向きと逆';
   }

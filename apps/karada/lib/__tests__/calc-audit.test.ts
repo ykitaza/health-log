@@ -6,6 +6,10 @@ import { average, sleepAverageLabel } from '../health';
 import { goalLine } from '../home';
 import { loadGauge } from '../homeHud';
 import { pfcPercents, pfcRatio } from '../meals';
+import { localDate, sleepMinutes } from '../healthConnect/importer';
+import { metricNote } from '../phaseView';
+import type { SuccessMetric } from '../phases';
+import { gramsLeftText } from '../reports';
 import { periodStart, TrainingSetRow, weekDeltaText } from '../training';
 
 const TODAY = '2026-11-21'; // 土曜
@@ -145,5 +149,46 @@ describe('PFC の割合の % は合計 100', () => {
         for (const [a, b] of [[r.p, p], [r.f, f], [r.c, c]]) expect(Math.abs(a - b)).toBeLessThan(1);
       }
     }
+  });
+});
+
+describe('残りが表示の丸めで 0 になるときの言い方', () => {
+  test('日のまとめのたんぱく質：149.6g と目標 150g は「あと1g」（「あと0g」と出さない）。ふだんは四捨五入', () => {
+    expect(gramsLeftText(150, 149.6)).toBe('あと1g');
+    expect(gramsLeftText(150, 137.8)).toBe('あと12g');
+    expect(gramsLeftText(150, 100)).toBe('あと50g');
+  });
+
+  test('フェーズの成功の指標：増量で目標 80kg、今 79.97kg は「目標に届いた」（「あと 0.0 kg」と出さない）', () => {
+    const fmt = (kg: number) => `${kg.toFixed(1)} kg`;
+    const m = (now: number): SuccessMetric => ({ key: 'weight', label: '体重', start: 75, now, delta: now - 75, ok: false, reference: false });
+    expect(metricNote(m(79.97), 'bulk', 80, fmt)).toBe('目標に届いた');
+    expect(metricNote(m(79.9), 'bulk', 80, fmt)).toBe('目標まで あと 0.1 kg');
+    expect(metricNote(m(80.2), 'bulk', 80, fmt)).toBe('目標に届いた');
+  });
+});
+
+describe('日本時間の日の区切り（Health Connect の時刻に付いた時差で日付を決める）', () => {
+  const JST = { totalSeconds: 9 * 3600 };
+  test('UTC 11/20 22:30 は日本時間 11/21 7:30：起きた日は 11/21', () => {
+    expect(localDate('2026-11-20T22:30:00Z', JST)).toBe('2026-11-21');
+  });
+  test('日本時間 23:59 は その日、0:00 は 次の日（UTC 14:59 と 15:00）', () => {
+    expect(localDate('2026-11-20T14:59:00Z', JST)).toBe('2026-11-20');
+    expect(localDate('2026-11-20T15:00:00Z', JST)).toBe('2026-11-21');
+  });
+  test('月末・年末・うるう日をまたぐ', () => {
+    expect(localDate('2026-12-31T15:00:00Z', JST)).toBe('2027-01-01');
+    expect(localDate('2028-02-28T15:30:00Z', JST)).toBe('2028-02-29');
+  });
+  test('日をまたぐ睡眠（23:00〜7:00 の 8 時間）のうち、起きていた段階 30 分と、終わりからはみ出した段階の中の 10 分を除いて 440 分（はみ出した 20 分は数えない）', () => {
+    expect(sleepMinutes({
+      startTime: '2026-11-20T14:00:00Z', endTime: '2026-11-20T22:00:00Z',
+      stages: [
+        { startTime: '2026-11-20T18:00:00Z', endTime: '2026-11-20T18:30:00Z', stage: 1 }, // 起きていた
+        { startTime: '2026-11-20T21:50:00Z', endTime: '2026-11-20T22:20:00Z', stage: 1 }, // 終わりから 20 分はみ出す：10 分だけ
+        { startTime: '2026-11-20T15:00:00Z', endTime: '2026-11-20T17:00:00Z', stage: 5 }, // 深い睡眠
+      ],
+    })).toEqual({ asleepMin: 440, awakeMin: 40 });
   });
 });
