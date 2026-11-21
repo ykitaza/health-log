@@ -490,6 +490,14 @@ export function dailyAchievementRows(a: DailyAchievement, names: ReadonlyMap<str
   ];
 }
 
+/**
+ * 日のまとめの、たんぱく質の目標までの残り（「あと12g」）。届いていない（eaten < target）ときに使う。
+ * 四捨五入で 0 になる残り（149.6g と目標 150g）も「あと0g」とは出さず「あと1g」
+ */
+export function gramsLeftText(target: number, eaten: number): string {
+  return `あと${fmtInt(Math.max(1, Math.round(target - eaten)))}g`;
+}
+
 /** 週のまとめの「今週の目標」の行と、「4つのうち 3つ達成」。目標がない（たんぱく質の目標がない・睡眠が切）の行は出さない */
 export function weeklyAchievementRows(w: WeeklyAchievement): { rows: AchievementRow[]; summary: string } {
   const row = (key: string, label: string, p: { days: number; goal: number | null; reached: boolean }, u: string): AchievementRow[] =>

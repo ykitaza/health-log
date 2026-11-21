@@ -15,7 +15,7 @@ import { formatClock, formatSteps } from '@/lib/health';
 import { DAY_TYPE_LABELS, SLOT_LABELS, targetFor } from '@/lib/meals';
 import {
   achievementRowLabel, AREA_LABELS, Area, dailyAchievementRows, dailyHighlightLabel, deltaLook, formatDelta, formatMetricValue,
-  Highlight, KCAL_TOLERANCE, TONE_SHORT, Tone,
+  gramsLeftText, Highlight, KCAL_TOLERANCE, TONE_SHORT, Tone,
 } from '@/lib/reports';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { deco } from '@/theme';
@@ -50,7 +50,7 @@ export function DailyRingsBlock({ date }: { date: DateKey }) {
   const proteinStatus = (): string => {
     const r = row('protein');
     if (r.mark === 'none') return r.value === '記録なし' ? '記録なし' : '目標なし';
-    return r.mark === 'reached' ? '✓ 達成' : `あと${fmtInt(m.proteinTarget! - m.proteinG)}g`;
+    return r.mark === 'reached' ? '✓ 達成' : gramsLeftText(m.proteinTarget!, m.proteinG);
   };
   const sleepStatus = (): string => {
     const r = row('sleep');

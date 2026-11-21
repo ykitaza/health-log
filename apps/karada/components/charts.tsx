@@ -1,13 +1,16 @@
-import { ComponentProps, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Easing, LayoutChangeEvent, View } from 'react-native';
+import { ComponentProps, useLayoutEffect, useState } from 'react';
+import { LayoutChangeEvent, View } from 'react-native';
 import Animated, { SharedValue, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import { useCountUp } from '@/hooks/countUp';
 import { useCountTo } from '@/hooks/entrance';
 import { niceTicks } from '@/lib/chart';
 import { colors, fonts, isHud } from '@/theme';
-import { barDelay, duration, EASE_OUT } from '@/theme/motion';
+import { barDelay, duration } from '@/theme/motion';
 import { easeOut } from './motion';
 import { T } from './Text';
+
+export { useCountUp };
 
 /** 数え上げる数字の文字。format で、数え上げの途中の値も文字にする */
 export function CountUpText({ value, format, animKey, ...text }: Omit<ComponentProps<typeof T>, 'children'> & {
@@ -51,40 +54,6 @@ function useDrawProgress(animKey: string | undefined, total: number) {
     progress.set(withTiming(1, { duration: total, easing: easeOut }));
   }, [animKey, reduced, total, progress]);
   return { progress, reduced };
-}
-
-/** 大きな数字を、開いたときと animKey が変わったときに 0 から数え上げる（600ms、ease-out。はね返らない） */
-export function useCountUp(value: number, animKey?: string): number {
-  const reduced = useReducedMotion();
-  const [shown, setShown] = useState(reduced ? value : 0);
-  const [from, setFrom] = useState({ key: animKey, value });
-  // 数え上げの途中で値が変わっても、最後は今の値で止める
-  const target = useRef(value);
-  useEffect(() => { target.current = value; });
-  // 同じ animKey のまま値だけ変わったら（読み直しなど）、数え上げずにその値を出す
-  if (from.key === animKey && from.value !== value) {
-    setFrom({ key: animKey, value });
-    setShown(value);
-  }
-  useEffect(() => {
-    if (reduced) { setShown(value); return; }
-    const ease = Easing.bezier(...EASE_OUT);
-    // 時刻は requestAnimationFrame の時刻で測る（端末の時計の変更や、E2E で固定した時計に左右されない）
-    let start: number | null = null;
-    let frame = 0;
-    const tick = (now: number) => {
-      start ??= now;
-      const t = Math.min(1, (now - start) / duration.draw);
-      setShown(target.current * ease(t));
-      if (t < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    setFrom({ key: animKey, value });
-    return () => cancelAnimationFrame(frame);
-    // 値の変化では数え上げ直さない（上で値を出す）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animKey, reduced]);
-  return shown;
 }
 
 function useWidth(initial = 300) {

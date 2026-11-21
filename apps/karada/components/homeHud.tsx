@@ -13,7 +13,7 @@ import { formatHM } from '@/lib/health';
 import {
   Big3Gauge, FuelGauge, LoadGauge, LogCell, logCellLabel, LogWeek, logWeekRange, SleepGauge,
 } from '@/lib/homeHud';
-import { DAY_TYPE_LABELS } from '@/lib/meals';
+import { DAY_TYPE_LABELS, pfcPercents } from '@/lib/meals';
 import { INJURY_RED } from '@/lib/recoveryMap';
 import { fmt1, fmtInt, kgToUnit, WeightUnit } from '@/lib/units';
 import { colors, deco, fonts, hudColors, isHud, lbl, paper, space } from '@/theme';
@@ -381,7 +381,8 @@ const PFC_COLORS = { P: hudColors.mint3, F: hudColors.mint2, C: hudColors.mint1 
  */
 export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID = 'home-fuel' }: { fuel: FuelGauge | null; date: DateKey; dayLabel?: string } & Placement) {
   const ratio = fuel?.ratio ?? null;
-  const pct = (k: 'P' | 'F' | 'C') => (ratio ? Math.round(k === 'P' ? ratio.p : k === 'F' ? ratio.f : ratio.c) : null);
+  const shownPct = ratio ? pfcPercents(ratio) : null;
+  const pct = (k: 'P' | 'F' | 'C') => (shownPct ? (k === 'P' ? shownPct.p : k === 'F' ? shownPct.f : shownPct.c) : null);
   const kcalRatio = fuel?.kcalTarget ? Math.min(1, fuel.kcal / fuel.kcalTarget) : 0;
   const label = fuel == null ? `${dayLabel}の食事`
     : [

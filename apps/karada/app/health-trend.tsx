@@ -9,15 +9,17 @@ import { T } from '@/components/Text';
 import { Button, Card, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import { useFocusData } from '@/hooks/data';
-import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
+import { dateLabels, datePoints, lineSummary, periodRecords, sinceNote } from '@/lib/chart';
 import { formatJpDate, formatShortDate, todayKey } from '@/lib/date';
-import { average, averageClock, formatClock, formatHM, formatSteps } from '@/lib/health';
+import { average, averageClock, formatClock, formatHM, formatSteps, sleepAverageLabel } from '@/lib/health';
 import { sleepGauge } from '@/lib/homeHud';
 import { Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { colors, space } from '@/theme';
 
 type Kind = 'sleep' | 'heart' | 'steps';
 const PERIODS: Period[] = ['1m', '3m', '6m', '1y'];
+/** 記録を全部読むときの始まりの日 */
+const ALL_FROM = '1970-01-01';
 const TITLES: Record<Kind, string> = { sleep: '睡眠の推移', heart: '安静時心拍の推移', steps: '歩数の推移' };
 const ICONS = { sleep: 'moon', heart: 'heart', steps: 'steps' } as const;
 
@@ -32,11 +34,10 @@ export default function HealthTrendScreen() {
   const kind: Kind = params.kind === 'heart' || params.kind === 'steps' ? params.kind : 'sleep';
   const [period, setPeriod] = useState<Period>('1m');
   const today = todayKey();
-  // いちばん長い期間（1年）を読んで、期間ごとに絞る
+  // 記録を全部読んで、期間ごとに絞る（1年より前に記録があるかも見て、記録が選んだ期間より短いときに「記録は M/D から」を出す）
   const { data, error, reload } = useFocusData(async (r) => {
-    const from = periodStart(today, '1y')!;
     const [sleep, heart, steps] = await Promise.all([
-      r.health.sleepDays(from, today), r.health.heartRateDays(from, today), r.health.stepDays(from, today),
+      r.health.sleepDays(ALL_FROM, today), r.health.heartRateDays(ALL_FROM, today), r.health.stepDays(ALL_FROM, today),
     ]);
     return { sleep, heart, steps };
   }, today);
@@ -46,7 +47,7 @@ export default function HealthTrendScreen() {
   if (error) return <Screen><Header title={title} onBack={() => router.back()} /><LoadError onRetry={reload} /></Screen>;
 
   const all = kind === 'sleep' ? data?.sleep ?? [] : kind === 'steps' ? data?.steps ?? [] : (data?.heart ?? []).filter((h) => h.restingBpm != null);
-  const inRange = all.filter((d) => d.date >= from);
+  const { items: inRange, since } = periodRecords<{ date: string }>(all, from, today);
 
   return (
     <Screen>
@@ -78,11 +79,11 @@ export default function HealthTrendScreen() {
       ) : data && inRange.length === 0 ? (
         <EmptyState icon="chart" title="この期間の記録がありません" body="期間を長くすると、前の記録を見られます" />
       ) : data && kind === 'sleep' ? (
-        <SleepTrend days={inRange as SleepDay[]} period={period} />
+        <SleepTrend days={inRange as SleepDay[]} period={period} since={since} />
       ) : data && kind === 'steps' ? (
-        <StepsTrend days={inRange as StepDay[]} period={period} />
+        <StepsTrend days={inRange as StepDay[]} period={period} since={since} />
       ) : data ? (
-        <HeartTrend days={inRange as HeartRateDay[]} period={period} from={from} today={today} />
+        <HeartTrend days={inRange as HeartRateDay[]} period={period} from={from} today={today} since={since} />
       ) : null}
     </Screen>
   );
@@ -91,7 +92,7 @@ export default function HealthTrendScreen() {
 /** 横の目盛り：始め・真ん中・終わりの日だけに日付を出す */
 const barLabel = (i: number, n: number, date: string) => (i === 0 || i === n - 1 || i === Math.floor((n - 1) / 2) ? formatShortDate(date) : '');
 
-function SleepTrend({ days, period }: { days: SleepDay[]; period: Period }) {
+function SleepTrend({ days, period, since }: { days: SleepDay[]; period: Period; since: string | null }) {
   const animKey = `sleep-${period}`;
   const avg = average(days.map((d) => d.asleepMin)) ?? 0;
   const shown = Math.round(useCountUp(avg, animKey));
@@ -104,11 +105,11 @@ function SleepTrend({ days, period }: { days: SleepDay[]; period: Period }) {
       {/* 大きな数字は上の SLEEP（昨夜）だけにする。期間の平均は、グラフの見出しに小さく出す */}
       <Card style={{ marginTop: space.m }}>
         <View style={[s.meta, { marginBottom: space.m }]}>
-          <View style={s.big} testID="sleep-average" accessible accessibilityLabel={`${PERIOD_LABELS[period]}の平均 ${Math.floor(avg / 60)}時間${Math.round(avg % 60)}分`}>
+          <View style={s.big} testID="sleep-average" accessible accessibilityLabel={sleepAverageLabel(PERIOD_LABELS[period], avg)}>
             <T variant="bodyS" color={colors.sub}>{PERIOD_LABELS[period]}の平均（眠っていた時間）</T>
             <T variant="numM" bold>{formatHM(shown)}</T>
           </View>
-          <T variant="bodyS" color={colors.sub}>{days.length} 晩の記録・{formatJpDate(last.date)}の朝まで</T>
+          <T variant="bodyS" color={colors.sub}>{days.length} 晩の記録{sinceNote(since)}・{formatJpDate(last.date)}の朝まで</T>
         </View>
         <StackedBarChart
           animKey={animKey}
@@ -156,7 +157,7 @@ function SleepTrend({ days, period }: { days: SleepDay[]; period: Period }) {
   );
 }
 
-function HeartTrend({ days, period, from, today }: { days: HeartRateDay[]; period: Period; from: string; today: string }) {
+function HeartTrend({ days, period, from, today, since }: { days: HeartRateDay[]; period: Period; from: string; today: string; since: string | null }) {
   const animKey = `heart-${period}`;
   const last = days[days.length - 1];
   const shown = Math.round(useCountUp(last.restingBpm ?? 0, animKey));
@@ -171,7 +172,7 @@ function HeartTrend({ days, period, from, today }: { days: HeartRateDay[]; perio
       </View>
       <View style={s.meta}>
         <T variant="titleS">{PERIOD_LABELS[period]}の平均 {avg == null ? '—' : r(avg)} bpm</T>
-        <T variant="bodyS" color={colors.sub}>{days.length} 日の記録</T>
+        <T variant="bodyS" color={colors.sub}>{days.length} 日の記録{sinceNote(since)}</T>
       </View>
       <Card style={{ marginTop: space.l }}>
         {days.length >= 2 ? (
@@ -207,7 +208,7 @@ function HeartTrend({ days, period, from, today }: { days: HeartRateDay[]; perio
   );
 }
 
-function StepsTrend({ days, period }: { days: StepDay[]; period: Period }) {
+function StepsTrend({ days, period, since }: { days: StepDay[]; period: Period; since: string | null }) {
   const animKey = `steps-${period}`;
   const avg = average(days.map((d) => d.steps)) ?? 0;
   const shown = useCountUp(avg, animKey);
@@ -220,7 +221,7 @@ function StepsTrend({ days, period }: { days: StepDay[]; period: Period }) {
         <T variant="bodyL" color={colors.sub}>歩</T>
       </View>
       <View style={s.meta}>
-        <T variant="titleS">{days.length} 日の記録</T>
+        <T variant="titleS">{days.length} 日の記録{sinceNote(since)}</T>
         <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)}まで</T>
       </View>
       <Card style={{ marginTop: space.l }}>

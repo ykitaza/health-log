@@ -16,7 +16,7 @@ import { useBackToToday } from '@/hooks/backToToday';
 import { useFocusData } from '@/hooks/data';
 import { useHealthConnect } from '@/hooks/healthConnect';
 import { useToday } from '@/hooks/today';
-import { BodyMetric, bmi, DailyBody, goalProgress, leanMass, previousWeight, weekAverage, weightUnitSpoken } from '@/lib/body';
+import { BodyMetric, bmi, DailyBody, goalProgress, goalReachedShown, leanMass, previousWeight, weekAverage, weightUnitSpoken } from '@/lib/body';
 import { addDays, formatJpDate, formatMonthDay, todayKey } from '@/lib/date';
 import { formatClock, formatHeartRate, formatHM, formatMinutes, formatSteps, sevenDayAverage } from '@/lib/health';
 import { TAB_AREAS } from '@/lib/reports';
@@ -220,7 +220,7 @@ function WeightCard({ date, day, daily, unit, heightCm, goalKg, onEdit }: {
   const progress = !past && w != null && goalKg != null ? goalProgress(w, goalKg, null) : null;
   const summary = [
     week != null ? `週の平均 ${fmt1(kgToUnit(week, unit))} ${unit}` : null,
-    progress ? (progress.direction === 'reached' ? '目標に届きました' : `目標まで あと ${fmt1(kgToUnit(progress.remaining, unit))} ${unit}`) : null,
+    progress ? (goalReachedShown(progress, unit) ? '目標に届きました' : `目標まで あと ${fmt1(kgToUnit(progress.remaining, unit))} ${unit}`) : null,
   ].filter(Boolean).join(' ・ ');
   const lean = leanMass(w, src.bodyFatPct);
   const b = bmi(w, heightCm);

@@ -112,6 +112,8 @@ export type LoadGauge = {
   lastWeek: number[];
   /** 今週の月曜から今日まで（ホームの今までの「合計負荷量／今週」と同じ） */
   totalKg: number;
+  /** 先週の月曜から、今日と同じ曜日までの負荷量（kg）。先週比と、筋トレの推移の「先週より」の基準 */
+  lastWeekToDateKg: number;
   /** 先週の同じ曜日まで（月曜〜今日と同じ曜日）と比べた増減（%）。先週のその分が 0 なら null */
   vsLastWeekPct: number | null;
 };
@@ -126,7 +128,7 @@ export function loadGauge(rows: TrainingSetRow[], today: DateKey): LoadGauge {
   const lastWeek = Array.from({ length: 7 }, (_, i) => { const d = addDays(lastMon, i); return volumeBetween(rows, d, d); });
   const totalKg = thisWeekVolume(rows, today);
   const lastToDate = volumeBetween(rows, lastMon, addDays(today, -7));
-  return { thisWeek, lastWeek, totalKg, vsLastWeekPct: lastToDate > 0 ? Math.round((totalKg / lastToDate - 1) * 100) : null };
+  return { thisWeek, lastWeek, totalKg, lastWeekToDateKg: lastToDate, vsLastWeekPct: lastToDate > 0 ? Math.round((totalKg / lastToDate - 1) * 100) : null };
 }
 
 // ---- SLEEP ----

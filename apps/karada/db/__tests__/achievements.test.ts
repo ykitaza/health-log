@@ -73,6 +73,23 @@ test('すべて達成した週の連続：設定の今の目標で、今週か�
   expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 1, thisWeek: true });
 });
 
+test('週の連続の食事の日は、週の達成と同じ数え方：品目がすべて消えた食事の日は記録した日に数えない（#326）', async () => {
+  const { db, r } = await setup();
+  await r.settings.update({ weeklyGoalTrainingDays: 2, weeklyGoalMealDays: 3, weeklyGoalSleepDays: 0 });
+  const train = (date: string) => r.workouts.saveEntry({ date, exerciseId: BENCH, sets: [{ weightKg: 60, reps: 10, memo: '', done: true }] });
+  const eat = (date: string) => r.meals.record({ date, slot: 'lunch', source: 'text', items: [egg] });
+  // 今週（11/9〜）：筋トレ 2 日、食事 3 日で達成
+  await train('2026-11-09'); await train('2026-11-10');
+  for (const d of ['2026-11-09', '2026-11-10', '2026-11-11']) await eat(d);
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 1, thisWeek: true });
+  // 11/11 の食事の品目が（同期などで）すべて消えた：食事の一覧と週の達成では、その日は記録していない
+  const meal = (await r.meals.listDay('2026-11-11'))[0];
+  db.raw.prepare("UPDATE meal_items SET deleted_at = 'x' WHERE meal_id = ?").run(meal.id);
+  expect(await r.meals.listDay('2026-11-11')).toEqual([]);
+  expect((await r.achievements.week('2026-11-10')).meals.days).toBe(2);
+  expect(await r.achievements.streak('2026-11-10')).toEqual({ weeks: 0, thisWeek: false });
+});
+
 test('日の達成：負荷量・種目数・自己ベスト、食事の合計と目標、その日に起きた睡眠', async () => {
   const { r, sleep } = await setup();
   await r.workouts.saveEntry({ date: '2026-11-01', exerciseId: BENCH, sets: [{ weightKg: 60, reps: 10, memo: '', done: true }] });
