@@ -41,7 +41,7 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
-    "@playwright/test": "~1.65.0",
+    "@playwright/test": "~1.65.1",
     "@types/jest": "30.0.0",
     "@types/node": "^24.19.2",
     "@types/react": "~19.3.0",
