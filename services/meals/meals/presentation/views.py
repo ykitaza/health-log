@@ -111,6 +111,10 @@ SCORE_SEX_NOTE = ("性別がサーバーにないので、男女のうち厳し�
                   "食物繊維 22g 以上）で見ています")
 
 
+SCORE_IN_PROGRESS_NOTE = ("今日はまだ途中なので、エネルギーとたんぱく質は 1 日の終わりに付きます（deferred）。点は残りの内訳だけで出し、"
+                          "前の日との差も同じ規則で数えた点どうしで比べています")
+
+
 def _score_item(i) -> dict:
     return {
         "key": i.key, "label": i.label, "points": None if i.ratio is None else js_round(100 * i.ratio),
@@ -122,27 +126,32 @@ def _score_item(i) -> dict:
 def score(s: DailySummary) -> dict | None:
     """食事のスコア（0〜100 点）と内訳、いちばん伸ばしやすい項目、前の日との差。食事の記録がない日は None。
 
-    内訳・項目の points が null は「記録なし」（推定や目標がない。点を下げていない）。
+    内訳・項目の points が null は「記録なし」（推定や目標がない。点を下げていない）。内訳の deferred が true は、
+    1 日の途中（今日）なので数えていない（1 日の終わりに付く）。
     """
     sc = s.score
     if sc is None:
         return None
-    previous = s.previous.score if s.previous else None
+    previous = s.previous_score
     easiest = sc.easiest
     basis = {"sv_band": sc.band.label, "sv_band_from_target": sc.band_from_target,
              "sex": sc.sex.value if sc.sex else None}
     if sc.sex is None:
         basis["note"] = SCORE_SEX_NOTE
-    return {
+    view = {
         "points": sc.score,
+        "in_progress": sc.in_progress,
         "previous_points": previous.score if previous else None,
         "diff": s.score_diff,
-        "parts": [{"key": p.key, "label": p.label, "points": sc.part_points(p),
+        "parts": [{"key": p.key, "label": p.label, "points": sc.part_points(p), "deferred": p.deferred,
                    "items": [_score_item(i) for i in p.items]} for p in sc.parts],
         "easiest": None if easiest is None else {
             "part": easiest.part, "item": easiest.item.key, "advice": easiest.item.advice, "gain": easiest.gain},
         "basis": basis,
     }
+    if sc.in_progress:
+        view["note"] = SCORE_IN_PROGRESS_NOTE
+    return view
 
 
 def score_brief(s: DailySummary) -> dict | None:
@@ -153,6 +162,7 @@ def score_brief(s: DailySummary) -> dict | None:
     easiest = sc.easiest
     return {
         "points": sc.score,
+        "in_progress": sc.in_progress,  # 今日（途中）。エネルギーとたんぱく質は null（1 日の終わりに付く）
         "diff": s.score_diff,
         "parts": {p.key: sc.part_points(p) for p in sc.parts},
         "easiest": None if easiest is None else {"advice": easiest.item.advice, "gain": easiest.gain},

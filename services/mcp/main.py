@@ -111,7 +111,8 @@ def create_server(
     meals, templates = synced.SyncMealRepository(engine), synced.SyncMealTemplateRepository(engine)
     goals, day_types = synced.SyncGoalRepository(engine), synced.SyncDayTypeRepository(engine)
     body_data = SyncedBodyData(engine, training_queries)
-    summaries = SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries), sex=body_data)
+    summaries = SummaryService(eaters, meals, goals, day_types, WorkoutTrainingDays(training_queries), sex=body_data,
+                               today=today)
     meal_tools.register_meal_tools(mcp, meal_tools.Services(
         meals=MealService(eaters, meals),
         templates=TemplateService(eaters, meals, templates),

@@ -5,7 +5,7 @@ from datetime import date
 
 from meals.domain.auto_goal import Sex
 from meals.domain.meal import Meal
-from meals.domain.meal_score import MealScore, meal_score
+from meals.domain.meal_score import MealScore, meal_score, score_diff
 from meals.domain.nutrition_goal import NutritionGoal, Target
 from meals.domain.values import DayType, Nutrition, NutritionGap
 
@@ -15,6 +15,7 @@ class DailySummary:
     """1日のまとめ。目標が未設定なら target と remaining は None。目標がない項目の残りも None。
 
     sex は食事のスコアの性別で変わる目安に使う（アプリの設定。なければ None）。previous は前の日のまとめ（スコアの差に使う）。
+    in_progress は 1 日の途中（今日）。食事のスコアのエネルギーとたんぱく質を外す（1 日の終わりに付く）。
     """
 
     day: date
@@ -23,19 +24,23 @@ class DailySummary:
     goal: NutritionGoal | None
     sex: Sex | None = None
     previous: "DailySummary | None" = None
+    in_progress: bool = False
 
     @property
     def score(self) -> MealScore | None:
         """食事のスコア。食事の記録がない日は None。"""
-        return meal_score(self.meals, self.target, self.sex)
+        return meal_score(self.meals, self.target, self.sex, self.in_progress)
+
+    @property
+    def previous_score(self) -> MealScore | None:
+        """前の日の点（差を出すため、この日と同じ規則で数える。今日と比べるなら、前の日もエネルギーとたんぱく質を外す）。"""
+        p = self.previous
+        return None if p is None else meal_score(p.meals, p.target, p.sex, self.in_progress)
 
     @property
     def score_diff(self) -> int | None:
-        """前の日の点との差。どちらかの日に点がなければ None。"""
-        today = self.score.score if self.score else None
-        before = self.previous.score if self.previous else None
-        before = before.score if before else None
-        return None if today is None or before is None else today - before
+        """前の日の点との差（同じ規則で数えた点どうし）。どちらかの日に点がなければ None。"""
+        return score_diff(self.score, self.previous_score)
 
     @property
     def total(self) -> Nutrition:

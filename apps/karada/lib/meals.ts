@@ -38,7 +38,35 @@ const KEYS = ['kcal', 'protein_g', 'fat_g', 'carbs_g'] as const;
 
 export const ZERO: Nutrition = { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 };
 
-export type MealItem = Nutrition & { id: string; name: string; amount: number; unit: Unit; confidence: Confidence };
+/**
+ * 食事のスコア（lib/mealScore.ts）に使う、品目の推定（MCP で AI が記録するときに付ける。サーバーの DietEstimate）。
+ * null・ない項目は「推定していない」（アプリで手入力した品目など）、0・false は「ない」。数の項目はこの量のときの値
+ */
+export type DietEstimate = {
+  /** 食事バランスガイドの「つ（SV）」：主食・副菜・主菜・牛乳と乳製品・果物 */
+  sv_staple?: number | null; sv_side?: number | null; sv_main?: number | null; sv_dairy?: number | null; sv_fruit?: number | null;
+  /** 食物繊維・食塩相当量・純アルコール（g） */
+  fiber_g?: number | null; salt_g?: number | null; alcohol_g?: number | null;
+  /** 菓子・嗜好飲料か */
+  is_snack_or_sweet_drink?: boolean | null;
+};
+/** 推定の数の項目（量に比例する。量を変えると同じ割合で変わる。サーバーの ESTIMATE_AMOUNTS と同じ順） */
+export const ESTIMATE_AMOUNTS = ['sv_staple', 'sv_side', 'sv_main', 'sv_dairy', 'sv_fruit', 'fiber_g', 'salt_g', 'alcohol_g'] as const;
+export const ESTIMATE_FIELDS = [...ESTIMATE_AMOUNTS, 'is_snack_or_sweet_drink'] as const;
+export type EstimateAmount = (typeof ESTIMATE_AMOUNTS)[number];
+/** SV の上限（サーバーの sync_entities.py の Sv） */
+export const SV_MAX = 100;
+
+/** 推定の項目を、ないものは null にしてそろえる（同期の状態・SQLite の 0/1・いつものの JSON のどれからでも） */
+export function estimateOf(v: Partial<Record<string, unknown>>): Required<DietEstimate> {
+  const out = {} as Record<string, number | boolean | null>;
+  for (const k of ESTIMATE_AMOUNTS) out[k] = typeof v[k] === 'number' ? (v[k] as number) : null;
+  const snack = v.is_snack_or_sweet_drink;
+  out.is_snack_or_sweet_drink = snack == null ? null : snack === true || snack === 1;
+  return out as Required<DietEstimate>;
+}
+
+export type MealItem = Nutrition & DietEstimate & { id: string; name: string; amount: number; unit: Unit; confidence: Confidence };
 export type Meal = {
   id: string; date: DateKey; slot: Slot; time: string | null; description: string; source: Source;
   items: MealItem[]; createdAt: string;
@@ -89,9 +117,18 @@ export function mealTotal(meal: { items: Nutrition[] }): Nutrition {
   return sum(meal.items.map(pick));
 }
 
-/** 量を変える。単位はそのまま、栄養も同じ割合で変わる（サーバーの FoodItem.with_amount） */
+/**
+ * 量を変える。単位はそのまま、栄養と推定の数の項目も同じ割合で変わる（菓子・嗜好飲料かどうかは変わらない。
+ * 推定していない項目は推定していないまま。サーバーの FoodItem.with_amount）
+ */
 export function changeAmount<T extends MealItem>(item: T, amount: number): T {
-  return { ...item, amount, ...times(pick(item), amount / item.amount) };
+  const factor = amount / item.amount;
+  const scaled: DietEstimate = {};
+  for (const k of ESTIMATE_AMOUNTS) {
+    const v = item[k];
+    if (v != null) scaled[k] = v * factor;
+  }
+  return { ...item, amount, ...times(pick(item), factor), ...scaled };
 }
 
 /** その日の目標。たんぱく質は体重 × 体重1kgあたり（日の種類によらない）。kcal・脂質・炭水化物は日の種類で選ぶ */
@@ -238,7 +275,7 @@ export function readableMeals(states: MealState[]): Meal[] {
       items: items.map((i) => ({
         id: i.id, name: i.fields.name as string, amount: i.fields.amount as number, unit: i.fields.unit as Unit,
         kcal: i.fields.kcal as number, protein_g: i.fields.protein_g as number, fat_g: i.fields.fat_g as number,
-        carbs_g: i.fields.carbs_g as number, confidence: i.fields.confidence as Confidence,
+        carbs_g: i.fields.carbs_g as number, confidence: i.fields.confidence as Confidence, ...estimateOf(i.fields),
       })),
     });
   }
@@ -264,14 +301,14 @@ export function templateId(name: string): string {
   return uuid5(TEMPLATE_NAMESPACE, name);
 }
 
-export type TemplateItem = Nutrition & { item_id?: string | null; name: string; amount: number; unit: Unit; confidence: Confidence };
+export type TemplateItem = Nutrition & DietEstimate & { item_id?: string | null; name: string; amount: number; unit: Unit; confidence: Confidence };
 export type MealTemplate = { id: string; name: string; items: TemplateItem[] };
 
 /** いつものの品目を、食事の品目にする。ID は item_id、なければ並び順から（サーバーの template_from_state と同じ） */
 export function templateMealItems(template: MealTemplate): MealItem[] {
   return template.items.map((i, n) => ({
     id: i.item_id || `item${n + 1}`, name: i.name, amount: i.amount, unit: i.unit, confidence: i.confidence,
-    kcal: i.kcal, protein_g: i.protein_g, fat_g: i.fat_g, carbs_g: i.carbs_g,
+    kcal: i.kcal, protein_g: i.protein_g, fat_g: i.fat_g, carbs_g: i.carbs_g, ...estimateOf(i),
   }));
 }
 
@@ -331,6 +368,14 @@ export function itemRangeError(item: Nutrition & { amount: number; name: string 
   if (!(item.amount > 0) || item.amount > AMOUNT_MAX) return `${item.name}：量は 0 より大きく ${AMOUNT_MAX.toLocaleString('en-US')} までにしてください`;
   if (item.kcal > KCAL_MAX) return `${item.name}：エネルギーが ${KCAL_MAX.toLocaleString('en-US')}kcal を超えます`;
   if (Math.max(item.protein_g, item.fat_g, item.carbs_g) > GRAMS_MAX) return `${item.name}：PFC が ${GRAMS_MAX.toLocaleString('en-US')}g を超えます`;
+  // 推定（AI が付けた SV・食物繊維など）も、量に合わせて増えるので、サーバーの範囲に入っているか確かめる
+  const est = item as DietEstimate;
+  if ((['sv_staple', 'sv_side', 'sv_main', 'sv_dairy', 'sv_fruit'] as const).some((k) => (est[k] ?? 0) > SV_MAX)) {
+    return `${item.name}：食事のスコアの推定（つ）が ${SV_MAX} を超えます`;
+  }
+  if ((['fiber_g', 'salt_g', 'alcohol_g'] as const).some((k) => (est[k] ?? 0) > GRAMS_MAX)) {
+    return `${item.name}：食事のスコアの推定が ${GRAMS_MAX.toLocaleString('en-US')}g を超えます`;
+  }
   return null;
 }
 

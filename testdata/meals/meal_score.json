@@ -1,0 +1,1385 @@
+{
+  "description": "食事のスコア（#331）。サーバー（services/meals/meals/domain/meal_score.py）とアプリ（apps/karada/lib/mealScore.ts）が同じ点を出すことを、pytest（services/meals/tests/test_shared_testdata.py）と jest（apps/karada/lib/__tests__/mealScore.test.ts）の両方で確かめる。期待する値は式を写さずに手で計算した数（calc に計算を残す）。cases の items は 1 回の食事の品目（書いていない推定の項目は null＝推定していない）。target はその日の目標（kcal・たんぱく質。null は目標なし）、sex はアプリの設定の性別（null は未設定で厳しいほうの目安）。in_progress は 1 日の途中（今日）で、エネルギーとたんぱく質を 1 日の終わりに付くものとして外す（deferred）。parts は内訳ごとの 0〜100 点（null は記録なし）、easiest はいちばん伸ばしやすい項目と上がる点。bands は目標 kcal から選ぶ SV の欄。diffs は前の日との差（同じ規則で数えた点どうし。目標は goal と day_type から選ぶ）。change_amount は量を変えたときの推定（数の項目は同じ割合、菓子かどうかは変わらない、推定していない項目は推定なしのまま）",
+  "cases": [
+    {
+      "name": "全部そろった日",
+      "calc": "合計 kcal 2160・P 126・F 60、主食 6・副菜 1・主菜 4・乳 2・果物 1、食物繊維 11、食塩 9、お酒 0、菓子 0。エネルギー 2160 は 2400 の −10% → 100。たんぱく質 126 は 140 の 90% → 100。バランス（基本形）：主食 1、副菜 1/5 = 0.2、主菜 1、乳 1、果物 1/2 = 0.5、食物繊維 11/22 = 0.5 → 4.2/6 = 0.7 → 70。控えたいもの：食塩 1 − 1.5/7.5 = 0.8、脂質 25% で 1、菓子 1、お酒 1 → 0.95 → 95。点 (1+1+0.7+0.95)/4 = 0.9125 → 91。伸ばしやすいのは副菜 0.8×100/4/6 = 3.33 → +3",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 91,
+        "parts": {
+          "energy": 100,
+          "protein": 100,
+          "balance": 70,
+          "moderation": 95
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_side",
+          "advice": "副菜をあと 4 つ",
+          "gain": 3
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "推定のない品目が1つでもある日は_推定の項目が記録なし",
+      "calc": "アプリで手入力した品目（推定なし、kcal 0.0001）を足す。バランスは全部記録なし、控えたいものは脂質だけ（25% で 1）。点 (1+1+1)/3 = 1 → 100。全部満点なので伸ばしやすい項目はない",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 0.0001,
+          "protein_g": 0,
+          "fat_g": 0
+        }
+      ],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 100,
+        "parts": {
+          "energy": 100,
+          "protein": 100,
+          "balance": null,
+          "moderation": 100
+        },
+        "easiest": null,
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "食塩だけ推定がない日は_食塩だけを除いて割り直す",
+      "calc": "控えたいもの：脂質 1、菓子 1、お酒 1 → 100。点 (1+1+0.7+1)/4 = 0.925 → 92.5 は 93（.5 は上げる）。伸ばしやすいのは副菜 0.8×100/4/6 = 3.33 → +3",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 0.0001,
+          "protein_g": 0,
+          "fat_g": 0,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": null,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 93,
+        "parts": {
+          "energy": 100,
+          "protein": 100,
+          "balance": 70,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_side",
+          "advice": "副菜をあと 4 つ",
+          "gain": 3
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "目標がない日は_エネルギーとたんぱく質が記録なしで_SVは基本形の欄",
+      "calc": "(0.7+0.95)/2 = 0.825 → 82.5 は 83。副菜 0.8×100/2/6 = 6.67 → +7（食塩は 0.2×100/2/4 = 2.5）",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 83,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 70,
+          "moderation": 95
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_side",
+          "advice": "副菜をあと 4 つ",
+          "gain": 7
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "目標kcalが2600なら_2400から3000の欄",
+      "calc": "エネルギー：2160 は 2600 の −16.92% → 1 − (0.1692 − 0.1)/0.4 = 0.8269 → 83。バランス：主食 6（6〜8）1、副菜 1/6、主菜 4（4〜6）1、乳 2（2〜3）1、果物 1/2、食物繊維 0.5 → 4.1667/6 = 0.6944 → 69。点 (0.8269+1+0.6944+0.95)/4 = 0.8678 → 87。伸ばしやすいのはエネルギー 0.1731×100/4 = 4.33 → +4（副菜は 0.8333×100/24 = 3.47）、あと |2160 − 2600| = 440 kcal",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2600,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 87,
+        "parts": {
+          "energy": 83,
+          "protein": 100,
+          "balance": 69,
+          "moderation": 95
+        },
+        "easiest": {
+          "part": "energy",
+          "key": "kcal",
+          "advice": "エネルギーをあと 440 kcal",
+          "gain": 4
+        },
+        "band": {
+          "label": "2,400〜3,000kcal",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "控えたいもの_女性",
+      "calc": "合計 kcal 2000、脂質 50g（22.5%）、食塩 9g、お酒 20g、菓子 300kcal。食塩 1 − 2.5/6.5 = 0.6154、脂質 1、菓子 1 − 100/200 = 0.5、お酒 20g は 20g 以上 → 1 − 20/40 = 0.5 → 2.6154/4 = 0.6538 → 65。伸ばしやすいのは菓子とお酒が同じ 0.5×100/4 = 12.5 で、並びの先の菓子 → +13（12.5 は上げる）",
+      "items": [
+        {
+          "kcal": 1500,
+          "protein_g": 0,
+          "fat_g": 50,
+          "salt_g": 9,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 200,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 20,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 300,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": true
+        }
+      ],
+      "target": null,
+      "sex": "female",
+      "expected": {
+        "score": 65,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 65
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "snack_kcal",
+          "advice": "菓子・甘い飲み物を 100 kcal 控えめに",
+          "gain": 13
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "控えたいもの_男性",
+      "calc": "食塩 1 − 1.5/7.5 = 0.8、脂質 1、菓子 0.5、お酒 20g は 40g 未満 → 1 → 3.3/4 = 0.825 → 83。伸ばしやすいのは菓子 0.5×100/4 = 12.5 → +13",
+      "items": [
+        {
+          "kcal": 1500,
+          "protein_g": 0,
+          "fat_g": 50,
+          "salt_g": 9,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 200,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 20,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 300,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": true
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 83,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 83
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "snack_kcal",
+          "advice": "菓子・甘い飲み物を 100 kcal 控えめに",
+          "gain": 13
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "控えたいもの_性別がなければ厳しいほう",
+      "calc": "食塩 6.5g・お酒 20g で女性と同じ → 65",
+      "items": [
+        {
+          "kcal": 1500,
+          "protein_g": 0,
+          "fat_g": 50,
+          "salt_g": 9,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 200,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 20,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 300,
+          "protein_g": 0,
+          "fat_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": true
+        }
+      ],
+      "target": null,
+      "sex": null,
+      "expected": {
+        "score": 65,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 65
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "snack_kcal",
+          "advice": "菓子・甘い飲み物を 100 kcal 控えめに",
+          "gain": 13
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "性別がないときの食物繊維は22g",
+      "calc": "食物繊維 11/22 = 0.5 → バランス 50。脂質 0g は 0% で 20% から 20 ポイント → 0 → 控えたいもの 0。点 (0.5+0)/2 = 0.25 → 25。伸ばしやすいのは脂質 1×100/2/1 = 50",
+      "items": [
+        {
+          "kcal": 100,
+          "protein_g": 0,
+          "fat_g": 0,
+          "fiber_g": 11
+        }
+      ],
+      "target": null,
+      "sex": null,
+      "expected": {
+        "score": 25,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 50,
+          "moderation": 0
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "fat_ratio",
+          "advice": "脂質をもう少し（油・ナッツ・魚など）",
+          "gain": 50
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "脂質が少ない日",
+      "calc": "脂質 30g × 9 / 2000 = 13.5% は 20% から 6.5 ポイント → 1 − 0.65 = 0.35 → 35。点 35。伸ばしやすいのは脂質 0.65×100 = 65",
+      "items": [
+        {
+          "kcal": 2000,
+          "protein_g": 0,
+          "fat_g": 30
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 35,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 35
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "fat_ratio",
+          "advice": "脂質をもう少し（油・ナッツ・魚など）",
+          "gain": 65
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "脂質が多い日",
+      "calc": "脂質 80g × 9 / 2000 = 36% は 30% から 6 ポイント → 0.4 → 40。伸ばしやすいのは脂質 0.6×100 = 60",
+      "items": [
+        {
+          "kcal": 2000,
+          "protein_g": 0,
+          "fat_g": 80
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 40,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 40
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "fat_ratio",
+          "advice": "脂質を控えめに（揚げ物を焼き・蒸しに替えるなど）",
+          "gain": 60
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "エネルギーが目標の30パーセント多い日",
+      "calc": "2600 は 2000 の +30% → 1 − (0.3 − 0.1)/0.4 = 0.5 → 50。脂質 65g は 585/2600 = 22.5% → 100。点 0.75 → 75。伸ばしやすいのはエネルギー 0.5×100/2 = 25、600 kcal 多い。SV の欄は目標 2000 で基本形",
+      "items": [
+        {
+          "kcal": 2600,
+          "protein_g": 0,
+          "fat_g": 65
+        }
+      ],
+      "target": {
+        "kcal": 2000,
+        "protein_g": null
+      },
+      "sex": "male",
+      "expected": {
+        "score": 75,
+        "parts": {
+          "energy": 50,
+          "protein": null,
+          "balance": null,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "energy",
+          "key": "kcal",
+          "advice": "エネルギーを 600 kcal 控えめに",
+          "gain": 25
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "たんぱく質が足りない日",
+      "calc": "45 / (100×0.9) = 0.5 → 50。脂質 25×9/900 = 25% → 100。点 0.75 → 75。伸ばしやすいのはたんぱく質 0.5×100/2 = 25、あと 100 − 45 = 55 g",
+      "items": [
+        {
+          "kcal": 900,
+          "protein_g": 45,
+          "fat_g": 25
+        }
+      ],
+      "target": {
+        "kcal": null,
+        "protein_g": 100
+      },
+      "sex": "male",
+      "expected": {
+        "score": 75,
+        "parts": {
+          "energy": null,
+          "protein": 50,
+          "balance": null,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "protein",
+          "key": "protein_g",
+          "advice": "たんぱく質をあと 55 g",
+          "gain": 25
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "たんぱく質は多くても下げない",
+      "calc": "200 は 100 の 90% 以上 → 100。脂質 25% → 100。点 100",
+      "items": [
+        {
+          "kcal": 900,
+          "protein_g": 200,
+          "fat_g": 25
+        }
+      ],
+      "target": {
+        "kcal": null,
+        "protein_g": 100
+      },
+      "sex": "male",
+      "expected": {
+        "score": 100,
+        "parts": {
+          "energy": null,
+          "protein": 100,
+          "balance": null,
+          "moderation": 100
+        },
+        "easiest": null,
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "食塩が多い日_あと何gは小数1桁",
+      "calc": "食塩 9.5g（男性 7.5g）→ 1 − 2/7.5 = 0.7333、脂質 22.5% 1、菓子 1、お酒 1 → 3.7333/4 = 0.9333 → 93。伸ばしやすいのは食塩 0.2667×100/4 = 6.67 → +7、9.5 − 7.5 = 2 g は「2.0 g」と見せる",
+      "items": [
+        {
+          "kcal": 2000,
+          "protein_g": 0,
+          "fat_g": 50,
+          "salt_g": 9.5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 93,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 93
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "salt_g",
+          "advice": "食塩を 2.0 g 控えめに",
+          "gain": 7
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "主食が目安より多い日",
+      "calc": "基本形の欄。主食 9（5〜7）→ 7/9 = 0.7778、副菜 5・主菜 4・乳 2・果物 2・食物繊維 22 は 1 → 5.7778/6 = 0.9630 → 96。控えたいものは脂質 22.5% だけ → 100。点 (0.9630+1)/2 = 0.9815 → 98。伸ばしやすいのは主食 0.2222×100/2/6 = 1.85 → +2、9 − 7 = 2 つ多い",
+      "items": [
+        {
+          "kcal": 2000,
+          "protein_g": 0,
+          "fat_g": 50,
+          "sv_staple": 9,
+          "sv_side": 5,
+          "sv_main": 4,
+          "sv_dairy": 2,
+          "sv_fruit": 2,
+          "fiber_g": 22
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 98,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 96,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_staple",
+          "advice": "主食を 2 つ控えめに",
+          "gain": 2
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "お酒がリスクを高める量ちょうど",
+      "calc": "男性 40g ちょうど → 1 − 40/80 = 0.5。食塩 0、脂質 22.5%、菓子 0 は 1 → 3.5/4 = 0.875 → 87.5 は 88。伸ばしやすいのはお酒 0.5×100/4 = 12.5 → +13",
+      "items": [
+        {
+          "kcal": 2000,
+          "protein_g": 0,
+          "fat_g": 50,
+          "salt_g": 0,
+          "alcohol_g": 40,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": null,
+      "sex": "male",
+      "expected": {
+        "score": 88,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": null,
+          "moderation": 88
+        },
+        "easiest": {
+          "part": "moderation",
+          "key": "alcohol_g",
+          "advice": "お酒を控えめに（純アルコール 40 g 未満が目安）",
+          "gain": 13
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": false
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    },
+    {
+      "name": "食事がない日は点を出さない",
+      "calc": "品目がない → null",
+      "items": [],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": null,
+      "in_progress": false
+    },
+    {
+      "name": "途中の日（今日）は_エネルギーとたんぱく質を外して割り直す",
+      "calc": "全部そろった日と同じ品目で、今日（途中）。エネルギーとたんぱく質は 1 日の終わりに付くので数えない。(0.7+0.95)/2 = 0.825 → 82.5 は 83。伸ばしやすいのは副菜 0.8×100/2/6 = 6.67 → +7（エネルギー・たんぱく質は勧めない）",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "in_progress": true,
+      "expected": {
+        "score": 83,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 70,
+          "moderation": 95
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_side",
+          "advice": "副菜をあと 4 つ",
+          "gain": 7
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": [
+          "energy",
+          "protein"
+        ]
+      }
+    },
+    {
+      "name": "途中の日は_目標より少なくてもエネルギーを勧めない",
+      "calc": "800kcal・P 40・F 20（22.5%）、推定はどれも 0。今日（途中）。バランス（目標 2000 は基本形）：5 区分も食物繊維も 0 → 0。控えたいもの：食塩 0・脂質・菓子 0・お酒 0 は 1 → 100。点 (0+1)/2 = 0.5 → 50。伸ばしやすいのは主食（並びの先）1×100/2/6 = 8.33 → +8、あと 5 つ",
+      "items": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2000,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "in_progress": true,
+      "expected": {
+        "score": 50,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 0,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_staple",
+          "advice": "主食をあと 5 つ",
+          "gain": 8
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": [
+          "energy",
+          "protein"
+        ]
+      }
+    },
+    {
+      "name": "過ぎた日は4つで数え_あと何kcalは3桁区切り",
+      "calc": "同じ品目で、過ぎた日。エネルギー 800 は 2000 の −60% → 0。たんぱく質 40/(140×0.9) = 0.3175 → 32。バランス 0、控えたいもの 1。点 (0+0.3175+0+1)/4 = 0.3294 → 33。伸ばしやすいのはエネルギー 1×100/4 = 25、あと 1,200 kcal",
+      "items": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2000,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 33,
+        "parts": {
+          "energy": 0,
+          "protein": 32,
+          "balance": 0,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "energy",
+          "key": "kcal",
+          "advice": "エネルギーをあと 1,200 kcal",
+          "gain": 25
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
+    }
+  ],
+  "bands": [
+    {
+      "kcal": null,
+      "label": "2,200±200kcal（基本形）",
+      "from_target": false
+    },
+    {
+      "kcal": 1200,
+      "label": "1,400〜2,000kcal",
+      "from_target": true
+    },
+    {
+      "kcal": 1999,
+      "label": "1,400〜2,000kcal",
+      "from_target": true
+    },
+    {
+      "kcal": 2000,
+      "label": "2,200±200kcal（基本形）",
+      "from_target": true
+    },
+    {
+      "kcal": 2400,
+      "label": "2,200±200kcal（基本形）",
+      "from_target": true
+    },
+    {
+      "kcal": 2401,
+      "label": "2,400〜3,000kcal",
+      "from_target": true
+    },
+    {
+      "kcal": 3500,
+      "label": "2,400〜3,000kcal",
+      "from_target": true
+    }
+  ],
+  "change_amount": [
+    {
+      "name": "量を1.5倍にすると_推定の数も1.5倍_推定していない項目はそのまま",
+      "before": {
+        "amount": 200,
+        "unit": "g",
+        "kcal": 300,
+        "protein_g": 10,
+        "fat_g": 5,
+        "carbs_g": 50,
+        "sv_staple": 1.5,
+        "sv_side": 0,
+        "sv_main": null,
+        "sv_dairy": null,
+        "sv_fruit": null,
+        "fiber_g": 2,
+        "salt_g": 0.5,
+        "alcohol_g": 0,
+        "is_snack_or_sweet_drink": false
+      },
+      "amount": 300,
+      "after": {
+        "amount": 300,
+        "unit": "g",
+        "kcal": 450,
+        "protein_g": 15,
+        "fat_g": 7.5,
+        "carbs_g": 75,
+        "sv_staple": 2.25,
+        "sv_side": 0,
+        "sv_main": null,
+        "sv_dairy": null,
+        "sv_fruit": null,
+        "fiber_g": 3,
+        "salt_g": 0.75,
+        "alcohol_g": 0,
+        "is_snack_or_sweet_drink": false
+      }
+    },
+    {
+      "name": "量を半分にしても_菓子かどうかは変わらない",
+      "before": {
+        "amount": 2,
+        "unit": "個",
+        "kcal": 400,
+        "protein_g": 6,
+        "fat_g": 20,
+        "carbs_g": 50,
+        "sv_staple": 0,
+        "sv_side": 0,
+        "sv_main": 0,
+        "sv_dairy": 1,
+        "sv_fruit": 0,
+        "fiber_g": 1,
+        "salt_g": 0.4,
+        "alcohol_g": 0,
+        "is_snack_or_sweet_drink": true
+      },
+      "amount": 1,
+      "after": {
+        "amount": 1,
+        "unit": "個",
+        "kcal": 200,
+        "protein_g": 3,
+        "fat_g": 10,
+        "carbs_g": 25,
+        "sv_staple": 0,
+        "sv_side": 0,
+        "sv_main": 0,
+        "sv_dairy": 0.5,
+        "sv_fruit": 0,
+        "fiber_g": 0.5,
+        "salt_g": 0.2,
+        "alcohol_g": 0,
+        "is_snack_or_sweet_drink": true
+      }
+    },
+    {
+      "name": "推定のない品目は量を変えても推定なし",
+      "before": {
+        "amount": 100,
+        "unit": "g",
+        "kcal": 100,
+        "protein_g": 1,
+        "fat_g": 1,
+        "carbs_g": 1,
+        "sv_staple": null,
+        "sv_side": null,
+        "sv_main": null,
+        "sv_dairy": null,
+        "sv_fruit": null,
+        "fiber_g": null,
+        "salt_g": null,
+        "alcohol_g": null,
+        "is_snack_or_sweet_drink": null
+      },
+      "amount": 250,
+      "after": {
+        "amount": 250,
+        "unit": "g",
+        "kcal": 250,
+        "protein_g": 2.5,
+        "fat_g": 2.5,
+        "carbs_g": 2.5,
+        "sv_staple": null,
+        "sv_side": null,
+        "sv_main": null,
+        "sv_dairy": null,
+        "sv_fruit": null,
+        "fiber_g": null,
+        "salt_g": null,
+        "alcohol_g": null,
+        "is_snack_or_sweet_drink": null
+      }
+    }
+  ],
+  "diffs": [
+    {
+      "name": "今日（途中）と前の日は_同じ規則で数えた点どうしで比べる",
+      "calc": "休みの日の目標 2000kcal・たんぱく質 140g。今日は 800kcal の日で途中 → 50。前の日（全部そろった日）も今日と同じくエネルギーとたんぱく質を外す → (0.7+0.95)/2 = 0.825 → 83。差 50 − 83 = −33",
+      "goal": {
+        "policy": "maintain",
+        "body_weight_kg": 70,
+        "protein_per_kg": 2,
+        "targets": {
+          "training_day": {
+            "kcal": 2400,
+            "fat_g": 60,
+            "carbs_g": 300
+          },
+          "rest_day": {
+            "kcal": 2000,
+            "fat_g": 55,
+            "carbs_g": 250
+          }
+        }
+      },
+      "day_type": "rest",
+      "sex": "male",
+      "in_progress": true,
+      "today": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "previous": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "expected": {
+        "points": 50,
+        "previous_points": 83,
+        "diff": -33
+      }
+    },
+    {
+      "name": "過ぎた日と前の日は_4つで数えた点どうしで比べる",
+      "calc": "今日でない日は 800kcal の日 → 33。前の日（全部そろった日）はエネルギー 2160 は 2000 の +8% → 1、たんぱく質 126 は 126 以上 → 1、バランス 0.7、控えたいもの 0.95 → 0.9125 → 91。差 33 − 91 = −58",
+      "goal": {
+        "policy": "maintain",
+        "body_weight_kg": 70,
+        "protein_per_kg": 2,
+        "targets": {
+          "training_day": {
+            "kcal": 2400,
+            "fat_g": 60,
+            "carbs_g": 300
+          },
+          "rest_day": {
+            "kcal": 2000,
+            "fat_g": 55,
+            "carbs_g": 250
+          }
+        }
+      },
+      "day_type": "rest",
+      "sex": "male",
+      "in_progress": false,
+      "today": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "previous": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "expected": {
+        "points": 33,
+        "previous_points": 91,
+        "diff": -58
+      }
+    }
+  ]
+}
