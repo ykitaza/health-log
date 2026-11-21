@@ -41,6 +41,8 @@ class ItemInput(BaseModel):
     confidence: Literal["high", "medium", "low"] = Field(
         "medium", description="推定の確かさ。写真から量を推定したものは low か medium")
     # 食事のスコアに使う推定。写真や言葉から推定して記録するときは、どの品目にも全部入れる（ないものは 0 か false）。
+    # SV の数え方と料理の例は食事バランスガイド（https://www.maff.go.jp/j/balance_guide/b_report/gaiyou.html、
+    # https://www.maff.go.jp/j/syokuiku/zissen_navi/balance/division.html）。純アルコールの式は厚生労働省の飲酒のガイドライン
     # 省く（null）と「推定していない」になり、その日のスコアのその内訳は「記録なし」になる
     sv_staple: Sv | None = Field(None, description=(
         "食事バランスガイドの主食の「つ（SV）」。ごはん・パン・めん由来の炭水化物 約40g で1つ（ごはん中盛り1杯 ≒ 1.5つ）。ないなら 0"))

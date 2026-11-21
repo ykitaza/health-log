@@ -114,7 +114,8 @@ SCORE_SEX_NOTE = ("性別がサーバーにないので、男女のうち厳し�
 def _score_item(i) -> dict:
     return {
         "key": i.key, "label": i.label, "points": None if i.ratio is None else js_round(100 * i.ratio),
-        "value": None if i.value is None else round1(i.value), "low": i.low, "high": i.high, "unit": i.unit,
+        "value": None if i.value is None else round1(i.value),
+        "low": None if i.low is None else round1(i.low), "high": None if i.high is None else round1(i.high), "unit": i.unit,
     }
 
 
