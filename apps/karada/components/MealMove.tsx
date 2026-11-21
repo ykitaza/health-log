@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, PanResponderInstance, ScrollView, StyleSheet, Vibration, View, ViewInstance } from 'react-native';
+import { AccessibilityInfo, PanResponder, Platform, PanResponderInstance, ScrollView, StyleSheet, Vibration, View, ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useScreenScroll } from '@/hooks/useOnScreen';
@@ -54,6 +54,17 @@ export function useMealDrag({ onDrop, onMenu }: { onDrop: (meal: Meal, to: Slot)
   const session = useRef<Session | null>(null);
   const y = useSharedValue(0);
   const lift = useSharedValue(0);
+  // 読み上げ（TalkBack）がオンなら、長押しで持ち上げずにメニューを開く（2回タップして長押しは、指を離す知らせが来ないことがあり、
+  // 持ち上げたまま・スクロールが止まったままにしないため）
+  const screenReader = useRef(false);
+  // web（react-native-web）は読み上げを見分けられず、いつも「オン」と返すので、見ない（マウスでドラッグできる）
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let alive = true;
+    AccessibilityInfo.isScreenReaderEnabled().then((on) => { if (alive) screenReader.current = on; }).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', (on) => { screenReader.current = on; });
+    return () => { alive = false; sub.remove(); };
+  }, []);
   const latest = useRef({ onDrop, onMenu, reduced, watch });
   useLayoutEffect(() => { latest.current = { onDrop, onMenu, reduced, watch }; });
 
@@ -122,6 +133,7 @@ export function useMealDrag({ onDrop, onMenu }: { onDrop: (meal: Meal, to: Slot)
   /** 長押しで持ち上げる（行の onLongPress） */
   const begin = useCallback((meal: Meal) => {
     if (session.current) return;
+    if (screenReader.current) { latest.current.onMenu(meal); return; }
     const w = latest.current.watch;
     const s: Session = { meal, boxes: [], offset0: w?.offset ?? 0, panning: false, dy: 0, y: 0, over: null, timer: null, scrollTo: null };
     session.current = s;
