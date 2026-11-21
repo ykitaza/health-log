@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { CaptureForm } from '@/components/CaptureForm';
 import { Icon } from '@/components/Icon';
 import { SettingsButton } from '@/components/SettingsButton';
-import { Button, Header, Screen, T } from '@/components/ui';
+import { Button, Header, NO_SPACING, ONE_LINE, Screen, T } from '@/components/ui';
 import { InkSettle, Seal } from '@/components/wa';
 import type { ListItem } from '@/db/repositories/words';
 import { useData } from '@/hooks/data';
@@ -87,7 +87,7 @@ export default function HomeScreen() {
           >
             <View style={{ flex: 1, gap: 2 }}>
               <T variant="label" color={colors.sub}>今週の一文</T>
-              <T variant="wordS" style={{ fontSize: 20 }} testID="home-week-line">{line}</T>
+              <T variant="wordS" style={{ fontSize: 20, ...NO_SPACING }} testID="home-week-line">{line}</T>
               <T variant="label" color={colors.accent}>記録を見る ›</T>
             </View>
             {data.seals.length > 0 && (
@@ -108,7 +108,7 @@ export default function HomeScreen() {
                   {data.hand.map((e) => (
                     <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`${e.text}、手札${e.star ? '、★' : ''}`} onPress={() => router.push(`/word/${e.id}`)}
                       style={({ pressed }) => [s.handRow, pressed && { opacity: 0.6 }]} testID="home-hand-card">
-                      <T variant="word" numberOfLines={1} style={{ flex: 1 }}>{e.text}</T>
+                      <T variant="word" {...ONE_LINE} style={{ flex: 1 }}>{e.text}</T>
                       <T variant="label" color={colors.accent}>手札</T>
                       {e.star && <Icon name="star" size={20} color={colors.sub} />}
                     </Pressable>
@@ -141,7 +141,7 @@ export default function HomeScreen() {
                   <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.text} onPress={() => router.push(`/word/${e.id}`)} style={s.recent} testID="recent-row">
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m }}>
                       <InkSettle play={e.id === savedId} style={{ flex: 1 }}>
-                        <T variant="word" numberOfLines={2}>{e.text}</T>
+                        <T variant="word" numberOfLines={2} style={NO_SPACING}>{e.text}</T>
                       </InkSettle>
                       {e.place === 'hand' && <T variant="label" color={colors.accent}>手札</T>}
                     </View>
@@ -163,7 +163,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.l, borderWidth: 1, borderColor: colors.line, minHeight: 64,
   },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m },
-  more: { minHeight: 44, justifyContent: 'center' },
+  more: { minHeight: 48, justifyContent: 'center' },
   handRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 52 },
   recent: { paddingVertical: space.s, gap: 2, minHeight: 56, justifyContent: 'center' },
 });

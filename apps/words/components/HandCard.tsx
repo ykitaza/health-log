@@ -4,7 +4,7 @@ import type { ListItem } from '@/db/repositories/words';
 import { isDue } from '@/lib/schedule';
 import { Source, STAGE_LABELS, STAGE_STEPS } from '@/lib/types';
 import { colors, radius, space } from '@/theme';
-import { T } from './ui';
+import { NO_SPACING, T } from './ui';
 import { Seal } from './wa';
 
 /** 段階の印（2本の線。意味がわかる → 使えた） */
@@ -30,11 +30,11 @@ export function HandCard({ e, sources, today }: { e: ListItem; sources: Source[]
       style={({ pressed }) => [s.card, pressed && { opacity: 0.7 }]}
       testID="hand-card"
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.s, rowGap: 2 }}>
         <StageDashes step={STAGE_STEPS[stage]} />
         <T variant="label" color={colors.sub}>{STAGE_LABELS[stage]}</T>
       </View>
-      <T variant="wordS" numberOfLines={2} style={{ fontSize: 20, lineHeight: 30 }}>{e.text}</T>
+      <T variant="wordS" numberOfLines={3} style={{ fontSize: 20, lineHeight: 30, ...NO_SPACING }}>{e.text}</T>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
         <T variant="label" color={colors.sub} numberOfLines={1} style={{ flex: 1 }}>{where}</T>
         {due && (
@@ -52,7 +52,7 @@ export function HandCard({ e, sources, today }: { e: ListItem; sources: Source[]
 export function EmptySlot({ onPress }: { onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="空き。拾ったから選ぶ" onPress={onPress} style={({ pressed }) => [s.card, s.empty, pressed && { opacity: 0.6 }]} testID="hand-empty">
-      <T variant="bodyS" color={colors.faint}>空き</T>
+      <T variant="bodyS" color={colors.sub}>空き</T>
     </Pressable>
   );
 }

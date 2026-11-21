@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { TagAdd } from '@/components/TagAdd';
-import { Button, Chip, ConfirmDialog, Field, IconButton, Notice, Screen, SectionTitle, Sheet, T } from '@/components/ui';
+import { Button, Chip, ConfirmDialog, Field, IconButton, NO_SPACING, Notice, Screen, SectionTitle, Sheet, T } from '@/components/ui';
 import { Bookmark, Seal } from '@/components/wa';
 import type { TagLink } from '@/db/repositories/words';
 import { useData, useRepos } from '@/hooks/data';
@@ -142,7 +142,7 @@ export default function WordScreen() {
 
       <View style={{ paddingTop: space.s }}>
         {e.place === 'hand' && <Bookmark play={played === 'bookmark'} style={{ top: space.s, right: 0 }} />}
-        <T variant="wordXL" testID="word-text" style={{ paddingRight: space.xxl }}>{e.text}</T>
+        <T variant="wordXL" testID="word-text" style={{ paddingRight: space.xxl, ...NO_SPACING }}>{e.text}</T>
         {e.reading !== '' && <T variant="bodyS" color={colors.sub}>{e.reading}</T>}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m, marginTop: space.s }}>
           <T variant="bodyS" color={colors.sub} style={{ flex: 1 }} testID="word-meta">
@@ -186,8 +186,8 @@ export default function WordScreen() {
       )}
       {e.scene !== '' && <T variant="body" color={colors.sub} style={{ marginTop: space.s }} testID="word-scene">{e.scene}</T>}
       {cloze && clozeEnc && (
-        <T variant="wordS" style={{ marginTop: space.m, fontSize: 20, lineHeight: 34 }}>
-          {cloze.before}<T variant="wordS" color={colors.accent} style={{ fontSize: 20, lineHeight: 34, textDecorationLine: 'underline' }}>{cloze.answer}</T>{cloze.after}
+        <T variant="wordS" style={{ marginTop: space.m, fontSize: 20, lineHeight: 34, ...NO_SPACING }}>
+          {cloze.before}<T variant="wordS" color={colors.accent} style={{ fontSize: 20, lineHeight: 34, textDecorationLine: 'underline', ...NO_SPACING }}>{cloze.answer}</T>{cloze.after}
         </T>
       )}
       {!first && e.scene === '' && <T variant="bodyS" color={colors.sub}>まだありません</T>}
@@ -221,7 +221,7 @@ export default function WordScreen() {
           <View key={x.text} style={[s.example, proposed && s.exampleProposed]} testID="example-row">
             <Pressable accessibilityRole={proposed ? 'button' : 'text'} accessibilityLabel={`${x.text}、${who}`} style={{ flex: 1, gap: 2 }}
               onPress={proposed ? () => repos.words.confirmExample(e.id, x.text) : undefined} disabled={!proposed}>
-              <T variant="wordS">{x.text}</T>
+              <T variant="wordS" style={NO_SPACING}>{x.text}</T>
               <T variant="caption" color={colors.sub}>{x.origin === 'user' ? '自分' : proposed ? 'Claude の案（タップで確かめる）' : 'Claude'}</T>
             </Pressable>
             {editExamples && <IconButton name="close" label={`${x.text}を外す`} size={18} color={colors.sub} onPress={() => repos.words.removeExample(e.id, x.text)} />}
@@ -230,7 +230,7 @@ export default function WordScreen() {
       })}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}>
         <TextInput
-          value={newExample} onChangeText={setNewExample} placeholder="例文を足す" placeholderTextColor={colors.faint} maxLength={200}
+          value={newExample} onChangeText={setNewExample} placeholder="例文を足す" placeholderTextColor={colors.sub} maxLength={200}
           accessibilityLabel="例文を足す" style={s.exampleInput} testID="example-input"
           onSubmitEditing={() => { if (newExample.trim()) { void repos.words.addExample(e.id, newExample); setNewExample(''); } }}
         />
@@ -263,7 +263,7 @@ export default function WordScreen() {
           <View style={[s.wrap, { gap: space.l }]}>
             {sameScene.map((x) => (
               <Pressable key={x.id} accessibilityRole="link" onPress={() => router.push(`/word/${x.id}`)}>
-                <T variant="wordS" color={colors.accent} style={{ textDecorationLine: 'underline' }}>{x.text}</T>
+                <T variant="wordS" color={colors.accent} style={{ textDecorationLine: 'underline', ...NO_SPACING }}>{x.text}</T>
               </Pressable>
             ))}
           </View>
@@ -332,5 +332,5 @@ const s = StyleSheet.create({
   encounter: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 48 },
   example: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: space.s, paddingLeft: space.m, borderLeftWidth: 2, borderLeftColor: colors.ink, marginBottom: space.s },
   exampleProposed: { borderLeftColor: colors.sub, borderStyle: 'dashed', borderLeftWidth: 2 },
-  exampleInput: { flex: 1, fontFamily: fonts.mincho, fontSize: 17, color: colors.ink, borderBottomWidth: 1, borderBottomColor: colors.line, minHeight: 44 },
+  exampleInput: { flex: 1, fontFamily: fonts.mincho, fontSize: 17, color: colors.ink, borderBottomWidth: 1, borderBottomColor: colors.faint, minHeight: 48 },
 });

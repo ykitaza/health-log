@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 import { SettingsButton } from '@/components/SettingsButton';
-import { Button, Header, Screen, T } from '@/components/ui';
+import { Button, Header, NO_SPACING, Screen, T } from '@/components/ui';
 import { BrushReveal } from '@/components/wa';
 import { useListen } from '@/hooks/listen';
 import { progressOf } from '@/lib/listen/queue';
@@ -68,7 +68,7 @@ export default function ListenScreen() {
             {/* 次の表現に移ったら、筆で書くように左から現れる（鳴らしているときだけ。動きを減らす設定ではフェード） */}
             <View testID="listen-current" accessible accessibilityLabel={current?.text ?? ''}>
               <BrushReveal key={current?.id ?? 'none'} play={state.playing}>
-                <T variant="wordXL" style={{ fontSize: 44, lineHeight: 60 }} numberOfLines={3}>{current?.text ?? ''}</T>
+                <T variant="wordXL" style={{ fontSize: 44, lineHeight: 60, ...NO_SPACING }} numberOfLines={3}>{current?.text ?? ''}</T>
               </BrushReveal>
             </View>
             {current?.reading ? <T variant="body" color={colors.sub}>{current.reading}</T> : null}

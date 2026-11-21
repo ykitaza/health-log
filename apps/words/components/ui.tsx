@@ -27,10 +27,15 @@ const VARIANTS: Record<Variant, TextStyle> = {
   wordS: { fontFamily: fonts.mincho, fontSize: 18, lineHeight: 30, letterSpacing: 1 },
   body: { fontFamily: fonts.sans, fontSize: 16, lineHeight: 26 },
   bodyS: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 22 },
-  label: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 20 },
-  caption: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 18 },
+  label: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 20 },
+  caption: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 20 },
   section: { fontFamily: fonts.sansBold, fontSize: 15, lineHeight: 22 },
 };
+
+/** 1 行が前提の明朝の表現：折り返さず、はみ出すなら 8 割まで小さくする（かなの途中で 1 字だけ次の行に落ちない） */
+export const ONE_LINE = { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.8 } as const;
+/** 複数行になる明朝の文・表現：字間を足さない（狭い幅で 1 字はみ出して、かなの途中で折り返すのを防ぐ） */
+export const NO_SPACING = { letterSpacing: 0 } as const;
 
 export function T({ variant = 'body', color = colors.ink, bold, style, ...rest }: TextProps & { variant?: Variant; color?: string; bold?: boolean }) {
   return <Text {...rest} style={[VARIANTS[variant], { color }, bold && { fontFamily: fonts.sansBold }, style]} />;
@@ -68,8 +73,8 @@ export function Header({ title, count, onBack, right, testID }: {
       {onBack && <IconButton name="back" label="戻る" onPress={onBack} style={{ marginLeft: -space.m }} />}
       {title != null && (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.m, flexShrink: 1 }}>
-          <T variant="page" accessibilityRole="header" numberOfLines={1}>{title}</T>
-          {count != null && <T variant="body" color={colors.sub}>{count}</T>}
+          <T variant="page" accessibilityRole="header" {...ONE_LINE}>{title}</T>
+          {count != null && <T variant="body" color={colors.sub} numberOfLines={1} style={{ flexShrink: 0 }}>{count}</T>}
         </View>
       )}
       <View style={{ flex: 1 }} />
@@ -138,7 +143,7 @@ export function Chip({ label, onPress, onLongPress, variant = 'default', onRemov
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={{ selected }} aria-selected={selected}
-      onPress={onRemove ?? onPress} onLongPress={onLongPress} testID={testID}
+      onPress={onRemove ?? onPress} onLongPress={onLongPress} testID={testID} hitSlop={CHIP_SLOP}
       style={({ pressed }) => [s.chip, CHIP_STYLES[variant], pressed && { opacity: 0.7 }]}
     >
       {icon && <Icon name={icon} size={18} color={selected ? colors.accent : colors.ink} />}
@@ -147,6 +152,9 @@ export function Chip({ label, onPress, onLongPress, variant = 'default', onRemov
     </Pressable>
   );
 }
+
+/** チップの見た目は 40。押せる範囲を縦 48 に（上下 4） */
+const CHIP_SLOP = { top: 4, bottom: 4 } as const;
 
 const CHIP_STYLES: Record<ChipVariant, ViewStyle> = {
   default: { borderWidth: 1, borderColor: colors.line },
@@ -158,7 +166,7 @@ const CHIP_STYLES: Record<ChipVariant, ViewStyle> = {
 /** 丸い ＋（チップの並びの最後） */
 export function AddChip({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID={testID} style={({ pressed }) => [s.addChip, pressed && { opacity: 0.6 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID={testID} hitSlop={4} style={({ pressed }) => [s.addChip, pressed && { opacity: 0.6 }]}>
       <Icon name="plus" size={20} color={colors.sub} />
     </Pressable>
   );
@@ -170,9 +178,11 @@ export function Toggle({ value, onChange, label, testID }: { value: boolean; onC
     <Pressable
       // aria-checked も渡す（web は accessibilityState を aria-checked にしないので、読み上げとテストでオン・オフが分かるように）
       accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value }} aria-checked={value} onPress={() => onChange(!value)} testID={testID}
-      style={[s.toggle, value ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.sub }]}
+      style={s.toggleHit}
     >
-      <View style={[s.knob, value ? { alignSelf: 'flex-end', backgroundColor: colors.onAccent, width: 28, height: 28 } : { backgroundColor: colors.sub }]} />
+      <View style={[s.toggle, value ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.sub }]}>
+        <View style={[s.knob, value ? { alignSelf: 'flex-end', backgroundColor: colors.onAccent, width: 28, height: 28 } : { backgroundColor: colors.sub }]} />
+      </View>
     </Pressable>
   );
 }
@@ -184,7 +194,7 @@ export function Field({ label, style, inputStyle, mincho, ...rest }: TextInputPr
       <T variant="label" color={colors.sub}>{label}</T>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor={colors.faint}
+        placeholderTextColor={colors.sub}
         {...rest}
         style={[mincho ? VARIANTS.wordS : VARIANTS.body, { color: colors.ink, paddingVertical: space.xs, minHeight: 36 }, inputStyle]}
       />
@@ -195,8 +205,8 @@ export function Field({ label, style, inputStyle, mincho, ...rest }: TextInputPr
 export function SectionTitle({ title, right }: { title: string; right?: ReactNode }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xxl, marginBottom: space.m }}>
-      <T variant="section" accessibilityRole="header">{title}</T>
-      {right}
+      <T variant="section" accessibilityRole="header" style={{ flexShrink: 0 }}>{title}</T>
+      {right && <View style={{ flexShrink: 1, marginLeft: space.m }}>{right}</View>}
     </View>
   );
 }
@@ -282,7 +292,7 @@ export function LinkRow({ title, sub, onPress, testID }: { title: string; sub?: 
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', minHeight: 72, paddingTop: space.l, gap: space.s },
+  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', minHeight: 72, paddingTop: space.l, gap: space.s },
   iconButton: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
   button: { minHeight: 56, borderRadius: radius.m, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.l },
   buttonSmall: { minHeight: TOUCH, borderRadius: radius.s },
@@ -291,6 +301,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   addChip: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  /** 見た目は 56×32。押せる範囲は縦 48 */
+  toggleHit: { width: 56, height: TOUCH, justifyContent: 'center' },
   toggle: { width: 56, height: 32, borderRadius: 16, borderWidth: 2, padding: 2, justifyContent: 'center' },
   knob: { width: 16, height: 16, borderRadius: 14, marginHorizontal: 4 },
   sheet: { backgroundColor: colors.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: space.xl, paddingTop: space.m },

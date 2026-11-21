@@ -5,7 +5,7 @@ import { AiCaptureButton } from '@/components/ChatSheet';
 import { Icon } from '@/components/Icon';
 import { SourceChips } from '@/components/SourceChips';
 import { TagAdd } from '@/components/TagAdd';
-import { Button, Chip, Field, Notice, T, Toggle } from '@/components/ui';
+import { Button, Chip, Field, NO_SPACING, Notice, T, Toggle } from '@/components/ui';
 import type { CaptureResult } from '@/db/repositories/words';
 import { SEED_SOURCE_IDS } from '@/db/seed';
 import { useData, useRepos } from '@/hooks/data';
@@ -133,7 +133,7 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
       <View style={s.lineRow}>
         <TextInput
           value={text} onChangeText={(v) => { setText(v); if (v.trim()) setOpen(true); }}
-          placeholder="出会った言葉" placeholderTextColor={colors.faint}
+          placeholder="出会った言葉" placeholderTextColor={colors.sub}
           accessibilityLabel="ことば" style={s.word} maxLength={200} testID="capture-text"
         />
         <AiCaptureButton small prompt={() => ({ kind: 'capture', seedSource: seedName, wantToUse })} />
@@ -149,7 +149,7 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
             <View style={{ flex: 1, gap: space.xs }}>
               <T variant="label" color={colors.sub}>本・作品</T>
               <TextInput
-                value={title} onChangeText={setTitle} placeholder="題・人・場（なくてもよい）" placeholderTextColor={colors.faint}
+                value={title} onChangeText={setTitle} placeholder="題・人・場（なくてもよい）" placeholderTextColor={colors.sub}
                 accessibilityLabel="本・作品" style={s.titleInput} maxLength={200} testID="capture-title"
               />
             </View>
@@ -167,7 +167,7 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
                 <View key={m.id} style={s.matchRow}>
                   <View style={{ flex: 1 }}>
                     <T variant="label" color={colors.sub}>{m.id === matches.same?.id ? '同じ表現があります' : '似た表現があります'}</T>
-                    <T variant="wordS">{m.text}</T>
+                    <T variant="wordS" style={NO_SPACING}>{m.text}</T>
                   </View>
                   <Button label="また出会った" variant="text" small onPress={() => again(m.id)} testID={`again-${m.text}`} />
                 </View>
@@ -182,7 +182,7 @@ export function CaptureForm({ onSaved }: { onSaved?: (id: string) => void }) {
             {examples.map((x, i) => (
               <TextInput
                 key={i} value={x} onChangeText={(v) => setExamples((list) => list.map((y, j) => (j === i ? v : y)))}
-                placeholder={i === 0 ? '自分ならこう言う、という一文' : 'もう一つ'} placeholderTextColor={colors.faint} maxLength={200}
+                placeholder={i === 0 ? '自分ならこう言う、という一文' : 'もう一つ'} placeholderTextColor={colors.sub} maxLength={200}
                 accessibilityLabel={`例文 ${i + 1}`} style={s.example} testID={`capture-example-${i}`} multiline
               />
             ))}
@@ -239,12 +239,12 @@ const s = StyleSheet.create({
   titleInput: { fontFamily: fonts.sans, fontSize: 17, color: colors.ink, minHeight: 36 },
   same: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
   lineRow: { flexDirection: 'row', alignItems: 'center', gap: space.l },
-  word: { flex: 1, minWidth: 0, width: 0, fontFamily: fonts.mincho, fontSize: 24, lineHeight: 34, color: colors.ink, borderBottomWidth: 2, borderBottomColor: colors.accent, paddingVertical: space.xs, minHeight: 44 },
+  word: { flex: 1, minWidth: 0, width: 0, fontFamily: fonts.mincho, fontSize: 24, lineHeight: 34, color: colors.ink, borderBottomWidth: 2, borderBottomColor: colors.accent, paddingVertical: space.xs, minHeight: 48 },
   matches: { marginTop: space.m, gap: space.s },
   matchRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s, borderWidth: 1, borderColor: colors.line },
   examples: { gap: space.xs, paddingVertical: space.m, borderBottomWidth: 1, borderBottomColor: colors.line },
-  example: { fontFamily: fonts.mincho, fontSize: 18, lineHeight: 28, color: colors.ink, minHeight: 40, paddingVertical: space.xs },
-  addExample: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 44 },
+  example: { fontFamily: fonts.mincho, fontSize: 18, lineHeight: 28, color: colors.ink, minHeight: 48, paddingVertical: space.xs },
+  addExample: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 48 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: space.l, paddingVertical: space.m, borderBottomWidth: 1, borderBottomColor: colors.line },
   hintsHead: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 56, borderBottomWidth: 1, borderBottomColor: colors.line },
 });

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Chip, Header, Screen, SectionTitle, T } from '@/components/ui';
+import { Chip, Header, NO_SPACING, ONE_LINE, Screen, SectionTitle, T } from '@/components/ui';
 import { Seal } from '@/components/wa';
 import { useData } from '@/hooks/data';
 import { reviewDay } from '@/lib/date';
@@ -23,7 +23,7 @@ function Bars({ rows, unit }: { rows: Row[]; unit: Unit }) {
         <View key={b.from} style={s.barCol}>
           <T variant="caption" color={colors.sub}>{b.captured > 0 ? b.captured : ''}</T>
           <View style={[s.bar, { height: Math.max(2, (b.captured / max) * 96), backgroundColor: b.captured > 0 ? colors.accent : colors.line }]} />
-          <T variant="caption" color={colors.faint} numberOfLines={1}>{label(b, unit)}</T>
+          <T variant="caption" color={colors.sub} {...ONE_LINE}>{label(b, unit)}</T>
         </View>
       ))}
     </View>
@@ -54,7 +54,7 @@ export default function RecordsScreen() {
   return (
     <Screen testID="records-screen">
       <Header title="記録" onBack={() => router.back()} />
-      <T variant="wordS" testID="records-lead">{encouragement(items.length, thisWeek)}</T>
+      <T variant="wordS" style={NO_SPACING} testID="records-lead">{encouragement(items.length, thisWeek)}</T>
 
       <SectionTitle title="拾った" right={(
         <View style={{ flexDirection: 'row', gap: space.s }}>
@@ -75,7 +75,7 @@ export default function RecordsScreen() {
           {seals.map((e) => (
             <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`${e.text}、使えた ${e.use_count} 回`} onPress={() => router.push(`/word/${e.id}`)} style={s.sealCell}>
               <Seal play={false} size={40} />
-              <T variant="wordS" style={{ fontSize: 15, lineHeight: 22, textAlign: 'center' }} numberOfLines={2}>{e.text}</T>
+              <T variant="wordS" style={{ fontSize: 15, lineHeight: 22, textAlign: 'center', ...NO_SPACING }} numberOfLines={2}>{e.text}</T>
             </Pressable>
           ))}
         </View>

@@ -135,7 +135,7 @@ export default function SearchScreen() {
         <View style={s.box}>
           <Icon name="search" size={20} color={colors.sub} />
           <TextInput
-            value={query} onChangeText={setQuery} placeholder="ことば・意味・場面で探す" placeholderTextColor={colors.faint}
+            value={query} onChangeText={setQuery} placeholder="ことば・意味・場面で探す" placeholderTextColor={colors.sub}
             accessibilityLabel="ことば・意味・場面で探す" style={s.input} testID="search-input" returnKeyType="search"
           />
           {query !== '' && <IconButton name="close" label="消す" onPress={() => setQuery('')} size={18} />}
