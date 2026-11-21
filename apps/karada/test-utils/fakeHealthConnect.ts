@@ -19,6 +19,9 @@ export function createFakeHealthConnect() {
   const calls: { fn: string; args: unknown[] }[] = [];
   // AndroidManifest にある型（null は全部）。ない型を求めると、本物と同じく失敗させる（前の APK を真似る）
   let manifest: string[] | null = null;
+  // 読み取りを失敗させる条件（Health Connect の回数の上限などを真似る）
+  let failWhen: ((fn: string, args: unknown[]) => boolean) | null = null;
+  const check = (fn: string, args: unknown[]) => { if (failWhen?.(fn, args)) throw new Error('rate limited'); };
 
   const log = (type: string) => { if (!changes.has(type)) changes.set(type, []); return changes.get(type)!; };
   const timeOf = (r: Rec) => r.time ?? r.startTime ?? '';
@@ -56,6 +59,7 @@ export function createFakeHealthConnect() {
     },
     async readRecords(type: string, opts: { timeRangeFilter: { startTime: string; endTime: string }; pageToken?: string }) {
       calls.push({ fn: 'readRecords', args: [type, opts] });
+      check('readRecords', [type, opts]);
       const { startTime, endTime } = opts.timeRangeFilter;
       const all = [...records.values()]
         .filter((r) => r.recordType === type && timeOf(r) >= startTime && timeOf(r) < endTime)
@@ -68,6 +72,7 @@ export function createFakeHealthConnect() {
     /** 心拍・歩数の集計（本物と同じく、記録がなければ 0 を返す）。歩数は、始まりが範囲にある記録の合計（重なりの除き方は真似ない） */
     async aggregateRecord(req: { recordType: string; timeRangeFilter: { startTime: string; endTime: string } }) {
       calls.push({ fn: 'aggregateRecord', args: [req] });
+      check('aggregateRecord', [req]);
       const { startTime, endTime } = req.timeRangeFilter;
       const inRange = (t: string) => t >= startTime && t < endTime;
       const all = [...records.values()].filter((r) => r.recordType === req.recordType);
@@ -108,10 +113,13 @@ export function createFakeHealthConnect() {
     grant(types: string[]) { granted = types; },
     /** AndroidManifest にある型を決める（前の APK を真似る。null は全部） */
     declare(types: string[] | null) { manifest = types; },
+    /** 条件に合う読み取り（readRecords・aggregateRecord）を失敗させる（null で戻す） */
+    failReads(when: ((fn: string, args: unknown[]) => boolean) | null) { failWhen = when; },
     reset() {
       records.clear(); changes.clear(); expired.clear(); calls.length = 0;
       granted = [...ALL_TYPES];
       manifest = null;
+      failWhen = null;
     },
   };
 }

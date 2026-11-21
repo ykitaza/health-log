@@ -17,10 +17,17 @@ export const HC_META = {
   token: (recordType: string) => `hc.token.${recordType}`,
   /** 型ごとに、最後に読んだ時刻（トークンが切れたとき、ここから読み直す） */
   readAt: (recordType: string) => `hc.read_at.${recordType}`,
+  /** 型ごとに、30日より前をどこまでさかのぼって読んだか（ISO 8601） */
+  backfill: (recordType: string) => `hc.backfill.${recordType}`,
+  /** さかのぼる終わり（初めてさかのぼるときの1年前。ISO 8601） */
+  backfillFloor: 'hc.backfill_floor',
 } as const;
 
-/** トークンと読んだ時刻（アカウントを変えて記録を消したときと、連携を切ったときに消す） */
-export const SQL_DELETE_HC_TOKENS = `DELETE FROM sync_meta WHERE key LIKE 'hc.token.%' OR key LIKE 'hc.read_at.%'`;
+/**
+ * トークンと読んだ時刻と、さかのぼったところ（アカウントを変えて記録を消したときと、連携を切ったときに消す。
+ * 次に連携したら、またさかのぼる）
+ */
+export const SQL_DELETE_HC_TOKENS = `DELETE FROM sync_meta WHERE key LIKE 'hc.token.%' OR key LIKE 'hc.read_at.%' OR key LIKE 'hc.backfill%'`;
 
 /** 体組成の1件（Health Connect の1件を body_records の1行に。体重と体脂肪率は別の行） */
 export type BodyImport = {

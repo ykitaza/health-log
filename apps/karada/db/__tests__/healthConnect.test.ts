@@ -5,7 +5,7 @@ import { HC_META, healthConnectStore } from '../repositories/healthConnect';
 import { toPushChange } from '../repositories/sync';
 import { formatClock, formatHeartRate, formatMinutes } from '@/lib/health';
 import {
-  heartRateDayId, importedId, importHealthConnect, INITIAL_DAYS, PERMISSIONS, requestReadPermissions, sleepMinutes, stepDayId, STEPS_MAX,
+  BACKFILL_CHUNK_DAYS, BACKFILL_CHUNKS_PER_RUN, backfillWindow, heartRateDayId, HISTORY_DAYS, HISTORY_REQUEST, importedId, importHealthConnect, INITIAL_DAYS, PERMISSIONS, requestReadPermissions, sleepMinutes, stepDayId, STEPS_MAX,
 } from '@/lib/healthConnect/importer';
 import { uuid5 } from '@/lib/uuid5';
 import { bodyFat, fakeHealthConnect as hc, heartRate, leanMass, restingHeartRate, sleep, steps, weight } from '@/test-utils/fakeHealthConnect';
@@ -18,8 +18,8 @@ jest.mock('react-native-health-connect', () => require('@/test-utils/fakeHealthC
 
 beforeEach(() => hc.reset());
 
-/** 取り込みを1回動かす */
-const runImport = (d: Device) => importHealthConnect(healthConnectStore(d.db, d.deps), d.deps.now);
+/** 取り込みを1回動かす（history：30日より前を読む許可があるか。ふだんはない） */
+const runImport = (d: Device, history = false) => importHealthConnect(healthConnectStore(d.db, d.deps), d.deps.now, async () => history);
 const bodyRows = (d: Device) => d.db.raw.prepare(
   `SELECT id, date, measured_at, weight_kg, body_fat_pct, lean_mass_kg, source, external_id, origin_package, deleted_at
    FROM body_records ORDER BY measured_at, external_id`,
@@ -486,7 +486,7 @@ describe('歩数', () => {
     expect(stepRows(d).map((r) => [r.date, r.steps])).toEqual([['2026-11-06', 3000]]);
   });
 
-  test('権限を求める：前の APK（AndroidManifest に READ_STEPS がない）で失敗したら、歩数を外して求め直す', async () => {
+  test('権限を求める：前の APK（AndroidManifest に READ_STEPS と READ_HEALTH_DATA_HISTORY がない）で失敗したら、外して求め直す', async () => {
     const request = hc.module.requestPermission;
     expect((await requestReadPermissions(request)).map((p) => p.recordType)).toContain('Steps');
 
@@ -496,7 +496,9 @@ describe('歩数', () => {
     const granted = await requestReadPermissions(request);
     expect(granted.map((p) => p.recordType)).toEqual(['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate']);
     const asked = hc.calls.filter((c) => c.fn === 'requestPermission').map((c) => (c.args[0] as { recordType: string }[]).length);
-    expect(asked).toEqual([PERMISSIONS.length, PERMISSIONS.length - 1]);
+    // 30日より前を読む許可も一緒に求める → 外して求める → 歩数も外して求める
+    expect(asked).toEqual([PERMISSIONS.length + 1, PERMISSIONS.length, PERMISSIONS.length - 1]);
+    expect((hc.calls[0].args[0] as { recordType: string }[]).at(-1)).toEqual(HISTORY_REQUEST);
 
     // 歩数のせいでないとき（Health Connect が使えないなど）は、2回目も失敗し、初めの失敗を投げる
     const failing = jest.fn(async () => { throw new Error('unavailable'); });
@@ -553,4 +555,142 @@ describe('睡眠・心拍の期間の読み出し（推移の画面）', () => {
     expect(hr.map((x) => [x.date, x.restingBpm])).toEqual([['2026-11-06', 55]]);
     expect(await d.r.health.heartRateDays('2026-11-01', '2026-11-08')).toHaveLength(2);
   });
+});
+
+describe('30日より前（READ_HEALTH_DATA_HISTORY の許可があるとき）', () => {
+  // 今は 2026-11-08T00:00Z。さかのぼる終わりは 1年前の 2025-11-08T00:00Z、始まりは30日前の 2026-10-09T00:00Z
+  const NOW = Date.parse('2026-11-08T00:00:00Z');
+  const daysAgo = (n: number) => new Date(NOW - n * 86_400_000);
+  const startOf = (c: { fn: string; args: unknown[] }) => (c.fn === 'readRecords'
+    ? (c.args[1] as { timeRangeFilter: { startTime: string } }).timeRangeFilter.startTime
+    : (c.args[0] as { timeRangeFilter: { startTime: string } }).timeRangeFilter.startTime);
+  /** 30日より前（の日）を読んだ呼び出し。心拍・歩数は端末の暦の日で集計するので、30日前の日の始まりより前で数える */
+  const oldReads = () => {
+    const edge = new Date(daysAgo(INITIAL_DAYS + 1)).toISOString();
+    return hc.calls.filter((c) => ['readRecords', 'aggregateRecord'].includes(c.fn) && startOf(c) < edge);
+  };
+  const meta = (d: Device, k: string) => healthConnectStore(d.db, d.deps).getMeta(k);
+  /** さかのぼり終えるまで取り込む（何回かかったか） */
+  const runUntilDone = async (d: Device) => {
+    for (let n = 1; n <= 20; n++) {
+      await runImport(d, true);
+      const cursors = await Promise.all(['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate', 'Steps']
+        .map((t) => meta(d, HC_META.backfill(t))));
+      if (cursors.every((c) => c === daysAgo(HISTORY_DAYS).toISOString())) return n;
+    }
+    throw new Error('さかのぼりが終わらない');
+  };
+
+  test('さかのぼる範囲：30日前から、新しい方に BACKFILL_CHUNK_DAYS 日ずつ。終わり（1年前）で止まり、そこまで来たら null', () => {
+    const now = new Date(NOW);
+    const floor = daysAgo(HISTORY_DAYS).toISOString();
+    expect(backfillWindow(null, floor, now)).toEqual({ from: daysAgo(INITIAL_DAYS + BACKFILL_CHUNK_DAYS), to: daysAgo(INITIAL_DAYS) });
+    expect(backfillWindow(daysAgo(60).toISOString(), floor, now)).toEqual({ from: daysAgo(60 + BACKFILL_CHUNK_DAYS), to: daysAgo(60) });
+    // 終わりの手前は、終わりまで
+    expect(backfillWindow(daysAgo(HISTORY_DAYS - 5).toISOString(), floor, now)).toEqual({ from: daysAgo(HISTORY_DAYS), to: daysAgo(HISTORY_DAYS - 5) });
+    expect(backfillWindow(floor, floor, now)).toBeNull();
+    // 1年より前に連携していた（今の30日前が、もう終わりより前）なら、さかのぼらない
+    expect(backfillWindow(null, daysAgo(10).toISOString(), now)).toBeNull();
+  });
+
+  test('許可がないときは、今までどおり30日分だけ読む（30日より前は読まず、印も残さず、失敗にもしない）', async () => {
+    const d = await device();
+    hc.put(weight('w-old', '2026-06-01T22:00:00Z', 72));
+    hc.put(steps('st-old', '2026-06-01T03:00:00Z', '2026-06-01T04:00:00Z', 9000));
+    hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
+    const result = await runImport(d, false);
+    expect(result.types).toContain('Weight');
+    expect(oldReads()).toEqual([]);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w1']);
+    expect(await meta(d, HC_META.backfillFloor)).toBeNull();
+    expect(await meta(d, HC_META.backfill('Weight'))).toBeNull();
+  });
+
+  test('許可があれば、1年前まで新しい方から少しずつ読む（1回の取り込みで型ごとに BACKFILL_CHUNKS_PER_RUN 回まで）。終わったら、もう読まない', async () => {
+    const d = await device();
+    hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
+    hc.put(weight('w-45', '2026-09-23T22:00:00Z', 71)); // 45日前：1回目で読む
+    hc.put(weight('w-160', '2026-06-01T22:00:00Z', 72)); // 160日前：3回目で読む
+    hc.put(weight('w-340', '2025-12-03T22:00:00Z', 74)); // 340日前：最後に読む
+    hc.put(weight('w-400', '2025-10-04T22:00:00Z', 75)); // 1年より前：読まない
+    hc.put(sleep('s-100', '2026-07-30T14:00:00Z', '2026-07-30T21:00:00Z'));
+    hc.put(steps('st-50', '2026-09-19T03:00:00Z', '2026-09-19T04:00:00Z', 4321));
+    hc.put(restingHeartRate('r-200', '2026-04-22T01:00:00Z', 58));
+
+    await runImport(d, true);
+    // 1回目：30日分に加えて、30〜90日前まで（体重は新しい方から2回）
+    const weightReads = hc.calls.filter((c) => c.fn === 'readRecords' && c.args[0] === 'Weight').map(startOf);
+    expect(weightReads).toEqual([
+      daysAgo(INITIAL_DAYS).toISOString(), // 30日分
+      daysAgo(INITIAL_DAYS + BACKFILL_CHUNK_DAYS).toISOString(),
+      daysAgo(INITIAL_DAYS + 2 * BACKFILL_CHUNK_DAYS).toISOString(),
+    ]);
+    expect(BACKFILL_CHUNKS_PER_RUN).toBe(2);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w-45', 'w1']);
+    expect(await meta(d, HC_META.backfill('Weight'))).toBe(daysAgo(INITIAL_DAYS + 2 * BACKFILL_CHUNK_DAYS).toISOString());
+    expect(await meta(d, HC_META.backfillFloor)).toBe(daysAgo(HISTORY_DAYS).toISOString());
+    expect(stepRowsOf(d)).toEqual([['2026-09-19', 4321]]);
+
+    const runs = 1 + await runUntilDone(d);
+    expect(runs).toBe(Math.ceil((HISTORY_DAYS - INITIAL_DAYS) / BACKFILL_CHUNK_DAYS / BACKFILL_CHUNKS_PER_RUN));
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w-340', 'w-160', 'w-45', 'w1']);
+    expect(d.db.raw.prepare('SELECT external_id, date FROM sleep_sessions').all()).toEqual([{ external_id: 's-100', date: '2026-07-31' }]);
+    expect(d.db.raw.prepare('SELECT date, resting_bpm FROM heart_rate_days WHERE deleted_at IS NULL').all()).toEqual([{ date: '2026-04-22', resting_bpm: 58 }]);
+    // 取り込んだ記録は1行ずつ（重ならない）。outbox も1件ずつ
+    const created = outbox(d).filter((c) => c.op === 'create').map((c) => c.id);
+    expect(new Set(created).size).toBe(created.length);
+
+    // 終わったら、次の取り込みは差分だけ（30日より前も、30日分も読み直さない）。何も書かない
+    hc.calls.length = 0;
+    const before = d.outbox().length;
+    const again = await runImport(d, true);
+    expect(again.written).toBe(0);
+    expect(hc.calls.filter((c) => c.fn !== 'getChanges')).toEqual([]);
+    expect(d.outbox().length).toBe(before);
+  });
+
+  test('もう連携していた端末も、許可をあとから出したら、足りない分（30日より前）を1回だけ読む', async () => {
+    const d = await device();
+    hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
+    hc.put(weight('w-45', '2026-09-23T22:00:00Z', 71));
+    await runImport(d, false);
+    await runImport(d, false);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w1']);
+    expect(await meta(d, HC_META.token('Weight'))).not.toBeNull();
+
+    await runUntilDone(d);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w-45', 'w1']);
+    // 差分のトークンは、さかのぼっても変わらない
+    expect(await meta(d, HC_META.token('Weight'))).toBe('Weight:2');
+  });
+
+  test('さかのぼる途中で読めなくなったら（回数の上限など）、差分の取り込みは終え、次は続きから読む。連携を切ると、さかのぼりも初めから', async () => {
+    const d = await device();
+    hc.put(weight('w1', '2026-11-06T22:00:00Z', 70));
+    hc.put(weight('w-75', '2026-08-24T22:00:00Z', 71)); // 2回目の分（60〜90日前）
+    // 60日より前を読もうとすると失敗する
+    const edge = daysAgo(INITIAL_DAYS + 2 * BACKFILL_CHUNK_DAYS).toISOString();
+    hc.failReads((_, args) => {
+      const f = (args[1] ?? args[0]) as { timeRangeFilter: { startTime: string } };
+      return f.timeRangeFilter.startTime <= edge;
+    });
+    const result = await runImport(d, true);
+    expect(result.types).toContain('Weight');
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w1']);
+    // 1回目の分（30〜60日前）は書けた
+    expect(await meta(d, HC_META.backfill('Weight'))).toBe(daysAgo(INITIAL_DAYS + BACKFILL_CHUNK_DAYS).toISOString());
+    expect(await meta(d, HC_META.lastImportAt)).toBe('2026-11-08T00:00:00.000Z');
+
+    hc.failReads(null);
+    await runImport(d, true);
+    expect(bodyRows(d).map((r) => r.external_id)).toEqual(['w-75', 'w1']);
+
+    const store = healthConnectStore(d.db, d.deps);
+    await store.disconnect();
+    expect(await store.getMeta(HC_META.backfill('Weight'))).toBeNull();
+    expect(await store.getMeta(HC_META.backfillFloor)).toBeNull();
+  });
+
+  const stepRowsOf = (d: Device) => (d.db.raw.prepare('SELECT date, steps FROM step_days WHERE deleted_at IS NULL ORDER BY date').all() as { date: string; steps: number }[])
+    .map((r) => [r.date, r.steps]);
 });

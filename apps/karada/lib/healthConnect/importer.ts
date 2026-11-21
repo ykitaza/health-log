@@ -4,6 +4,7 @@
  * - 初めての型は、先にトークンを取ってから、過去30日を readRecords で全ページ読む（読んでいるあいだの変更は、次の差分で届く）
  * - トークンが切れていたら、最後に読んだ時刻（なければ30日前）から読み直す
  * - 心拍は、サンプルを持たず、日ごとのまとめ（Health Connect の集計）だけを持つ。歩数も、日ごとの合計（集計）だけを持つ
+ * - 30日より前を読む許可（READ_HEALTH_DATA_HISTORY）があれば、1年前まで1回だけさかのぼる（backfill。少しずつ、新しい方から）
  * - 書くのは db/repositories/healthConnect.ts の write だけ（origin = 'import' で outbox に積まれる）
  * ID は Health Connect の記録の ID から決める（uuid5）。同じ記録を別の端末で取り込んでも、同じ行になる
  */
@@ -23,6 +24,16 @@ export const importedId = (healthConnectId: string) => uuid5(HC_NAMESPACE, `hc:$
 /** 初めて読むとき・トークンが切れて読む時刻がないときに、さかのぼる日数 */
 export const INITIAL_DAYS = 30;
 
+/** 30日より前を読む許可があるとき、さかのぼる日数（今から） */
+export const HISTORY_DAYS = 365;
+/** さかのぼるときの、1回に読む日数（Health Connect の読み取りの回数の上限に当たらないよう、分けて読む） */
+export const BACKFILL_CHUNK_DAYS = 30;
+/** 1回の取り込みで、型ごとにさかのぼる回数（残りは、次にアプリを開いたときに続きから） */
+export const BACKFILL_CHUNKS_PER_RUN = 2;
+
+/** 30日より前を読む許可（react-native-health-connect で求めるときの形） */
+export const HISTORY_REQUEST = { accessType: 'read', recordType: 'ReadHealthDataHistory' } as const;
+
 /** 求める権限（読み取りだけ）。AndroidManifest にも同じものを書く（app.json の android.permissions） */
 export const READ_TYPES = ['Weight', 'BodyFat', 'LeanBodyMass', 'SleepSession', 'HeartRate', 'RestingHeartRate', 'Steps'] as const satisfies RecordType[];
 export const PERMISSIONS: Permission[] = READ_TYPES.map((recordType) => ({ accessType: 'read', recordType }));
@@ -31,20 +42,22 @@ export const PERMISSIONS: Permission[] = READ_TYPES.map((recordType) => ({ acces
 export const LATER_TYPES: readonly RecordType[] = ['Steps'];
 
 /**
- * 権限を求める。前の APK（READ_STEPS がない）で、歩数を含めて求めたせいで失敗したときは、歩数を外してもう一度求める
- * （ほかの型の連携と取り込みを止めないため）。もらえた権限を返す
+ * 権限を求める（30日より前を読む許可も一緒に）。もらえた権限を返す。求めて失敗したら、あとから足したものを外して求め直す
+ * （ほかの型の連携と取り込みを止めないため）：
+ * 1. 30日より前を読む許可を外す（この許可が使えない端末）
+ * 2. 歩数も外す（前の APK に READ_STEPS がない）
  */
-export async function requestReadPermissions<T>(request: (perms: Permission[]) => Promise<T[]>): Promise<T[]> {
-  try {
-    return await request(PERMISSIONS);
-  } catch (e) {
-    const base = PERMISSIONS.filter((p) => !LATER_TYPES.includes(p.recordType));
+export async function requestReadPermissions<T>(request: (perms: (Permission | typeof HISTORY_REQUEST)[]) => Promise<T[]>): Promise<T[]> {
+  const base = PERMISSIONS.filter((p) => !LATER_TYPES.includes(p.recordType));
+  let first: unknown;
+  for (const perms of [[...PERMISSIONS, HISTORY_REQUEST], PERMISSIONS, base]) {
     try {
-      return await request(base);
-    } catch {
-      throw e;
+      return await request(perms);
+    } catch (e) {
+      first ??= e;
     }
   }
+  throw first;
 }
 
 type Upsert = { kind: 'upsert'; record: HealthConnectRecordResult };
@@ -294,6 +307,15 @@ async function readSince(recordType: RecordType, from: Date, to: Date): Promise<
   return events;
 }
 
+/** さかのぼって読んだもの：足す・直すだけにする（消すのは差分に任せる。読めなかった日の行を消さない） */
+function upsertsOnly(batch: ImportBatch): ImportBatch {
+  const out: ImportBatch = {};
+  for (const [k, v] of Object.entries(batch) as [keyof ImportBatch, { upserts: never[]; deletes: string[] }][]) {
+    out[k] = { upserts: v.upserts, deletes: [] };
+  }
+  return out;
+}
+
 /** 今からの変更を読むためのトークン（読む前に取る） */
 async function freshToken(recordType: RecordType): Promise<string> {
   return (await hc.getChanges({ recordTypes: [recordType] })).nextChangesToken;
@@ -302,10 +324,59 @@ async function freshToken(recordType: RecordType): Promise<string> {
 export type ImportResult = { written: number; types: RecordType[] };
 
 /**
- * 1回分の取り込み。権限のある型だけを読む。型ごとに、読んだものとトークンを1つのトランザクションで書く。
- * 読めなかった型があれば、そこで止めて投げる（書けた型のトークンは進んでいる）
+ * さかのぼる範囲：型ごとに、まだ読んでいないうちの新しい方から1回分（from 〜 to）。終わっていれば null。
+ * - cursor：その型でさかのぼり終えたところ（なければ、まだ始めていない：今の30日前から始める）
+ * - floor：さかのぼる終わり（初めてさかのぼるときに、今の1年前に決めて残す）
  */
-export async function importHealthConnect(store: HealthConnectStore, now: () => Date = () => new Date()): Promise<ImportResult> {
+export function backfillWindow(cursor: string | null, floor: string, now: Date): { from: Date; to: Date } | null {
+  const to = cursor ? new Date(cursor) : new Date(now.getTime() - INITIAL_DAYS * 86_400_000);
+  const end = new Date(floor);
+  if (!(to.getTime() > end.getTime())) return null;
+  return { from: new Date(Math.max(end.getTime(), to.getTime() - BACKFILL_CHUNK_DAYS * 86_400_000)), to };
+}
+
+/**
+ * 30日より前の記録を、1年前までさかのぼって読む（許可があるときだけ。1回だけ）。
+ * 型ごとに、新しい方から BACKFILL_CHUNK_DAYS 日ずつ読み、読んだものと「どこまで読んだか」を1つのトランザクションで書く。
+ * 1回の取り込みでは型ごとに BACKFILL_CHUNKS_PER_RUN 回まで。読めなかったら（回数の上限など）そこでやめ、次は続きから。
+ * ID は記録（心拍・歩数は日付）から決まるので、もう取り込んだ日と重なっても、同じ行を直すだけ（変わっていなければ何も書かない）
+ */
+async function backfill(store: HealthConnectStore, granted: Set<string>, now: () => Date): Promise<number> {
+  const startedAt = now();
+  let floor = await store.getMeta(HC_META.backfillFloor);
+  if (floor == null) {
+    floor = new Date(startedAt.getTime() - HISTORY_DAYS * 86_400_000).toISOString();
+    await store.setMeta(HC_META.backfillFloor, floor);
+  }
+  const ctx: Context = { granted, now: startedAt };
+  let written = 0;
+  try {
+    for (const handler of HANDLERS) {
+      const type = handler.recordType;
+      if (!granted.has(type)) continue;
+      for (let i = 0; i < BACKFILL_CHUNKS_PER_RUN; i++) {
+        const range = backfillWindow(await store.getMeta(HC_META.backfill(type)), floor, startedAt);
+        if (!range) break;
+        const batch = handler.readRange
+          ? await handler.readRange(range.from, range.to, ctx)
+          : await handler.toBatch(await readSince(type, range.from, range.to), ctx);
+        written += await store.write(upsertsOnly(batch), { [HC_META.backfill(type)]: range.from.toISOString() });
+      }
+    }
+  } catch {
+    // 読めなかった分は、次の取り込みで続きから読む（今回の取り込みは失敗にしない）
+  }
+  return written;
+}
+
+/**
+ * 1回分の取り込み。権限のある型だけを読む。型ごとに、読んだものとトークンを1つのトランザクションで書く。
+ * 読めなかった型があれば、そこで止めて投げる（書けた型のトークンは進んでいる）。
+ * 差分を全部の型で読み終えてから、30日より前を読む許可があれば、さかのぼる（backfill）
+ */
+export async function importHealthConnect(
+  store: HealthConnectStore, now: () => Date = () => new Date(), historyGranted: () => Promise<boolean> = hc.hasHistoryPermission,
+): Promise<ImportResult> {
   const granted = new Set((await hc.getGrantedPermissions())
     .filter((p) => p.accessType === 'read').map((p) => p.recordType as string));
   let written = 0;
@@ -347,6 +418,8 @@ export async function importHealthConnect(store: HealthConnectStore, now: () => 
     written += await store.write(batch, { ...meta, [HC_META.token(type)]: token });
     types.push(type);
   }
+  // 30日より前を読む許可があれば、1年前までさかのぼる（なければ何もしない。今までどおり30日分）
+  if (await historyGranted()) written += await backfill(store, granted, now);
   await store.setMeta(HC_META.lastImportAt, now().toISOString());
   return { written, types };
 }
