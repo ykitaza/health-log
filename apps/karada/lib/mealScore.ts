@@ -8,6 +8,8 @@
 //   たんぱく質    目標の 90% 以上で満点。足りない分だけ下げる（多いぶんは下げない）
 //   バランス      食事バランスガイドの 5 区分の「つ（SV）」が目安の幅に入っているかと、食物繊維
 //   控えたいもの  食塩・脂質のエネルギー比・菓子と嗜好飲料・お酒
+// 1 日の途中（今日）は、エネルギーとたんぱく質を「1 日の終わりに付く」（deferred）として外し、残りの内訳だけで点を出す
+// （昼に「エネルギーをあと 1,202 kcal」と勧めると、食べ過ぎを促すように読めるため）。前の日との差は、同じ規則で数えた点どうしで比べる。
 // 推定がない（その日の品目のどれかに値がない）項目は「記録なし」にして、点を下げない（残りの項目だけで割合を出す）。
 import type { Sex } from './autoGoal';
 import { EstimateAmount, floatSum, MealItem } from './meals';
@@ -60,8 +62,10 @@ export type PartScore = {
   key: ScorePartKey; label: string;
   /** 項目の割合の平均（0〜1）。項目が全部記録なしなら null */
   ratio: number | null;
-  /** 0〜100 点（記録なしは null） */
+  /** 0〜100 点（記録なし・数えないときは null） */
   points: number | null;
+  /** 1 日の途中なので数えない（1 日の終わりに付く）。エネルギーとたんぱく質だけ */
+  deferred: boolean;
   items: SubScore[];
 };
 /** いちばん伸ばしやすい項目。gain はその項目を満点にしたときに上がる点 */
@@ -74,10 +78,15 @@ export type MealScore = {
   band: SvBand;
   bandFromTarget: boolean;
   sex: Sex | null;
+  /** 1 日の途中（今日）。エネルギーとたんぱく質は数えない */
+  inProgress: boolean;
 };
 
 /** サーバーの js_round と同じ（0.5 は大きい方へ） */
 const jsRound = (x: number) => Math.round(x);
+
+/** 整数を 3 桁区切りで見せる（1,202。サーバーの f"{n:,}" と同じ） */
+const intText = (n: number) => n.toLocaleString('en-US');
 
 /** 前から順に足して割る（サーバーの _mean と同じ並び） */
 function mean(xs: number[]): number {
@@ -92,7 +101,7 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 function ceilText(x: number, digits = 0): string {
   const scale = 10 ** digits;
   const n = Math.ceil(x * scale - 1e-9) / scale;
-  return digits === 0 ? String(n) : n.toFixed(digits);
+  return digits === 0 ? intText(n) : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 /** その日のすべての品目に推定があれば合計、1 つでもなければ null（記録なし） */
@@ -114,7 +123,7 @@ function energy(kcal: number, target: number | null): SubScore {
   const diff = (kcal - target) / target;
   const ratio = Math.abs(diff) <= ENERGY_FULL ? 1 : clamp01(1 - (Math.abs(diff) - ENERGY_FULL) / (ENERGY_ZERO - ENERGY_FULL));
   const gap = jsRound(Math.abs(kcal - target));
-  const advice = kcal < target ? `エネルギーをあと ${gap} kcal` : `エネルギーを ${gap} kcal 控えめに`;
+  const advice = kcal < target ? `エネルギーをあと ${intText(gap)} kcal` : `エネルギーを ${intText(gap)} kcal 控えめに`;
   return sub('kcal', 'エネルギー', ratio, kcal, target, target, 'kcal', advice);
 }
 
@@ -160,7 +169,7 @@ function snack(items: MealItem[]): SubScore {
   // サーバーは sum()（Python 3.12 から誤差を補って足す）なので、同じ足し方にする
   const kcal = floatSum(items.filter((i) => i.is_snack_or_sweet_drink).map((i) => i.kcal));
   return sub('snack_kcal', '菓子・嗜好飲料', cap(kcal, SNACK_KCAL), kcal, null, SNACK_KCAL, 'kcal',
-    `菓子・甘い飲み物を ${jsRound(kcal - SNACK_KCAL)} kcal 控えめに`);
+    `菓子・甘い飲み物を ${intText(jsRound(kcal - SNACK_KCAL))} kcal 控えめに`);
 }
 
 function alcohol(value: number | null, limit: number): SubScore {
@@ -169,10 +178,10 @@ function alcohol(value: number | null, limit: number): SubScore {
   return sub('alcohol_g', 'お酒', ratio, value, null, limit, 'g', `お酒を控えめに（純アルコール ${limit} g 未満が目安）`);
 }
 
-function part(key: ScorePartKey, items: SubScore[]): PartScore {
+function part(key: ScorePartKey, items: SubScore[], deferred = false): PartScore {
   const got = items.filter((i) => i.ratio != null);
   const ratio = got.length ? mean(got.map((i) => i.ratio!)) : null;
-  return { key, label: PART_LABELS[key], ratio, points: ratio == null ? null : jsRound(100 * ratio), items };
+  return { key, label: PART_LABELS[key], ratio, points: ratio == null ? null : jsRound(100 * ratio), deferred, items };
 }
 
 /** 満点にしたときにいちばん点が上がる項目（同じなら内訳・項目の並びの先）。満点ばかりなら null */
@@ -191,10 +200,12 @@ function easiestOf(parts: PartScore[]): Improvement | null {
 
 /**
  * 1 日の食事のスコア。meals はその日の食事（readableMeals の順）、target はその日の目標（kcal とたんぱく質。なければ null）、
- * sex はアプリの設定の性別（なければ null で、厳しいほうの目安）。食事がない日は null
+ * sex はアプリの設定の性別（なければ null で、厳しいほうの目安）、inProgress は 1 日の途中（今日。エネルギーとたんぱく質を外す）。
+ * 食事がない日は null
  */
 export function mealScore(
   meals: { items: MealItem[] }[], target: { kcal: number | null; protein_g: number | null } | null, sex: Sex | null,
+  inProgress = false,
 ): MealScore | null {
   const items = meals.flatMap((m) => m.items);
   if (items.length === 0) return null;
@@ -209,8 +220,10 @@ export function mealScore(
   const { band, fromTarget } = svBand(targetKcal);
   const balance = SV_GROUPS.map(([key, label]) => sv(key, label, sumOf(items, key), ...band.ranges[key]));
   const parts = [
-    part('energy', [energy(kcal, targetKcal)]),
-    part('protein', [protein(proteinG, target?.protein_g ?? null)]),
+    inProgress ? part('energy', [sub('kcal', 'エネルギー', null, null, null, null, 'kcal')], true) : part('energy', [energy(kcal, targetKcal)]),
+    inProgress
+      ? part('protein', [sub('protein_g', 'たんぱく質', null, null, null, null, 'g')], true)
+      : part('protein', [protein(proteinG, target?.protein_g ?? null)]),
     part('balance', [...balance, fiber(sumOf(items, 'fiber_g'), bySex(FIBER_G, sex))]),
     part('moderation', [salt(sumOf(items, 'salt_g'), bySex(SALT_G, sex)), fatRatio(fatG, kcal), snack(items),
       alcohol(sumOf(items, 'alcohol_g'), bySex(ALCOHOL_G, sex))]),
@@ -218,13 +231,18 @@ export function mealScore(
   const got = parts.filter((p) => p.ratio != null);
   return {
     score: got.length ? jsRound(100 * mean(got.map((p) => p.ratio!))) : null,
-    parts, easiest: easiestOf(parts), band, bandFromTarget: fromTarget, sex,
+    parts, easiest: easiestOf(parts), band, bandFromTarget: fromTarget, sex, inProgress,
   };
 }
 
-/** 前の日の点との差。どちらかの日に点がなければ null */
+/** 前の日の点との差（同じ規則で数えた点どうし。今日と比べる前の日の点も inProgress で数える）。どちらかの日に点がなければ null */
 export function scoreDiff(today: MealScore | null, before: MealScore | null): number | null {
   return today?.score == null || before?.score == null ? null : today.score - before.score;
+}
+
+/** 内訳の点の言い方：点、または「1日の終わりに付く」（今日のエネルギーとたんぱく質）、「記録なし」 */
+export function partText(p: PartScore): string {
+  return p.deferred ? '1日の終わりに付く' : p.points == null ? '記録なし' : `${p.points}点`;
 }
 
 /** 差の見せ方（+5・−3・±0）。マイナスは数学の記号（U+2212） */
@@ -236,11 +254,11 @@ export function diffText(diff: number): string {
  * 読み上げの文。点・前の日との差・内訳（記録なしは「記録なし」）・伸ばしやすい項目。責めない言い方にする
  * （前の日より低くても「前の日より 3 点低い」とだけ言い、伸ばしやすい項目は「〜で +N 点」）
  */
-export function scoreSpeech(score: MealScore, diff: number | null, soFar: boolean): string {
+export function scoreSpeech(score: MealScore, diff: number | null): string {
   if (score.score == null) return '食事のスコア：記録なし';
-  const head = `食事のスコア${soFar ? '（ここまで）' : ''} ${score.score}点`;
+  const head = `食事のスコア${score.inProgress ? '（ここまで）' : ''} ${score.score}点`;
   const vs = diff == null ? '' : diff === 0 ? '、前の日と同じ' : `、前の日より ${Math.abs(diff)}点${diff > 0 ? '高い' : '低い'}`;
-  const parts = score.parts.map((p) => `${p.label} ${p.points == null ? '記録なし' : `${p.points}点`}`).join('、');
+  const parts = score.parts.map((p) => `${p.label} ${partText(p)}`).join('、');
   const next = score.easiest ? `。伸ばしやすいのは、${score.easiest.item.advice}で +${score.easiest.gain}点` : '';
   return `${head}${vs}。内訳：${parts}${next}`;
 }

@@ -64,7 +64,7 @@ def call(monkeypatch):
         MealService(eaters, meals),
         TemplateService(eaters, meals, memory.InMemoryMealTemplateRepository()),
         GoalService(eaters, goals, day_types, body),
-        SummaryService(eaters, meals, goals, day_types),
+        SummaryService(eaters, meals, goals, day_types, today=lambda: TODAY),
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
     session = FakeSession()
@@ -149,8 +149,8 @@ def test_週のふり返りは月曜から_今週は今日まで(call):
 # エネルギー 420 は 2400 の −82.5%（±50% より外）→ 0。たんぱく質 27 ÷ (140 × 0.9) = 0.214 → 21。
 # バランスは推定なしで記録なし。控えたいものは脂質だけ：2.1 × 9 ÷ 420 = 4.5%（20% から 15.5 ポイント）→ 0。
 # 点：(0 + 0.214 + 0) ÷ 3 = 0.071 → 7。伸ばしやすいのはエネルギーと脂質（どちらも +100 ÷ 3 = 33）で、並びの先のエネルギー
-LUNCH_SCORE = {"points": 7, "diff": None, "parts": {"energy": 0, "protein": 21, "balance": None, "moderation": 0},
-               "easiest": {"advice": "エネルギーをあと 1980 kcal", "gain": 33}}
+LUNCH_SCORE = {"points": 7, "in_progress": False, "diff": None, "parts": {"energy": 0, "protein": 21, "balance": None, "moderation": 0},
+               "easiest": {"advice": "エネルギーをあと 1,980 kcal", "gain": 33}}
 
 
 def test_期間の食事のまとめ_月のふり返り(call):
@@ -165,6 +165,25 @@ def test_期間の食事のまとめ_月のふり返り(call):
                                 "protein_g": 27, "fat_g": 2.1, "carbs_g": 74, "target_kcal": 2400,
                                 "score": LUNCH_SCORE}
     assert month["last_app_sync_at"] is None
+
+
+def test_今日の点は途中なので_エネルギーとたんぱく質を外し_食べるよう勧めない(call):
+    call("set_goals", **GOALS)
+    call("record_meal", meal={**LUNCH, "date": "2026-10-11"})
+    call("record_meal", meal=LUNCH)
+    score = call("today_status")["score"]
+    # 今日（途中）：エネルギーとたんぱく質は 1 日の終わりに付くので数えない。バランスは記録なし、控えたいものは脂質 4.5% → 0。
+    # 点 0。前の日も同じ規則で数える（同じ食事なので 0）→ 差 0。伸ばしやすいのは脂質（+100）で、エネルギーではない
+    assert (score["points"], score["in_progress"], score["previous_points"], score["diff"]) == (0, True, 0, 0)
+    assert [(p["key"], p["points"], p["deferred"]) for p in score["parts"]] == [
+        ("energy", None, True), ("protein", None, True), ("balance", None, False), ("moderation", 0, False)]
+    assert score["easiest"]["part"] == "moderation" and score["easiest"]["item"] == "fat_ratio"
+    assert "1 日の終わり" in score["note"]
+    days = call("meal_summary", start="2026-10-11", end="2026-10-12")["days"]
+    # 過ぎた日は 4 つで数える（LUNCH_SCORE と同じ 7 点）。今日は途中の点で、差は今日の規則で数えた前の日（0 点）と比べる
+    assert (days[0]["score"]["points"], days[0]["score"]["in_progress"]) == (7, False)
+    assert (days[1]["score"]["points"], days[1]["score"]["in_progress"], days[1]["score"]["diff"]) == (0, True, 0)
+    assert days[1]["score"]["parts"]["energy"] is None
 
 
 def test_週と期間のまとめの説明():

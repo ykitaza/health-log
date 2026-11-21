@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import date, timedelta
 from typing import Protocol
@@ -47,10 +48,13 @@ class SummaryService:
         day_types: DayTypeRepository,
         training_days: TrainingDayProvider | None = None,
         sex: SexSetting | None = None,
+        today: Callable[[], date] | None = None,
     ):
         self.eaters, self.meals, self.goals, self.day_types = eaters, meals, goals, day_types
         self.training_days = training_days or NoTrainingDays()
         self.sex = sex or NoSexSetting()
+        # 今日（1 日の途中。食事のスコアのエネルギーとたんぱく質を外す日）。None なら途中の日はない
+        self.today = today
 
     async def daily(self, subject: str, day: date) -> DailySummary:
         """その日のまとめ。食事のスコアの前の日との差のため、前の日も読む。"""
@@ -83,4 +87,5 @@ class SummaryService:
         chosen = await self.day_types.get(eater, day)
         day_type = chosen or (DayType.TRAINING if day in trained else DEFAULT_DAY_TYPE)
         meals = tuple(await self.meals.find(eater, day, day))
-        return DailySummary(day, day_type, meals, goal, sex)
+        in_progress = self.today is not None and day == self.today()
+        return DailySummary(day, day_type, meals, goal, sex, in_progress=in_progress)

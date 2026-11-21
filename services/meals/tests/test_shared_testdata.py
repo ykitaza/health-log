@@ -204,15 +204,31 @@ def test_食事のスコアはアプリと同じ(case):
     meals = (Meal("m", EaterId(USER), EatenOn(date(2026, 11, 20), MealSlot.LUNCH), items, "", Source.TEXT),) if items else ()
     t = case["target"]
     target = None if t is None else Target(kcal=t["kcal"], protein_g=t["protein_g"])
-    s = meal_score(meals, target, Sex(case["sex"]) if case["sex"] else None)
+    s = meal_score(meals, target, Sex(case["sex"]) if case["sex"] else None, case["in_progress"])
     got = None if s is None else {
         "score": s.score,
         "parts": {p.key: s.part_points(p) for p in s.parts},
         "easiest": None if s.easiest is None else {"part": s.easiest.part, "key": s.easiest.item.key,
                                                    "advice": s.easiest.item.advice, "gain": s.easiest.gain},
         "band": {"label": s.band.label, "from_target": s.band_from_target},
+        "deferred": [p.key for p in s.parts if p.deferred],
     }
     assert got == case["expected"]
+
+
+def _score_meals(items: list[dict], day: date) -> tuple[Meal, ...]:
+    found = tuple(_score_item(n, v) for n, v in enumerate(items))
+    return (Meal(f"m{day}", EaterId(USER), EatenOn(day, MealSlot.LUNCH), found, "", Source.TEXT),) if found else ()
+
+
+@pytest.mark.parametrize("case", load("meal_score.json")["diffs"], ids=lambda c: c["name"])
+def test_前の日との差は同じ規則で数えた点どうし_アプリと同じ(case):
+    today, before = date(2026, 11, 20), date(2026, 11, 19)
+    sex = Sex(case["sex"]) if case["sex"] else None
+    goal, day_type = _goal(case["goal"]), DayType(case["day_type"])
+    previous = DailySummary(before, day_type, _score_meals(case["previous"], before), goal, sex)
+    s = DailySummary(today, day_type, _score_meals(case["today"], today), goal, sex, previous, in_progress=case["in_progress"])
+    assert {"points": s.score.score, "previous_points": s.previous_score.score, "diff": s.score_diff} == case["expected"]
 
 
 @pytest.mark.parametrize("case", load("meal_score.json")["bands"], ids=lambda c: str(c["kcal"]))

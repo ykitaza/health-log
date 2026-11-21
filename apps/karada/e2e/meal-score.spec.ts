@@ -75,9 +75,12 @@ async function signInAndOpenMeals(page: Page, context: BrowserContext) {
 test('AI が記録した食事から、その日の点・前の日との差・内訳・伸ばしやすい項目を出す。量を変えると点が動き、手で足すとバランスは記録なし', async ({ page, context }) => {
   await signInAndOpenMeals(page, context);
   await expect(card(page)).toBeVisible();
-  // 読み上げは 1 つの文：点（今日は「ここまで」）、前の日との差、4 つの内訳、伸ばしやすい項目
+  // 読み上げは 1 つの文：点（今日は「ここまで」）、前の日との差、4 つの内訳、伸ばしやすい項目。
+  // 今日は途中なので、エネルギーとたんぱく質は「1日の終わりに付く」として数えず、食べるよう勧めない
   await expect(card(page)).toHaveAttribute('aria-label',
-    /^食事のスコア（ここまで） \d+点、前の日より \d+点(高い|低い)。内訳：エネルギー \d+点、たんぱく質 \d+点、バランス \d+点、控えたいもの \d+点。伸ばしやすいのは、.+で \+\d+点$/);
+    /^食事のスコア（ここまで） \d+点、前の日(より \d+点(高い|低い)|と同じ)。内訳：エネルギー 1日の終わりに付く、たんぱく質 1日の終わりに付く、バランス \d+点、控えたいもの \d+点。伸ばしやすいのは、.+で \+\d+点$/);
+  await expect(card(page)).toContainText('1日の終わりに付く');
+  await expect(page.getByTestId('meal-score-next').filter({ visible: true })).not.toContainText('エネルギー');
   await expect(page.getByTestId('meal-score-diff').filter({ visible: true })).toContainText('前の日より');
   await expect(page.getByTestId('meal-score-next').filter({ visible: true })).toBeVisible();
   await expect(card(page)).not.toContainText('記録なし');
@@ -115,8 +118,10 @@ test('食事のない日は点を出さない', async ({ page, context }) => {
   await expect(card(page)).toBeVisible();
   await button(page, '前の日').click();
   await expect(see(page, '11月7日（土）', { exact: true })).toBeVisible();
-  // 前の日（11/7）は記録があり、その前の日（11/6）は記録がないので、差は出さない
+  // 前の日（11/7）は記録があり、その前の日（11/6）は記録がないので、差は出さない。過ぎた日は 4 つの内訳で数える
   await expect(card(page)).toBeVisible();
+  await expect(card(page)).toHaveAttribute('aria-label', /^食事のスコア \d+点。内訳：エネルギー \d+点、たんぱく質 \d+点、/);
+  await expect(card(page)).not.toContainText('1日の終わりに付く');
   await expect(page.getByTestId('meal-score-diff').filter({ visible: true })).toHaveCount(0);
   await button(page, '前の日').click();
   await expect(see(page, '11月6日（金）', { exact: true })).toBeVisible();

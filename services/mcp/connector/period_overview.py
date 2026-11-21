@@ -71,7 +71,8 @@ def register_overview_tools(
           目安に近づいた toward・離れた away・同じ same の trend も（8日以上の期間には付かない）。アプリのカードと同じ数なので、数え直さずそのまま使う）
         - meals：日ごとの kcal・PFC と記録の有無、筋トレの日か、その日の目標 kcal、記録した日の平均と目標との差、
           日ごとの食事のスコア（score：points 0〜100 点、diff 前の日との差、parts 内訳の点（null は記録なし）、
-          easiest いちばん伸ばしやすい項目の advice と gain。記録がない日は null。サーバーが計算するので計算し直さない）
+          easiest いちばん伸ばしやすい項目の advice と gain。記録がない日は null。in_progress が true の日（今日）は途中の点で、
+          エネルギーとたんぱく質は 1 日の終わりに付くので null（数えない）。サーバーが計算するので計算し直さない）
         - body：体重・体脂肪率の日ごとの値と期間の平均（記録がある日の平均。母数は weight_days_recorded・body_fat_days_recorded）、
           as_of（end と今日の早いほう）までの28日の体重の週あたりの変化
         - sleep：起きた日ごとの眠っていた時間と寝た・起きた時刻、平均。heart_rate：安静時心拍の日ごとの値と平均

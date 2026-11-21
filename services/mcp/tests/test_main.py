@@ -264,9 +264,9 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
                                 # 食事のスコア（手で計算）：エネルギー 312 は 2800 の −88.9%（±50% より外）→ 0。たんぱく質は目標なし、
                                 # バランスは推定なしで記録なし。脂質 0.6 × 9 ÷ 312 = 1.7%（20% から 18 ポイント）→ 0。点 0。
                                 # 伸ばしやすいのはエネルギーと脂質（どちらも +100 ÷ 2 = 50）で、並びの先のエネルギー
-                                "score": {"points": 0, "diff": None,
+                                "score": {"points": 0, "in_progress": False, "diff": None,
                                           "parts": {"energy": 0, "protein": None, "balance": None, "moderation": 0},
-                                          "easiest": {"advice": "エネルギーをあと 2488 kcal", "gain": 50}}}
+                                          "easiest": {"advice": "エネルギーをあと 2,488 kcal", "gain": 50}}}
     assert meals["days"][0]["score"] is None  # 記録がない日は点なし
     assert "goal" not in meals and "from" not in meals
     assert week["body"] == {

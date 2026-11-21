@@ -71,7 +71,7 @@ def call(monkeypatch):
         MealService(eaters, meals),
         TemplateService(eaters, meals, templates),
         GoalService(eaters, goals, day_types, body),
-        SummaryService(eaters, meals, goals, day_types),
+        SummaryService(eaters, meals, goals, day_types, today=lambda: test_mcp_server.TODAY),
         WeightService(eaters, memory.InMemoryWeightRepository(), goals),
     )
     session = test_mcp_server.FakeSession()

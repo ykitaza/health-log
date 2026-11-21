@@ -3,7 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Sex } from '../autoGoal';
-import { changeAmount, ESTIMATE_FIELDS, MealItem } from '../meals';
+import { changeAmount, ESTIMATE_FIELDS, MealItem, NutritionGoal, targetFor } from '../meals';
 import { diffText, mealScore, scoreDiff, scoreSpeech, svBand } from '../mealScore';
 
 type Item = { kcal: number; protein_g: number; fat_g: number } & Record<string, number | boolean | null>;
@@ -12,9 +12,17 @@ type Expected = {
   parts: Record<string, number | null>;
   easiest: { part: string; key: string; advice: string; gain: number } | null;
   band: { label: string; from_target: boolean };
+  deferred: string[];
 };
 const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'testdata', 'meals', 'meal_score.json'), 'utf8')) as {
-  cases: { name: string; items: Item[]; target: { kcal: number | null; protein_g: number | null } | null; sex: Sex | null; expected: Expected | null }[];
+  cases: {
+    name: string; items: Item[]; target: { kcal: number | null; protein_g: number | null } | null; sex: Sex | null; in_progress: boolean;
+    expected: Expected | null;
+  }[];
+  diffs: {
+    name: string; goal: NutritionGoal; day_type: 'training' | 'rest'; sex: Sex | null; in_progress: boolean; today: Item[]; previous: Item[];
+    expected: { points: number | null; previous_points: number | null; diff: number | null };
+  }[];
   bands: { kcal: number | null; label: string; from_target: boolean }[];
   change_amount: { name: string; before: Record<string, unknown>; amount: number; after: Record<string, unknown> }[];
 };
@@ -24,16 +32,24 @@ const toItem = (v: Item, n: number): MealItem => ({
 } as MealItem);
 
 describe('meal_score.json：サーバーと同じ点', () => {
-  test.each(data.cases)('$name', ({ items, target, sex, expected }) => {
+  test.each(data.cases)('$name', ({ items, target, sex, in_progress, expected }) => {
     const meals = items.length ? [{ items: items.map(toItem) }] : [];
-    const s = mealScore(meals, target, sex);
+    const s = mealScore(meals, target, sex, in_progress);
     const got = s == null ? null : {
       score: s.score,
       parts: Object.fromEntries(s.parts.map((p) => [p.key, p.points])),
       easiest: s.easiest == null ? null : { part: s.easiest.part, key: s.easiest.item.key, advice: s.easiest.item.advice, gain: s.easiest.gain },
       band: { label: s.band.label, from_target: s.bandFromTarget },
+      deferred: s.parts.filter((p) => p.deferred).map((p) => p.key),
     };
     expect(got).toEqual(expected);
+  });
+
+  test.each(data.diffs)('前の日との差：$name', ({ goal, day_type, sex, in_progress, today, previous, expected }) => {
+    const target = targetFor(goal, day_type);
+    const now = mealScore([{ items: today.map(toItem) }], target, sex, in_progress);
+    const before = mealScore([{ items: previous.map(toItem) }], target, sex, in_progress);
+    expect({ points: now?.score ?? null, previous_points: before?.score ?? null, diff: scoreDiff(now, before) }).toEqual(expected);
   });
 
   test.each(data.bands)('SV の欄：目標 $kcal kcal', ({ kcal, label, from_target }) => {
@@ -76,11 +92,16 @@ describe('前の日との差と、読み上げ', () => {
   });
 
   test('読み上げは、点・差・内訳（記録なしも）・伸ばしやすい項目', () => {
-    expect(scoreSpeech(today, 8, false)).toBe(
+    expect(scoreSpeech(today, 8)).toBe(
       '食事のスコア 91点、前の日より 8点高い。内訳：エネルギー 100点、たんぱく質 100点、バランス 70点、控えたいもの 95点。伸ばしやすいのは、副菜をあと 4 つで +3点',
     );
-    expect(scoreSpeech(before, -8, true)).toBe(
-      '食事のスコア（ここまで） 83点、前の日より 8点低い。内訳：エネルギー 記録なし、たんぱく質 記録なし、バランス 70点、控えたいもの 95点。伸ばしやすいのは、副菜をあと 4 つで +7点',
+    expect(scoreSpeech(before, -8)).toBe(
+      '食事のスコア 83点、前の日より 8点低い。内訳：エネルギー 記録なし、たんぱく質 記録なし、バランス 70点、控えたいもの 95点。伸ばしやすいのは、副菜をあと 4 つで +7点',
+    );
+    // 今日（途中）は「ここまで」、エネルギーとたんぱく質は「1日の終わりに付く」
+    const soFar = mealScore([{ items: full.items.map(toItem) }], full.target, full.sex, true)!;
+    expect(scoreSpeech(soFar, 0)).toBe(
+      '食事のスコア（ここまで） 83点、前の日と同じ。内訳：エネルギー 1日の終わりに付く、たんぱく質 1日の終わりに付く、バランス 70点、控えたいもの 95点。伸ばしやすいのは、副菜をあと 4 つで +7点',
     );
   });
 });

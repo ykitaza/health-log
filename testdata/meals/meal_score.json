@@ -1,5 +1,5 @@
 {
-  "description": "食事のスコア（#331）。サーバー（services/meals/meals/domain/meal_score.py）とアプリ（apps/karada/lib/mealScore.ts）が同じ点を出すことを、pytest（services/meals/tests/test_shared_testdata.py）と jest（apps/karada/lib/__tests__/mealScore.test.ts）の両方で確かめる。期待する値は式を写さずに手で計算した数（calc に計算を残す）。cases の items は 1 回の食事の品目（書いていない推定の項目は null＝推定していない）。target はその日の目標（kcal・たんぱく質。null は目標なし）、sex はアプリの設定の性別（null は未設定で厳しいほうの目安）。parts は内訳ごとの 0〜100 点（null は記録なし）、easiest はいちばん伸ばしやすい項目と上がる点。bands は目標 kcal から選ぶ SV の欄。change_amount は量を変えたときの推定（数の項目は同じ割合、菓子かどうかは変わらない、推定していない項目は推定なしのまま）",
+  "description": "食事のスコア（#331）。サーバー（services/meals/meals/domain/meal_score.py）とアプリ（apps/karada/lib/mealScore.ts）が同じ点を出すことを、pytest（services/meals/tests/test_shared_testdata.py）と jest（apps/karada/lib/__tests__/mealScore.test.ts）の両方で確かめる。期待する値は式を写さずに手で計算した数（calc に計算を残す）。cases の items は 1 回の食事の品目（書いていない推定の項目は null＝推定していない）。target はその日の目標（kcal・たんぱく質。null は目標なし）、sex はアプリの設定の性別（null は未設定で厳しいほうの目安）。in_progress は 1 日の途中（今日）で、エネルギーとたんぱく質を 1 日の終わりに付くものとして外す（deferred）。parts は内訳ごとの 0〜100 点（null は記録なし）、easiest はいちばん伸ばしやすい項目と上がる点。bands は目標 kcal から選ぶ SV の欄。diffs は前の日との差（同じ規則で数えた点どうし。目標は goal と day_type から選ぶ）。change_amount は量を変えたときの推定（数の項目は同じ割合、菓子かどうかは変わらない、推定していない項目は推定なしのまま）",
   "cases": [
     {
       "name": "全部そろった日",
@@ -70,8 +70,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": true
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "推定のない品目が1つでもある日は_推定の項目が記録なし",
@@ -142,8 +144,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": true
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "食塩だけ推定がない日は_食塩だけを除いて割り直す",
@@ -228,8 +232,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": true
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "目標がない日は_エネルギーとたんぱく質が記録なしで_SVは基本形の欄",
@@ -297,8 +303,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "目標kcalが2600なら_2400から3000の欄",
@@ -369,8 +377,10 @@
         "band": {
           "label": "2,400〜3,000kcal",
           "from_target": true
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "控えたいもの_女性",
@@ -420,8 +430,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "控えたいもの_男性",
@@ -471,8 +483,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "控えたいもの_性別がなければ厳しいほう",
@@ -522,8 +536,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "性別がないときの食物繊維は22g",
@@ -555,8 +571,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "脂質が少ない日",
@@ -587,8 +605,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "脂質が多い日",
@@ -619,8 +639,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "エネルギーが目標の30パーセント多い日",
@@ -654,8 +676,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": true
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "たんぱく質が足りない日",
@@ -689,8 +713,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "たんぱく質は多くても下げない",
@@ -719,8 +745,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "食塩が多い日_あと何gは小数1桁",
@@ -754,8 +782,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "主食が目安より多い日",
@@ -792,8 +822,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "お酒がリスクを高める量ちょうど",
@@ -827,8 +859,10 @@
         "band": {
           "label": "2,200±200kcal（基本形）",
           "from_target": false
-        }
-      }
+        },
+        "deferred": []
+      },
+      "in_progress": false
     },
     {
       "name": "食事がない日は点を出さない",
@@ -839,7 +873,180 @@
         "protein_g": 140
       },
       "sex": "male",
-      "expected": null
+      "expected": null,
+      "in_progress": false
+    },
+    {
+      "name": "途中の日（今日）は_エネルギーとたんぱく質を外して割り直す",
+      "calc": "全部そろった日と同じ品目で、今日（途中）。エネルギーとたんぱく質は 1 日の終わりに付くので数えない。(0.7+0.95)/2 = 0.825 → 82.5 は 83。伸ばしやすいのは副菜 0.8×100/2/6 = 6.67 → +7（エネルギー・たんぱく質は勧めない）",
+      "items": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2400,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "in_progress": true,
+      "expected": {
+        "score": 83,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 70,
+          "moderation": 95
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_side",
+          "advice": "副菜をあと 4 つ",
+          "gain": 7
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": [
+          "energy",
+          "protein"
+        ]
+      }
+    },
+    {
+      "name": "途中の日は_目標より少なくてもエネルギーを勧めない",
+      "calc": "800kcal・P 40・F 20（22.5%）、推定はどれも 0。今日（途中）。バランス（目標 2000 は基本形）：5 区分も食物繊維も 0 → 0。控えたいもの：食塩 0・脂質・菓子 0・お酒 0 は 1 → 100。点 (0+1)/2 = 0.5 → 50。伸ばしやすいのは主食（並びの先）1×100/2/6 = 8.33 → +8、あと 5 つ",
+      "items": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2000,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "in_progress": true,
+      "expected": {
+        "score": 50,
+        "parts": {
+          "energy": null,
+          "protein": null,
+          "balance": 0,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "balance",
+          "key": "sv_staple",
+          "advice": "主食をあと 5 つ",
+          "gain": 8
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": [
+          "energy",
+          "protein"
+        ]
+      }
+    },
+    {
+      "name": "過ぎた日は4つで数え_あと何kcalは3桁区切り",
+      "calc": "同じ品目で、過ぎた日。エネルギー 800 は 2000 の −60% → 0。たんぱく質 40/(140×0.9) = 0.3175 → 32。バランス 0、控えたいもの 1。点 (0+0.3175+0+1)/4 = 0.3294 → 33。伸ばしやすいのはエネルギー 1×100/4 = 25、あと 1,200 kcal",
+      "items": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "target": {
+        "kcal": 2000,
+        "protein_g": 140
+      },
+      "sex": "male",
+      "expected": {
+        "score": 33,
+        "parts": {
+          "energy": 0,
+          "protein": 32,
+          "balance": 0,
+          "moderation": 100
+        },
+        "easiest": {
+          "part": "energy",
+          "key": "kcal",
+          "advice": "エネルギーをあと 1,200 kcal",
+          "gain": 25
+        },
+        "band": {
+          "label": "2,200±200kcal（基本形）",
+          "from_target": true
+        },
+        "deferred": []
+      },
+      "in_progress": false
     }
   ],
   "bands": [
@@ -992,6 +1199,186 @@
         "salt_g": null,
         "alcohol_g": null,
         "is_snack_or_sweet_drink": null
+      }
+    }
+  ],
+  "diffs": [
+    {
+      "name": "今日（途中）と前の日は_同じ規則で数えた点どうしで比べる",
+      "calc": "休みの日の目標 2000kcal・たんぱく質 140g。今日は 800kcal の日で途中 → 50。前の日（全部そろった日）も今日と同じくエネルギーとたんぱく質を外す → (0.7+0.95)/2 = 0.825 → 83。差 50 − 83 = −33",
+      "goal": {
+        "policy": "maintain",
+        "body_weight_kg": 70,
+        "protein_per_kg": 2,
+        "targets": {
+          "training_day": {
+            "kcal": 2400,
+            "fat_g": 60,
+            "carbs_g": 300
+          },
+          "rest_day": {
+            "kcal": 2000,
+            "fat_g": 55,
+            "carbs_g": 250
+          }
+        }
+      },
+      "day_type": "rest",
+      "sex": "male",
+      "in_progress": true,
+      "today": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "previous": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "expected": {
+        "points": 50,
+        "previous_points": 83,
+        "diff": -33
+      }
+    },
+    {
+      "name": "過ぎた日と前の日は_4つで数えた点どうしで比べる",
+      "calc": "今日でない日は 800kcal の日 → 33。前の日（全部そろった日）はエネルギー 2160 は 2000 の +8% → 1、たんぱく質 126 は 126 以上 → 1、バランス 0.7、控えたいもの 0.95 → 0.9125 → 91。差 33 − 91 = −58",
+      "goal": {
+        "policy": "maintain",
+        "body_weight_kg": 70,
+        "protein_per_kg": 2,
+        "targets": {
+          "training_day": {
+            "kcal": 2400,
+            "fat_g": 60,
+            "carbs_g": 300
+          },
+          "rest_day": {
+            "kcal": 2000,
+            "fat_g": 55,
+            "carbs_g": 250
+          }
+        }
+      },
+      "day_type": "rest",
+      "sex": "male",
+      "in_progress": false,
+      "today": [
+        {
+          "kcal": 800,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 0,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "previous": [
+        {
+          "kcal": 1000,
+          "protein_g": 40,
+          "fat_g": 20,
+          "sv_staple": 4,
+          "sv_side": 1,
+          "sv_main": 1,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 6,
+          "salt_g": 4,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 900,
+          "protein_g": 70,
+          "fat_g": 30,
+          "sv_staple": 2,
+          "sv_side": 0,
+          "sv_main": 3,
+          "sv_dairy": 0,
+          "sv_fruit": 0,
+          "fiber_g": 3,
+          "salt_g": 5,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        },
+        {
+          "kcal": 260,
+          "protein_g": 16,
+          "fat_g": 10,
+          "sv_staple": 0,
+          "sv_side": 0,
+          "sv_main": 0,
+          "sv_dairy": 2,
+          "sv_fruit": 1,
+          "fiber_g": 2,
+          "salt_g": 0,
+          "alcohol_g": 0,
+          "is_snack_or_sweet_drink": false
+        }
+      ],
+      "expected": {
+        "points": 33,
+        "previous_points": 91,
+        "diff": -58
       }
     }
   ]

@@ -9,6 +9,9 @@
                 脂質のエネルギー比：20〜30% で満点、幅から 10 ポイント離れると 0
                 純アルコール：生活習慣病のリスクを高める量の未満なら満点、その量に達したら 量/(2×その量) を引く（その量で半分、2 倍で 0）
 
+1 日の途中（今日）は、エネルギーとたんぱく質を「1 日の終わりに付く」（deferred）として外し、残りの内訳だけで点を出す
+（昼の時点で「エネルギーをあと 1,202 kcal」と勧めると食べ過ぎを促すように読めるため。いちばん伸ばしやすい項目からも外れる）。
+前の日との差は、同じ規則で数えた点どうしで比べる（今日と比べる前の日の点も、エネルギーとたんぱく質を外して数える）。
 推定がない（その日の品目のどれかに値がない）項目は「記録なし」にして、点を下げない（残りの項目だけで割合を出す）。
 1 つでも値のない品目があると、足した量は少なく（塩やお酒は少なく）出てしまうので、その日のその項目ごと記録なしにする。
 目標の kcal・たんぱく質がなければ、その内訳は記録なし。内訳が全部記録なしなら点は出さない。
@@ -115,6 +118,7 @@ class SubScore:
 class PartScore:
     key: str
     items: tuple[SubScore, ...]
+    deferred: bool = False  # 1 日の途中なので数えない（1 日の終わりに付く）。項目はどれも記録なし（ratio が None）
 
     @property
     def label(self) -> str:
@@ -145,6 +149,7 @@ class MealScore:
     band: SvBand
     band_from_target: bool
     sex: Sex | None
+    in_progress: bool = False  # 1 日の途中（今日）。エネルギーとたんぱく質は数えない
 
     @property
     def available_parts(self) -> tuple[PartScore, ...]:
@@ -190,6 +195,11 @@ def _ceil(x: float, digits: int = 0) -> float:
     return int(n) if digits == 0 else n
 
 
+def _int(n: int) -> str:
+    """整数を 3 桁区切りで見せる（1,202）。アプリの toLocaleString('en-US') と同じ。"""
+    return f"{n:,}"
+
+
 def _sum(items: list[FoodItem], key: str) -> float | None:
     """その日のすべての品目に推定があれば合計、1 つでもなければ None（記録なし）。"""
     total = 0.0
@@ -207,7 +217,7 @@ def _energy(kcal: float, target: float | None) -> SubScore:
     diff = (kcal - target) / target
     ratio = 1.0 if abs(diff) <= ENERGY_FULL else _clamp01(1 - (abs(diff) - ENERGY_FULL) / (ENERGY_ZERO - ENERGY_FULL))
     gap = js_round(abs(kcal - target))
-    advice = f"エネルギーをあと {gap} kcal" if kcal < target else f"エネルギーを {gap} kcal 控えめに"
+    advice = f"エネルギーをあと {_int(gap)} kcal" if kcal < target else f"エネルギーを {_int(gap)} kcal 控えめに"
     return SubScore("kcal", "エネルギー", ratio, kcal, target, target, "kcal", advice)
 
 
@@ -216,7 +226,7 @@ def _protein(protein_g: float, target: float | None) -> SubScore:
         return SubScore("protein_g", "たんぱく質", None, unit="g")
     full = target * PROTEIN_FULL
     ratio = 1.0 if protein_g >= full else protein_g / full
-    advice = f"たんぱく質をあと {_ceil(target - protein_g)} g"
+    advice = f"たんぱく質をあと {_int(_ceil(target - protein_g))} g"
     return SubScore("protein_g", "たんぱく質", ratio, protein_g, target, None, "g", advice)
 
 
@@ -224,9 +234,9 @@ def _sv(key: str, label: str, value: float | None, low: float, high: float) -> S
     if value is None:
         return SubScore(key, label, None, None, low, high, "つ")
     if value < low:
-        return SubScore(key, label, value / low, value, low, high, "つ", f"{label}をあと {_ceil(low - value)} つ")
+        return SubScore(key, label, value / low, value, low, high, "つ", f"{label}をあと {_int(_ceil(low - value))} つ")
     if value > high:
-        return SubScore(key, label, high / value, value, low, high, "つ", f"{label}を {_ceil(value - high)} つ控えめに")
+        return SubScore(key, label, high / value, value, low, high, "つ", f"{label}を {_int(_ceil(value - high))} つ控えめに")
     return SubScore(key, label, 1.0, value, low, high, "つ")
 
 
@@ -234,7 +244,7 @@ def _fiber(value: float | None, target: float) -> SubScore:
     if value is None:
         return SubScore("fiber_g", "食物繊維", None, None, target, None, "g")
     ratio = min(1.0, value / target)
-    return SubScore("fiber_g", "食物繊維", ratio, value, target, None, "g", f"食物繊維をあと {_ceil(target - value)} g")
+    return SubScore("fiber_g", "食物繊維", ratio, value, target, None, "g", f"食物繊維をあと {_int(_ceil(target - value))} g")
 
 
 def _cap(value: float, limit: float) -> float:
@@ -246,7 +256,7 @@ def _salt(value: float | None, limit: float) -> SubScore:
     if value is None:
         return SubScore("salt_g", "食塩", None, None, None, limit, "g")
     return SubScore("salt_g", "食塩", _cap(value, limit), value, None, limit, "g",
-                    f"食塩を {_ceil(value - limit, 1)} g 控えめに")
+                    f"食塩を {_ceil(value - limit, 1):,.1f} g 控えめに")
 
 
 def _fat_ratio(fat_g: float, kcal: float) -> SubScore:
@@ -265,7 +275,7 @@ def _snack(items: list[FoodItem]) -> SubScore:
         return SubScore("snack_kcal", "菓子・嗜好飲料", None, None, None, SNACK_KCAL, "kcal")
     kcal = sum(i.nutrition.kcal for i in items if i.estimate.is_snack_or_sweet_drink)
     return SubScore("snack_kcal", "菓子・嗜好飲料", _cap(kcal, SNACK_KCAL), kcal, None, SNACK_KCAL, "kcal",
-                    f"菓子・甘い飲み物を {js_round(kcal - SNACK_KCAL)} kcal 控えめに")
+                    f"菓子・甘い飲み物を {_int(js_round(kcal - SNACK_KCAL))} kcal 控えめに")
 
 
 def _alcohol(value: float | None, limit: float) -> SubScore:
@@ -276,8 +286,9 @@ def _alcohol(value: float | None, limit: float) -> SubScore:
                     f"お酒を控えめに（純アルコール {limit} g 未満が目安）")
 
 
-def meal_score(meals: tuple[Meal, ...], target: Target | None, sex: Sex | None) -> MealScore | None:
-    """1 日の食事のスコア。食事がない日は None。"""
+def meal_score(meals: tuple[Meal, ...], target: Target | None, sex: Sex | None,
+               in_progress: bool = False) -> MealScore | None:
+    """1 日の食事のスコア。食事がない日は None。in_progress（今日）はエネルギーとたんぱく質を外す（1 日の終わりに付く）。"""
     items = [item for meal in meals for item in meal.items]
     if not items:
         return None
@@ -289,11 +300,24 @@ def meal_score(meals: tuple[Meal, ...], target: Target | None, sex: Sex | None) 
     target = target or Target()
     band, from_target = sv_band(target.kcal)
     balance = tuple(_sv(key, label, _sum(items, key), *band.ranges[key]) for key, label in SV_GROUPS)
+    if in_progress:
+        energy = PartScore("energy", (SubScore("kcal", "エネルギー", None, unit="kcal"),), deferred=True)
+        protein_part = PartScore("protein", (SubScore("protein_g", "たんぱく質", None, unit="g"),), deferred=True)
+    else:
+        energy = PartScore("energy", (_energy(kcal, target.kcal),))
+        protein_part = PartScore("protein", (_protein(protein, target.protein_g),))
     parts = (
-        PartScore("energy", (_energy(kcal, target.kcal),)),
-        PartScore("protein", (_protein(protein, target.protein_g),)),
+        energy,
+        protein_part,
         PartScore("balance", balance + (_fiber(_sum(items, "fiber_g"), FIBER_G[sex]),)),
         PartScore("moderation", (_salt(_sum(items, "salt_g"), SALT_G[sex]), _fat_ratio(fat, kcal), _snack(items),
                                  _alcohol(_sum(items, "alcohol_g"), ALCOHOL_G[sex]))),
     )
-    return MealScore(parts, band, from_target, sex)
+    return MealScore(parts, band, from_target, sex, in_progress)
+
+
+def score_diff(today: MealScore | None, before: MealScore | None) -> int | None:
+    """前の日の点との差（同じ規則で数えた点どうし）。どちらかに点がなければ None。"""
+    if today is None or before is None or today.score is None or before.score is None:
+        return None
+    return today.score - before.score

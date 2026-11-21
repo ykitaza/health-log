@@ -78,8 +78,10 @@ export default function MealsScreen() {
     ]);
     const [before, day] = days;
     // 食事のスコア（端末で計算。サーバーと同じ規則）。性別は設定の値（なければ厳しいほうの目安）
-    const score = mealScore(day.meals, day.target, profile.sex);
-    const diff = scoreDiff(score, mealScore(before.meals, before.target, profile.sex));
+    // 今日は 1 日の途中なので、エネルギーとたんぱく質を外す（1 日の終わりに付く）。前の日も同じ規則で数えて差を出す
+    const inProgress = date === todayKey();
+    const score = mealScore(day.meals, day.target, profile.sex, inProgress);
+    const diff = scoreDiff(score, mealScore(before.meals, before.target, profile.sex, inProgress));
     return { date, day, goal, templates, yesterday: before.meals, score, diff };
   }, date);
   const day = data?.date === date ? data.day : null;
@@ -193,7 +195,7 @@ export default function MealsScreen() {
           )}
         </View>
       )}
-      {data?.date === date && data.score?.score != null && <MealScoreCard score={data.score} diff={data.diff} soFar={date === today} />}
+      {data?.date === date && data.score?.score != null && <MealScoreCard score={data.score} diff={data.diff} />}
       <DailyHighlights date={date} areas={TAB_AREAS.meals} />
 
       {SLOTS.map((slot, slotIndex) => {
