@@ -11,7 +11,7 @@ import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import { useFocusData } from '@/hooks/data';
 import { dateLabels, datePoints, lineSummary, periodRecords, sinceNote } from '@/lib/chart';
 import { formatJpDate, formatShortDate, todayKey } from '@/lib/date';
-import { average, averageClock, formatClock, formatHM, formatSteps, sleepAverageLabel } from '@/lib/health';
+import { average, averageClock, formatClock, formatHM, formatMinutes, formatSteps, sleepAverageLabel } from '@/lib/health';
 import { sleepGauge } from '@/lib/homeHud';
 import { Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { colors, space } from '@/theme';
@@ -60,7 +60,8 @@ export default function HealthTrendScreen() {
         </View>
       )}
       <View style={{ marginTop: space.s }}>
-        <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
+        {/* 4 つ並ぶので、360 の幅で「3か月」が切れないよう、選んだ印（✓）は出さない（塗りと太字で分かる） */}
+        <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} check={false} />
       </View>
       {data && all.length === 0 ? (
         <EmptyState
@@ -88,6 +89,10 @@ export default function HealthTrendScreen() {
     </Screen>
   );
 }
+
+/** グラフで選んだ日の札から、からだのタブのその日（その日の睡眠・心拍・歩数・体重）へ */
+const openBodyDay = (date: string) => router.navigate({ pathname: '/body', params: { date } });
+const BODY_LINK = 'この日のからだを見る';
 
 /** 横の目盛り：始め・真ん中・終わりの日だけに日付を出す */
 const barLabel = (i: number, n: number, date: string) => (i === 0 || i === n - 1 || i === Math.floor((n - 1) / 2) ? formatShortDate(date) : '');
@@ -121,6 +126,22 @@ function SleepTrend({ days, period, since }: { days: SleepDay[]; period: Period;
             // 最新の晩だけ明るい緑、ほかは 3:1 以上の濃い緑
             segments: [{ value: d.asleepMin, color: i === days.length - 1 ? colors.accent : colors.accentMuted }],
           }))}
+          select={{
+            keys: days.map((d) => d.date),
+            testID: 'sleep-chart',
+            label: (i) => `${formatJpDate(days[i].date)} ${formatMinutes(days[i].asleepMin)}`,
+            detail: (i) => {
+              const d = days[i];
+              return {
+                title: `${formatJpDate(d.date)}の朝`,
+                value: formatHM(d.asleepMin),
+                unit: '眠っていた時間',
+                rows: [{ label: '寝た時刻', value: formatClock(d.mainStartAt) }, { label: '起きた時刻', value: formatClock(d.mainEndAt) }],
+                note: d.sessions > 1 ? `ほか ${d.sessions - 1} 回の睡眠を含む` : undefined,
+                link: { label: BODY_LINK, onPress: () => openBodyDay(d.date) },
+              };
+            },
+          }}
         />
         <View style={s.legend}>
           <View style={[s.swatch, { backgroundColor: colors.accent }]} />
@@ -177,6 +198,21 @@ function HeartTrend({ days, period, from, today, since }: { days: HeartRateDay[]
       <Card style={{ marginTop: space.l }}>
         {days.length >= 2 ? (
           <LineChart points={datePoints(days, (d) => d.restingBpm!, from, today)} xLabels={dateLabels(from, today, 3)} formatY={r} animKey={animKey}
+            select={{
+              keys: days.map((d) => d.date),
+              testID: 'heart-chart',
+              label: (i) => `${formatJpDate(days[i].date)} 安静時 ${r(days[i].restingBpm!)} 拍/分`,
+              detail: (i) => {
+                const d = days[i];
+                return {
+                  title: formatJpDate(d.date),
+                  value: r(d.restingBpm!),
+                  unit: 'bpm（安静時）',
+                  rows: d.avgBpm != null ? [{ label: '平均', value: `${r(d.avgBpm)}${d.minBpm != null && d.maxBpm != null ? `（${r(d.minBpm)}〜${r(d.maxBpm)}）` : ''}` }] : [],
+                  link: { label: BODY_LINK, onPress: () => openBodyDay(d.date) },
+                };
+              },
+            }}
             accessibilityLabel={lineSummary('安静時心拍', PERIOD_LABELS[period], [
               last.restingBpm != null && `今 ${r(last.restingBpm)} 拍/分`, avg != null && `平均 ${r(avg)} 拍/分`, `${days.length} 日の記録`,
             ])} />
@@ -235,6 +271,17 @@ function StepsTrend({ days, period, since }: { days: StepDay[]; period: Period; 
             // 最新の日だけ明るい緑、ほかは 3:1 以上の濃い緑（睡眠と同じ）
             segments: [{ value: d.steps, color: i === days.length - 1 ? colors.accent : colors.accentMuted }],
           }))}
+          select={{
+            keys: days.map((d) => d.date),
+            testID: 'steps-chart',
+            label: (i) => `${formatJpDate(days[i].date)} ${formatSteps(days[i].steps)} 歩`,
+            detail: (i) => ({
+              title: formatJpDate(days[i].date),
+              value: formatSteps(days[i].steps),
+              unit: '歩',
+              link: { label: BODY_LINK, onPress: () => openBodyDay(days[i].date) },
+            }),
+          }}
         />
         <View style={s.legend}>
           <View style={[s.swatch, { backgroundColor: colors.accent }]} />

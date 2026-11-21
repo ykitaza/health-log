@@ -60,7 +60,8 @@ export default function BodyTrendScreen() {
         </ChipRow>
       </View>
       <View style={{ marginTop: space.s }}>
-        <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} />
+        {/* 4 つ並ぶので、360 の幅で「3か月」が切れないよう、選んだ印（✓）は出さない（塗りと太字で分かる） */}
+        <Segmented options={PERIODS.map((p) => ({ key: p, label: PERIOD_LABELS[p] }))} value={period} onChange={setPeriod} check={false} />
       </View>
       {metric === 'bmi' && height == null && <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>BMI は、アカウントの画面で身長を入れると出ます</T>}
       {!last ? (
@@ -99,6 +100,24 @@ export default function BodyTrendScreen() {
                   points={datePoints(inRange, (p) => conv(p.value), from, today)}
                   avg={weight ? datePoints(avg, (p) => conv(p.value), from, today) : undefined}
                   xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`}
+                  select={{
+                    keys: inRange.map((p) => p.date),
+                    testID: 'body-chart',
+                    label: (i) => `${formatJpDate(inRange[i].date)} ${BODY_METRICS[metric].label} ${fmt1(conv(inRange[i].value))}${unitLabel}`,
+                    detail: (i) => {
+                      const p = inRange[i];
+                      // 7日の平均は日付で合わせる（平均の線は記録の点と同じ並びではない）
+                      const a = weight ? avg.find((x) => x.date === p.date) : undefined;
+                      return {
+                        title: formatJpDate(p.date),
+                        value: fmt1(conv(p.value)),
+                        unit: unitLabel,
+                        rows: a ? [{ label: '7日の平均', value: `${fmt1(conv(a.value))}${unitLabel}` }] : [],
+                        note: p.memo !== '' ? p.memo : undefined,
+                        link: { label: 'この日のからだを見る', onPress: () => router.navigate({ pathname: '/body', params: { date: p.date } }) },
+                      };
+                    },
+                  }}
                   accessibilityLabel={lineSummary(BODY_METRICS[metric].label, PERIOD_LABELS[period], [
                     `今 ${fmt1(conv(last.value))}${unitLabel}`,
                     weight && avg.length > 0 && `7日の平均 ${fmt1(conv(avg[avg.length - 1].value))}${unitLabel}`,

@@ -55,3 +55,51 @@ export function niceTicks(min: number, max: number, count = 3): number[] {
   }
   return out;
 }
+
+/**
+ * グラフで選んだもの（棒・点）を押したときの次の選び：同じものをもう一度押すと外す（null）、ほかを押すとそれに変える。
+ * 選びは日付などのキーで持つ（期間や週を変えて並びが変わっても、別の日を指したままにならない）
+ */
+export function toggleSelection(current: string | null, key: string): string | null {
+  return current === key ? null : key;
+}
+
+/** 選んだキーの並びの中の位置。並びにない（期間を変えて外れた）ときは -1 */
+export function selectedIndex(keys: readonly string[], selected: string | null): number {
+  return selected == null ? -1 : keys.indexOf(selected);
+}
+
+/**
+ * 横の位置 x（グラフの左からの px）にいちばん近いもの（棒のまん中・点）の位置。xs は左から順の px。空なら -1
+ */
+export function nearestIndex(xs: readonly number[], x: number): number {
+  if (xs.length === 0) return -1;
+  let best = 0;
+  for (let i = 1; i < xs.length; i++) if (Math.abs(xs[i] - x) < Math.abs(xs[best] - x)) best = i;
+  return best;
+}
+
+/**
+ * 各もの（棒・点）の押せる列：となりとの真ん中から真ん中まで。端の列は、グラフの左端（from）・右端（to）まで。
+ * 列はすき間なく並ぶので、細い棒でも、その列のどこを押してもよい。返すのは { left, width }（px）
+ */
+export function hitColumns(xs: readonly number[], from: number, to: number): { left: number; width: number }[] {
+  return xs.map((x, i) => {
+    const l = i === 0 ? from : (xs[i - 1] + x) / 2;
+    const r = i === xs.length - 1 ? to : (x + xs[i + 1]) / 2;
+    return { left: l, width: Math.max(0, r - l) };
+  });
+}
+
+/**
+ * 選んだものの札の左の位置：札のまん中を cx に合わせ、グラフの幅（0〜width）からはみ出さないよう端に寄せる。札が幅より広いときは 0
+ */
+export function detailLeft(cx: number, cardW: number, width: number): number {
+  if (cardW >= width) return 0;
+  return Math.min(width - cardW, Math.max(0, cx - cardW / 2));
+}
+
+/** 指でなぞったと決める横の動き（px）。縦のスクロールより横が大きいときだけ */
+export function isScrub(dx: number, dy: number): boolean {
+  return Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.5;
+}
