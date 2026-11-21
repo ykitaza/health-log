@@ -109,6 +109,7 @@ def register_meal_tools(
     today: Callable[[], date],
     sync_status: AppSyncStatus | None = None,
     previous_steps: PreviousNextSteps | None = None,
+    app_link: Callable[..., str] | None = None,
 ) -> None:
     """食事のツールを mcp に登録する。previous_steps をつなぐと、weekly_review に前の週のまとめの次の一歩を足す。"""
     s = services
@@ -117,16 +118,17 @@ def register_meal_tools(
     def subject() -> str:
         return get_access_token().subject  # SDK が検証済みのアクセストークン
 
-    async def synced(subject_: str, view: dict) -> dict:
-        """応答に、アプリの最後の同期の時刻を足す（それより後にアプリで記録した分は、まだ見えていない）。"""
-        return {**view, "last_app_sync_at": await status.last_app_sync_at(subject_)}
+    async def synced(subject_: str, view: dict, day: date | str | None = None) -> dict:
+        """応答に、アプリの最後の同期の時刻と、アプリの食事の画面へのリンク（app_link。day の日）を足す（同期より後にアプリで記録した分は、まだ見えていない）。"""
+        link = {"app_link": app_link("meals", day)} if app_link else {}
+        return {**view, **link, "last_app_sync_at": await status.last_app_sync_at(subject_)}
 
     async def with_today(meal_views: list[dict], subject_: str) -> dict:
         return await synced(subject_, {
             "meals": meal_views,
             "today": views.daily(await s.summaries.daily(subject_, today())),
             "suggested_next": [NEXT_WEEK, NEXT_PROGRESS],
-        })
+        }, meal_views[0]["date"] if meal_views else None)
 
 
     # --- 記録する ---
@@ -181,7 +183,8 @@ def register_meal_tools(
         """食事を1件、品目ごとに返す。品目を直すときは、ここで item_id を調べる。"""
         sub = subject()
         with domain_errors():
-            return await synced(sub, views.meal(await s.meals.get(sub, meal_id)))
+            meal = views.meal(await s.meals.get(sub, meal_id))
+            return await synced(sub, meal, meal["date"])
 
     @mcp.tool(annotations=READ)
     async def list_meals(start: date, end: date, slot: SlotName | None = None) -> dict:
@@ -190,7 +193,7 @@ def register_meal_tools(
             raise ToolError(f"期間は{MAX_RANGE_DAYS}日までにしてください")
         sub = subject()
         meals = await s.meals.list(sub, start, end, MealSlot(slot) if slot else None)
-        return await synced(sub, {"meals": [views.meal(m) for m in meals]})
+        return await synced(sub, {"meals": [views.meal(m) for m in meals]}, start)
 
     @mcp.tool(annotations=READ)
     async def today_status(day: date | None = None) -> dict:
@@ -200,7 +203,7 @@ def register_meal_tools(
         """
         sub = subject()
         daily = views.daily(await s.summaries.daily(sub, day or today()))
-        return await synced(sub, {**daily, "suggested_next": [NEXT_WEEK, NEXT_PROGRESS]})
+        return await synced(sub, {**daily, "suggested_next": [NEXT_WEEK, NEXT_PROGRESS]}, daily["date"])
 
     @mcp.tool(annotations=READ)
     async def weekly_review(day: date | None = None) -> dict:
@@ -218,7 +221,7 @@ def register_meal_tools(
         weekly = views.weekly(await s.summaries.period(sub, start, end))
         if previous_steps is not None:
             weekly["previous_next_steps"] = await previous_steps.previous_next_steps(sub, start)
-        return await synced(sub, {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]})
+        return await synced(sub, {**weekly, "suggested_next": [NEXT_PROGRESS, NEXT_TODAY]}, start)
 
     @mcp.tool(annotations=READ)
     async def meal_summary(start: date, end: date) -> dict:
@@ -232,7 +235,7 @@ def register_meal_tools(
         if (end - start).days >= MAX_SUMMARY_DAYS:
             raise ToolError(f"期間は{MAX_SUMMARY_DAYS}日までにしてください")
         sub = subject()
-        return await synced(sub, views.weekly(await s.summaries.period(sub, start, end)))
+        return await synced(sub, views.weekly(await s.summaries.period(sub, start, end)), start)
 
     # --- 体重とゴールまでの道のり ---
 
@@ -243,7 +246,7 @@ def register_meal_tools(
         with domain_errors():
             await s.weights.record(sub, day or today(), kg)
         progress = views.progress(await s.weights.progress(sub, today()))
-        return await synced(sub, {**progress, "suggested_next": [NEXT_WEEK, NEXT_TODAY]})
+        return await synced(sub, {**progress, "suggested_next": [NEXT_WEEK, NEXT_TODAY]}, day or today())
 
     @mcp.tool(annotations=READ)
     async def goal_progress() -> dict:

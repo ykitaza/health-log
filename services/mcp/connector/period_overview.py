@@ -58,6 +58,7 @@ def register_overview_tools(
     sync_status: AppSyncStatus,
     today: Callable[[], date],
     previous_steps: PreviousNextSteps,
+    app_link: Callable[..., str] | None = None,
 ) -> None:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def period_overview(start: date | None = None, end: date | None = None) -> dict:
@@ -158,4 +159,5 @@ def register_overview_tools(
                 },
                 "previous_next_steps": await previous_steps.previous_next_steps(sub, start),
                 "last_app_sync_at": await sync_status.last_app_sync_at(sub),
+                **({"app_link": app_link("reports", start)} if app_link else {}),  # アプリのレポートの画面（まとめを書いたあと）
             }
