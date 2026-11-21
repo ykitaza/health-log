@@ -85,3 +85,29 @@ def test_アプリからは_推定を送っても送らなくても受け付け_
     assert isinstance(REGISTRY.parse_change(_item(NONE_EST), types, None), Change)
     for bad in ({"sv_side": -1}, {"sv_side": 101}, {"salt_g": "2"}, {"is_snack_or_sweet_drink": 1}):
         assert isinstance(REGISTRY.parse_change(_item(bad), types, None), Rejection), bad
+
+
+def _day_meal(day: str, side: float, fiber: float, salt: float) -> dict:
+    # kcal 1800・脂質 50g（450 ÷ 1800 = 25%）、主食 5・主菜 3・乳 2・果物 2（基本形の欄の幅に入る）
+    est = {**RICE_EST, "sv_staple": 5, "sv_side": side, "sv_main": 3, "sv_dairy": 2, "sv_fruit": 2,
+           "fiber_g": fiber, "salt_g": salt}
+    item = {"name": "定食", "amount": 1, "unit": "個", "kcal": 1800, "protein_g": 80, "fat_g": 50, "carbs_g": 250, **est}
+    return {"date": day, "slot": "lunch", "items": [item], "description": "定食", "source": "text"}
+
+
+def test_今日の状況に_点と前の日との差と伸ばしやすい項目が出る(call):
+    call("record_meal", meal=_day_meal("2026-10-11", side=5, fiber=22, salt=6))
+    call("record_meal", meal=_day_meal("2026-10-12", side=2, fiber=11, salt=6.5))
+    score = call("today_status")["score"]
+    # 目標がないので、エネルギーとたんぱく質は記録なし。SV は基本形（2,200±200kcal）の欄。性別がないので厳しいほうの目安
+    # 前の日：バランスも控えたいものも満点 → 100
+    # 今日：バランス（主食 1、副菜 2/5 = 0.4、主菜 1、乳 1、果物 1、食物繊維 11/22 = 0.5）= 4.9/6 = 0.8167 → 82、
+    #   控えたいもの（食塩 6.5g は 6.5g 以下で 1、脂質 25% で 1、菓子 0、お酒 0）= 1 → (0.8167 + 1)/2 = 0.9083 → 91
+    # 伸ばしやすいのは副菜：0.6 × 100 ÷ 2 内訳 ÷ 6 項目 = +5（食物繊維は 0.5 × 100 ÷ 12 = 4.17）
+    assert (score["points"], score["previous_points"], score["diff"]) == (91, 100, -9)
+    assert [p["points"] for p in score["parts"]] == [None, None, 82, 100]
+    assert score["easiest"] == {"part": "balance", "item": "sv_side", "advice": "副菜をあと 3 つ", "gain": 5}
+    assert score["basis"]["sv_band"] == "2,200±200kcal（基本形）" and score["basis"]["sex"] is None
+    assert "厳しいほう" in score["basis"]["note"]
+    summary = call("meal_summary", start="2026-10-12", end="2026-10-12")["days"][0]["score"]
+    assert (summary["points"], summary["diff"]) == (91, -9)  # 期間の最初の日も、前の日との差が出る

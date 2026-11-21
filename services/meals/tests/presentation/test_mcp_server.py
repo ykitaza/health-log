@@ -145,6 +145,14 @@ def test_週のふり返りは月曜から_今週は今日まで(call):
     assert (last_week["from"], last_week["to"], last_week["recorded_days"]) == ("2026-10-05", "2026-10-11", 1)
 
 
+# LUNCH だけの休みの日（目標 2400kcal・たんぱく質 140g）の食事のスコア（手で計算）：
+# エネルギー 420 は 2400 の −82.5%（±50% より外）→ 0。たんぱく質 27 ÷ (140 × 0.9) = 0.214 → 21。
+# バランスは推定なしで記録なし。控えたいものは脂質だけ：2.1 × 9 ÷ 420 = 4.5%（20% から 15.5 ポイント）→ 0。
+# 点：(0 + 0.214 + 0) ÷ 3 = 0.071 → 7。伸ばしやすいのはエネルギーと脂質（どちらも +100 ÷ 3 = 33）で、並びの先のエネルギー
+LUNCH_SCORE = {"points": 7, "diff": None, "parts": {"energy": 0, "protein": 21, "balance": None, "moderation": 0},
+               "easiest": {"advice": "エネルギーをあと 1980 kcal", "gain": 33}}
+
+
 def test_期間の食事のまとめ_月のふり返り(call):
     call("set_goals", **GOALS)
     call("record_meal", meal={**LUNCH, "date": "2026-09-01"})
@@ -154,7 +162,8 @@ def test_期間の食事のまとめ_月のふり返り(call):
         "2026-09-01", "2026-09-30", 30, 2)
     assert month["average_of_recorded_days"]["kcal"] == 420 and month["goal"]["policy"] == "bulk"
     assert month["days"][0] == {"date": "2026-09-01", "day_type": "rest", "recorded": True, "kcal": 420,
-                                "protein_g": 27, "fat_g": 2.1, "carbs_g": 74, "target_kcal": 2400}
+                                "protein_g": 27, "fat_g": 2.1, "carbs_g": 74, "target_kcal": 2400,
+                                "score": LUNCH_SCORE}
     assert month["last_app_sync_at"] is None
 
 

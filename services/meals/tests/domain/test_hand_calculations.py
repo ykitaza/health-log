@@ -46,7 +46,7 @@ def test_期間の平均は記録した日だけ_目標は記録した日の目�
     assert view["average_target"] == {"kcal": 2600, "protein_g": 140, "fat_g": 70, "carbs_g": 330}
     assert view["gap"] == {"kcal": -100, "protein_g": -10, "fat_g": 5, "carbs_g": -30}
     assert view["days"][1] == {"date": "2026-11-03", "day_type": "rest", "recorded": False, "kcal": 0, "protein_g": 0,
-                               "fat_g": 0, "carbs_g": 0, "target_kcal": 2400}
+                               "fat_g": 0, "carbs_g": 0, "target_kcal": 2400, "score": None}  # 記録がない日は点なし
 
 
 def test_栄養の丸めは_5を上げる_アプリの_Math_round_と同じ():

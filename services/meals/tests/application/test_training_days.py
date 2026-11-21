@@ -1,7 +1,7 @@
 """日の種類：本人が決めた日はそれを、決めていない日は筋トレの記録があれば筋トレの日にする。"""
 
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 
 from meals.application.summaries import SummaryService
 from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy
@@ -48,12 +48,13 @@ def test_本人が決めた日の種類を優先する():
     assert asyncio.run(s.daily("alice", WED)).day_type == DayType.TRAINING
 
 
-def test_週のふり返りは7日分を1回で読む():
+def test_週のふり返りは7日分を1回で読む_食事のスコアの差のため前の日も含める():
     provider = FakeTrainingDays()
     s, _ = service(provider)
     review = asyncio.run(s.weekly("alice", date(2026, 11, 8)))
     assert [d.day_type for d in review.days][:3] == [DayType.TRAINING, DayType.TRAINING, DayType.REST]
-    assert provider.calls == [(MON, date(2026, 11, 8))]
+    assert len(review.days) == 7
+    assert provider.calls == [(MON - timedelta(days=1), date(2026, 11, 8))]
 
 
 def test_筋トレをつながないときは_今までどおり休みの日():

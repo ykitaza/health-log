@@ -100,10 +100,62 @@ def daily(s: DailySummary) -> dict:
         "goal": goal(s.goal) if s.goal else None,  # 方針だけの目標もある（そのときは target の数字が null）
         "target": nutrition(s.target),
         "remaining": nutrition(s.remaining),
+        "score": score(s),
     }
     if s.goal is None:
         view["note"] = "目標が未設定です。利用者に方針（増量・減量・維持）と体重などを聞いて set_goals を呼んでください"
     return view
+
+
+SCORE_SEX_NOTE = ("性別がサーバーにないので、男女のうち厳しいほうの目安（食塩 6.5g 未満・純アルコール 20g 未満・"
+                  "食物繊維 22g 以上）で見ています")
+
+
+def _score_item(i) -> dict:
+    return {
+        "key": i.key, "label": i.label, "points": None if i.ratio is None else js_round(100 * i.ratio),
+        "value": None if i.value is None else round1(i.value), "low": i.low, "high": i.high, "unit": i.unit,
+    }
+
+
+def score(s: DailySummary) -> dict | None:
+    """食事のスコア（0〜100 点）と内訳、いちばん伸ばしやすい項目、前の日との差。食事の記録がない日は None。
+
+    内訳・項目の points が null は「記録なし」（推定や目標がない。点を下げていない）。
+    """
+    sc = s.score
+    if sc is None:
+        return None
+    previous = s.previous.score if s.previous else None
+    easiest = sc.easiest
+    basis = {"sv_band": sc.band.label, "sv_band_from_target": sc.band_from_target,
+             "sex": sc.sex.value if sc.sex else None}
+    if sc.sex is None:
+        basis["note"] = SCORE_SEX_NOTE
+    return {
+        "points": sc.score,
+        "previous_points": previous.score if previous else None,
+        "diff": s.score_diff,
+        "parts": [{"key": p.key, "label": p.label, "points": sc.part_points(p),
+                   "items": [_score_item(i) for i in p.items]} for p in sc.parts],
+        "easiest": None if easiest is None else {
+            "part": easiest.part, "item": easiest.item.key, "advice": easiest.item.advice, "gain": easiest.gain},
+        "basis": basis,
+    }
+
+
+def score_brief(s: DailySummary) -> dict | None:
+    """期間のまとめの日ごとの、短い形のスコア（内訳の点と、いちばん伸ばしやすい項目だけ）。"""
+    sc = s.score
+    if sc is None:
+        return None
+    easiest = sc.easiest
+    return {
+        "points": sc.score,
+        "diff": s.score_diff,
+        "parts": {p.key: sc.part_points(p) for p in sc.parts},
+        "easiest": None if easiest is None else {"advice": easiest.item.advice, "gain": easiest.gain},
+    }
 
 
 def weekly(r: WeeklyReview) -> dict:
@@ -123,6 +175,7 @@ def weekly(r: WeeklyReview) -> dict:
                 "recorded": bool(d.meals),
                 **nutrition(d.total),
                 "target_kcal": d.target.kcal if d.target else None,
+                "score": score_brief(d),
             }
             for d in r.days
         ],
