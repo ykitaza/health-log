@@ -1,4 +1,5 @@
-"""ツールの出力の形。数値は小数第1位で丸める（推定値なので、それ以上の桁は意味がない）。"""
+"""ツールの出力の形。数値は小数第1位で丸める（推定値なので、それ以上の桁は意味がない）。
+丸めは .5 を上げる（アプリの Math.round と同じ。Python の round は偶数への丸めで、12.25 が 12.2 になる）。"""
 
 from dataclasses import astuple
 
@@ -17,7 +18,7 @@ KEYS = ("kcal", "protein_g", "fat_g", "carbs_g")
 
 def nutrition(n: Nutrition | NutritionGap | Target | None) -> dict | None:
     """目標がない項目は None のまま返す。"""
-    return None if n is None else dict(zip(KEYS, (None if v is None else round(v, 1) for v in astuple(n))))
+    return None if n is None else dict(zip(KEYS, (None if v is None else round1(v) for v in astuple(n))))
 
 
 def meal(m: Meal) -> dict:
@@ -85,7 +86,7 @@ def daily(s: DailySummary) -> dict:
         "date": s.day.isoformat(),
         "day_type": s.day_type.value,
         "meals": [{"meal_id": m.id, "slot": m.eaten_on.slot.value, "description": m.description,
-                   "name": "、".join(i.name for i in m.items), "kcal": round(m.total().kcal, 1)} for m in s.meals],
+                   "name": "、".join(i.name for i in m.items), "kcal": round1(m.total().kcal)} for m in s.meals],
         "total": nutrition(s.total),
         "goal": goal(s.goal) if s.goal else None,  # 方針だけの目標もある（そのときは target の数字が null）
         "target": nutrition(s.target),
@@ -121,7 +122,7 @@ def weekly(r: WeeklyReview) -> dict:
 
 def progress(p: GoalProgress) -> dict:
     def kg(value: float | None, digits: int = 1) -> float | None:
-        return None if value is None else round(value, digits)
+        return None if value is None else js_round(value * 10 ** digits) / 10 ** digits
 
     return {
         "policy": p.goal.policy.value if p.goal else None,

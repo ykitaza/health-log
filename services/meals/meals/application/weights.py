@@ -19,5 +19,5 @@ class WeightService:
 
     async def progress(self, subject: str, today: date) -> GoalProgress:
         eater = await self.eaters.resolve(subject)
-        records = await self.weights.find(eater, today - timedelta(days=PROGRESS_DAYS), today)
+        records = await self.weights.find(eater, today - timedelta(days=PROGRESS_DAYS - 1), today)  # 今日を含めて90日
         return GoalProgress(await self.goals.get(eater), tuple(records), today)
