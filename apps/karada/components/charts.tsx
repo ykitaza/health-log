@@ -7,6 +7,7 @@ import { useCountTo } from '@/hooks/entrance';
 import { niceTicks } from '@/lib/chart';
 import { colors, fonts, isHud } from '@/theme';
 import { barDelay, duration } from '@/theme/motion';
+import { ChartSelect, DIM_OPACITY, SelectableFrame, useChartSelection } from './chartSelect';
 import { easeOut } from './motion';
 import { T } from './Text';
 
@@ -70,7 +71,7 @@ type Point = { x: number; y: number };
  * goal を渡すと、目標の値が縦の範囲の中なら破線の横線と文字、範囲の外なら右下（下にあるとき）か右上（上にあるとき）に、向きの矢印を付けた文字を出す。
  * accessibilityLabel は読み上げの要約（lib/chart の lineSummary）。省けない：押せるカードの中など、外側の読み上げに要約を入れたときだけ null
  */
-export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey, avg, goal, accessibilityLabel }: {
+export function LineChart({ points, xLabels, height = 160, showYAxis = true, formatY = (v: number) => String(v), animKey, avg, goal, accessibilityLabel, select }: {
   points: Point[];
   accessibilityLabel: string | null;
   xLabels: { x: number; label: string }[];
@@ -81,8 +82,11 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
   animKey?: string;
   avg?: Point[];
   goal?: { y: number; label: string };
+  /** 渡すと点を押して選べる（keys は points と同じ順。components/chartSelect.tsx） */
+  select?: ChartSelect;
 }) {
   const { progress, reduced } = useDrawProgress(animKey, duration.draw);
+  const sel = useChartSelection(select?.keys ?? [], animKey);
   const [width, onLayout] = useWidth();
   const left = showYAxis ? 40 : 4;
   const right = 8, top = 8, bottom = 22;
@@ -107,8 +111,8 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
     y: goalIn ? py(goal.y) - 6 : goal.y < lo ? top + (height - top - bottom) - 6 : top + 12,
     label: goalIn ? goal.label : `${goal.label} ${goal.y < lo ? '↓' : '↑'}`,
   };
-  return (
-    <View onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel ?? undefined}>
+  const chosen = select && sel.index >= 0 ? xy[sel.index] : null;
+  const svg = (
       <Svg width={width} height={height}>
         {ticks.map((t) => (
           <Line key={`g${t}`} x1={left} x2={width - right} y1={py(t)} y2={py(t)} stroke={colors.line} strokeWidth={1} />
@@ -142,7 +146,28 @@ export function LineChart({ points, xLabels, height = 160, showYAxis = true, for
           <SvgText key={`x${i}`} x={px(l.x)} y={height - 6} fill={colors.sub} fontSize={11} fontFamily={fonts.num}
             textAnchor={l.x < 0.05 ? 'start' : l.x > 0.95 ? 'end' : 'middle'}>{l.label}</SvgText>
         ))}
+        {/* 選んだ点：縦の補助線と、地の色で縁どった大きな点 */}
+        {chosen && (
+          <G>
+            <Line x1={chosen.x} x2={chosen.x} y1={top} y2={height - bottom} stroke={colors.outline} strokeWidth={1} />
+            <Circle cx={chosen.x} cy={chosen.y} r={6} fill={colors.accent} stroke={colors.card} strokeWidth={2} />
+          </G>
+        )}
       </Svg>
+  );
+  if (!select) {
+    return (
+      <View onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel ?? undefined}>
+        {svg}
+      </View>
+    );
+  }
+  return (
+    <View onLayout={onLayout}>
+      <SelectableFrame select={select} xs={xy.map((p) => p.x)} width={width} height={height} selected={sel.selected} index={sel.index}
+        onSelect={sel.setSelected} summary={accessibilityLabel ?? undefined}>
+        {svg}
+      </SelectableFrame>
     </View>
   );
 }
@@ -245,7 +270,7 @@ function GoalRing({ item, progress, reduced }: { item: RingItem; progress: Share
  * 積み上げの棒グラフ。refLine は平均などの点線（色だけにしないよう、凡例は呼ぶ側で添える）。formatY を渡すと縦の目盛り（0・半分・最大）。
  * peak を渡すと、その棒の上に値を出す（棒が伸びきったら出る）。accessibilityLabel は読み上げのグラフの要約
  */
-export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY, max: maxProp, labelAnchor = 'middle', peak, accessibilityLabel, testID }: {
+export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY, max: maxProp, labelAnchor = 'middle', peak, accessibilityLabel, testID, select }: {
   bars: { label: string; segments: { value: number; color: string }[] }[];
   height?: number;
   animKey?: string;
@@ -259,8 +284,11 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
   peak?: { index: number; label: string };
   accessibilityLabel?: string;
   testID?: string;
+  /** 渡すと棒を押して選べる（keys は bars と同じ順。components/chartSelect.tsx）。選んでいない棒は薄くする */
+  select?: ChartSelect;
 }) {
   const reducedMotion = useReducedMotion();
+  const sel = useChartSelection(select?.keys ?? [], animKey);
   const total = barDelay(bars.length - 1, bars.length, reducedMotion) + duration.barGrow;
   const { progress, reduced } = useDrawProgress(animKey, total);
   const [width, onLayout] = useWidth();
@@ -283,8 +311,7 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
       ? <SvgText {...text}>{peak.label}</SvgText>
       : <FadingText {...text} at={at} progress={progress}>{peak.label}</FadingText>;
   })();
-  return (
-    <View onLayout={onLayout} testID={testID} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel}>
+  const svg = (
       <Svg width={width} height={height}>
         {formatY && [0, max / 2, max].map((t) => (
           <G key={`y${t}`}>
@@ -301,7 +328,7 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
           const from = barDelay(i, bars.length, reduced) / total;
           const to = from + duration.barGrow / total;
           return (
-            <G key={i}>
+            <G key={i} opacity={select && sel.index >= 0 && sel.index !== i ? DIM_OPACITY : 1}>
               {b.segments.filter((s) => s.value > 0).map((s, j) => {
                 const h = (s.value / max) * plotH;
                 y -= h;
@@ -320,6 +347,20 @@ export function StackedBarChart({ bars, height = 180, animKey, refLine, formatY,
           <Line x1={left} x2={width} y1={yOf(refLine)} y2={yOf(refLine)} stroke={colors.text} strokeWidth={1.5} strokeDasharray={[4, 4]} />
         )}
       </Svg>
+  );
+  if (!select) {
+    return (
+      <View onLayout={onLayout} testID={testID} accessible={accessibilityLabel != null} accessibilityRole={accessibilityLabel != null ? 'image' : undefined} accessibilityLabel={accessibilityLabel}>
+        {svg}
+      </View>
+    );
+  }
+  return (
+    <View onLayout={onLayout} testID={testID}>
+      <SelectableFrame select={select} xs={bars.map((_, i) => left + i * slot + slot / 2)} width={width} height={height} selected={sel.selected} index={sel.index}
+        onSelect={sel.setSelected} summary={accessibilityLabel}>
+        {svg}
+      </SelectableFrame>
     </View>
   );
 }

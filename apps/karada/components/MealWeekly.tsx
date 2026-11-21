@@ -1,13 +1,15 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { LayoutChangeEvent, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import { DIM_OPACITY, SelectableFrame, useChartSelection } from '@/components/chartSelect';
 import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/components/DayPicker';
 import { LoadError } from '@/components/LoadError';
 import { T } from '@/components/Text';
 import { Badge, Card } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { niceTicks } from '@/lib/chart';
-import { addDays, formatMonthDay, todayKey, weekday } from '@/lib/date';
+import { addDays, formatJpDate, formatMonthDay, todayKey, weekday } from '@/lib/date';
 import { DaySummary, Gap, pfcPercents, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
@@ -129,8 +131,13 @@ function GapRow({ gap }: { gap: Gap }) {
   );
 }
 
-/** 日ごとの kcal（記録した日だけを結ぶ）と目標（点線） */
+/**
+ * 日ごとの kcal（記録した日だけを結ぶ）と目標（点線）。曜日の列を押すと、その日の kcal と PFC の札（#327。食事のタブのその日へ行ける）。
+ * 週は横にスワイプして変えるので、なぞって選びを移すことはしない（列は 7 つで広い）
+ */
 function KcalChart({ days }: { days: DaySummary[] }) {
+  const keys = days.map((d) => d.date);
+  const sel = useChartSelection(keys, keys[0]);
   const [width, setWidth] = useState(300);
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.max(100, e.nativeEvent.layout.width));
   const height = 170, left = 40, right = 10, top = 8, bottom = 36;
@@ -141,8 +148,32 @@ function KcalChart({ days }: { days: DaySummary[] }) {
   const py = (v: number) => top + (1 - (v - lo) / (hi - lo || 1)) * (height - top - bottom);
   const recorded = days.map((d, i) => ({ d, i })).filter(({ d }) => d.meals.length > 0);
   const targetPoints = days.flatMap((d, i) => (d.target?.kcal != null ? [`${px(i) - 18},${py(d.target.kcal)}`, `${px(i) + 18},${py(d.target.kcal)}`] : []));
+  const dim = (i: number) => (sel.index >= 0 && sel.index !== i ? DIM_OPACITY : 1);
+  const kcalText = (d: DaySummary) => (d.meals.length ? `${fmtInt(d.total.kcal)} kcal` : '記録なし');
   return (
     <View onLayout={onLayout}>
+      <SelectableFrame
+        xs={days.map((_, i) => px(i))} width={width} height={height} selected={sel.selected} index={sel.index} onSelect={sel.setSelected}
+        select={{
+          keys, scrub: false, testID: 'meal-kcal',
+          label: (i) => `${formatJpDate(days[i].date)} ${kcalText(days[i])}`,
+          detail: (i) => {
+            const d = days[i];
+            const target = d.target?.kcal;
+            return {
+              title: formatJpDate(d.date),
+              value: d.meals.length ? fmtInt(d.total.kcal) : '—', unit: 'kcal',
+              rows: d.meals.length ? [
+                { label: 'P たんぱく質', value: `${fmt1(d.total.protein_g)}g`, color: PFC_COLORS.p },
+                { label: 'F 脂質', value: `${fmt1(d.total.fat_g)}g`, color: PFC_COLORS.f },
+                { label: 'C 炭水化物', value: `${fmt1(d.total.carbs_g)}g`, color: PFC_COLORS.c },
+                ...(target != null ? [{ label: '目標', value: `${fmtInt(target)} kcal` }] : []),
+              ] : [],
+              note: d.meals.length ? `${d.meals.length} 食` : 'この日の記録はありません',
+              link: { label: 'この日の食事を開く', onPress: () => router.navigate({ pathname: '/meals', params: { date: d.date } }) },
+            };
+          },
+        }}>
       <Svg width={width} height={height}>
         {ticks.map((t) => <Line key={`g${t}`} x1={left} x2={width - right} y1={py(t)} y2={py(t)} stroke={colors.line} strokeWidth={1} />)}
         {ticks.map((t) => (
@@ -152,7 +183,10 @@ function KcalChart({ days }: { days: DaySummary[] }) {
         {recorded.length > 1 && (
           <Polyline points={recorded.map(({ d, i }) => `${px(i)},${py(d.total.kcal)}`).join(' ')} fill="none" stroke={colors.accent} strokeWidth={2.5} />
         )}
-        {recorded.map(({ d, i }) => <Circle key={i} cx={px(i)} cy={py(d.total.kcal)} r={4} fill={colors.accent} />)}
+        {recorded.map(({ d, i }) => (sel.index === i
+          ? <Circle key={i} cx={px(i)} cy={py(d.total.kcal)} r={6} fill={colors.accent} stroke={colors.card} strokeWidth={2} />
+          : <Circle key={i} cx={px(i)} cy={py(d.total.kcal)} r={4} fill={colors.accent} opacity={dim(i)} />))}
+        {sel.index >= 0 && <Line x1={px(sel.index)} x2={px(sel.index)} y1={top} y2={height - bottom} stroke={colors.outline} strokeWidth={1} />}
         {days.map((d, i) => (
           <SvgText key={`w${i}`} x={px(i)} y={height - 20} fill={colors.text} fontSize={11} fontFamily={fonts.regular} textAnchor="middle">{WEEKDAY[weekday(d.date)]}</SvgText>
         ))}
@@ -162,6 +196,7 @@ function KcalChart({ days }: { days: DaySummary[] }) {
           </SvgText>
         ))}
       </Svg>
+      </SelectableFrame>
     </View>
   );
 }

@@ -41,7 +41,7 @@ test('記録がないとき（筋トレと食事）。回数だけの記録し�
   await recordToday(page, [{ exercise: '懸垂', sets: [{ reps: '10' }] }]);
   await openTrainingTrend(page);
   await expect(see(page, '重量のある種目の記録がまだありません')).toBeVisible();
-  await expect(see(page, '週の平均 0.0t ・ 先週より +0.0t')).toBeVisible();
+  await expect(see(page, '週の平均 0.0t ・ 先週と同じ')).toBeVisible();
   // BIG3 は名前で決めた3種目。記録がないので合計は出ない
   await expect(page.getByTestId('big3-missing')).toContainText('ベンチプレス・スクワット・デッドリフトの記録（重量 × 回数）がそろうと合計が出ます');
 });
@@ -81,7 +81,31 @@ test('記録があるときの推移', async ({ page }) => {
     await expect(chart.locator('rect')).toHaveCount(3);
     for (const d of ['10/12', '10/19', '10/26', '11/2']) await expect(chart.getByText(d, { exact: true })).toBeVisible();
     await expect(chart.getByText('1.3t', { exact: true })).toBeVisible();
-    await expect(chart).toHaveAttribute('aria-label', '日ごとの総負荷量のグラフ。10月12日から今日までの合計 2.2トン、3日。いちばん多い日は11月5日で 1.3トン');
+    // 要約は、押せる棒（ボタン）と別の要素（まとめて 1 つにすると棒のボタンに届かない）
+    await expect(chart.getByRole('img', { name: '日ごとの総負荷量のグラフ。10月12日から今日までの合計 2.2トン、3日。いちばん多い日は11月5日で 1.3トン', exact: true })).toBeVisible();
+
+    // 棒を押すと選ばれ（ほかは薄く）、下の札に日付・負荷量・部位ごと・種目とセット数（#327）。もう一度押すと閉じる
+    const bar = chart.getByRole('button', { name: '11月5日（木） 1.3トン', exact: true });
+    await expect(chart.getByRole('button')).toHaveCount(28);
+    await bar.click();
+    await expect(bar).toHaveAttribute('aria-selected', 'true');
+    const detail = page.getByTestId('volume-day-detail');
+    await expect(detail).toContainText('11月5日（木）');
+    await expect(detail).toContainText('1.3t');
+    await expect(detail).toContainText('胸');
+    await expect(detail).toContainText('ベンチプレス');
+    await expect(detail).toContainText('2セット');
+    await bar.click();
+    await expect(detail).toHaveCount(0);
+    // 記録のない日も押せる。閉じるでも閉じる
+    await chart.getByRole('button', { name: '11月6日（金） 記録なし', exact: true }).click();
+    await expect(detail).toContainText('この日の記録はありません');
+    await button(detail, '閉じる').click();
+    await expect(detail).toHaveCount(0);
+    // 札から、その日の記録へ
+    await bar.click();
+    await button(detail, 'この日の記録を開く').click();
+    await expectTrainingDay(page, '11月5日（木）');
 
     // 開き直しても「日」のまま
     await moveToDate(page, TODAY);

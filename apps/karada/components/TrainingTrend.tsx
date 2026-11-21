@@ -26,7 +26,7 @@ import { big3Gauge, loadGauge } from '@/lib/homeHud';
 import { BALANCE_RANGES, BalanceRange, partBalanceForRange, partBalanceRangeLabel, partsNote, topPart } from '@/lib/partBalance';
 import type { Phase } from '@/lib/phases';
 import {
-  bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
+  bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseSetCounts, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
   weekDeltaText, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
@@ -123,7 +123,7 @@ export function TrainingTrend({ onOpenDay, focus, onRangeChosen }: {
         <ExerciseTrendView key={exercise.id} rows={rows} exercise={exercise} today={today} unit={unit} reloadKey={data} onOpenDay={onOpenDay} onError={reload}
           scrollRequest={focus?.exercise === exercise.id ? focus.n : null} />
       ) : (
-        <AllGraph data={data} today={today} unit={unit} onPick={setExerciseId} balanceRange={balanceRange} onBalanceRange={chooseBalance}
+        <AllGraph data={data} today={today} unit={unit} onPick={setExerciseId} onOpenDay={onOpenDay} balanceRange={balanceRange} onBalanceRange={chooseBalance}
           target={target} scrollRequest={focus?.n ?? null} onRangeChosen={onRangeChosen} />
       )}
     </>
@@ -160,7 +160,7 @@ function ExerciseTrendView({ rows, exercise, today, unit, reloadKey, onOpenDay, 
   if (failed) return <LoadError onRetry={onError} />;
   return (
     <>
-      <ScrollTarget request={scrollRequest}><ExerciseLineCard rows={rows} exercise={exercise} today={today} unit={unit} /></ScrollTarget>
+      <ScrollTarget request={scrollRequest}><ExerciseLineCard rows={rows} exercise={exercise} today={today} unit={unit} onOpenDay={onOpenDay} /></ScrollTarget>
       <T variant="titleS" color={colors.sub} accessibilityRole="header" style={{ marginTop: space.xl }}>{exercise.name}の記録（新しい順）</T>
       {cards.map((c) => <ExerciseDayCard key={c.date} date={c.date} entry={c.entry} name={exercise.name} unit={unit} onPress={() => onOpenDay(c.date)} />)}
       {allDays.length > shownDays.length && (
@@ -175,7 +175,9 @@ function ExerciseTrendView({ rows, exercise, today, unit, reloadKey, onOpenDay, 
 }
 
 /** 種目の推定1RM（回数だけの種目は総負荷量）の、今の値と先月との差、3か月の折れ線 */
-function ExerciseLineCard({ rows, exercise, today, unit }: { rows: TrainingSetRow[]; exercise: Exercise; today: string; unit: 'kg' | 'lb' }) {
+function ExerciseLineCard({ rows, exercise, today, unit, onOpenDay }: {
+  rows: TrainingSetRow[]; exercise: Exercise; today: string; unit: 'kg' | 'lb'; onOpenDay: (date: string) => void;
+}) {
   const from = addMonths(today, -EXERCISE_MONTHS);
   const weighted = exercise.recordType === 'weight_reps';
   const value = weighted ? (p: DailyPoint) => p.max1RM : (p: DailyPoint) => p.volume;
@@ -216,6 +218,16 @@ function ExerciseLineCard({ rows, exercise, today, unit }: { rows: TrainingSetRo
               formatY={(v) => fmtInt(v)}
               animKey={exercise.id}
               accessibilityLabel={`${title}のグラフ。${EXERCISE_MONTHS}か月。今 ${fmt(conv(trend.current))}${unit}`}
+              select={{
+                keys: trend.points.map((p) => p.date),
+                testID: 'exercise-chart',
+                label: (i) => `${formatJpDate(trend.points[i].date)} ${fmt(conv(value(trend.points[i])))}${unit}`,
+                detail: (i) => ({
+                  title: formatJpDate(trend.points[i].date),
+                  value: fmt(conv(value(trend.points[i]))), unit: `${unit}（${weighted ? '推定1RM' : '総負荷量'}）`,
+                  link: { label: 'この日の記録を開く', onPress: () => onOpenDay(trend.points[i].date) },
+                }),
+              }}
             />
           ) : (
             <T variant="bodyS" color={colors.sub} style={{ marginTop: space.s }}>{EXERCISE_MONTHS}か月の記録が2日以上になると、折れ線が出ます</T>
@@ -269,12 +281,12 @@ function Tile({ label, value }: { label: string; value: string }) {
 const DAILY_WEEKS = 4;
 const WEEKLY_WEEKS = 8;
 
-function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, target, scrollRequest, onRangeChosen }: {
+function AllGraph({ data, today, unit, onPick, onOpenDay, balanceRange, onBalanceRange, target, scrollRequest, onRangeChosen }: {
   data: {
     parts: { id: string; name: string }[]; exercises: Exercise[];
     rows: Parameters<typeof weeklyVolumeByBodyPart>[0]; volumeRange: VolumeRange; phases: Phase[];
   };
-  today: string; unit: 'kg' | 'lb'; onPick: (exerciseId: string) => void;
+  today: string; unit: 'kg' | 'lb'; onPick: (exerciseId: string) => void; onOpenDay: (date: string) => void;
   balanceRange: BalanceRange; onBalanceRange: (k: BalanceRange) => void;
   /** ホームから来たときに見せるグラフ（スクロールする）。load なら総負荷量を日ごとで（ホームの LOAD の今週と先週の日ごとの棒がある） */
   target: TrendTarget | null; scrollRequest: number | null; onRangeChosen?: () => void;
@@ -310,6 +322,12 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
   const big3 = big3Gauge(data.rows, big3Assignments(data.exercises), today, phaseStart);
   const load = loadGauge(data.rows, today);
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart(today), i));
+  // 棒を押したときの札：部位ごとの総負荷量（凡例と同じ色）と、種目ごとのセット数
+  const tText = (kg: number) => `${t(kg).toFixed(1)}${tUnit}`;
+  const partRows = (byPart: Record<string, number>) => data.parts.filter((p) => (byPart[p.id] ?? 0) > 0)
+    .map((p) => ({ label: p.name, value: tText(byPart[p.id]), color: partColor(partIndex.get(p.id) ?? 0) }));
+  const setRows = (from: string, to: string) => exerciseSetCounts(data.rows, from, to)
+    .map((c) => ({ label: exName.get(c.exerciseId)?.name ?? '', value: `${c.sets}セット` }));
 
   return (
     <>
@@ -345,7 +363,7 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
         </View>
         {range === 'week' ? (
           <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
-            週の平均 {t(avg).toFixed(1)}{tUnit} ・ 先週より {weekDeltaText(load.totalKg, load.lastWeekToDateKg, (kg) => kgToUnit(kg, unit))}{tUnit}
+            週の平均 {t(avg).toFixed(1)}{tUnit} ・ {weekDeltaText(load.totalKg, load.lastWeekToDateKg, (kg) => kgToUnit(kg, unit), tUnit)}
           </T>
         ) : (
           <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
@@ -364,6 +382,21 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
               label: i === weeks.length - 1 ? '今週' : i % 2 === 0 ? formatShortDate(w.weekStart) : '',
               segments: segments(w.byPart),
             }))}
+            select={{
+              keys: weeks.map((w) => w.weekStart),
+              testID: 'volume-week',
+              label: (i) => `${formatMonthDay(weeks[i].weekStart)}からの週 ${weeks[i].total > 0 ? `${t(weeks[i].total).toFixed(1)}${tSpoken}` : '記録なし'}`,
+              detail: (i) => {
+                const w = weeks[i];
+                const sets = setRows(w.weekStart, addDays(w.weekStart, 6));
+                return {
+                  title: `${formatMonthDay(w.weekStart)}からの週${i === weeks.length - 1 ? '（今週）' : ''}`,
+                  value: t(w.total).toFixed(1), unit: tUnit,
+                  rows: partRows(w.byPart),
+                  note: sets.length > 0 ? sets.map((r) => `${r.label} ${r.value}`).join('・') : 'この週の記録はありません',
+                };
+              },
+            }}
           />
         ) : (
           // 棒が 28 本と細いので、日付は週の始まり（月曜）だけ、棒の左から書く。値はいちばん多い日だけ棒の上に出す
@@ -375,6 +408,22 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
             accessibilityLabel={`日ごとの総負荷量のグラフ。${formatMonthDay(days[0].date)}から今日までの合計 ${t(daily.total).toFixed(1)}${tSpoken}、${daily.activeDays}日。${
               daily.peak ? `いちばん多い日は${formatMonthDay(daily.peak.date)}で ${t(daily.peak.total).toFixed(1)}${tSpoken}` : '記録はありません'}`}
             bars={days.map((d, i) => ({ label: i % 7 === 0 ? formatShortDate(d.date) : '', segments: segments(d.byPart) }))}
+            select={{
+              keys: days.map((d) => d.date),
+              testID: 'volume-day',
+              label: (i) => `${formatJpDate(days[i].date)} ${days[i].total > 0 ? `${t(days[i].total).toFixed(1)}${tSpoken}` : '記録なし'}`,
+              detail: (i) => {
+                const d = days[i];
+                const sets = setRows(d.date, d.date);
+                return {
+                  title: formatJpDate(d.date),
+                  value: t(d.total).toFixed(1), unit: tUnit,
+                  rows: [...partRows(d.byPart), ...sets],
+                  note: sets.length === 0 ? 'この日の記録はありません' : undefined,
+                  link: sets.length > 0 && d.date <= today ? { label: 'この日の記録を開く', onPress: () => onOpenDay(d.date) } : undefined,
+                };
+              },
+            }}
           />
         )}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>

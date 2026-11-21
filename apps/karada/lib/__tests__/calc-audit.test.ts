@@ -113,13 +113,14 @@ describe('筋トレの推移の「先週より」は、ホームの LOAD の先�
     expect(g.totalKg).toBe(1000);
     expect(g.lastWeekToDateKg).toBe(1000);
     expect(g.vsLastWeekPct).toBe(0);
-    expect(weekDeltaText(g.totalKg, g.lastWeekToDateKg, (kg) => kg)).toBe('+0.0');
+    expect(weekDeltaText(g.totalKg, g.lastWeekToDateKg, (kg) => kg, 't')).toBe('先週と同じ');
   });
 
-  test('差が小数1桁で 0.0 なら「+0.0」（「−0.0」と出さない）。それ以外は符号つき', () => {
-    expect(weekDeltaText(1000, 1020, (kg) => kg)).toBe('+0.0');
-    expect(weekDeltaText(1000, 1060, (kg) => kg)).toBe('−0.1');
-    expect(weekDeltaText(2700, 1000, (kg) => kg)).toBe('+1.7');
+  test('差が小数1桁で 0.0 なら「先週と同じ」（「+0.0t」「−0.0t」と出さない。#336）。それ以外は符号と単位つき', () => {
+    expect(weekDeltaText(1000, 1020, (kg) => kg, 't')).toBe('先週と同じ');
+    expect(weekDeltaText(1000, 1040, (kg) => kg, 't')).toBe('先週と同じ');
+    expect(weekDeltaText(1000, 1060, (kg) => kg, 't')).toBe('先週より −0.1t');
+    expect(weekDeltaText(2700, 1000, (kg) => kg, 'k lb')).toBe('先週より +1.7k lb');
   });
 });
 

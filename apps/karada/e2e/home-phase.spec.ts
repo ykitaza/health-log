@@ -188,3 +188,34 @@ test('SLEEP・FUEL の行き先：睡眠の推移のいちばん上と、食事�
   await expect(page.getByText('今日の合計', { exact: true })).toHaveCount(0);
   await expect(button(page, '日の種類：休みの日（押すと切り替え）')).toBeVisible();
 });
+
+test('睡眠の推移のグラフ：棒を押すとその朝の眠っていた時間と寝た・起きた時刻の札。もう一度押すと閉じ、札からからだのタブのその日へ（#327）', async ({ page, context }) => {
+  await openWith(page, context, sleeps);
+  await visible(page, 'home-sleep').click();
+  await expect(page.getByRole('heading', { name: '睡眠の推移' }).filter({ visible: true })).toBeVisible();
+  // 1か月の棒は記録のある 4 晩。棒はそれぞれ日付と時間の名前のボタン
+  const bar = page.getByRole('button', { name: '11月7日（土） 6時間20分', exact: true }).filter({ visible: true });
+  await bar.click();
+  await expect(bar).toHaveAttribute('aria-selected', 'true');
+  const detail = visible(page, 'sleep-chart-detail');
+  await expect(detail).toContainText('11月7日（土）の朝');
+  await expect(detail).toContainText('6:20');
+  await expect(detail).toContainText('寝た時刻0:00');
+  await expect(detail).toContainText('起きた時刻7:00');
+  // ほかの棒を押すと札が変わる。もう一度押すと閉じる
+  const last = page.getByRole('button', { name: '11月8日（日） 7時間30分', exact: true }).filter({ visible: true });
+  await last.click();
+  await expect(bar).toHaveAttribute('aria-selected', 'false');
+  await expect(detail).toContainText('7:30');
+  await last.click();
+  await expect(detail).toHaveCount(0);
+  // 期間を変えると選びは外れる
+  await bar.click();
+  await expect(detail).toBeVisible();
+  await button(page, '3か月').click();
+  await expect(detail).toHaveCount(0);
+  // 札から、からだのタブのその日へ
+  await bar.click();
+  await button(detail, 'この日のからだを見る').click();
+  await expect(tab(page, 'からだ')).toHaveAttribute('aria-selected', 'true');
+});
