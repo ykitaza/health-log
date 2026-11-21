@@ -37,7 +37,16 @@
             "fat_g": 0.6,
             "carbs_g": 74,
             "confidence": "high",
-            "sort_order": 0
+            "sort_order": 0,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -57,7 +66,16 @@
             "fat_g": 1.5,
             "carbs_g": 0,
             "confidence": "high",
-            "sort_order": 1
+            "sort_order": 1,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -93,7 +111,16 @@
             "fat_g": 2,
             "carbs_g": 3,
             "confidence": "high",
-            "sort_order": 2
+            "sort_order": 2,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -129,7 +156,16 @@
             "fat_g": 0.3,
             "carbs_g": 37,
             "confidence": "high",
-            "sort_order": 0
+            "sort_order": 0,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -149,7 +185,16 @@
             "fat_g": 1.5,
             "carbs_g": 0,
             "confidence": "high",
-            "sort_order": 1
+            "sort_order": 1,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -169,7 +214,16 @@
             "fat_g": 2,
             "carbs_g": 3,
             "confidence": "high",
-            "sort_order": 2
+            "sort_order": 2,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {
@@ -251,7 +305,16 @@
             "fat_g": 2,
             "carbs_g": 3,
             "confidence": "high",
-            "sort_order": 0
+            "sort_order": 0,
+            "sv_staple": null,
+            "sv_side": null,
+            "sv_main": null,
+            "sv_dairy": null,
+            "sv_fruit": null,
+            "fiber_g": null,
+            "salt_g": null,
+            "alcohol_g": null,
+            "is_snack_or_sweet_drink": null
           }
         },
         {

@@ -13,6 +13,10 @@ const chicken: ItemInput = { name: '鶏むね肉', amount: 100, unit: 'g', kcal:
 const soup: ItemInput = { name: 'みそ汁', amount: 1, unit: '杯', kcal: 46, protein_g: 4, fat_g: 2, carbs_g: 3 };
 const DAY = '2026-11-08';
 
+const NO_ESTIMATE = {
+  sv_staple: null, sv_side: null, sv_main: null, sv_dairy: null, sv_fruit: null, fiber_g: null, salt_g: null, alcohol_g: null, is_snack_or_sweet_drink: null,
+};
+
 const outboxOf = (rows: Record<string, unknown>[]) =>
   rows.map((r) => [r.entity_type, r.op, r.parent_id ?? null, r.fields ? JSON.parse(r.fields as string) : null]);
 
@@ -28,7 +32,8 @@ describe('食事の記録・修正・削除・複製', () => {
     const rows = d.outbox();
     expect(outboxOf(rows).slice(0, 2)).toEqual([
       ['meal', 'create', null, { date: DAY, slot: 'lunch', time: null, description: '', source: 'text', basis: null }],
-      ['meal_item', 'create', lunch, { ...rice, confidence: 'high', sort_order: 0 }],
+      // 手で入れた品目は、食事のスコアの推定を持たない（null）
+      ['meal_item', 'create', lunch, { ...rice, confidence: 'high', sort_order: 0, ...NO_ESTIMATE }],
     ]);
     expect(toPushChange(rows[1] as never)).toMatchObject({ entity_type: 'meal_item', parent_id: lunch, fields: { name: '白米' } });
     expect(toPushChange(rows[0] as never)).not.toHaveProperty('parent_id');
@@ -48,7 +53,7 @@ describe('食事の記録・修正・削除・複製', () => {
       ['meal', 'update', null, { date: '2026-11-07', slot: 'dinner' }],
       // 半分にする（2進数で割り切れる値にして、SQLite の版による json_object の小数の書き方の違いを避ける）
       ['meal_item', 'update', id, { amount: 100, kcal: 156, protein_g: 2.5, fat_g: 0.3, carbs_g: 37 }],
-      ['meal_item', 'create', id, { ...soup, confidence: 'high', sort_order: 1 }],
+      ['meal_item', 'create', id, { ...soup, confidence: 'high', sort_order: 1, ...NO_ESTIMATE }],
       ['meal_item', 'delete', id, null],
     ]);
     await expect(d.r.meals.update(id, { date: DAY, slot: 'lunch', items: [] })).rejects.toThrow('品目が1つもありません');
@@ -170,6 +175,57 @@ describe('同期', () => {
     expect((await a.r.meals.getMeal(id))!.items.map((i) => [i.amount, i.kcal])).toEqual([[100, 156]]);
   });
 
+  test('AI が付けた推定（SV など）は受け取って残り、量を変えると同じ割合で送る。複製・いつものも引き継ぐ', async () => {
+    const d = await device();
+    const at = '2026-11-08T03:00:00.000Z';
+    const estimate = { sv_staple: 1.5, sv_side: 0, sv_main: 0, sv_dairy: 0, sv_fruit: 0, fiber_g: 0.5, salt_g: 0, alcohol_g: 0, is_snack_or_sweet_drink: false };
+    const cake = { sv_staple: 0, sv_side: 0, sv_main: 0, sv_dairy: 0.5, sv_fruit: 0, fiber_g: 0.5, salt_g: 0.25, alcohol_g: 0, is_snack_or_sweet_drink: true };
+    const state = (entity_type: string, entity_id: string, parent_id: string | null, fields: Record<string, unknown>, seq: number) => ({
+      entity_type, entity_id, parent_id, fields, deleted: false, created_at: at, updated_at: at, deleted_at: null, seq,
+    });
+    await d.store.applyStates([
+      state('meal', 'mcp-1', null, { date: DAY, slot: 'lunch', time: null, description: 'MCP の昼', source: 'photo', basis: '写真から' }, 1),
+      state('meal_item', 'rice', 'mcp-1', { ...rice, confidence: 'medium', sort_order: 0, ...estimate }, 2),
+      state('meal_item', 'cake', 'mcp-1', { name: 'ケーキ', amount: 1, unit: '個', kcal: 300, protein_g: 4, fat_g: 16, carbs_g: 35, confidence: 'low', sort_order: 1, ...cake }, 3),
+    ] as never);
+    const meal = (await d.r.meals.getMeal('mcp-1'))!;
+    expect(meal.items.map((i) => [i.sv_staple, i.fiber_g, i.is_snack_or_sweet_drink])).toEqual([[1.5, 0.5, false], [0, 0.5, true]]);
+    expect(d.outbox()).toHaveLength(0);
+
+    // 白米を倍にすると、SV・食物繊維も倍（0 は 0 のまま、菓子かどうかは変わらない）。手で足した品目は推定なし
+    await d.r.meals.update('mcp-1', { date: DAY, slot: 'lunch', items: [changeAmount(meal.items[0], 400), meal.items[1], soup] });
+    expect(outboxOf(d.outbox())).toEqual([
+      ['meal_item', 'update', 'mcp-1', { amount: 400, kcal: 624, protein_g: 10, fat_g: 1.2, carbs_g: 148, sv_staple: 3, fiber_g: 1 }],
+      ['meal_item', 'create', 'mcp-1', { ...soup, confidence: 'high', sort_order: 2, ...NO_ESTIMATE }],
+    ]);
+    const after = (await d.r.meals.getMeal('mcp-1'))!;
+    expect(after.items.map((i) => [i.name, i.sv_staple, i.is_snack_or_sweet_drink])).toEqual([['白米', 3, false], ['ケーキ', 0, true], ['みそ汁', null, null]]);
+    // 推定を渡さない品目（量だけ直した古い形）は、今の推定を消さない
+    const { sv_staple: _s, ...withoutEstimate } = after.items[1];
+    void _s;
+    await d.r.meals.update('mcp-1', { date: DAY, slot: 'lunch', items: [after.items[0], { ...withoutEstimate, sv_dairy: undefined }, after.items[2]] });
+    expect((await d.r.meals.getMeal('mcp-1'))!.items[1].sv_dairy).toBe(0.5);
+
+    // 昨日と同じ（複製）・いつもので記録しても、推定はそのまま
+    const copy = await d.r.meals.copy('mcp-1', { date: '2026-11-09', slot: 'lunch' });
+    expect((await d.r.meals.getMeal(copy))!.items.map((i) => i.sv_staple)).toEqual([3, 0, null]);
+    await d.r.meals.saveTemplateFromMeal('mcp-1', 'いつもの昼');
+    const template = (await d.r.meals.listTemplates())[0];
+    expect(template.items.map((i) => [i.sv_staple, i.is_snack_or_sweet_drink])).toEqual([[3, false], [0, true], [undefined, undefined]]);
+    const fromTemplate = await d.r.meals.recordTemplate(template.id, { date: '2026-11-10', slot: 'dinner' });
+    expect((await d.r.meals.getMeal(fromTemplate))!.items.map((i) => [i.sv_dairy, i.is_snack_or_sweet_drink])).toEqual([[0, false], [0.5, true], [null, null]]);
+  });
+
+  test('推定のない品目（菓子かどうかが null）を受け取っても、false にしない', async () => {
+    const d = await device();
+    const at = '2026-11-08T03:00:00.000Z';
+    await d.store.applyStates([
+      { entity_type: 'meal', entity_id: 'm', parent_id: null, fields: { date: DAY, slot: 'lunch', time: null, description: '', source: 'text' }, deleted: false, created_at: at, updated_at: at, deleted_at: null, seq: 1 },
+      { entity_type: 'meal_item', entity_id: 'i', parent_id: 'm', fields: { ...rice, confidence: 'high', sort_order: 0, is_snack_or_sweet_drink: null }, deleted: false, created_at: at, updated_at: at, deleted_at: null, seq: 2 },
+    ] as never);
+    expect((await d.r.meals.getMeal('m'))!.items[0].is_snack_or_sweet_drink).toBeNull();
+  });
+
   test('summaries.json の状態（サーバーが当てはめたもの）を端末に当てはめると、サーバーと同じ1日のまとめになる', async () => {
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'testdata', 'meals', 'summaries.json'), 'utf8'));
     const d = await device();
@@ -202,6 +258,26 @@ describe('同期', () => {
     await d.store.switchAccount('other-sub', 'replace', '2026-11-08T00:00:00.000Z');
     expect(await d.r.meals.listDay(DAY)).toEqual([]);
     expect(await d.r.meals.listTemplates()).toEqual([]);
+  });
+
+  test('版17の端末は、版18で品目の推定を取り直し（受け取りの位置と品目の当てはめた印を消す）、端末の性別を同期する設定に写す', async () => {
+    const db = memoryDb();
+    const deps = testDeps();
+    const v18 = MIGRATIONS.splice(17);
+    try {
+      expect(await migrate(db, deps.now)).toBe(17);
+    } finally {
+      MIGRATIONS.push(...v18);
+    }
+    await db.runAsync(`INSERT INTO sync_meta (key, value) VALUES ('cursor', '42'), ('profile.sex', 'male')`, []);
+    await db.runAsync(`INSERT INTO sync_seen (entity_type, entity_id, seq) VALUES ('meal_item', 'm/i', 5), ('meal', 'm', 4)`, []);
+    await migrate(db, deps.now);
+    expect(db.raw.prepare(`SELECT value FROM sync_meta WHERE key = 'cursor'`).get()).toBeUndefined();
+    expect(db.raw.prepare(`SELECT entity_type FROM sync_seen`).all()).toEqual([{ entity_type: 'meal' }]);
+    expect(db.raw.prepare(`SELECT id, value FROM settings`).all()).toEqual([{ id: 'sex', value: 'male' }]);
+    expect(db.raw.prepare(`SELECT entity_type, entity_id, op, fields FROM sync_outbox`).all()).toEqual([
+      { entity_type: 'setting', entity_id: 'sex', op: 'create', fields: JSON.stringify({ value: 'male' }) },
+    ]);
   });
 
   test('版2の端末は、版3で受け取りの位置を消して、スナップショットを取り直す', async () => {

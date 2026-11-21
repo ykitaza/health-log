@@ -14,10 +14,14 @@ from pathlib import Path
 import pytest
 
 from meals.application.summaries import SummaryService
-from meals.domain.meal import FoodItem
+from meals.domain.auto_goal import Sex
+from meals.domain.meal import FoodItem, Meal
+from meals.domain.meal_score import meal_score, sv_band
 from meals.domain.nutrition_goal import DailyTarget, NutritionGoal, Policy, Target
 from meals.domain.summary import DailySummary, WeeklyReview
-from meals.domain.values import Confidence, DayType, EaterId, Nutrition, NutritionGap, Quantity, Unit
+from meals.domain.values import (
+    ESTIMATE_FIELDS, Confidence, DayType, DietEstimate, EatenOn, EaterId, MealSlot, Nutrition, NutritionGap, Quantity, Source, Unit,
+)
 from meals.infrastructure.subject_as_eater_id import SubjectAsEaterId
 from meals.infrastructure.sync_entities import template_id
 from meals.infrastructure.sync_repositories import SyncDayTypeRepository, SyncGoalRepository, SyncMealRepository
@@ -160,7 +164,7 @@ def _target_view(t):
 def test_目標の自動計算はアプリと同じ(case):
     """アプリの画面と同じ組み立て（設定の目標体重 → 今の目標の目標体重、年齢は今日の年 − 生まれた年）を、GoalService で通す。"""
     from meals.application.goals import GoalService
-    from meals.domain.auto_goal import Activity, BodyDay, Sex
+    from meals.domain.auto_goal import Activity, BodyDay
     from meals.domain.ports import GoalSettings
     from meals.infrastructure import memory_repositories as memory
 
@@ -185,3 +189,43 @@ def test_目標の自動計算はアプリと同じ(case):
         "body_weight_kg": c.body_weight_kg, "protein_g": c.protein_g,
         "training": _target_view(c.training), "rest": _target_view(c.rest)}
     assert got == expected["calc"]
+
+
+# --- meal_score.json：食事のスコア（アプリの lib/mealScore.ts と同じ点。期待する値は手で計算した数） ---
+
+def _score_item(n: int, v: dict) -> FoodItem:
+    return FoodItem(f"i{n}", f"品目{n}", Quantity(1, Unit.PIECE), Nutrition(v["kcal"], v["protein_g"], v["fat_g"], 0),
+                    estimate=DietEstimate.of(v))
+
+
+@pytest.mark.parametrize("case", load("meal_score.json")["cases"], ids=lambda c: c["name"])
+def test_食事のスコアはアプリと同じ(case):
+    items = tuple(_score_item(n, v) for n, v in enumerate(case["items"]))
+    meals = (Meal("m", EaterId(USER), EatenOn(date(2026, 11, 20), MealSlot.LUNCH), items, "", Source.TEXT),) if items else ()
+    t = case["target"]
+    target = None if t is None else Target(kcal=t["kcal"], protein_g=t["protein_g"])
+    s = meal_score(meals, target, Sex(case["sex"]) if case["sex"] else None)
+    got = None if s is None else {
+        "score": s.score,
+        "parts": {p.key: s.part_points(p) for p in s.parts},
+        "easiest": None if s.easiest is None else {"part": s.easiest.part, "key": s.easiest.item.key,
+                                                   "advice": s.easiest.item.advice, "gain": s.easiest.gain},
+        "band": {"label": s.band.label, "from_target": s.band_from_target},
+    }
+    assert got == case["expected"]
+
+
+@pytest.mark.parametrize("case", load("meal_score.json")["bands"], ids=lambda c: str(c["kcal"]))
+def test_SVの目安の欄はアプリと同じ(case):
+    band, from_target = sv_band(case["kcal"])
+    assert (band.label, from_target) == (case["label"], case["from_target"])
+
+
+@pytest.mark.parametrize("case", load("meal_score.json")["change_amount"], ids=lambda c: c["name"])
+def test_量を変えると推定も同じ割合で変わる(case):
+    b = case["before"]
+    item = FoodItem("x", "品目", Quantity(b["amount"], Unit(b["unit"])), Nutrition(b["kcal"], b["protein_g"], b["fat_g"], b["carbs_g"]),
+                    Confidence.HIGH, DietEstimate.of(b))
+    after = item.with_amount(case["amount"])
+    assert {"amount": after.quantity.amount, "unit": after.quantity.unit.value, **nutrition(after.nutrition),
+            **{k: getattr(after.estimate, k) for k in ESTIMATE_FIELDS}} == case["after"]

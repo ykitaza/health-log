@@ -7,6 +7,7 @@ import type { SwipeHintKind, SwipeHintState } from '@/lib/swipe';
 import type { WeightUnit } from '@/lib/units';
 import { LOOK_KEY, Look, mirrorLook, parseLook } from '@/theme/appearance';
 import { serializeWrites } from '../serial';
+import { SEX_SETTING_ID } from '../syncSpec';
 import type { Db, Deps } from '../types';
 
 export type Settings = {
@@ -47,8 +48,10 @@ export function weeklyGoalsOf(s: Settings): WeeklyGoals {
 }
 
 /**
- * 性別と生まれた年（食事の目標の自動計算に使う）。個人の情報なので、同期しない sync_meta に置き、端末の外に出さない。
- * 別の端末やアプリを入れ直したときは、もう一度入れてもらう
+ * 性別と生まれた年（食事の目標の自動計算に使う）。個人の情報なので、同期しない sync_meta に置く。
+ * ただし性別は、食事のスコア（#331）の性別で変わる目安（食塩・お酒・食物繊維）にサーバーも使うので、同期する設定（ID は sex。
+ * 値は male か female。設定していなければ行を作らない）にも書く（持ち主の決めたこと）。読むときは設定の行を先に見る（別の端末で選んだ値）。
+ * 生まれた年は今までどおり端末の外に出さない（別の端末やアプリを入れ直したときは、もう一度入れてもらう）
  */
 export type Profile = { sex: Sex | null; birthYear: number | null };
 const PROFILE_KEYS = { sex: 'profile.sex', birthYear: 'profile.birth_year' } as const;
@@ -155,15 +158,41 @@ export function settingsRepository(db: Db, deps: Deps) {
       return isChatApp(v) ? v : null;
     },
 
-    /** 性別と生まれた年（端末だけ。同期しない） */
+    /** 性別と生まれた年。性別は同期する設定の行（別の端末で選んだ値）を先に見て、行がなければ端末の値。生まれた年は端末だけ */
     async profile(): Promise<Profile> {
-      const sex = await meta(PROFILE_KEYS.sex);
+      // 行があれば行が正（別の端末で消したら、消えた行になる）。行がなければ端末の値
+      const row = await db.getFirstAsync<{ value: string | null; deleted_at: string | null }>('SELECT value, deleted_at FROM settings WHERE id = ?', [SEX_SETTING_ID]);
+      const sex = row ? (row.deleted_at == null ? row.value : null) : await meta(PROFILE_KEYS.sex);
       return { sex: isSex(sex) ? sex : null, birthYear: num(await meta(PROFILE_KEYS.birthYear)) };
     },
 
-    /** 同期の対象ではないので、書き込みの列（serializeWrites）には並べない。null で消す */
+    /**
+     * null で消す。性別は同期する設定の行にも書く（選んでいなければ行を作らず、消したら行を消す。サーバーは厳しいほうの目安に戻る）。
+     * 同期する表を書くので、書き込みの列（serializeWrites）に並べる
+     */
     async setProfile(patch: Partial<Profile>): Promise<void> {
-      if (patch.sex !== undefined) await putMeta(PROFILE_KEYS.sex, patch.sex);
+      if (patch.sex !== undefined) {
+        const sex = patch.sex;
+        const now = deps.now().toISOString();
+        await db.withTransactionAsync(async () => {
+          await putMeta(PROFILE_KEYS.sex, sex);
+          const row = await db.getFirstAsync<{ value: string | null; deleted_at: string | null }>(
+            'SELECT value, deleted_at FROM settings WHERE id = ?', [SEX_SETTING_ID],
+          );
+          if (sex == null) {
+            if (row && row.deleted_at == null) {
+              await db.runAsync('UPDATE settings SET deleted_at = ?, updated_at = ? WHERE id = ?', [now, now, SEX_SETTING_ID]);
+            }
+            return;
+          }
+          if (row && row.value === sex && row.deleted_at == null) return;
+          await db.runAsync(
+            `INSERT INTO settings (id, value, created_at, updated_at) VALUES (?, ?, ?, ?)
+             ON CONFLICT (id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, deleted_at = NULL`,
+            [SEX_SETTING_ID, sex, now, now],
+          );
+        });
+      }
       if (patch.birthYear !== undefined) await putMeta(PROFILE_KEYS.birthYear, patch.birthYear == null ? null : String(patch.birthYear));
     },
 
@@ -252,5 +281,5 @@ export function settingsRepository(db: Db, deps: Deps) {
         }
       });
     },
-  }, ['update', 'setAppearance']);
+  }, ['update', 'setAppearance', 'setProfile']);
 }

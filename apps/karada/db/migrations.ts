@@ -5,7 +5,7 @@
 //   id（UUID）、created_at・updated_at（ISO 8601、UTC）、deleted_at（論理削除。NULL なら生きている）
 import { SEED_BODY_PARTS, SEED_EXERCISES } from './seed';
 import {
-  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, PHASE_ENTITIES, PHASE_ENTITIES_V15, REPORT_ENTITIES, REPORT_ENTITIES_V12, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
+  ENTITIES, EntitySpec, HEALTH_ENTITIES, INJURY_ENTITIES, MEAL_ENTITIES, MEAL_ENTITIES_V3, MEAL_ENTITIES_V7, PHASE_ENTITIES, PHASE_ENTITIES_V15, REPORT_ENTITIES, REPORT_ENTITIES_V12, REPORT_ENTITIES_V7, REPORT_ENTITIES_V9, SQL_UUID, TRAINING_ENTITIES,
   TRAINING_ENTITIES_V10, TRAINING_ENTITIES_V2, TRAINING_ENTITIES_V8, triggerSql,
 } from './syncSpec';
 import type { Bind, Db } from './types';
@@ -273,7 +273,7 @@ DROP TRIGGER sync_meals_insert;
 DROP TRIGGER sync_meals_update;
 DELETE FROM sync_meta WHERE key = 'cursor';
 `);
-      for (const spec of [...MEAL_ENTITIES.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES_V7]) await db.execAsync(triggerSql(spec));
+      for (const spec of [...MEAL_ENTITIES_V7.filter((s) => s.table === 'meals'), ...REPORT_ENTITIES_V7]) await db.execAsync(triggerSql(spec));
     },
   },
   {
@@ -493,6 +493,39 @@ DELETE FROM sync_held WHERE entity_type = 'report';
     up: async (db) => {
       await db.execAsync('DROP TRIGGER sync_phases_insert; DROP TRIGGER sync_phases_update;');
       for (const spec of PHASE_ENTITIES) await db.execAsync(triggerSql(spec));
+    },
+  },
+  {
+    // 食事のスコア（#331）。品目に、MCP で AI が付ける推定（SV・食物繊維・食塩相当量・純アルコール・菓子と嗜好飲料か）の列を足す
+    // （どれも NULL は推定していない。足すだけで、今の行は NULL のまま）。品目のトリガーを作り直す。
+    // 版17までの端末は、受け取った品目の知らない項目（推定）を捨てていたので、受け取りの位置と品目の当てはめた印を消して、取り直す。
+    // いつものの品目は items（JSON）にそのまま入っていたので、取り直さない。
+    // あわせて、端末だけに置いていた性別（sync_meta の profile.sex）を、同期する設定（ID は sex）にも書く（食事のスコアの目安に使う。
+    // 持ち主の決めたこと：性別は同期の setting で送る。生まれた年は今までどおり端末だけ）
+    version: 18,
+    up: async (db, nowIso) => {
+      await db.execAsync(`
+ALTER TABLE meal_items ADD COLUMN sv_staple REAL;
+ALTER TABLE meal_items ADD COLUMN sv_side REAL;
+ALTER TABLE meal_items ADD COLUMN sv_main REAL;
+ALTER TABLE meal_items ADD COLUMN sv_dairy REAL;
+ALTER TABLE meal_items ADD COLUMN sv_fruit REAL;
+ALTER TABLE meal_items ADD COLUMN fiber_g REAL;
+ALTER TABLE meal_items ADD COLUMN salt_g REAL;
+ALTER TABLE meal_items ADD COLUMN alcohol_g REAL;
+ALTER TABLE meal_items ADD COLUMN is_snack_or_sweet_drink INTEGER;
+DROP TRIGGER sync_meal_items_insert;
+DROP TRIGGER sync_meal_items_update;
+DELETE FROM sync_meta WHERE key = 'cursor';
+DELETE FROM sync_seen WHERE entity_type = 'meal_item';
+DELETE FROM sync_held WHERE entity_type = 'meal_item';
+`);
+      for (const spec of MEAL_ENTITIES.filter((s) => s.table === 'meal_items')) await db.execAsync(triggerSql(spec));
+      await db.runAsync(
+        `INSERT INTO settings (id, value, created_at, updated_at)
+         SELECT 'sex', value, ?, ? FROM sync_meta WHERE key = 'profile.sex' AND value IN ('male', 'female')
+         ON CONFLICT (id) DO NOTHING`, [nowIso, nowIso],
+      );
     },
   },
 ];

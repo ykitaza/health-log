@@ -14,6 +14,7 @@ import { DailyHighlights } from '@/components/reports';
 import { Screen, ScrollTarget } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { DropZone, LIFTED_ROW, MealDragState, MoveSheet, useLiftStyle, useMealDrag } from '@/components/MealMove';
+import { MealScoreCard } from '@/components/MealScore';
 import { MealWeekly } from '@/components/MealWeekly';
 import { Button, Card, IconButton, LIST_GROUP, PrimaryTabs, Segmented, Snackbar, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
@@ -25,6 +26,7 @@ import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
 import { fuelGauge } from '@/lib/homeHud';
 import { LIFT_DELAY_MS, movedMessage, MOVED_NOTICE_MS, rowActions, slotOfAction } from '@/lib/mealMove';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, slotAt } from '@/lib/meals';
+import { mealScore, scoreDiff } from '@/lib/mealScore';
 import { TAB_AREAS } from '@/lib/reports';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
@@ -70,10 +72,15 @@ export default function MealsScreen() {
   // 前の日を見ているときは、Android の戻るでまず今日に戻す
   useBackToToday(date === today, () => goTo(today));
   const { data, error, reload, repos } = useFocusData(async (r) => {
-    const [{ days, goal }, templates, yesterday] = await Promise.all([
-      r.meals.summaries(date, date), r.meals.listTemplates(), r.meals.listDay(addDays(date, -1)),
+    // 前の日も読む（食事のスコアの前の日との差。前の日の目標は、その日の種類で選ぶ）
+    const [{ days, goal }, templates, profile] = await Promise.all([
+      r.meals.summaries(addDays(date, -1), date), r.meals.listTemplates(), r.settings.profile(),
     ]);
-    return { date, day: days[0], goal, templates, yesterday };
+    const [before, day] = days;
+    // 食事のスコア（端末で計算。サーバーと同じ規則）。性別は設定の値（なければ厳しいほうの目安）
+    const score = mealScore(day.meals, day.target, profile.sex);
+    const diff = scoreDiff(score, mealScore(before.meals, before.target, profile.sex));
+    return { date, day, goal, templates, yesterday: before.meals, score, diff };
   }, date);
   const day = data?.date === date ? data.day : null;
   const list = useListMotion(day != null);
@@ -186,6 +193,7 @@ export default function MealsScreen() {
           )}
         </View>
       )}
+      {data?.date === date && data.score?.score != null && <MealScoreCard score={data.score} diff={data.diff} soFar={date === today} />}
       <DailyHighlights date={date} areas={TAB_AREAS.meals} />
 
       {SLOTS.map((slot, slotIndex) => {

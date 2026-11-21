@@ -1,6 +1,6 @@
 import { addDays, DateKey } from '@/lib/date';
 import {
-  DaySummary, daySummary, DayType, resolveDayType, ItemInput, MAX_ITEMS, Meal, MealItem, MealState, MealTemplate, NutritionGoal, readableMeals, Slot, Source,
+  DaySummary, daySummary, DayType, DietEstimate, ESTIMATE_FIELDS, estimateOf, resolveDayType, ItemInput, MAX_ITEMS, Meal, MealItem, MealState, MealTemplate, NutritionGoal, readableMeals, Slot, Source,
   TemplateItem, templateDescription, templateId, templateMealItems,
 } from '@/lib/meals';
 import { serializeWrites } from '../serial';
@@ -13,6 +13,9 @@ type MealRow = {
 type ItemRow = {
   meal_id: string; id: string; name: string; amount: number; unit: string; kcal: number; protein_g: number;
   fat_g: number; carbs_g: number; confidence: string; sort_order: number; deleted_at: string | null;
+  // 食事のスコアに使う推定（版18。NULL は推定していない。菓子・嗜好飲料かは 0/1）
+  sv_staple: number | null; sv_side: number | null; sv_main: number | null; sv_dairy: number | null; sv_fruit: number | null;
+  fiber_g: number | null; salt_g: number | null; alcohol_g: number | null; is_snack_or_sweet_drink: number | null;
 };
 type GoalRow = {
   policy: string; body_weight_kg: number | null; protein_per_kg: number | null; targets: string | null;
@@ -20,12 +23,21 @@ type GoalRow = {
 };
 
 export const GOAL_ID = 'current';
-const ITEM_COLUMNS = ['name', 'amount', 'unit', 'kcal', 'protein_g', 'fat_g', 'carbs_g', 'confidence', 'sort_order'] as const;
+const ITEM_COLUMNS = ['name', 'amount', 'unit', 'kcal', 'protein_g', 'fat_g', 'carbs_g', 'confidence', 'sort_order', ...ESTIMATE_FIELDS] as const;
+
+/** 推定を SQLite の値にする（ない項目は NULL。菓子・嗜好飲料かは 0/1） */
+function estimateBinds(item: DietEstimate): Record<(typeof ESTIMATE_FIELDS)[number], Bind> {
+  const e = estimateOf(item);
+  return { ...e, is_snack_or_sweet_drink: e.is_snack_or_sweet_drink == null ? null : e.is_snack_or_sweet_drink ? 1 : 0 };
+}
 
 export class MealRuleError extends Error {}
 
-/** 記録するときの品目。id があれば使う（複製・いつものは元の品目の ID のまま。サーバーと同じ） */
-export type NewItem = ItemInput & { id?: string; confidence?: MealItem['confidence'] };
+/**
+ * 記録するときの品目。id があれば使う（複製・いつものは元の品目の ID のまま。サーバーと同じ）。
+ * 推定（食事のスコアに使う SV など）は、複製・いつもの・量を変えた品目だけが持つ（手で入れた品目は推定していない＝NULL）
+ */
+export type NewItem = ItemInput & DietEstimate & { id?: string; confidence?: MealItem['confidence'] };
 
 /**
  * 食事・品目・いつもの・目標・日の種類。どれも論理削除（deleted_at）で、同期できる形にしてある。
@@ -77,12 +89,16 @@ export function mealRepository(db: Db, deps: Deps) {
     return id;
   }
 
-  const insertItem = (mealId: string, item: NewItem, order: number, now: string) => db.runAsync(
-    `INSERT INTO meal_items (meal_id, id, name, amount, unit, kcal, protein_g, fat_g, carbs_g, confidence, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [mealId, item.id ?? deps.newId(), item.name, item.amount, item.unit, item.kcal, item.protein_g, item.fat_g, item.carbs_g,
-      item.confidence ?? 'high', order, now, now],
-  );
+  const insertItem = (mealId: string, item: NewItem, order: number, now: string) => {
+    const est = estimateBinds(item);
+    return db.runAsync(
+      `INSERT INTO meal_items (meal_id, id, name, amount, unit, kcal, protein_g, fat_g, carbs_g, confidence, sort_order,
+       ${ESTIMATE_FIELDS.join(', ')}, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${ESTIMATE_FIELDS.map(() => '?').join(', ')}, ?, ?)`,
+      [mealId, item.id ?? deps.newId(), item.name, item.amount, item.unit, item.kcal, item.protein_g, item.fat_g, item.carbs_g,
+        item.confidence ?? 'high', order, ...ESTIMATE_FIELDS.map((k) => est[k]), now, now],
+    );
+  };
 
   async function readTemplates(): Promise<MealTemplate[]> {
     const rows = await db.getAllAsync<{ id: string; name: string; items: string }>(
@@ -99,6 +115,8 @@ export function mealRepository(db: Db, deps: Deps) {
     const json = JSON.stringify(items.map((i): TemplateItem => ({
       item_id: i.id, name: i.name, amount: i.amount, unit: i.unit, kcal: i.kcal, protein_g: i.protein_g,
       fat_g: i.fat_g, carbs_g: i.carbs_g, confidence: i.confidence,
+      // 推定は、推定した項目だけ入れる（サーバーの save_template と同じく値をそのまま引き継ぐ）
+      ...Object.fromEntries(Object.entries(estimateOf(i)).filter(([, v]) => v != null)),
     })));
     await db.runAsync(
       `INSERT INTO meal_templates (id, name, items, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -164,11 +182,14 @@ export function mealRepository(db: Db, deps: Deps) {
             await insertItem(id, { ...item, id: undefined }, order, now);
             continue;
           }
+          // 推定は、渡した品目に項目があればその値（量を変えたら同じ割合で変えた値）、なければ今のまま
+          const est = estimateBinds({ ...old, ...Object.fromEntries(ESTIMATE_FIELDS.filter((k) => item[k] !== undefined).map((k) => [k, item[k]])) });
           const next: Record<string, Bind> = {
             name: item.name, amount: item.amount, unit: item.unit, kcal: item.kcal, protein_g: item.protein_g,
-            fat_g: item.fat_g, carbs_g: item.carbs_g, confidence: item.confidence ?? old.confidence, sort_order: order,
+            fat_g: item.fat_g, carbs_g: item.carbs_g, confidence: item.confidence ?? old.confidence, sort_order: order, ...est,
           };
-          const diff = ITEM_COLUMNS.filter((c) => next[c] !== (old as Record<string, unknown>)[c]);
+          const oldBinds: Record<string, unknown> = { ...old, ...estimateBinds(old) };
+          const diff = ITEM_COLUMNS.filter((c) => next[c] !== oldBinds[c]);
           if (diff.length > 0) {
             await db.runAsync(
               `UPDATE meal_items SET ${diff.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE meal_id = ? AND id = ?`,

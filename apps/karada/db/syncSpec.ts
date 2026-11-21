@@ -167,9 +167,23 @@ export const TRAINING_ENTITIES: EntitySpec[] = TRAINING_ENTITIES_V10.map((s) =>
     ? { ...s, columns: Object.fromEntries(Object.entries(s.columns).filter(([c]) => c !== 'muscle_pct' && c !== 'waist_cm')) }
     : s);
 
-/** 食事の今の形。版7で、食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した */
-export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
+/** 版7の形。食事に推定の根拠（basis。MCP が書く。アプリの食事は null）を足した。版7のマイグレーションは、この形でトリガーを作る */
+export const MEAL_ENTITIES_V7: EntitySpec[] = MEAL_ENTITIES_V3.map((s) =>
   s.type === 'meal' ? { ...s, columns: { ...s.columns, basis: 'text' } } : s);
+
+/**
+ * 食事の今の形。版18で、品目に食事のスコアに使う推定（SV・食物繊維・食塩相当量・純アルコール・菓子と嗜好飲料か。MCP で AI が付ける。
+ * どれも省ける。NULL は推定していない）を足した。サーバーの sync_entities.py の _ItemCore と同じ項目。いつものの品目は items（JSON）の中に入る
+ */
+export const MEAL_ENTITIES: EntitySpec[] = MEAL_ENTITIES_V7.map((s) =>
+  s.type === 'meal_item'
+    ? {
+      ...s, columns: {
+        ...s.columns, sv_staple: 'real', sv_side: 'real', sv_main: 'real', sv_dairy: 'real', sv_fruit: 'real',
+        fiber_g: 'real', salt_g: 'real', alcohol_g: 'real', is_snack_or_sweet_drink: 'bool',
+      },
+    }
+    : s);
 
 /** レポート（版7）。MCP の save_report だけが作る。highlights と next_steps は SQLite では JSON の文字列 */
 export const REPORT_ENTITIES_V7: EntitySpec[] = [
@@ -253,6 +267,12 @@ export const ENTITIES: EntitySpec[] = [
   ...TRAINING_ENTITIES, ...MEAL_ENTITIES, ...HEALTH_ENTITIES, ...REPORT_ENTITIES, ...INJURY_ENTITIES, ...PHASE_ENTITIES,
 ];
 
+/**
+ * 性別の設定の同期の ID（値は male か female。設定していなければ行を作らない）。サーバーの食事のスコアが、性別で変わる目安
+ * （食塩・純アルコール・食物繊維）に使う（services/composition/composition/body_data.py の SEX_SETTING）
+ */
+export const SEX_SETTING_ID = 'sex';
+
 export const SPEC_BY_TYPE = new Map(ENTITIES.map((s) => [s.type, s]));
 
 /** SQLite の値（真偽値は 0/1、json は文字列）を API の値にする */
@@ -271,7 +291,8 @@ export function toDbFields(spec: EntitySpec, fields: Record<string, unknown>): R
   for (const [k, v] of Object.entries(fields)) {
     const kind = spec.columns[k];
     if (!kind) continue;
-    out[k] = kind === 'bool' ? (v ? 1 : 0) : kind === 'json' ? (v == null ? null : JSON.stringify(v)) : (v as Bind);
+    // 真偽値の null は null のまま（品目の「菓子・嗜好飲料か」は null が「推定していない」で、false とは違う）
+    out[k] = kind === 'bool' ? (v == null ? null : v ? 1 : 0) : kind === 'json' ? (v == null ? null : JSON.stringify(v)) : (v as Bind);
   }
   return out;
 }

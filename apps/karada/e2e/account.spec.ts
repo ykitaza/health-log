@@ -74,7 +74,7 @@ test('体の情報はアカウントの画面にあり、設定の画面には�
   await expect(page.getByRole('textbox', { name: '身長' })).toHaveCount(0);
   await accountRow(page).click();
   await expect(see(page, '体の情報', { exact: true })).toBeVisible();
-  await expect(see(page, '性別と生まれた年はこの端末の中だけに置き、サーバーには送りません。')).toBeVisible();
+  await expect(see(page, '性別は、ログインしていると同期してサーバーにも送ります（食事のスコアの目安に使います）。生まれた年はこの端末の中だけに置き、サーバーには送りません。')).toBeVisible();
   await enter(page, '身長', '170');
   await button(page, '女性').click();
   await enter(page, '生まれた年', '1990');

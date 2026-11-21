@@ -194,7 +194,7 @@ describe('設定', () => {
     expect(await r.settings.swipeHint('meal-day')).toEqual({ shown: 0, used: true });
   });
 
-  test('活動の量は設定（同期する）。性別・生まれた年・自動計算の体重は端末だけに覚え、同期に載せない', async () => {
+  test('活動の量と性別は設定（同期する）。生まれた年・自動計算の体重は端末だけに覚え、同期に載せない', async () => {
     const { r, db } = await setup();
     await r.settings.update({ activity: 'moderate' });
     expect(db.raw.prepare("SELECT entity_id FROM sync_outbox WHERE entity_type = 'setting'").all()).toEqual([{ entity_id: 'activity_level' }]);
@@ -205,13 +205,33 @@ describe('設定', () => {
     expect(await r.settings.autoGoalWeight()).toBe(68.3);
     await r.settings.setProfile({ birthYear: null });
     expect(await r.settings.profile()).toEqual({ sex: 'female', birthYear: null });
-    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sync_outbox WHERE entity_type = 'setting'").get()).toEqual({ n: 1 });
-    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 1 });
+    // 性別は食事のスコアの目安にサーバーも使うので、設定の sex（male か female）で送る。生まれた年は送らない
+    const settingRows = () => db.raw.prepare("SELECT entity_id, op, fields FROM sync_outbox WHERE entity_type = 'setting' ORDER BY seq").all();
+    expect(settingRows()).toEqual([
+      { entity_id: 'activity_level', op: 'create', fields: JSON.stringify({ value: 'moderate' }) },
+      { entity_id: 'sex', op: 'create', fields: JSON.stringify({ value: 'female' }) },
+    ]);
+    // 同じ値なら積まない。変えたら update、消したら delete（サーバーは厳しいほうの目安に戻る）
+    await r.settings.setProfile({ sex: 'female' });
+    expect(settingRows()).toHaveLength(2);
+    await r.settings.setProfile({ sex: 'male' });
+    await r.settings.setProfile({ sex: null });
+    expect(settingRows().slice(2).map((x) => [(x as { op: string }).op, (x as { fields: string | null }).fields])).toEqual([
+      ['update', JSON.stringify({ value: 'male' })], ['delete', null],
+    ]);
+    expect(await r.settings.profile()).toEqual({ sex: null, birthYear: null });
+    // 別の端末で選んだ性別（同期で届いた設定の行）を先に読む
+    db.raw.prepare("UPDATE settings SET value = 'male', deleted_at = NULL WHERE id = 'sex'").run();
+    expect((await r.settings.profile()).sex).toBe('male');
     // 知らない値は入れていないことにする
-    db.raw.prepare("UPDATE sync_meta SET value = 'x' WHERE key = 'profile.sex'").run();
+    db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'sex'").run();
     db.raw.prepare("UPDATE settings SET value = 'x' WHERE id = 'activity_level'").run();
     expect((await r.settings.profile()).sex).toBeNull();
     expect((await r.settings.get()).activity).toBeNull();
+    // 設定の行がなければ、端末の値（版17までに選んだ値）
+    db.raw.prepare("DELETE FROM settings WHERE id = 'sex'").run();
+    db.raw.prepare("INSERT INTO sync_meta (key, value) VALUES ('profile.sex', 'female')").run();
+    expect((await r.settings.profile()).sex).toBe('female');
   });
 
   test('表示名と写真は端末だけに覚え、同期に載せない。null で消す', async () => {

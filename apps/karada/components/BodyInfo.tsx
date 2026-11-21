@@ -11,12 +11,12 @@ import { colors, space } from '@/theme';
 
 /**
  * 体の情報のカード（アカウントの画面）：身長・目標体重・性別・生まれた年・ふだんの活動の量。
- * 身長・目標体重・活動の量は設定（同期する）、性別と生まれた年は端末だけ（同期しない）。欄を離れたときに保存する。
+ * 身長・目標体重・活動の量・性別は設定（同期する）、生まれた年は端末だけ（同期しない）。欄を離れたときに保存する。
  * 目標体重は、設定の重さの単位で出し、入れる
  */
 export function BodyInfoCard() {
   const { data: settings, reload, repos } = useFocusData((r) => r.settings.get());
-  // 性別と生まれた年は端末だけ（同期しない）
+  // 性別と生まれた年（性別は同期する設定にも書く。生まれた年は端末だけ）
   const { data: profile, reload: reloadProfile } = useFocusData((r) => r.settings.profile());
   const [birthYear, setBirthYear] = useState<string | null>(null);
   const [height, setHeight] = useState('');
@@ -74,7 +74,7 @@ export function BodyInfoCard() {
       <ActivityChoice value={settings?.activity ?? null} onChange={(activity) => save({ activity })} />
       {message && <T variant="bodyS" color={colors.danger}>{message}</T>}
       <T variant="bodyS" color={colors.sub}>身長はからだの自動計算（BMI など）に、目標体重はからだの「目標体重まで」に使います。身長・目標体重・性別・生まれた年・活動の量は、食事の目標の自動計算にも使います。空にすると消えます。</T>
-      <T variant="bodyS" color={colors.sub}>性別と生まれた年はこの端末の中だけに置き、サーバーには送りません。</T>
+      <T variant="bodyS" color={colors.sub}>性別は、ログインしていると同期してサーバーにも送ります（食事のスコアの目安に使います）。生まれた年はこの端末の中だけに置き、サーバーには送りません。</T>
     </Card>
   );
 }
