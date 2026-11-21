@@ -123,9 +123,9 @@ def test_フェーズの計算(group):
         assert {"label": phase.label(p), "paused": pp.paused, "week": pp.week, "weeks_total": pp.weeks_total,
                 "effective_end": pp.effective_end, "remaining_days": pp.remaining_days, "rehab_days": pp.rehab_days,
                 "plan_kg": pp.plan_kg, "pace": pace} == check["expected"], (check["phase_id"], check["as_of"])
-    for c in group["current"]:
-        current, paused = phase.current(phases, c["as_of"])
-        assert (current and current.id, paused and paused.id) == (c["current"], c["paused"]), c["as_of"]
+    for case in group["current"]:
+        current, paused = phase.current(phases, case["as_of"])
+        assert (current and current.id, paused and paused.id) == (case["current"], case["paused"]), case["as_of"]
 
 
 @pytest.mark.parametrize("case", load("measures.json")["cases"], ids=lambda c: c["name"])

@@ -396,6 +396,7 @@ def register_training_tools(
         end: Annotated[date | None, Field(description=PERIOD_END)] = None,
     ) -> dict:
         """心拍のまとめ：日ごとの安静時心拍・平均・最低・最高（拍/分）と測った回数、期間の安静時心拍の平均。
+        安静時心拍の平均は、安静時心拍がある日（resting_days_recorded）だけで出す（days_recorded は心拍の記録がある日の数）。
 
         期間は start〜end（両端を含む。90日まで）。省くと end は今日、start は end の days−1 日前。
 

@@ -247,7 +247,7 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
     assert training["days"] == [{"date": "2026-11-03", "volume": 895, "sets": 2},
                                 {"date": "2026-11-06", "volume": 500, "sets": 1}]
     assert [(e["exercise"], e["max_estimated_1rm"], e["date"]) for e in training["exercises"]] == [
-        ("スクワット", round(100 * (1 + 5 / 30), 1), "2026-11-06"), ("ベンチプレス", round(80 * (1 + 8 / 30), 1), "2026-11-03")]
+        ("スクワット", 116.7, "2026-11-06"), ("ベンチプレス", 101.3, "2026-11-03")]  # Epley：100×(1+5/30)=116.66…、80×(1+8/30)=101.33…
     part_sets = training["part_sets"]  # 部位ごとのセット数（アプリのカードと同じ数え方）。前の週の11-01のベンチ1セットは前の期間
     assert [k for k in part_sets] == ["from", "to", "previous_from", "previous_to", "band", "parts"]
     assert (part_sets["from"], part_sets["to"], part_sets["previous_from"], part_sets["previous_to"]) == (
@@ -263,7 +263,8 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
                                 "protein_g": 5, "fat_g": 0.6, "carbs_g": 74, "target_kcal": 2800}
     assert "goal" not in meals and "from" not in meals
     assert week["body"] == {
-        "days_recorded": 2, "average_weight_kg": 69.5, "average_body_fat_pct": 18.0, "weekly_weight_change_kg": -2.33,
+        "days_recorded": 2, "weight_days_recorded": 2, "body_fat_days_recorded": 1,
+        "average_weight_kg": 69.5, "average_body_fat_pct": 18.0, "weekly_weight_change_kg": -2.33,
         "days": [{"date": "2026-11-02", "weight_kg": 70.0, "body_fat_pct": 18.0},
                  {"date": "2026-11-05", "weight_kg": 69.0, "body_fat_pct": None}]}
     assert week["sleep"] == {"nights_recorded": 1, "average_asleep_min": 440, "nights": [
@@ -554,6 +555,23 @@ def test_期間の材料は_1回の実行の中で同じ種類を1回だけ読�
     assert week["phase"]["current"]["pace"]["weigh_ins"] == 1 and again["phase"]["current"]["pace"]["weigh_ins"] == 2
     assert plain == again
     assert len(plain_reads) > len(set(plain_reads))  # 範囲がなければ同じ種類を何度も読む
+
+
+def test_今月の材料の体重の週あたりの変化は_今日までの28日で出す_先の日を窓に入れない(server):
+    """今日は 11-08。今月（11-01〜11-30）を頼まれても、体重の変化は 11-08 までの28日（10-12〜11-08）で出す。
+    10-20 の 71.0kg → 11-05 の 69.0kg：(69.0 − 71.0) ÷ 16日 × 7 ＝ −0.875 → −0.87（Math.round(−87.5) ＝ −87）。
+    end（11-30）までの28日（11-03〜）にすると 11-05 の1件だけになり、出せなくなっていた。"""
+    engine = server["engine"]
+    for day, kg in [("2026-10-20", 71.0), ("2026-11-05", 69.0)]:
+        app_change(engine, "body_record", f"b{day}", {"date": day, "measured_at": f"{day}T07:00:00+09:00",
+                                                      "weight_kg": kg, "source": "manual"})
+
+    async def body(client):
+        return data(await client.call_tool("period_overview", {"start": "2026-11-01", "end": "2026-11-30"}))
+
+    month = run(server, ALL_SCOPES, body)
+    assert month["body"]["weekly_weight_change_kg"] == -0.87
+    assert [d["date"] for d in month["body"]["days"]] == ["2026-11-05"]  # 日ごとの値は期間の中だけ
 
 
 def test_期間の材料は31日まで(server):

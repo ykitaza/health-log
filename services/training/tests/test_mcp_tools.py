@@ -76,7 +76,7 @@ def test_記録すると_その日の記録と計算と最後の同期の時刻�
     assert result["date"] == "2026-11-08" and result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
     first, pullups = result["entries"]
     assert (first["exercise"], first["body_part"], first["volume"]) == (BENCH, "胸", 80 * 8 + 85 * 5)
-    assert first["max_estimated_1rm"] == round(80 * (1 + 8 / 30), 1)  # Epley 式（testdata と同じ計算）
+    assert first["max_estimated_1rm"] == 101.3  # Epley 式：80 × (1 + 8/30) ＝ 101.33…
     assert first["new_personal_best"] is None  # 初めての種目
     assert [s["set_no"] for s in first["sets"]] == [1, 2]
     assert (pullups["exercise"], pullups["sets"][0]["weight_kg"], pullups["volume"]) == ("懸垂", None, 0)
@@ -187,7 +187,7 @@ def test_自重の種目は_体重_割合_回数で総負荷量に入る_体重�
     call("record_body", day="2026-11-08", weight_kg=72)
     call("record_workout", exercises=[{"exercise": "クランチ", "sets": [{"reps": 20}]}])  # 初期の割合 0.3
     review = call("weekly_training_review")
-    assert review["total_volume"] == round(72 * 0.3 * 20, 1) and review["last_week"]["total_volume"] == 70 * 18 + 640
+    assert review["total_volume"] == 432 and review["last_week"]["total_volume"] == 70 * 18 + 640
     listed = call("list_workouts", start="2026-11-01", end="2026-11-08")["workouts"]
     assert [w["total_volume"] for w in listed] == [70 * 18 + 640, 432]
     history = call("exercise_history", exercise="懸垂")
@@ -291,7 +291,10 @@ def test_種目の名前の変更は_同じ部位に同じ名前があれば断�
 def test_種目を隠すと一覧から消え_記録には使え_表示に戻せる(call):
     hidden = call("update_exercise", exercise=BENCH, hidden=True)
     assert hidden["hidden"] is True
-    chest = lambda listed: next(p for p in listed["body_parts"] if p["body_part"] == "胸")["exercises"]
+
+    def chest(listed):
+        return next(p for p in listed["body_parts"] if p["body_part"] == "胸")["exercises"]
+
     assert BENCH not in [e["name"] for e in chest(call("list_exercises"))]
     assert {"exercise_id": hidden["exercise_id"], "name": BENCH, "record_type": "weight_reps", "hidden": True} in \
         chest(call("list_exercises", include_hidden=True))
@@ -353,7 +356,7 @@ def test_体組成を記録し_同じ日は渡した項目だけ書き換える(
     call("record_body", day="2026-10-25", weight_kg=71.0)
     progress = call("body_progress", days=30)
     assert [d["date"] for d in progress["days"]] == ["2026-10-25", "2026-11-08"]
-    assert progress["weekly_weight_change_kg"] == round((70.2 - 71.0) / 14 * 7, 2)
+    assert progress["weekly_weight_change_kg"] == -0.4  # (70.2 − 71.0) ÷ 14日 × 7
     with pytest.raises(ToolError, match="どれかを入れてください"):
         call("record_body")
     with pytest.raises(ToolError, match="体重"):
@@ -480,6 +483,7 @@ def test_心拍のまとめ_日ごとの値と安静時心拍の平均(call, eng
         {"date": "2026-11-08", "resting_bpm": None, "avg_bpm": 80, "min_bpm": 60, "max_bpm": 120, "samples": 30},
     ]
     assert (result["days_recorded"], result["average_resting_bpm"]) == (3, 57.5)
+    assert result["resting_days_recorded"] == 2  # 平均の母数は安静時心拍がある日だけ（(56 + 59) ÷ 2）
     assert result["last_app_sync_at"] == "2026-11-08T19:00:00+09:00"
 
 
@@ -710,3 +714,25 @@ def test_アプリが状態だけを直せたにしたケガも_MCP_で書き直
     fixed = call("mark_injury_fixed", injury_id=injury["injury_id"])["injury"]
     assert (fixed["status"], fixed["fixed_on"]) == ("fixed", "2026-11-08")
 
+
+
+def test_睡眠の平均は期間の引数で変わる_母数は記録がある夜だけ(call, engine):
+    """7日（11-02〜11-08）：420・360 の2晩で 390。30日（10-10〜11-08）：10-20 の 300 も入って 3晩で 360。"""
+    imported(engine, "sleep_session", "s1", sleep_fields("2026-11-03", "2026-11-02T14:00:00.000Z", "2026-11-02T21:00:00.000Z", 420))
+    imported(engine, "sleep_session", "s2", sleep_fields("2026-11-07", "2026-11-06T15:00:00.000Z", "2026-11-06T21:00:00.000Z", 360))
+    imported(engine, "sleep_session", "s3", sleep_fields("2026-10-20", "2026-10-19T16:00:00.000Z", "2026-10-19T21:00:00.000Z", 300))
+    week, month = call("sleep_summary", days=7), call("sleep_summary", days=30)
+    assert (week["from"], week["nights_recorded"], week["average_asleep_min"]) == ("2026-11-02", 2, 390)
+    assert (month["from"], month["nights_recorded"], month["average_asleep_min"]) == ("2026-10-10", 3, 360)
+
+
+def test_週のふり返りの_まだ鍛えていない部位は_負荷量が0でもセットの記録があれば入れない(call):
+    """プランク（割合 0）と、体重の記録がない懸垂は負荷量が 0 だが、腹筋・背中は鍛えている。"""
+    call("add_exercise", name="プランク", body_part="腹筋", record_type="reps_only")
+    call("record_workout", exercises=[{"exercise": "プランク", "sets": [{"reps": 60}]},
+                                      {"exercise": "懸垂", "sets": [{"reps": 8}]}, bench((80, 8))])
+    review = call("weekly_training_review")
+    parts = {p["body_part"]: p["volume"] for p in review["by_body_part"]}
+    assert (parts["腹筋"], parts["背中"], parts["胸"]) == (0, 0, 640)
+    assert "腹筋" not in review["untrained_body_parts"] and "背中" not in review["untrained_body_parts"]
+    assert review["untrained_body_parts"] == ["肩", "脚", "上腕二頭筋", "上腕三頭筋"]
