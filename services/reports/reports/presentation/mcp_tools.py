@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
-from typing import Annotated, Protocol
+from typing import Annotated, Callable, Protocol
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
@@ -142,8 +142,21 @@ async def _phase_period(phases: PhasePeriods | None, sub: str, phase_id: str | N
     return start, end
 
 
-def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhasePeriods | None = None) -> None:
-    """レポートのツールを mcp に登録する。phases を渡すと、フェーズの振り返りの phase_id と期間を確かめる。"""
+def register_report_tools(
+    mcp: MCPServer, service: ReportService, phases: PhasePeriods | None = None,
+    app_link: Callable[..., str] | None = None,
+) -> None:
+    """レポートのツールを mcp に登録する。phases を渡すと、フェーズの振り返りの phase_id と期間を確かめる。
+
+    app_link を渡すと、結果にアプリのレポートの画面へのリンク（app_link）を足す。
+    """
+
+    def linked(view: dict, report: Report | None = None) -> dict:
+        if not app_link:
+            return view
+        start = report.period_start if report else None
+        kind = report.kind.value if report else None
+        return {**view, "app_link": app_link("reports", start, kind)}
 
     def subject(scope: str) -> str:
         """検証済みのアクセストークンに scope があれば本人（sub）を返す。なければ断る。"""
@@ -229,7 +242,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
                 phase_id=phase_id)
             saved = await service.save(sub, report)
         where = "フェーズの画面" if kind == "phase" else "ホームの「最新のレポート」"
-        return {"report": _summary(saved), "message": f"保存しました。アプリ（KARADA）の{where}に出ます（同期のあと）。"}
+        return linked({"report": _summary(saved), "message": f"保存しました。アプリ（KARADA）の{where}に出ます（同期のあと）。"}, saved)
 
     @mcp.tool(annotations=READ)
     async def list_reports(
@@ -238,14 +251,15 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
     ) -> dict:
         """保存したレポートの一覧（新しい順。本文は含まない）。前のまとめと比べるときや、消すレポートを探すときに呼ぶ。"""
         sub = subject(READ_SCOPE)
-        return {"reports": [_summary(r) for r in await service.list(sub, Kind(kind) if kind else None, limit)]}
+        return linked({"reports": [_summary(r) for r in await service.list(sub, Kind(kind) if kind else None, limit)]})
 
     @mcp.tool(annotations=READ)
     async def get_report(report_id: str) -> dict:
         """レポートを1件、本文と highlights まで返す。前のまとめの続きを書くときに読む。"""
         sub = subject(READ_SCOPE)
         with report_errors():
-            return _full(await service.get(sub, report_id))
+            report = await service.get(sub, report_id)
+            return linked(_full(report), report)
 
     @mcp.tool(annotations=DESTRUCTIVE)
     async def delete_report(report_id: str) -> dict:
@@ -256,7 +270,7 @@ def register_report_tools(mcp: MCPServer, service: ReportService, phases: PhaseP
         sub = subject(WRITE_SCOPE)
         with report_errors():
             await service.delete(sub, report_id)
-        return {"deleted": report_id}
+        return linked({"deleted": report_id})
 
 
 class PreviousNextSteps:

@@ -117,6 +117,7 @@ def register_training_tools(
     queries: TrainingQueries,
     today: Callable[[], date],
     sync_status: AppSyncStatus | None = None,
+    app_link: Callable[..., str] | None = None,
 ) -> None:
     """筋トレのツールを mcp に登録する。"""
     status = sync_status or NoAppSync()
@@ -132,9 +133,13 @@ def register_training_tools(
                 "食事のツールは今のまま使えます。")
         return token.subject
 
-    async def synced(sub: str, view: dict) -> dict:
-        """応答に、アプリの最後の同期の時刻を足す（それより後にアプリで記録した分は、まだ見えていない）。"""
-        return {**view, "last_app_sync_at": await status.last_app_sync_at(sub)}
+    async def synced(sub: str, view: dict, day: date | str | None = None, target: str = "training") -> dict:
+        """応答に、アプリの最後の同期の時刻と、アプリの画面（筋トレ。ケガは target="injuries"）へのリンク（app_link）を足す。
+
+        同期より後にアプリで記録した分は、まだ見えていない。
+        """
+        link = {"app_link": app_link(target, day)} if app_link else {}
+        return {**view, **link, "last_app_sync_at": await status.last_app_sync_at(sub)}
 
     def day_of(day: date | None) -> str:
         return (day or today()).isoformat()
@@ -174,7 +179,7 @@ def register_training_tools(
                  for e in exercises]
         with training_errors():
             await commands.record_workout(sub, day_of(day), items)
-        return await synced(sub, await workout_view(sub, day_of(day)))
+        return await synced(sub, await workout_view(sub, day_of(day)), day_of(day))
 
     # --- 読む ---
 
@@ -188,7 +193,7 @@ def register_training_tools(
         記録を直す・消すときは、ここで entry_id（種目）と set_id（セット）を調べる。
         """
         sub = subject(READ_SCOPE)
-        return await synced(sub, await workout_view(sub, day_of(day)))
+        return await synced(sub, await workout_view(sub, day_of(day)), day_of(day))
 
     @mcp.tool(annotations=READ)
     async def list_workouts(start: date, end: date) -> dict:
@@ -201,7 +206,7 @@ def register_training_tools(
         workouts = await queries.workouts(sub, start.isoformat(), end.isoformat())
         catalog = await queries.catalog(sub)
         weights = await queries.body_weights(sub)
-        return await synced(sub, {"workouts": [views.workout_summary(w, catalog, weights) for w in workouts]})
+        return await synced(sub, {"workouts": [views.workout_summary(w, catalog, weights) for w in workouts]}, start)
 
     @mcp.tool(annotations=READ)
     async def exercise_history(exercise: str, start: date | None = None, end: date | None = None) -> dict:
@@ -270,7 +275,7 @@ def register_training_tools(
         )
         with training_errors():
             workout = await commands.update_workout(sub, day.isoformat(), changes)
-        return await synced(sub, await workout_view(sub, workout.date))
+        return await synced(sub, await workout_view(sub, workout.date), workout.date)
 
     @mcp.tool(annotations=DESTRUCTIVE)
     async def delete_workout(day: date, entry_ids: list[str] | None = None) -> dict:
@@ -281,7 +286,8 @@ def register_training_tools(
         sub = subject(WRITE_SCOPE)
         with training_errors():
             deleted = await commands.delete_workout(sub, day.isoformat(), entry_ids)
-        return await synced(sub, {"deleted_entry_ids": deleted, "remaining": await workout_view(sub, day.isoformat())})
+        return await synced(
+            sub, {"deleted_entry_ids": deleted, "remaining": await workout_view(sub, day.isoformat())}, day)
 
     @mcp.tool(annotations=WRITE)
     async def add_exercise(
@@ -348,7 +354,7 @@ def register_training_tools(
         if recorded is None:  # 28日より前の日
             recorded = next(d for d in await queries.daily_body(sub) if d.date == day_of(day))
         return await synced(sub, {"recorded": views.daily_body(recorded),
-                                  "progress": views.body_progress(progress, start, end)})
+                                  "progress": views.body_progress(progress, start, end)}, day_of(day))
 
     @mcp.tool(annotations=READ)
     async def body_progress(
@@ -455,7 +461,7 @@ def register_training_tools(
         with training_errors():
             injury = await commands.record_injury(sub, NewInjury(
                 day_of(day), site, side, exercise, phase, symptom, cause, fix))
-        return await synced(sub, {"recorded": await injury_view(sub, injury.id)})
+        return await synced(sub, {"recorded": await injury_view(sub, injury.id)}, target="injuries")
 
     @mcp.tool(annotations=READ)
     async def list_injuries(
@@ -469,7 +475,7 @@ def register_training_tools(
         """
         sub = subject(READ_SCOPE)
         records = await queries.injuries(sub, status)
-        return await synced(sub, views.injury_list(records, await queries.catalog(sub), limit))
+        return await synced(sub, views.injury_list(records, await queries.catalog(sub), limit), target="injuries")
 
     @mcp.tool(annotations=READ)
     async def list_phases(
@@ -521,7 +527,7 @@ def register_training_tools(
         sub = subject(WRITE_SCOPE)
         with training_errors():
             await commands.add_injury_review(sub, injury_id, day_of(day), result, note, exercise)
-        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)}, target="injuries")
 
     @mcp.tool(annotations=WRITE)
     async def mark_injury_fixed(
@@ -532,7 +538,7 @@ def register_training_tools(
         sub = subject(WRITE_SCOPE)
         with training_errors():
             await commands.mark_injury_fixed(sub, injury_id, day_of(day))
-        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)}, target="injuries")
 
     @mcp.tool(annotations=WRITE)
     async def update_injury(
@@ -560,7 +566,7 @@ def register_training_tools(
                                 reopen)
         with training_errors():
             await commands.update_injury(sub, injury_id, changes)
-        return await synced(sub, {"injury": await injury_view(sub, injury_id)})
+        return await synced(sub, {"injury": await injury_view(sub, injury_id)}, target="injuries")
 
     @mcp.tool(annotations=DESTRUCTIVE)
     async def delete_injury(injury_id: str) -> dict:
@@ -568,7 +574,7 @@ def register_training_tools(
         sub = subject(WRITE_SCOPE)
         with training_errors():
             reviews = await commands.delete_injury(sub, injury_id)
-        return await synced(sub, {"deleted_injury_id": injury_id, "deleted_review_count": reviews})
+        return await synced(sub, {"deleted_injury_id": injury_id, "deleted_review_count": reviews}, target="injuries")
 
 @contextmanager
 def training_errors():

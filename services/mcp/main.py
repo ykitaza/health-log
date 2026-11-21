@@ -24,6 +24,7 @@ from composition.adapters import BodyRecordWeights, EngineAppSyncStatus, Trainin
 from composition.body_data import SyncedBodyData
 from composition.clock import JST, today
 from composition.registry import create_registry
+from connector.app_links import make_app_link
 from connector.icons import IconMiddleware, server_icons
 from connector.period_overview import register_overview_tools
 from connector.settings import load_settings
@@ -58,6 +59,9 @@ INSTRUCTIONS = f"""食事と筋トレを記録するサーバー。食事のツ�
 結果の last_app_sync_at は、スマホのアプリ（KARADA）から最後に同期で受け付けた時刻（日本時間）。null ならまだアプリから同期していない。
 アプリで記録した分は、同期するまでここに見えない。記録が足りないように見えるとき（とくに last_app_sync_at より後にアプリで記録したと言われたとき）は、
 アプリを開いて同期してもらうよう伝える。
+結果に app_link があれば、返事の最後に、その URL をそのまま使って [KARADA で開く](app_link の URL) のように押せるリンクの形で1つだけ添える
+（記録した・読んだ内容に合うアプリの画面へ戻れる。URL を作り変えない）。利用者の依頼文がすでに「KARADA に戻る」などのリンクを頼んでいるときも、リンクは1つにまとめる
+（同じ行き先を二重に付けない。依頼文のリンクの文言を使ってよい）。1回の返事に複数のツールを呼んだときは、いちばん内容に合う結果のリンクだけにする。
 
 # 食事
 {meal_tools.INSTRUCTIONS}
@@ -95,6 +99,7 @@ def create_server(
             validate_token_resource=False,  # aud はトークンの検証で確かめている
         ),
     )
+    app_link = make_app_link(trusted_issuer)  # 結果に添える、アプリへ戻るリンク（認可サーバーの /open/…）
     sync_status = EngineAppSyncStatus(engine)
     report_service = create_report_service(engine)
     # 前の週のまとめの次の一歩（アプリのチェックつき）を、週のまとめの材料（weekly_review・period_overview）に足す
@@ -113,13 +118,14 @@ def create_server(
         goals=GoalService(eaters, goals, day_types, body_data),
         summaries=summaries,
         weights=WeightService(eaters, BodyRecordWeights(training_commands, training_queries), goals),
-    ), today=today, sync_status=sync_status, previous_steps=previous_steps)
+    ), today=today, sync_status=sync_status, previous_steps=previous_steps, app_link=app_link)
 
     training_tools.register_training_tools(
-        mcp, training_commands, training_queries, today=today, sync_status=sync_status)
+        mcp, training_commands, training_queries, today=today, sync_status=sync_status, app_link=app_link)
     # 期間の材料（レポートを書くため）。筋トレ・食事・からだ・目標をまたぐので、ここでつなぐ
-    register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today, previous_steps)
-    report_tools.register_report_tools(mcp, report_service, TrainingPhasePeriods(training_queries, today))
+    register_overview_tools(mcp, training_queries, summaries, body_data, sync_status, today, previous_steps, app_link)
+    report_tools.register_report_tools(
+        mcp, report_service, TrainingPhasePeriods(training_queries, today), app_link)
     register_connector_tools(mcp, session)
     return mcp
 
