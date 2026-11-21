@@ -5,7 +5,7 @@ import { addDays, DateKey, daysBetween } from './date';
 import { anchorFor, boxOf, facingOf, partsFor, Vec3 } from './bodyModel';
 import { isSiteCode, SiteCode } from './injuries';
 import type { Muscle } from './muscleFigure';
-import { loadPalette } from '@/theme';
+import { isHud, loadPalette } from '@/theme';
 import { BALANCE_DAYS } from './partBalance';
 import type { TrainingSetRow } from './training';
 
@@ -177,7 +177,15 @@ export function recoveryShortText(p: StatusOf): string {
   return p.last != null && p.remaining != null ? `あと${p.remaining}日` : recoveryStatusText(p);
 }
 
-/** 回復中でない部位の色：回復済みは緑、空いている・まだは灰色 */
+/**
+ * 回復マップの色の読み上げ（図の見出し）。mint は前回の部位が光っているとき（3D のその日の体）。
+ * HUD は緑・暖色・灰色・赤。クラシックは藍の一色（#334）：回復中だけ藍、ケガは赤、ほかは色を付けない（前回の部位は部位の量の濃い青）
+ */
+export const recoveryLegend = (mint = false) => (isHud
+  ? `回復マップ。緑は回復済み、${mint ? 'ミントは前回の部位、' : ''}暖色は回復中、灰色は空いている・まだ、赤はケガ`
+  : `回復マップ。藍は回復中（濃いほど鍛えたばかり）、${mint ? '青は前回の部位、' : ''}赤はケガ、色のない部位は回復済み・空いている・まだ`);
+
+/** 回復中でない部位の色：回復済みは緑（クラシックは墨）、空いている・まだは灰色 */
 export const restColor = (p: Pick<PartRecovery, 'last' | 'idle'>, palette: RecoveryPalette) => (p.last != null && !p.idle ? palette.rest : palette.idle);
 
 export type PartRecovery = {

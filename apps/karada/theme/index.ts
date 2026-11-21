@@ -148,11 +148,12 @@ export const HUD_RECOVERY_PALETTE = {
 } as const;
 
 /**
- * クラシックの回復マップの色（紙の上）。凡例・一覧の印はアクセントの緑と枠の灰色、図の塗りは 3D のつや消しの体と同じ（theme/matte.ts）：
- * 回復済みは石膏と緑を半分ずつ、回復中は石膏と橙を明るさで混ぜる（ramp。黄は使わない）、空いている・まだは石膏の筋肉の色
+ * クラシックの回復マップの色（紙の上。#334「藍の一色」：色は回復中の藍とケガの赤だけ。緑は使わない）。
+ * 回復中は淡い藍から濃い藍へ明るさで混ぜる（ramp。theme/matte.ts。図の塗り・一覧の印と文字・札で同じ色）、
+ * 回復済みは図の塗りが石膏のまま・一覧の印と文字が補足の墨、空いている・まだは枠の灰色と石膏の筋肉の色
  */
 export const CLASSIC_RECOVERY_PALETTE: { readonly [K in keyof typeof HUD_RECOVERY_PALETTE]: string } & { readonly ramp: (k: number) => string } = {
-  rest: CLASSIC_COLORS.accent,
+  rest: CLASSIC_COLORS.sub,
   restFill: MATTE_RECOVERED,
   idle: CLASSIC_COLORS.outline,
   idleFill: CLASSIC_FIGURE_COLORS.muscle,

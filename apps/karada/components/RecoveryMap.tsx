@@ -1,5 +1,6 @@
 // からだのタブの「回復マップ」（RECOVERY MAP // LIVE）。筋トレの部位ごとに、最後に鍛えた日と部位ごとの回復の日数で 3D の体を色分けする。
 // 色は、回復済みは緑、回復中は暖色（鍛えたばかりほど橙、回復が近いほど黄）、直している途中のケガは赤。空いている（回復済みの期限を過ぎた）・まだは灰色。
+// クラシックは藍の一色（#334）：回復中だけ藍（鍛えたばかりほど濃い）、ケガは赤、回復済みは色を付けない（一覧の印と文字は墨）。
 // Android は 3D（RecoveryMap3D.native.tsx）、描けないときと web（e2e）は 2D の図（前と後ろ。components/DayRecovery.tsx の RecoveryFigure2D）。
 // どちらも、鍛えたことのある部位とケガのある部位に引き出し線つきの札（部位と「あと1日」「回復済み」「空いて10日」。2026-11-15 ユーザーの要望：光っているだけでは分からない）。
 // 図の下は計器の読み出しのような一覧（1 部位 1 行、48dp。押すと SELECT //）。読み上げは図の部品を選べないので、一覧で同じことが分かる
@@ -12,7 +13,7 @@ import { DateKey, formatMonthDay, relativeDays } from '@/lib/date';
 import { siteLabel } from '@/lib/injuries';
 import {
   fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, partEnglish, partOfMesh, PartRecovery, partRecoveries,
-  recoveryCalloutAnchor, recoveryColor, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
+  recoveryCalloutAnchor, recoveryColor, recoveryLegend, recoveryLevels, recoveryShortText, recoveryStatusText, restColor,
 } from '@/lib/recoveryMap';
 import type { TrainingSetRow } from '@/lib/training';
 import { colors, deco, isHud, lbl, overlayFill, recoveryPalette, rowOnFill, space } from '@/theme';
@@ -33,10 +34,11 @@ export type RecoveryInput = {
 /** 「3日前」「今日」。一度もなければ「まだ」 */
 const agoText = (p: PartRecovery, date: DateKey) => (p.last == null ? 'まだ' : relativeDays(p.last, date));
 
-/** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色 */
-/** 文字と印の回復中の色（紙の上でも読める濃い橙・黄土。図の塗りの ramp は使わない） */
-const RECOVERY_INK = { rest: recoveryPalette.rest };
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, RECOVERY_INK) : restColor(p, recoveryPalette));
+/**
+ * 部位の色（一覧の印と文字・札）：ケガがあれば赤、回復中は明るさの色、回復済みは緑、空いている・まだは灰色。
+ * クラシックは図の塗りと同じ藍の ramp（紙の上でも 4.5:1 以上）、回復済みは墨
+ */
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
 
 /** 選んだもの：筋トレの部位か、どの部位にもあたらない部品（部位の名前を付け替えたときなど） */
 type Selection = { part: string } | { mesh: string } | null;
@@ -89,7 +91,7 @@ export function RecoveryMapCard({ input, date }: { input: RecoveryInput; date: D
   const recovering = list.filter((p) => p.level > 0);
   const idleParts = list.filter((p) => p.idle);
   const spoken = [
-    '回復マップ。緑は回復済み、暖色は回復中、灰色は空いている・まだ、赤はケガ',
+    recoveryLegend(),
     recovering.length > 0 ? `回復中の部位、${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '回復中の部位はありません',
     idleParts.length > 0 ? `空いている部位、${idleParts.map((p) => `${p.name} ${recoveryStatusText(p)}`).join('、')}` : '',
     injuries.length > 0 ? `直している途中のケガ ${injuries.length}件` : '',

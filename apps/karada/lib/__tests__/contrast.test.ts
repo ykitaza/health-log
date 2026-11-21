@@ -1,6 +1,7 @@
 import { contrastRatio } from '../contrast';
+import { recoveryColor } from '../recoveryMap';
 import {
-  CLASSIC_CAUTION_BAND, CLASSIC_COLORS, CLASSIC_LOAD_PALETTE, CLASSIC_METER_COLORS, CLASSIC_ON_TONE_SUB, CLASSIC_PART_COLORS, CLASSIC_TONE_COLORS,
+  CLASSIC_CAUTION_BAND, CLASSIC_COLORS, CLASSIC_LOAD_PALETTE, CLASSIC_RECOVERY_PALETTE, CLASSIC_METER_COLORS, CLASSIC_ON_TONE_SUB, CLASSIC_PART_COLORS, CLASSIC_TONE_COLORS,
   CLASSIC_VOLUME_PALETTE, colors, HUD_CAUTION_BAND, HUD_COLORS, HUD_METER_COLORS, HUD_ON_TONE_SUB, HUD_PART_COLORS, HUD_TONE_COLORS,
   HUD_VOLUME_PALETTE, MeterPalette, Palette, paper,
 } from '@/theme';
@@ -119,6 +120,41 @@ describe('ホームの計器の盤の色：クラシック', () => {
   });
   test('意味の色（回復中の橙・黄土・ケガの赤）は、紙の上で文字として 4.5:1 以上', () => {
     for (const c of Object.values(CLASSIC_LOAD_PALETTE)) expect(contrastRatio(c, colors.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+// クラシックの回復マップは藍の一色（#334）：回復中は淡い藍 #5A62A8 → 濃い藍 #232A62（明るさ 0.25〜1）。図の塗り・一覧の印と文字・札で同じ色
+describe('回復マップの色：クラシック（藍の一色）', () => {
+  const [, colors] = LOOKS[1];
+  const steps = [0.25, 0.5, 0.75, 1].map((k) => recoveryColor(k, CLASSIC_RECOVERY_PALETTE));
+  const hue = (c: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    return d === 0 ? null : ((max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60 + 360) % 360;
+  };
+  test('回復中の文字と印は、どの明るさも紙の上で 4.5:1 以上', () => {
+    expect(steps[0]).toBe('#5A62A8');
+    expect(steps[3]).toBe('#232A62');
+    for (const c of steps) expect(contrastRatio(c, colors.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('図の塗り：回復中は回復済み（石膏）・空いている・まだ（石膏の筋肉）と 3:1 以上', () => {
+    for (const c of steps) {
+      expect(contrastRatio(c, CLASSIC_RECOVERY_PALETTE.restFill)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(c, CLASSIC_RECOVERY_PALETTE.idleFill)).toBeGreaterThanOrEqual(3);
+    }
+  });
+  test('回復済みの一覧の印と文字は墨で、紙の上で 4.5:1 以上', () => {
+    expect(CLASSIC_RECOVERY_PALETTE.rest).toBe(CLASSIC_COLORS.sub);
+    expect(contrastRatio(CLASSIC_RECOVERY_PALETTE.rest, colors.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  test('緑を使わない：回復中は藍の色相（220〜250°）、回復済みの塗りは石膏', () => {
+    for (const c of steps) expect(hue(c)).toBeGreaterThanOrEqual(220);
+    for (const c of steps) expect(hue(c)).toBeLessThanOrEqual(250);
+    expect(CLASSIC_RECOVERY_PALETTE.restFill).toBe('#EAE3D4');
+    for (const c of [CLASSIC_RECOVERY_PALETTE.rest, CLASSIC_RECOVERY_PALETTE.restFill, CLASSIC_RECOVERY_PALETTE.idle, CLASSIC_RECOVERY_PALETTE.idleFill]) {
+      const h = hue(c);
+      if (h != null) expect(h < 90 || h > 180).toBe(true);
+    }
   });
 });
 
