@@ -21,6 +21,7 @@ export default function HealthPrivacyScreen() {
         <Item text="睡眠（寝た時刻・起きた時刻・眠っていた時間）" />
         <Item text="心拍数と安静時心拍数" />
         <Item text="歩数（スマホ・ウォッチが数えたもの）" />
+        <Item text="30日より前の記録（1年前まで。「過去のデータへのアクセス」を許可したときだけ）" />
         <T size={12} color={colors.sub} style={{ lineHeight: 18 }}>
           読むだけで、Health Connect に書き込むことはありません。アプリを開いたときと、前面に戻ったときだけ読みます（バックグラウンドでは読みません）。
         </T>

@@ -35,7 +35,8 @@
         "android.permission.health.READ_WEIGHT",
         "android.permission.health.READ_BODY_FAT",
         "android.permission.health.READ_LEAN_BODY_MASS",
-        "android.permission.health.READ_STEPS"
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_HEALTH_DATA_HISTORY"
       ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",

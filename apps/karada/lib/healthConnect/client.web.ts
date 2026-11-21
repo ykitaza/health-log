@@ -14,4 +14,6 @@ export const openHealthConnectSettings: typeof Native.openHealthConnectSettings 
 export const readRecords: typeof Native.readRecords = unsupported;
 export const requestPermission: typeof Native.requestPermission = unsupported;
 export const revokeAllPermissions: typeof Native.revokeAllPermissions = unsupported;
+export const HISTORY_PERMISSION: typeof Native.HISTORY_PERMISSION = 'android.permission.health.READ_HEALTH_DATA_HISTORY';
+export const hasHistoryPermission: typeof Native.hasHistoryPermission = async () => false;
 export const SdkAvailabilityStatus = { SDK_UNAVAILABLE: 1, SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED: 2, SDK_AVAILABLE: 3 } as const;
