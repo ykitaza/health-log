@@ -74,22 +74,25 @@ function Head({ left, ja, strong = false, right, rightColor = colors.sub }: { le
   }
   return (
     <View style={s.head}>
-      <Mono color={colors.accent} size={11}>{left}</Mono>
-      {right ? <Mono color={rightColor} size={11}>{right}</Mono> : null}
+      <Mono color={colors.accent} size={EN}>{left}</Mono>
+      {right ? <Mono color={rightColor} size={EN}>{right}</Mono> : null}
     </View>
   );
 }
 
+/** HUD の英字の小ラベル（FUEL・LOAD・BIG3・曜日・KCAL）の大きさ。HUD は 12、クラシックは今のまま 11（#322） */
+const EN = isHud ? 12 : 11;
+
 /** 数字のあとの小さな単位。クラシックは補足の色の 12 */
 function Unit({ children }: { children: string }) {
   if (!deco.enLabels) return <T size={12} color={colors.sub}>{children}</T>;
-  return <Mono size={11}>{children}</Mono>;
+  return <Mono size={EN}>{children}</Mono>;
 }
 
 /** 計器の補足の 1 行（差・比・平均） */
-function Note({ children, color = colors.sub }: { children: string; color?: string }) {
+function Note({ children, color = colors.sub, size = EN }: { children: string; color?: string; size?: number }) {
   if (!deco.enLabels) return <T size={12} color={color} numberOfLines={1}>{children}</T>;
-  return <Mono size={11} color={color}>{children}</Mono>;
+  return <Mono size={size} color={color}>{children}</Mono>;
 }
 
 /** 大きな数字と単位（数字は数え上げる。読み込む前は「—」） */
@@ -144,12 +147,12 @@ export function Big3Panel({ gauge, unit, ready, link = true, testID = 'home-big3
       <Head left="BIG3" ja="BIG3" />
       <Big value={ready && gauge ? u(gauge.totalKg) : null} format={fmt1} unit={lbl(unit.toUpperCase(), unit)} />
       {gauge?.deltaKg != null
-        ? <Note color={trendColor(gauge.deltaKg)}>{lbl(`Δ ${gauge.deltaBase} ${formatSigned(u(gauge.deltaKg))}`, `${DELTA_JA[gauge.deltaBase]} ${formatSigned(u(gauge.deltaKg))}`)}</Note>
+        ? <Note size={11} color={trendColor(gauge.deltaKg)}>{lbl(`Δ ${gauge.deltaBase} ${formatSigned(u(gauge.deltaKg))}`, `${DELTA_JA[gauge.deltaBase]} ${formatSigned(u(gauge.deltaKg))}`)}</Note>
         : <Note>{ready && !gauge ? lbl('NO DATA', '記録なし') : lbl('Δ —', '—')}</Note>}
       <View style={{ gap: 2, marginTop: 2 }}>
         {(gauge?.lifts ?? (['bench', 'squat', 'deadlift'] as const).map((role) => ({ role, kg: null }))).map((l) => (
           <View key={l.role} style={s.liftRow}>
-            <Mono size={11}>{big3Short[l.role]}</Mono>
+            <Mono size={EN}>{big3Short[l.role]}</Mono>
             <View style={s.track}><View style={[s.fill, { backgroundColor: CHART, width: `${max > 0 && l.kg ? (l.kg / max) * 100 : 0}%` }]} /></View>
           </View>
         ))}
@@ -193,7 +196,7 @@ function DayLetters({ dates, today }: { dates: DateKey[]; today: DateKey }) {
   }
   return (
     <View style={s.letters}>
-      {dates.map((d) => <View key={d} style={s.letterCell}><Mono size={11} color={d === today ? colors.accent : colors.sub}>{WEEKDAY_EN[weekday(d)][0]}</Mono></View>)}
+      {dates.map((d) => <View key={d} style={s.letterCell}><Mono size={EN} color={d === today ? colors.accent : colors.sub}>{WEEKDAY_EN[weekday(d)][0]}</Mono></View>)}
     </View>
   );
 }
@@ -296,7 +299,7 @@ export function BodyPanel({ weightKg, goal, unit, label, onPress, testID = 'home
   }
   return (
     <Panel testID={testID} label={`${spoken}。からだのタブを開く`} onPress={onPress} style={s.bodyPanel}>
-      {deco.enLabels ? <Mono color={colors.accent} size={11}>{label}</Mono> : <T size={13} color={colors.sub}>{label}</T>}
+      {deco.enLabels ? <Mono color={colors.accent} size={EN}>{label}</Mono> : <T size={13} color={colors.sub}>{label}</T>}
       <View style={s.big}>
         <T num bold size={isHud ? 18 : 24} style={{ lineHeight: isHud ? 22 : 28 }}>{value}</T>
         <Unit>{lbl(unit.toUpperCase(), unit)}</Unit>
@@ -326,7 +329,7 @@ export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
         <View style={s.weekLabel} />
         {(weeks[0]?.cells ?? []).map((c) => (
           <View key={c.date} style={s.logHead}>
-            {deco.enLabels ? <Mono size={11}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono> : <T size={11} color={paper.muted}>{WEEKDAY_JA[weekday(c.date)]}</T>}
+            {deco.enLabels ? <Mono size={EN}>{WEEKDAY_EN[weekday(c.date)][0]}</Mono> : <T size={11} color={paper.muted}>{WEEKDAY_JA[weekday(c.date)]}</T>}
           </View>
         ))}
       </View>
@@ -336,7 +339,7 @@ export function LogPanel({ weeks, month, selected, unit, onPressDay }: {
             {w.current && <Brackets color={colors.accent} size={8} />}
             <View style={s.weekLabel}>
               {deco.enLabels
-                ? <Mono size={11} color={w.current ? colors.accent : colors.sub}>{w.label}</Mono>
+                ? <Mono size={EN} color={w.current ? colors.accent : colors.sub}>{w.label}</Mono>
                 : <T size={11} bold={w.current} color={w.current ? colors.text : colors.sub}>{weekLabelJa(w.label)}</T>}
             </View>
             {w.cells.map((c) => <LogDay key={c.date} c={c} selected={c.date === selected} unit={unit} onPress={() => onPressDay(c.date)} />)}
@@ -398,7 +401,7 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
       <Head left="FUEL //" ja="今日の食事" right={fuel ? (fuel.dayType === 'training' ? 'TRAIN DAY' : 'REST DAY') : null} />
       <View style={s.big}>
         <CountToText value={fuel ? fuel.kcal : null} format={(v) => fmtInt(v ?? 0)} num bold size={22} style={s.bigText} />
-        <Mono size={11}>{fuel?.kcalTarget != null ? `/ ${fmtInt(fuel.kcalTarget)} KCAL` : 'KCAL'}</Mono>
+        <Mono size={EN}>{fuel?.kcalTarget != null ? `/ ${fmtInt(fuel.kcalTarget)} KCAL` : 'KCAL'}</Mono>
       </View>
       <View style={s.bar1}><View style={[s.fill, { width: `${kcalRatio * 100}%` }]} /></View>
       <View style={s.fuelRow}>
@@ -407,8 +410,8 @@ export function FuelPanel({ fuel, date, dayLabel = '今日', link = true, testID
           {(fuel?.grams ?? (['P', 'F', 'C'] as const).map((key) => ({ key, g: 0, target: null }))).map((g) => (
             <View key={g.key} style={{ gap: 1 }}>
               <View style={s.head}>
-                <Mono size={11} color={colors.text}>{`${g.key} ${pct(g.key) ?? '—'}%`}</Mono>
-                <Mono size={11}>{g.target != null ? `${fmtInt(g.g)}/${fmtInt(g.target)}G` : `${fmtInt(g.g)}G`}</Mono>
+                <Mono size={EN} color={colors.text}>{`${g.key} ${pct(g.key) ?? '—'}%`}</Mono>
+                <Mono size={EN}>{g.target != null ? `${fmtInt(g.g)}/${fmtInt(g.target)}G` : `${fmtInt(g.g)}G`}</Mono>
               </View>
               <View style={[s.bar1, { height: 3 }]}>
                 <View style={[s.fill, { height: 3, backgroundColor: PFC_COLORS[g.key], width: `${g.target ? Math.min(1, g.g / g.target) * 100 : 0}%` }]} />

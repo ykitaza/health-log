@@ -169,7 +169,7 @@ export function ByFieldList({ highlights, metricVs }: { highlights: Highlight[];
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
               <T bold size={12.5} color={hud.label}>
-                {deco.enLabels && <Mono size={9} spacing={1.3} color={hud.faint}>{`${AREA_EN[h.area].toUpperCase()}  `}</Mono>}
+                {deco.enLabels && <Mono size={10} spacing={1.3} color={hud.microGreen}>{`${AREA_EN[h.area].toUpperCase()}  `}</Mono>}
                 {AREA_LABELS[h.area]}
               </T>
               <View style={{ borderWidth: 1, borderColor: hud.line, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -200,7 +200,7 @@ export function ByFieldList({ highlights, metricVs }: { highlights: Highlight[];
 function FieldHead({ right }: { right: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 9, paddingBottom: 4 }}>
-      {deco.enLabels ? <T><Micro green>By Field // </Micro><T bold size={9} color={hud.microGreen}>解釈</T></T> : <T bold size={13} color={hud.ink}>分野ごとの解釈</T>}
+      {deco.enLabels ? <T><Micro green>By Field // </Micro><T bold size={10} color={hud.microGreen}>解釈</T></T> : <T bold size={13} color={hud.ink}>分野ごとの解釈</T>}
       <Micro>{right}</Micro>
     </View>
   );

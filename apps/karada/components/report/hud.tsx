@@ -15,7 +15,7 @@ import { colors, deco, fonts, isHud, radius } from '@/theme';
 import { T } from '../Text';
 
 /** モックの色（:root の変数）。ミントは colors.accent と同じ値 */
-const HUD_REPORT = {
+export const HUD_REPORT = {
   /** 画面の地（--bg） */
   bg: '#080A09',
   /** パネルの地（--panel） */
@@ -113,7 +113,7 @@ export function Mono({ children, size = 14, color = hud.ink, spacing = 0, style,
 }
 
 /**
- * 英字のマイクロラベル（.micro：9px、字間 .18em、大文字）。green で緑（.micro.g）。
+ * 英字のマイクロラベル（.micro：10px、字間 .18em、大文字）。色は #7AA88A（hud.microGreen。9px・hud.faint は 3.55:1 で読めなかった #322）。
  * クラシックは日本語のラベル（ja。なければ children をそのまま）を、補足の色の 12 で
  */
 export function Micro({ children, ja, green = false, color, style }: { children: string; ja?: string; green?: boolean; color?: string; style?: StyleProp<TextStyle> }) {
@@ -121,7 +121,7 @@ export function Micro({ children, ja, green = false, color, style }: { children:
     return <T size={12} color={color ?? hud.muted} style={[{ lineHeight: 16 }, style, { letterSpacing: 0 }]}>{ja ?? children}</T>;
   }
   return (
-    <Mono size={9} spacing={1.6} color={color ?? (green ? hud.microGreen : hud.faint)} style={[{ lineHeight: 13 }, style]}>
+    <Mono size={10} spacing={1.6} color={color ?? hud.microGreen} style={[{ lineHeight: 14 }, style]}>
       {children.toUpperCase()}
     </Mono>
   );
