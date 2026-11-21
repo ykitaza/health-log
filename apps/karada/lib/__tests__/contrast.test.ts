@@ -1,3 +1,4 @@
+import { HUD_REPORT } from '@/components/report/hud';
 import { contrastRatio } from '../contrast';
 import { recoveryColor } from '../recoveryMap';
 import {
@@ -220,5 +221,15 @@ describe('クラシックの共通の部品の色（components/ui・Field・Mont
   });
   test('札・記入欄の枠（outline）は紙の上で 3:1 以上（文字でない印）', () => {
     expect(contrastRatio(c.outline, c.bg)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// HUD のレポートの英字の小ラベル（Micro・28D TREND・By Field など。10px）：#322。以前の faint（#5F6F65）は 9px で 3.55:1 しかなかった
+describe('HUD のレポートの英字の小ラベル（microGreen）', () => {
+  test.each(['panel', 'panel2', 'bg'] as const)('microGreen の文字は %s の上で 4.5:1 以上', (bg) => {
+    expect(contrastRatio(HUD_REPORT.microGreen, HUD_REPORT[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+  test('faint は小ラベルの文字には足りない（3:1 台）ので、文字には microGreen を使う', () => {
+    expect(contrastRatio(HUD_REPORT.faint, HUD_REPORT.panel)).toBeLessThan(4.5);
   });
 });

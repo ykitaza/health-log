@@ -67,7 +67,7 @@ export function ReportHero({ report, scope }: { report: Report; scope: Scope }) 
         </View>
       </View>
       <T bold size={isHud ? 15 : 28} color={hud.ink} style={isHud ? { marginTop: 5, letterSpacing: 0.6 } : { marginTop: 6, lineHeight: 36 }} accessibilityRole="header">{report.title}</T>
-      {deco.enLabels && <Mono size={9.5} spacing={1.7} color={hud.faint} style={{ marginTop: 2 }}>{`STATUS: ${TONE_EN[report.tone]} — ${second}`}</Mono>}
+      {deco.enLabels && <Mono size={10} spacing={1.7} color={hud.microGreen} style={{ marginTop: 2 }}>{`STATUS: ${TONE_EN[report.tone]} — ${second}`}</Mono>}
       {scope?.type === 'day' && <DailyHeroBody date={scope.date} />}
       {scope?.type === 'week' && report.periodStart && report.periodEnd && <WeeklyHeroBody start={report.periodStart} end={report.periodEnd} note={report.headline} />}
       {scope?.type === 'month' && <MonthlyHeroBody start={scope.start} end={scope.end} />}
@@ -148,7 +148,7 @@ function DailyHeroBody({ date }: { date: DateKey }) {
           {p && !p.reached && deco.enLabels && <Micro>{`Next: ${fmt1(u(p.milestoneKg))}${unit}`}</Micro>}
           {pace != null && (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, borderWidth: 1, borderColor: hud.line, backgroundColor: hud.panel2, paddingHorizontal: 7, paddingVertical: 4 }}>
-              {deco.enLabels ? <Mono size={9} spacing={1.3} color={hud.faint}>28D TREND</Mono> : <T size={11} color={hud.faint}>28日の傾向</T>}
+              {deco.enLabels ? <Mono size={10} spacing={1.3} color={hud.microGreen}>28D TREND</Mono> : <T size={11} color={hud.faint}>28日の傾向</T>}
               <Mono size={10} spacing={0.8} color={hud.label}>{deco.enLabels ? `${pace2(u(pace))} ${unit.toUpperCase()}/W` : `${pace2(u(pace))} ${unit}／週`}</Mono>
             </View>
           )}
