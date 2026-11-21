@@ -21,7 +21,7 @@ import { Anchor, layoutCallouts, partAnchor, PlacedCallout } from '@/lib/dayCall
 import { siteLabel } from '@/lib/injuries';
 import { markPoint, MuscleView, partsAt } from '@/lib/muscleFigure';
 import {
-  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLevels,
+  fixingOn, idleMeshes, INJURY_RED, injuriesForPart, leadInjury, muscleFills, PartRecovery, partRecoveries, recoveryColor, recoveryLegend, recoveryLevels,
   recoveryShortText, recoveryStatusText, restColor, suggestRecovered,
 } from '@/lib/recoveryMap';
 import type { Repositories } from '@/db';
@@ -133,10 +133,8 @@ const CALLOUT_H = 48;
 const CALLOUT_GAP = space.xs;
 const CALLOUTS_PER_SIDE = 4;
 
-/** 部位の色：ケガがあれば赤、回復中は明るさの暖色、回復済みは緑、空いている・まだは灰色（からだのタブと同じ） */
-/** 文字と印の回復中の色（紙の上でも読める濃い橙・黄土。図の塗りの ramp は使わない） */
-const RECOVERY_INK = { rest: recoveryPalette.rest };
-const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, RECOVERY_INK) : restColor(p, recoveryPalette));
+/** 部位の色：ケガがあれば赤、回復中は明るさの色、回復済みは緑、空いている・まだは灰色（からだのタブと同じ。クラシックは藍の ramp と墨） */
+const partColor = (p: PartRecovery, hurt: boolean) => (hurt ? INJURY_RED : p.level > 0 ? recoveryColor(p.level, recoveryPalette) : restColor(p, recoveryPalette));
 
 /**
  * 記録のない日のヒーロー：その日の時点の体（3D は前回の部位と回復、2D は回復マップ）と、すすめる部位、前回の1行（foot）、部位から記録のチップ。
@@ -171,7 +169,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
   const recovering = list.filter((p) => p.level > 0);
   const idleParts = list.filter((p) => p.idle);
   const spoken = trained ? [
-    `回復マップ。緑は回復済み、${mint ? 'ミントは前回の部位、' : ''}暖色は回復中、灰色は空いている・まだ、赤はケガ`,
+    recoveryLegend(mint),
     recovering.length > 0 ? `回復中の部位、${recovering.map((p) => `${p.name} あと${p.remaining}日`).join('、')}` : '回復中の部位はありません',
     idleParts.length > 0 ? `空いている部位、${idleParts.map((p) => `${p.name} ${recoveryStatusText(p)}`).join('、')}` : '',
     injuries.length > 0 ? `直している途中のケガ、${injuries.map((i) => siteLabel(i.site, i.side)).join('、')}` : '',
@@ -180,7 +178,7 @@ export function RecoveryHero({ date, today, input, pickParts, previous, foot, te
     const p = byName.get(name.trim());
     if (!p) return null;
     if (hurt(p)) return { dot: INJURY_RED, text: 'ケガ', spoken: '直している途中のケガ' };
-    if (p.remaining != null) return { dot: recoveryColor(p.level, RECOVERY_INK), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
+    if (p.remaining != null) return { dot: recoveryColor(p.level, recoveryPalette), text: `あと${p.remaining}日`, spoken: `回復中 あと${p.remaining}日` };
     return null;
   };
 
@@ -335,7 +333,7 @@ function PartCallout({ callout, part, hurt, moreNames, align, style }: {
   return (
     <View style={box} testID="recovery-callout" {...hide}>
       <T variant="labelM" numberOfLines={1} align={align}>{part.name}</T>
-      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level, RECOVERY_INK) : colors.sub} numberOfLines={1} align={align}>
+      <T size={11} style={{ lineHeight: 16 }} color={part.level > 0 ? recoveryColor(part.level, recoveryPalette) : colors.sub} numberOfLines={1} align={align}>
         {recoveryShortText(part)}
       </T>
       {lead && (

@@ -21,10 +21,15 @@ export const MATTE = {
   fill: { color: '#E8EEF5', intensity: 0.9, position: [2.2, 1.2, 1.8] as [number, number, number] },
   /** 部位の量の 0〜5 段の色（0 は石膏。3 と 4 は前と後ろで明るさが近いので 4 を濃くした） */
   volume: ['#EAE3D4', '#CBDBEA', '#A8C5E2', '#86ACD6', '#3A76B4', '#1F63A0'] as readonly string[],
-  /** 回復中：石膏と橙を t = min + (1 − min) × k で混ぜる（k は回復の明るさ。鍛えた日が 1） */
-  recovering: '#B04A0C',
-  recoveringMin: 0.2,
-  /** 回復済み：石膏と緑を半分ずつ（回復中より静か） */
+  /**
+   * 回復中：藍の一色（#334。橙は筋肉そのものに見えるため）。回復の明るさ k が recoveringMin（回復中の最小。背中の最後の日）のとき淡い藍
+   * recoveringLight、1（鍛えた日）のとき濃い藍 recovering。間は線形の色空間で混ぜる。2D の塗り・一覧の印と文字・札も同じ色（紙の上で 4.5:1 以上）。
+   * 3D の光の下でも藍に見える（光で明るくなるが色相は変わらない。#334 で three r187 で描いて確かめた）ので、3D 用に色を変えない
+   */
+  recovering: '#232A62',
+  recoveringLight: '#5A62A8',
+  recoveringMin: 0.25,
+  /** ケガの画面の直せた部位：石膏と緑を半分ずつ（回復マップでは使わない。回復済みは石膏のまま） */
   recovered: '#1E6B47',
   recoveredMix: 0.5,
   /** ケガの部位の塗りと、関節のケガの印の点 */
@@ -46,9 +51,12 @@ export function mixLinear(a: string, b: string, t: number): string {
   return `#${x.map((v, i) => Math.round(Math.min(1, Math.max(0, toSrgb(v + (y[i] - v) * k))) * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 }
 
-/** 回復中の色（k は回復の明るさ 0〜1） */
-export const matteRecovering = (k: number) => mixLinear(MATTE.plaster, MATTE.recovering, MATTE.recoveringMin + (1 - MATTE.recoveringMin) * Math.min(1, Math.max(0, k)));
-/** 回復済みの色 */
-export const MATTE_RECOVERED = mixLinear(MATTE.plaster, MATTE.recovered, MATTE.recoveredMix);
+/** 回復中の色（k は回復の明るさ 0〜1。recoveringMin より小さいときは淡い端） */
+export const matteRecovering = (k: number) =>
+  mixLinear(MATTE.recoveringLight, MATTE.recovering, (Math.min(1, Math.max(MATTE.recoveringMin, k)) - MATTE.recoveringMin) / (1 - MATTE.recoveringMin));
+/** 回復済みの色：石膏のまま（色を付けない。緑は使わない） */
+export const MATTE_RECOVERED = MATTE.plaster;
+/** ケガの画面の直せた部位の色（石膏と緑を半分ずつ） */
+export const MATTE_FIXED = mixLinear(MATTE.plaster, MATTE.recovered, MATTE.recoveredMix);
 /** 部位の量の段（0〜5）の色 */
 export const matteVolume = (level: number) => MATTE.volume[Math.min(MATTE.volume.length - 1, Math.max(0, Math.round(level)))];

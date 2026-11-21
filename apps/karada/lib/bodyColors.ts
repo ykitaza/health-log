@@ -4,7 +4,7 @@
 import {
   HUD_LOAD_PALETTE, HUD_RECOVERY_PALETTE, HUD_TONE_COLORS, HUD_VOLUME_PALETTE, matteBody, TRAINED_GLOW,
 } from '@/theme';
-import { MATTE, MATTE_RECOVERED, matteRecovering, matteVolume } from '@/theme/matte';
+import { MATTE, MATTE_FIXED, MATTE_RECOVERED, matteRecovering, matteVolume } from '@/theme/matte';
 import { volumeGlowLevel } from './partVolume';
 import { recoveryColor } from './recoveryMap';
 
@@ -51,7 +51,7 @@ const MATTE_BODY_COLORS: BodyColors = {
   idle: MATTE.plaster,
   injury: MATTE.injury,
   fixing: MATTE.injury,
-  fixed: MATTE_RECOVERED,
+  fixed: MATTE_FIXED,
   recovering: matteRecovering,
   volume: (k) => matteVolume(volumeGlowLevel(k)),
 };

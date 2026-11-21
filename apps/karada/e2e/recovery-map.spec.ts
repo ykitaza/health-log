@@ -1,5 +1,6 @@
 import { expect, Locator, test } from '@playwright/test';
 import { button, goPane, goTab, moveToDate, openApp, openBody, recordOn, see, TODAY } from './helpers';
+import { change, EXERCISE, openWith, workout } from './seed';
 
 // からだのタブの回復マップ。web では 3D を出さず、2D の図（前と後ろ）で塗る（Android は 3D と引き出し線の札。実機で見る）。
 // 回復の日数と明るさ・色・部位と部品の対応・札の置き場所は jest（lib/__tests__/recoveryMap.test.ts、bodyScene.test.ts）。
@@ -140,4 +141,46 @@ test('空いている（回復済みの期限を過ぎた）：灰色と「空�
   await expect(page.getByTestId('hero-page-recovery')).toHaveCount(0);
   if (shots) await page.getByTestId('home-hero').filter({ visible: true }).screenshot({ path: `${shots}/stale-home.png` });
   await expect(page.getByTestId('hero-legend')).toHaveCount(0);
+});
+
+// クラシックは藍の一色（#334）：回復中だけ藍（鍛えた日 #232A62 → 最後の日 #5A62A8）、ケガは赤、回復済みは石膏のまま（一覧の文字は墨）。緑は使わない
+test('クラシック：回復中は藍（図の塗り・一覧の文字）、回復済みは石膏、緑は出ない。読み上げも藍', async ({ page, context }) => {
+  test.setTimeout(150_000);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.addInitScript(() => localStorage.setItem('appearance.look', 'classic'));
+  // 胸は今日、脚は昨日、背中は 3日前（最後の日）、肩・二頭は 6日前（回復済み）、三頭・腹はまだ。右の肩の前を直している途中
+  await openWith(page, context, [
+    ...workout('2026-11-08', EXERCISE.bench, 3), ...workout('2026-11-07', EXERCISE.squat, 3), ...workout('2026-11-05', EXERCISE.pullUp, 3),
+    ...workout('2026-11-02', EXERCISE.shoulderPress, 3), ...workout('2026-11-02', EXERCISE.curl, 3),
+    change('injury', 'cccccccc-0000-4000-8000-000000000334', {
+      occurred_on: '2026-11-06', site: 'shoulder_front', side: 'right', exercise_id: EXERCISE.shoulderPress, phase: '', symptom: '肩の前に違和感', cause: '', fix: '',
+      status: 'fixing', fixed_on: null,
+    }),
+  ]);
+  const shots = process.env.RECOVERY_334_SHOTS;
+  const fillsIn = (l: Locator) => l.evaluate((el) => [...el.querySelectorAll('path')].map((p) => (p.getAttribute('fill') ?? '').toUpperCase()));
+  const GREENS = ['#1E6B47', '#ADB4A2', '#5BE49B', '#3F8F63'];
+
+  // ホームの LATEST の体（web は 2D）：胸は濃い藍、緑はない
+  const hero = page.getByTestId('home-hero').filter({ visible: true });
+  await expect(hero).toBeVisible();
+  const heroFills = await fillsIn(hero);
+  expect(heroFills).toContain('#232A62');
+  for (const g of GREENS) expect(heroFills).not.toContain(g);
+  if (shots) await hero.screenshot({ path: `${shots}/final-home.png` });
+
+  await openBody(page);
+  const card = page.getByTestId('recovery-map').filter({ visible: true });
+  await expect(card.getByLabel(/^回復マップ。藍は回復中（濃いほど鍛えたばかり）、赤はケガ、色のない部位は回復済み・空いている・まだ。回復中の部位、/)).toHaveCount(1);
+  // 図の塗り：胸（鍛えた日）は濃い藍、背中（最後の日）は淡い藍、回復済みは石膏。緑はない
+  const mapFills = await fillsIn(card.getByTestId('recovery-2d'));
+  expect(mapFills).toEqual(expect.arrayContaining(['#232A62', '#5A62A8', '#EAE3D4']));
+  for (const g of GREENS) expect(mapFills).not.toContain(g);
+  // 一覧の状態の文字：回復中は藍、回復済みは墨
+  const colorOf = (l: Locator) => l.evaluate((el) => getComputedStyle(el).color);
+  await expect.poll(() => colorOf(card.getByTestId('recovery-part-胸').getByText(/^回復中 あと/))).toBe('rgb(35, 42, 98)');
+  await expect.poll(() => colorOf(card.getByTestId('recovery-part-背中').getByText(/^回復中 あと/))).toBe('rgb(90, 98, 168)');
+  await card.getByTestId('recovery-all').click();
+  await expect.poll(() => colorOf(card.getByTestId('recovery-part-上腕二頭筋').getByText('回復済み', { exact: true }))).toBe('rgb(87, 80, 71)');
+  if (shots) await card.screenshot({ path: `${shots}/final-map.png` });
 });

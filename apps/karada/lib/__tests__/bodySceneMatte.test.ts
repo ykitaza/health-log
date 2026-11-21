@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BodyScene, Mark, matteFor, SKIN_PUSH_GLSL } from '@/components/bodyScene';
 import { BODY_COLOR_SETS } from '@/lib/bodyColors';
 import { anchorFor, CAMERA, facingOf, partsFor } from '@/lib/bodyModel';
-import { MATTE, MATTE_RECOVERED, matteRecovering, matteVolume, mixLinear } from '@/theme/matte';
+import { MATTE, MATTE_FIXED, MATTE_RECOVERED, matteRecovering, matteVolume, mixLinear } from '@/theme/matte';
 
 async function loadBody(): Promise<THREE.Object3D> {
   const buf = readFileSync(join(__dirname, '../../assets/models/body.glb'));
@@ -35,10 +35,17 @@ describe('色の混ぜ方（three.js の Color.lerp と同じ線形の色空間�
       expect(mixLinear(a, b, t)).toBe(hex(new THREE.Color(a).lerp(new THREE.Color(b), t)));
     }
   });
-  test('回復中は石膏と橙を 0.2 + 0.8k、回復済みは緑を半分、部位の量は 0〜5 段', () => {
-    expect(matteRecovering(1)).toBe(MATTE.recovering);
-    expect(matteRecovering(0.75)).toBe(mixLinear(MATTE.plaster, MATTE.recovering, 0.8));
-    expect(MATTE_RECOVERED).toBe(mixLinear(MATTE.plaster, MATTE.recovered, 0.5));
+  test('回復中は淡い藍から濃い藍へ (k − 0.25) ÷ 0.75、回復済みは石膏、ケガの画面の直せたは緑を半分、部位の量は 0〜5 段', () => {
+    expect(MATTE.recovering).toBe('#232A62');
+    expect(MATTE.recoveringLight).toBe('#5A62A8');
+    expect(matteRecovering(1)).toBe('#232A62');
+    expect(matteRecovering(0.25)).toBe('#5A62A8');
+    // 0.25 より小さい明るさ（回復中にはない）も淡い端
+    expect(matteRecovering(0.1)).toBe('#5A62A8');
+    expect(matteRecovering(0.75)).toBe(mixLinear('#5A62A8', '#232A62', 2 / 3));
+    expect(matteRecovering(0.5)).toBe(mixLinear('#5A62A8', '#232A62', 1 / 3));
+    expect(MATTE_RECOVERED).toBe(MATTE.plaster);
+    expect(MATTE_FIXED).toBe(mixLinear(MATTE.plaster, MATTE.recovered, 0.5));
     expect([0, 1, 2, 3, 4, 5].map(matteVolume)).toEqual(['#EAE3D4', '#CBDBEA', '#A8C5E2', '#86ACD6', '#3A76B4', '#1F63A0']);
   });
   test('つや消しの体の色：その日の部位は部位の量のいちばん濃い青、ほかは石膏。ケガは赤', () => {
@@ -47,6 +54,8 @@ describe('色の混ぜ方（three.js の Color.lerp と同じ線形の色空間�
     expect(m.neutral).toBe(MATTE.plaster);
     expect(m.idle).toBe(MATTE.plaster);
     expect(m.injury).toBe('#C2302A');
+    expect(m.rest).toBe(MATTE.plaster);
+    expect(m.fixed).toBe(MATTE_FIXED);
     expect(m.volume(1)).toBe('#1F63A0');
     expect(m.volume(0)).toBe(MATTE.plaster);
   });
@@ -147,11 +156,11 @@ describe('つや消しの体（クラシック）', () => {
     const marks = [mark('a', 'shoulder_front', 'right', true), mark('b', 'lower_back', null, false)];
     scene.configure({
       marks, reduced: false, tipMarks: [], onPick: (p) => { picked = p; }, onTips: () => {}, look: 'classic',
-      baseColor: MATTE.plaster, fixingColor: '#C2302A', fixedColor: MATTE_RECOVERED,
+      baseColor: MATTE.plaster, fixingColor: '#C2302A', fixedColor: MATTE_FIXED,
     });
     const color = (name: string) => hex((meshesIn(scene.body).find((m) => m.name === name)!.material as THREE.MeshStandardMaterial).color);
     expect(color('delt_front_r')).toBe('#C2302A');
-    expect(color('erector_low_r')).toBe(hex(new THREE.Color(MATTE_RECOVERED)));
+    expect(color('erector_low_r')).toBe(hex(new THREE.Color(MATTE_FIXED)));
     expect(color('delt_front_l')).toBe(hex(new THREE.Color(MATTE.plaster)));
     const cam = camera();
     scene.frame(cam, 348, 380, 0, 1 / 60);
@@ -162,7 +171,7 @@ describe('つや消しの体（クラシック）', () => {
     expect((scene as unknown as { pickables: THREE.Mesh[] }).pickables.some((m) => m.name === 'skin')).toBe(false);
   });
 
-  test('部位の量の見方：段のない部品は石膏で、回復済みの緑にならない', async () => {
+  test('部位の量の見方：段のない部品は石膏で、緑（ケガの画面の直せた）にならない', async () => {
     const scene = new BodyScene();
     scene.setModel(await loadBody());
     const colors = BODY_COLOR_SETS.matte;
@@ -170,7 +179,7 @@ describe('つや消しの体（クラシック）', () => {
       marks: [], reduced: false, tipMarks: [], onPick: () => {}, onTips: () => {}, look: 'classic', quietMarks: true,
       levels: { pec_r: 0.8, pec_l: 0.8 }, baseColor: colors.neutral, levelColor: colors.volume, idle: ['abs'], idleColor: colors.volume(0),
     });
-    const green = hex(new THREE.Color(MATTE_RECOVERED));
+    const green = hex(new THREE.Color(MATTE_FIXED));
     const parts = meshesIn(scene.body).filter((m) => !(m.parent instanceof THREE.Mesh));
     for (const m of parts) expect(hex((m.material as THREE.MeshStandardMaterial).color)).not.toBe(green);
     expect(hex((parts.find((m) => m.name === 'pec_r')!.material as THREE.MeshStandardMaterial).color)).toBe(hex(new THREE.Color(matteVolume(4))));
