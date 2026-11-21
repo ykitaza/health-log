@@ -185,6 +185,20 @@ export function mealRepository(db: Db, deps: Deps) {
       });
     },
 
+    /**
+     * 食事を同じ日の別の区分へ移す（食事の画面の長押し・ドラッグ・「〜へ移す」）。区分だけを書き換えるので、同期では食事の slot だけの update になる。
+     * 移す前の区分を返す（元に戻すとき使う）。同じ区分なら何も書かない
+     */
+    async move(id: string, slot: Slot): Promise<Slot> {
+      const meal = await getMeal(id);
+      if (!meal) throw new MealRuleError('食事が見つかりません');
+      if (meal.slot !== slot) {
+        const now = deps.now().toISOString();
+        await db.runAsync('UPDATE meals SET slot = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL', [slot, now, id]);
+      }
+      return meal.slot;
+    },
+
     /** 食事を消す（品目は食事と一緒に見えなくなる。サーバーと同じく、食事だけに削除の印を付ける） */
     async remove(id: string): Promise<void> {
       const now = deps.now().toISOString();
@@ -268,5 +282,5 @@ export function mealRepository(db: Db, deps: Deps) {
     },
 
     trainingDays,
-  }, ['record', 'update', 'remove', 'copy', 'saveTemplate', 'saveTemplateFromMeal', 'recordTemplate', 'saveGoal', 'setDayType']);
+  }, ['record', 'update', 'move', 'remove', 'copy', 'saveTemplate', 'saveTemplateFromMeal', 'recordTemplate', 'saveGoal', 'setDayType']);
 }

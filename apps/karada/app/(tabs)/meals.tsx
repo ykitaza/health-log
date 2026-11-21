@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { AccessibilityActionEvent, GestureResponderHandlers, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_RECORD_LABEL, AiRecordButton, useChatChooser } from '@/components/ChatSheet';
 import { DateSwitcher, DayPickerSheet, SwipeArea, usePageSlide } from '@/components/DayPicker';
@@ -13,8 +13,9 @@ import { PressableScale, Sheet, useListMotion } from '@/components/motion';
 import { DailyHighlights } from '@/components/reports';
 import { Screen, ScrollTarget } from '@/components/Screen';
 import { T } from '@/components/Text';
+import { DropZone, LIFTED_ROW, MealDragState, MoveSheet, useLiftStyle, useMealDrag } from '@/components/MealMove';
 import { MealWeekly } from '@/components/MealWeekly';
-import { Button, Card, IconButton, LIST_GROUP, PrimaryTabs, Segmented, TabHeader } from '@/components/ui';
+import { Button, Card, IconButton, LIST_GROUP, PrimaryTabs, Segmented, Snackbar, TabHeader } from '@/components/ui';
 import { useAuth } from '@/hooks/auth';
 import { useBackToToday } from '@/hooks/backToToday';
 import { useBusy } from '@/hooks/busy';
@@ -22,6 +23,7 @@ import { useFocusData, useRepos } from '@/hooks/data';
 import { useToday } from '@/hooks/today';
 import { addDays, DateKey, formatJpDate, todayKey } from '@/lib/date';
 import { fuelGauge } from '@/lib/homeHud';
+import { LIFT_DELAY_MS, movedMessage, MOVED_NOTICE_MS, rowActions, slotOfAction } from '@/lib/mealMove';
 import { DAY_TYPE_LABELS, Meal, mealTitle, mealTotal, SLOT_LABELS, SLOTS, Slot, slotAt } from '@/lib/meals';
 import { TAB_AREAS } from '@/lib/reports';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
@@ -79,6 +81,43 @@ export default function MealsScreen() {
   const { busy, run } = useBusy();
   const chat = useChatChooser();
 
+  // 同じ日の別の区分へ移す（長押しで持ち上げて区分の上で離す・長押しのメニュー・読み上げの操作）。移したら「元に戻す」の知らせを出す。
+  // 書き終えて読み直すまでは、移した先の区分に出しておく（元の区分に一瞬戻って見えないように）
+  const [moving, setMoving] = useState<{ id: string; slot: Slot } | null>(null);
+  const [moved, setMoved] = useState<{ id: string; from: Slot; to: Slot; message: string } | null>(null);
+  const [menu, setMenu] = useState<Meal | null>(null);
+  const moveMeal = (meal: Meal, to: Slot) => run(async () => {
+    setMenu(null);
+    if (meal.slot === to) return;
+    setMoving({ id: meal.id, slot: to });
+    try {
+      const from = await repos.meals.move(meal.id, to);
+      await reload();
+      setMoved({ id: meal.id, from, to, message: movedMessage(mealTitle(meal), to) });
+    } finally {
+      setMoving(null);
+    }
+  });
+  const undoMove = () => run(async () => {
+    if (!moved) return;
+    setMoved(null);
+    setMoving({ id: moved.id, slot: moved.from });
+    try {
+      await repos.meals.move(moved.id, moved.from);
+      await reload();
+    } finally {
+      setMoving(null);
+    }
+  });
+  // 知らせはしばらくで消す。日・切り替えを変えたら消す（別の日の画面で元に戻さない）
+  useEffect(() => {
+    if (!moved) return;
+    const t = setTimeout(() => setMoved(null), MOVED_NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [moved]);
+  useEffect(() => { setMoved(null); setMenu(null); }, [date, pane]);
+  const drag = useMealDrag({ onDrop: moveMeal, onMenu: setMenu });
+
   // 日の種類のバッジを押すと、その日を筋トレの日／休みの日に決める（MCP の set_day_type と同じ）
   const toggleDayType = () => run(async () => {
     if (!day) return;
@@ -90,10 +129,13 @@ export default function MealsScreen() {
 
   // 「記録」の下：「AI で記録」と「食事を追加」（筋トレと同じ並び）。未来の日はどちらも押せない
   const footer = pane === 'day' ? (
-    <View style={{ flexDirection: 'row', gap: space.s }}>
-      <AiRecordButton prompt={{ kind: 'meal', date, today }} disabled={date > today} style={{ flex: 1 }} />
-      <Button label="食事を追加" icon="plus" disabled={date > today} onPress={() => setAdding(slotAt(new Date().getHours()))} style={{ flex: 1 }} testID="meal-add" />
-    </View>
+    <>
+      {moved && <Snackbar message={moved.message} action={{ label: '元に戻す', onPress: undoMove }} testID="meal-moved-notice" />}
+      <View style={{ flexDirection: 'row', gap: space.s }}>
+        <AiRecordButton prompt={{ kind: 'meal', date, today }} disabled={date > today} style={{ flex: 1 }} />
+        <Button label="食事を追加" icon="plus" disabled={date > today} onPress={() => setAdding(slotAt(new Date().getHours()))} style={{ flex: 1 }} testID="meal-add" />
+      </View>
+    </>
   ) : undefined;
 
   return (
@@ -147,10 +189,13 @@ export default function MealsScreen() {
       <DailyHighlights date={date} areas={TAB_AREAS.meals} />
 
       {SLOTS.map((slot, slotIndex) => {
-        const meals = day?.meals.filter((m) => m.slot === slot) ?? [];
+        const meals = day?.meals.filter((m) => (moving?.id === m.id ? moving.slot : m.slot) === slot) ?? [];
         const kcal = meals.reduce((n, m) => n + mealTotal(m).kcal, 0);
+        // 持ち上げた行がある区分は、ほかの区分より上に描く（下の区分の上へ動かしても隠れないように）
+        const holding = drag.state?.meal.slot === slot;
         return (
-          <View key={slot}>
+          <View key={slot} ref={drag.slotRef(slot)} collapsable={false} style={holding && s.holding} testID={`meal-slot-${slot}`}>
+            {drag.state && !holding && <DropZone active={drag.state.over === slot} testID={drag.state.over === slot ? 'meal-drop-target' : undefined} />}
             <View style={s.slotHead}>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.s }}>
                 <T variant="titleM">{SLOT_LABELS[slot]}</T>
@@ -163,8 +208,10 @@ export default function MealsScreen() {
             ) : (
               <View style={{ gap: 8 }}>
                 {meals.map((m, i) => (
-                  <Animated.View key={m.id} entering={list.entering(slotIndex + i)} exiting={list.exiting} layout={list.layout}>
-                    <MealRow meal={m} />
+                  <Animated.View key={m.id} entering={list.entering(slotIndex + i)} exiting={list.exiting} layout={list.layout}
+                    style={drag.state?.meal.id === m.id && s.holding}>
+                    <MealRow meal={m} drag={drag.state} y={drag.y} lift={drag.lift} panHandlers={drag.panHandlers}
+                      onLift={() => drag.begin(m)} onPressOut={drag.pressOut} onMove={(to) => moveMeal(m, to)} />
                   </Animated.View>
                 ))}
               </View>
@@ -201,15 +248,37 @@ export default function MealsScreen() {
         onAi={(slot) => { setAdding(null); chat.record({ kind: 'meal', date, today, slot }); }}
       />
       {chat.sheet}
+      <MoveSheet meal={menu} onClose={() => setMenu(null)} onMove={moveMeal}
+        onOpen={(m) => { setMenu(null); router.push({ pathname: '/meals/[id]', params: { id: m.id } }); }} />
     </Screen>
   );
 }
 
-function MealRow({ meal }: { meal: Meal }) {
+/**
+ * 食事の 1 行。押すと詳細、長押しで持ち上げて別の区分へ移せる（離さずに区分の上へ動かして離す。動かさずに離すとメニュー）。
+ * 読み上げでは、操作の一覧の「〜へ移す」で移せる
+ */
+function MealRow({ meal, drag, y, lift, panHandlers, onLift, onPressOut, onMove }: {
+  meal: Meal; drag: MealDragState | null; y: SharedValue<number>; lift: SharedValue<number>; panHandlers: GestureResponderHandlers;
+  onLift: () => void; onPressOut: () => void; onMove: (to: Slot) => void;
+}) {
   const t = mealTotal(meal);
+  const lifted = drag?.meal.id === meal.id;
+  const liftStyle = useLiftStyle(y, lift, lifted);
+  const open = () => router.push({ pathname: '/meals/[id]', params: { id: meal.id } });
+  const onAction = (e: AccessibilityActionEvent) => {
+    const to = slotOfAction(e.nativeEvent.actionName);
+    if (to) onMove(to); else if (e.nativeEvent.actionName === 'activate') open();
+  };
   return (
-    <PressableScale accessibilityRole="button" accessibilityLabel={`${mealTitle(meal)}を開く`} onPress={() => router.push({ pathname: '/meals/[id]', params: { id: meal.id } })}
-      style={s.mealRow}>
+    <Animated.View {...panHandlers} style={liftStyle}>
+    <PressableScale accessibilityRole="button" accessibilityLabel={`${mealTitle(meal)}を開く`} onPress={open}
+      accessibilityHint="長押しで別の食事へ移せます"
+      accessibilityActions={rowActions(meal.slot)}
+      onAccessibilityAction={onAction}
+      onLongPress={onLift} delayLongPress={LIFT_DELAY_MS} onPressOut={onPressOut}
+      aria-grabbed={lifted} testID={`meal-row-${meal.id}`}
+      style={[s.mealRow, lifted && LIFTED_ROW]}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <T variant="titleM" numberOfLines={1}>{mealTitle(meal)}</T>
         <T variant="bodyS" color={colors.sub}>P {fmt1(t.protein_g)}・F {fmt1(t.fat_g)}・C {fmt1(t.carbs_g)}{meal.source === 'photo' ? '　写真から推定' : ''}</T>
@@ -220,6 +289,7 @@ function MealRow({ meal }: { meal: Meal }) {
       </View>
       <Icon name="chevron" color={colors.sub} size={24} />
     </PressableScale>
+    </Animated.View>
   );
 }
 
@@ -335,6 +405,8 @@ const s = StyleSheet.create({
   // ホームの FUEL と同じく横の並びに置く（計器は flex: 1 で、並びの幅いっぱい）
   gaugeRow: { flexDirection: 'row', marginTop: space.m },
   chipTouch: { minHeight: 48, justifyContent: 'center' },
+  // 持ち上げた行と、その区分を、ほかより上に描く
+  holding: { zIndex: 10, elevation: 12 },
   dayChip: { flexDirection: 'row', alignItems: 'center', gap: space.s, height: 32, borderRadius: radius.s, borderWidth: 1, paddingLeft: space.s, paddingRight: space.l },
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
   // まだ記録していない枠の点線（3.7:1 の outline）

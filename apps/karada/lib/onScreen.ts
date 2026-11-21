@@ -40,6 +40,8 @@ export type ScrollWatch = {
   dragged(): void;
   /** スクロールの位置を変える（Screen が入れる。ほかの画面から来たときに、カードまでスクロールする） */
   scrollTo?: (y: number, animated: boolean) => void;
+  /** 指でのスクロールを止める・戻す（Screen が入れる。食事を長押しで持ち上げているあいだ、Android のスクロールに指を取られないように） */
+  setScrollEnabled?: (enabled: boolean) => void;
 };
 
 export function createScrollWatch(): ScrollWatch {
