@@ -1,7 +1,7 @@
 from dataclasses import dataclass, replace
 
 from meals.domain.errors import MealError, NotFound
-from meals.domain.values import Confidence, EatenOn, EaterId, Nutrition, Quantity, Source
+from meals.domain.values import Confidence, DietEstimate, EatenOn, EaterId, Nutrition, Quantity, Source
 
 # 1回の食事の品目の上限。いつもの（infrastructure/sync_entities.py の MealTemplateFields）と同じ。
 # 同期の項目は1つの食事を1つの DynamoDB の項目（400KB まで）に入れるので、大きくなりすぎないようにする
@@ -15,6 +15,7 @@ class FoodItem:
     """品目（Meal の中のエンティティ）。「白米 200g」などの1行。
 
     nutrition はこの量のときの栄養。id は食事の中で行を指すために使う。
+    estimate は食事のスコアに使う推定（SV・食物繊維・食塩相当量など。この量のときの値。推定していなければ項目が None）。
     """
 
     id: str
@@ -22,15 +23,19 @@ class FoodItem:
     quantity: Quantity
     nutrition: Nutrition
     confidence: Confidence = Confidence.MEDIUM
+    estimate: DietEstimate = DietEstimate()
 
     def __post_init__(self):
         if not self.name.strip():
             raise MealError("品目の名前が空です")
 
     def with_amount(self, amount: float) -> "FoodItem":
-        """量を変える。単位はそのまま（200g → 1杯 は割合が計算できないため）。栄養も同じ割合で変わる。"""
+        """量を変える。単位はそのまま（200g → 1杯 は割合が計算できないため）。栄養と推定の量も同じ割合で変わる
+        （菓子・嗜好飲料かどうかは変わらない）。"""
         quantity = Quantity(amount, self.quantity.unit)
-        return replace(self, quantity=quantity, nutrition=self.nutrition.times(amount / self.quantity.amount))
+        factor = amount / self.quantity.amount
+        return replace(self, quantity=quantity, nutrition=self.nutrition.times(factor),
+                       estimate=self.estimate.times(factor))
 
 
 @dataclass(frozen=True)

@@ -5,7 +5,7 @@ from typing import Callable
 from uuid import uuid4
 
 from meals.domain.meal import FoodItem
-from meals.domain.values import Confidence, EatenOn, Nutrition, Quantity, Source
+from meals.domain.values import Confidence, DietEstimate, EatenOn, Nutrition, Quantity, Source
 
 IdFactory = Callable[[], str]
 
@@ -20,9 +20,10 @@ class NewItem:
     quantity: Quantity
     nutrition: Nutrition
     confidence: Confidence = Confidence.MEDIUM
+    estimate: DietEstimate = DietEstimate()  # 食事のスコアに使う推定（推定していない項目は None）
 
     def to_item(self, ids: IdFactory) -> FoodItem:
-        return FoodItem(ids(), self.name, self.quantity, self.nutrition, self.confidence)
+        return FoodItem(ids(), self.name, self.quantity, self.nutrition, self.confidence, self.estimate)
 
 
 @dataclass(frozen=True)

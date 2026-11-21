@@ -325,6 +325,67 @@ components:
           - high
           - medium
           - low
+        sv_staple:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+          description: 食事のスコアに使う推定。食事バランスガイドの主食の「つ（SV）」。null・省略は推定していない、0 はない
+        sv_side:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+          description: 副菜の「つ（SV）」（推定。null は推定していない）
+        sv_main:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+          description: 主菜の「つ（SV）」（推定。null は推定していない）
+        sv_dairy:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+          description: 牛乳・乳製品の「つ（SV）」（推定。null は推定していない）
+        sv_fruit:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 100
+          description: 果物の「つ（SV）」（推定。null は推定していない）
+        fiber_g:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 5000
+          description: 食物繊維 g（推定。null は推定していない）
+        salt_g:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 5000
+          description: 食塩相当量 g（推定。null は推定していない）
+        alcohol_g:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 5000
+          description: 純アルコール g（推定。null は推定していない、0 はお酒でない）
+        is_snack_or_sweet_drink:
+          type:
+          - boolean
+          - 'null'
+          description: 菓子・嗜好飲料か（推定。null は推定していない）。MCP で AI が付ける。前の版のアプリは送らず、受け取っても捨ててよい
         sort_order:
           type: integer
           minimum: 0
@@ -404,6 +465,67 @@ components:
                 - high
                 - medium
                 - low
+              sv_staple:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 100
+                description: 食事のスコアに使う推定。食事バランスガイドの主食の「つ（SV）」。null・省略は推定していない、0 はない
+              sv_side:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 100
+                description: 副菜の「つ（SV）」（推定。null は推定していない）
+              sv_main:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 100
+                description: 主菜の「つ（SV）」（推定。null は推定していない）
+              sv_dairy:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 100
+                description: 牛乳・乳製品の「つ（SV）」（推定。null は推定していない）
+              sv_fruit:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 100
+                description: 果物の「つ（SV）」（推定。null は推定していない）
+              fiber_g:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 5000
+                description: 食物繊維 g（推定。null は推定していない）
+              salt_g:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 5000
+                description: 食塩相当量 g（推定。null は推定していない）
+              alcohol_g:
+                type:
+                - number
+                - 'null'
+                minimum: 0
+                maximum: 5000
+                description: 純アルコール g（推定。null は推定していない、0 はお酒でない）
+              is_snack_or_sweet_drink:
+                type:
+                - boolean
+                - 'null'
+                description: 菓子・嗜好飲料か（推定。null は推定していない）。MCP で AI が付ける。前の版のアプリは送らず、受け取っても捨ててよい
           description: 品目の一覧。項目としては1つ（一覧ごと置き換わる）
       description: いつもの。entity_id は uuid5(6f1d3c52-6a1e-4f5f-9d0b-2c7a8e0f4b61, 名前)。名前を含む変更で合わなければ invalid_fields。create では name, items が要る。update では変えた項目だけを送る
     NutritionGoalFields:

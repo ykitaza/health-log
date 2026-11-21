@@ -11,7 +11,7 @@ from meals.domain.meal_template import MealTemplate
 from meals.domain.nutrition_goal import DailyTarget, NutritionGoal
 from meals.domain.summary import DailySummary, WeeklyReview
 from meals.domain.nutrition_goal import Target
-from meals.domain.values import DayType, Nutrition, NutritionGap
+from meals.domain.values import ESTIMATE_FIELDS, DayType, DietEstimate, Nutrition, NutritionGap
 
 KEYS = ("kcal", "protein_g", "fat_g", "carbs_g")
 
@@ -19,6 +19,14 @@ KEYS = ("kcal", "protein_g", "fat_g", "carbs_g")
 def nutrition(n: Nutrition | NutritionGap | Target | None) -> dict | None:
     """目標がない項目は None のまま返す。"""
     return None if n is None else dict(zip(KEYS, (None if v is None else round1(v) for v in astuple(n))))
+
+
+def estimate(e: DietEstimate) -> dict:
+    """食事のスコアに使う推定。推定していない項目は null。"""
+    def shown(v):
+        return v if v is None or isinstance(v, bool) else round1(v)
+
+    return {k: shown(getattr(e, k)) for k in ESTIMATE_FIELDS}
 
 
 def meal(m: Meal) -> dict:
@@ -38,6 +46,7 @@ def meal(m: Meal) -> dict:
                 "unit": i.quantity.unit.value,
                 **nutrition(i.nutrition),
                 "confidence": i.confidence.value,
+                **estimate(i.estimate),
             }
             for i in m.items
         ],
