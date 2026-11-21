@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, PanResponder, Platform, PanResponderInstance, ScrollView, StyleSheet, Vibration, View, ViewInstance } from 'react-native';
+import { AccessibilityInfo, PanResponder, Platform, PanResponderInstance, ScrollView, StyleSheet, View, ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useScreenScroll } from '@/hooks/useOnScreen';
+import { onFeedback } from '@/lib/feedback';
 import { dropSlot, edgeScrollStep, MENU_SLOP, moveLabel, moveTargets, SlotBox } from '@/lib/mealMove';
 import { Meal, mealTitle, SLOT_LABELS, SLOTS, Slot } from '@/lib/meals';
 import { colors, isHud, radius, rowOnFill } from '@/theme';
@@ -12,13 +13,12 @@ import { easeOut, PressableScale, Sheet } from './motion';
 import { T } from './Text';
 import { LIST_GROUP } from './ui';
 
-/** 持ち上げたときの軽い振動（ms）。RN 標準の Vibration（休憩のタイマーと同じ。ネイティブの追加なし） */
-const LIFT_BUZZ_MS = 12;
 /** 持ち上げたときの大きさ */
 const LIFT_SCALE = 1.03;
 
+/** 持ち上げたときの軽い触覚（lib/feedback）。受け皿が変わったときは select */
 function buzz() {
-  try { Vibration.vibrate(LIFT_BUZZ_MS); } catch { /* 振動できない端末・web では鳴らさない */ }
+  onFeedback('lift');
 }
 
 /** 持ち上げている食事と、指の下の区分（受け皿。今の区分の上・どこの上でもないときは null） */
@@ -109,7 +109,7 @@ export function useMealDrag({ onDrop, onMenu }: { onDrop: (meal: Meal, to: Slot)
     const over = dropSlot(s.y + scrolled, s.boxes, s.meal.slot);
     if (over !== s.over) {
       s.over = over;
-      if (over) buzz();
+      if (over) onFeedback('select');
       setState({ meal: s.meal, over });
     }
   }, [y]);
