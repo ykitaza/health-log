@@ -12,3 +12,12 @@ export function touchSlop(size: number, least = 0): number {
  */
 export const touchRoom = (n: number, margin: { top?: number; bottom?: number } = {}) =>
   ({ paddingVertical: n, marginTop: (margin.top ?? 0) - n, marginBottom: (margin.bottom ?? 0) - n });
+
+/**
+ * 見た目と並びの大きさが size×size の押せるもの（44 のボタンなど）を、押せる範囲だけ MIN_TOUCH にするスタイル。
+ * 外へ広げた分を負の margin で打ち消すので、並びと見た目（中の印の位置）は変わらない
+ */
+export const touchSquare = (size: number) => ({ width: MIN_TOUCH, height: MIN_TOUCH, margin: -(MIN_TOUCH - size) / 2 });
+
+/** 高さ height の行（メニューの行など）を、押せる範囲だけ縦 MIN_TOUCH にするスタイル（並びは負の margin で打ち消して今のまま） */
+export const touchRow = (height: number) => ({ minHeight: MIN_TOUCH, marginVertical: -(MIN_TOUCH - height) / 2 });

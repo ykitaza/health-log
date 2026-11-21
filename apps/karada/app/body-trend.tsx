@@ -9,7 +9,7 @@ import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { BODY_METRICS, BodyMetric, goalProgress, metricValue, movingAverage } from '@/lib/body';
-import { dateLabels, datePoints } from '@/lib/chart';
+import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { filterSince, Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -98,6 +98,12 @@ export default function BodyTrendScreen() {
                   points={datePoints(inRange, (p) => conv(p.value), from, today)}
                   avg={weight ? datePoints(avg, (p) => conv(p.value), from, today) : undefined}
                   xLabels={dateLabels(from, today, 4)} formatY={(v) => fmt1(v)} animKey={`${metric}-${period}`}
+                  accessibilityLabel={lineSummary(BODY_METRICS[metric].label, PERIOD_LABELS[period], [
+                    `今 ${fmt1(conv(last.value))}${unitLabel}`,
+                    weight && avg.length > 0 && `7日の平均 ${fmt1(conv(avg[avg.length - 1].value))}${unitLabel}`,
+                    change != null && `${PERIOD_LABELS[period]}で ${change >= 0 ? '+' : '−'}${fmt1(Math.abs(conv(change)))}${unitLabel}`,
+                    weight && goal != null && `目標 ${fmt1(conv(goal))}${unitLabel}`,
+                  ])}
                 />
               </>
             ) : (

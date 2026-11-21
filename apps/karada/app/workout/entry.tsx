@@ -9,7 +9,7 @@ import { Input } from '@/components/Input';
 import { CheckPop, ColorFade, PopIn, Shake, useListMotion } from '@/components/motion';
 import { RestTimerBar, restTimer } from '@/components/RestTimer';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { Badge, Button, Card, DayNote, Header, IconButton } from '@/components/ui';
 import type { Exercise } from '@/db/repositories/catalog';
 import type { Settings } from '@/db/repositories/settings';
@@ -190,7 +190,7 @@ export default function EntryScreen() {
               <Pressable accessibilityRole="button" onPress={restore} style={s.bannerAction}><T variant="labelL" color={colors.inverseAccent}>元に戻す</T></Pressable>
             </View>
           )}
-          {formError && <T variant="bodyM" color={colors.danger} align="center">{formError}</T>}
+          {formError && <ErrorText variant="bodyM" align="center">{formError}</ErrorText>}
           <Button label={saving ? '保存しています…' : saveLabel} icon="check" onPress={save} disabled={isFuture} busy={saving} />
         </>
       }

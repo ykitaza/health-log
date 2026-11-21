@@ -2,16 +2,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { Input } from '@/components/Input';
+import { Input, RoomInput } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { ADD_ROW, Badge, Button, Card, Chip, ConfirmDialog, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { addDays, formatJpDate, todayKey } from '@/lib/date';
 import {
-  AMOUNT_MAX, changeAmount, ItemDraft, itemRangeError, MAX_ITEMS, Meal, MealItem, mealTitle, mealTotal, parseItem, SLOT_LABELS, SLOTS, Slot,
+  AMOUNT_MAX, changeAmount, ItemDraft, itemDraftTouched, itemRangeError, MAX_ITEMS, Meal, MealItem, mealTitle, mealTotal, parseItem, SLOT_LABELS, SLOTS, Slot,
   TEMPLATE_NAME_MAX, templateNameError, Unit, UNITS,
 } from '@/lib/meals';
 import { fmt1, fmtInt, parseNumber, trimNumber } from '@/lib/units';
@@ -49,7 +49,9 @@ export default function MealDetailScreen() {
   }, [repos, id]);
 
   const dirty = !!meal && (date !== meal.date || slot !== meal.slot || rows.length !== meal.items.length
-    || rows.some((r, i) => r.saved?.id !== meal.items[i].id || r.amountText !== trimNumber(meal.items[i].amount)));
+    || rows.some((r, i) => r.saved?.id !== meal.items[i].id || r.amountText !== trimNumber(meal.items[i].amount))
+    // 足す品目を入れている途中（「品目を足す」を押す前）も確かめる
+    || (draft != null && itemDraftTouched(draft, emptyDraft())));
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '直した内容は保存されません。');
   // 保存・消す・いつものに保存は1つずつ。続けて押しても2回書かず、2つ前の画面まで戻らない
   const { busy, run } = useBusy();
@@ -123,7 +125,7 @@ export default function MealDetailScreen() {
 
   const today = todayKey();
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label="この食事を消す" variant="danger" onPress={() => setConfirmDelete(true)} disabled={busy} /></>}>
+    <Screen footer={<>{error && <ErrorText size={13} align="center">{error}</ErrorText>}<Button label="この食事を消す" variant="danger" onPress={() => setConfirmDelete(true)} disabled={busy} /></>}>
       <Header title={mealTitle(meal)} onBack={() => router.back()}
         right={<Pressable accessibilityRole="button" onPress={save} disabled={busy} aria-busy={busy} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} style={busy && { opacity: 0.45 }}><T bold size={16} color={colors.accent}>保存</T></Pressable>} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -190,20 +192,20 @@ export default function MealDetailScreen() {
 
       {draft ? (
         <Card style={{ marginTop: 12, gap: 8 }}>
-          <Input value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} placeholder="品名" placeholderTextColor={colors.sub}
+          <RoomInput value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} placeholder="品名" placeholderTextColor={colors.sub}
             accessibilityLabel="足す品目の品名" maxLength={200} style={s.text} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Input value={draft.amount} onChangeText={(t) => setDraft({ ...draft, amount: t })} placeholder="量" placeholderTextColor={colors.sub}
-              keyboardType="decimal-pad" accessibilityLabel="足す品目の量" style={[s.text, { flex: 1 }]} />
+            <RoomInput value={draft.amount} onChangeText={(t) => setDraft({ ...draft, amount: t })} placeholder="量" placeholderTextColor={colors.sub}
+              keyboardType="decimal-pad" accessibilityLabel="足す品目の量" style={s.text} room={{ flex: 1 }} />
             <View style={{ flex: 2 }}>
               <Segmented options={UNITS.map((u) => ({ key: u, label: u }))} value={draft.unit} onChange={(u: Unit) => setDraft({ ...draft, unit: u })} />
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([['kcal', 'kcal'], ['protein_g', 'P'], ['fat_g', 'F'], ['carbs_g', 'C']] as const).map(([k, label]) => (
-              <Input key={k} value={draft[k]} onChangeText={(t) => setDraft({ ...draft, [k]: t })} placeholder={label} placeholderTextColor={colors.sub}
+              <RoomInput key={k} value={draft[k]} onChangeText={(t) => setDraft({ ...draft, [k]: t })} placeholder={label} placeholderTextColor={colors.sub}
                 keyboardType="decimal-pad" accessibilityLabel={`足す品目の${{ kcal: 'エネルギー', protein_g: 'たんぱく質', fat_g: '脂質', carbs_g: '炭水化物' }[k]}`}
-                style={[s.text, { flex: 1, minWidth: 0 }]} />
+                style={[s.text, { minWidth: 0 }]} room={{ flex: 1, minWidth: 0 }} />
             ))}
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -230,7 +232,7 @@ export default function MealDetailScreen() {
           </Pressable>
         ) : (
           <>
-            <Input value={templateName} onChangeText={setTemplateName} accessibilityLabel="いつものの名前" maxLength={TEMPLATE_NAME_MAX} style={s.text} />
+            <RoomInput value={templateName} onChangeText={setTemplateName} accessibilityLabel="いつものの名前" maxLength={TEMPLATE_NAME_MAX} style={s.text} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Button label="キャンセル" variant="secondary" small onPress={() => setTemplateName(null)} style={{ flex: 1 }} />
               <Button label={busy ? '保存しています…' : 'いつものに保存'} small onPress={saveTemplate} busy={busy} style={{ flex: 1 }} />

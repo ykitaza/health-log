@@ -16,6 +16,7 @@ import { useBusy } from '@/hooks/busy';
 import { useFocusData } from '@/hooks/data';
 import { addDays, todayKey } from '@/lib/date';
 import { previousTodo } from '@/lib/home';
+import { touchRow, touchSquare } from '@/lib/touch';
 import {
   achievementScope, formatCreated, formatPeriod, Highlight, isPeriodReportKind, KIND_LABELS, Metric, NEXT_TITLES, PeriodReportKind, Report,
   ReportKind,
@@ -46,7 +47,7 @@ function Frame({ sys, onBack, menu, action, children }: { sys: string | null; on
             {sys && onBack && <Micro>{sys}</Micro>}
           </View>
           {action}
-          {menu ?? (onBack ? <View style={{ width: 44 }} /> : null)}
+          {menu ?? (onBack ? <View style={{ width: MENU_SLOT }} /> : null)}
           {/* タブの中では、ほかのタブと同じく右端に設定の歯車 */}
           {!onBack && <IconButton name="gear" label="設定" onPress={() => router.push('/settings')} bg="transparent" color={hud.muted} size={20} testID="open-settings" />}
         </View>
@@ -56,19 +57,25 @@ function Frame({ sys, onBack, menu, action, children }: { sys: string | null; on
   );
 }
 
+/** 「…」のボタンを置く場所（見た目と並びの大きさ。右の空きの 44 と同じ） */
+const MENU_SLOT = 44;
+/** 「…」のボタンと「このレポートを消す」の行の押せる大きさ（#323）。見た目と並びは 44 のまま、外へ 2 ずつ広げて 48 にする */
+const REPORT_MENU_BUTTON = { ...touchSquare(MENU_SLOT), alignItems: 'center', justifyContent: 'center' } as const;
+const REPORT_MENU_ITEM = { ...touchRow(44), paddingHorizontal: 14, justifyContent: 'center' } as const;
+
 /** 右上の「…」のメニュー。いまは「このレポートを消す」だけ（押すと確かめのダイアログ） */
 function ReportMenu({ onDelete, disabled }: { onDelete: () => void; disabled: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <View>
       <Pressable accessibilityRole="button" accessibilityLabel="メニュー" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} testID="report-menu">
+        style={REPORT_MENU_BUTTON} testID="report-menu">
         <Mono size={16} color={hud.muted} spacing={1}>…</Mono>
       </Pressable>
       {open && (
         <Panel bg={hud.panel2} cut={6} style={{ position: 'absolute', top: 42, right: 4, minWidth: 180 }}>
           <Pressable accessibilityRole="button" accessibilityLabel="このレポートを消す" disabled={disabled}
-            onPress={() => { setOpen(false); onDelete(); }} style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+            onPress={() => { setOpen(false); onDelete(); }} style={REPORT_MENU_ITEM}>
             <T bold size={13} color={colors.danger}>このレポートを消す</T>
           </Pressable>
         </Panel>

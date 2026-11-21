@@ -2,16 +2,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { Input } from '@/components/Input';
+import { RoomInput } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { ADD_ROW, Button, Card, Chip, Header, IconButton, RULED, Segmented } from '@/components/ui';
 import { useBusy } from '@/hooks/busy';
 import { useConfirmDiscard } from '@/hooks/confirmDiscard';
 import { useRepos } from '@/hooks/data';
 import { formatJpDate, todayKey } from '@/lib/date';
 import {
-  ItemDraft, ItemInput, MAX_ITEMS, parseItem, SLOT_LABELS, SLOTS, Slot, sum, TEMPLATE_NAME_MAX, templateNameError, Unit, UNITS,
+  ItemDraft, ItemInput, MAX_ITEMS, newMealDirty, parseItem, SLOT_LABELS, SLOTS, Slot, sum, TEMPLATE_NAME_MAX, templateNameError, Unit, UNITS,
 } from '@/lib/meals';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, fonts, radius } from '@/theme';
@@ -30,7 +30,8 @@ export default function NewMealScreen() {
   const [asTemplate, setAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const dirty = items.some((i) => i.kcal !== '' || i.protein_g !== '' || (!numbers && (i.name !== '' || i.amount !== '')));
+  // 品目の欄（脂質・炭水化物、kcal と PFC だけのときの名前も）か、いつものの名前を変えていたら、戻る前に確かめる
+  const dirty = newMealDirty(items, emptyItem(numbers), asTemplate ? templateName : '');
   const { dialog, allowLeave } = useConfirmDiscard(dirty, '入力した食事は記録されません。');
 
   const set = (n: number, patch: Partial<ItemDraft>) => setItems((xs) => xs.map((x, i) => (i === n ? { ...x, ...patch } : x)));
@@ -63,7 +64,7 @@ export default function NewMealScreen() {
   });
 
   return (
-    <Screen footer={<>{error && <T size={13} color={colors.danger} align="center">{error}</T>}<Button label={busy ? '記録しています…' : '記録する'} onPress={submit} busy={busy} /></>}>
+    <Screen footer={<>{error && <ErrorText size={13} align="center">{error}</ErrorText>}<Button label={busy ? '記録しています…' : '記録する'} onPress={submit} busy={busy} /></>}>
       <Header title={numbers ? 'kcal と PFC だけ' : '品目を入力'} subtitle={formatJpDate(date)} onBack={() => router.back()} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {SLOTS.map((x) => <Chip key={x} label={SLOT_LABELS[x]} active={x === slot} onPress={() => setSlot(x)} />)}
@@ -73,7 +74,7 @@ export default function NewMealScreen() {
         <Card key={n} style={{ marginTop: 12, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
             <Field label={numbers ? '名前（例：ラーメン屋の定食）' : '品名'} style={{ flex: 1 }}>
-              <Input value={item.name} onChangeText={(t) => set(n, { name: t })} placeholder={numbers ? '' : '例：白米'} placeholderTextColor={colors.sub}
+              <RoomInput value={item.name} onChangeText={(t) => set(n, { name: t })} placeholder={numbers ? '' : '例：白米'} placeholderTextColor={colors.sub}
                 accessibilityLabel={`品目${n + 1}の品名`} style={s.text} maxLength={200} />
             </Field>
             {items.length > 1 && (
@@ -83,7 +84,7 @@ export default function NewMealScreen() {
           {!numbers && (
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
               <Field label="量" style={{ flex: 1 }}>
-                <Input value={item.amount} onChangeText={(t) => set(n, { amount: t })} keyboardType="decimal-pad" accessibilityLabel={`品目${n + 1}の量`} style={s.num} />
+                <RoomInput value={item.amount} onChangeText={(t) => set(n, { amount: t })} keyboardType="decimal-pad" accessibilityLabel={`品目${n + 1}の量`} style={s.num} />
               </Field>
               <View style={{ flex: 2 }}>
                 <Segmented options={UNITS.map((u) => ({ key: u, label: u }))} value={item.unit} onChange={(u: Unit) => set(n, { unit: u })} />
@@ -127,7 +128,7 @@ export default function NewMealScreen() {
             trackColor={{ true: colors.accent, false: colors.input }} thumbColor={colors.text} />
         </View>
         {asTemplate && (
-          <Input value={templateName} onChangeText={setTemplateName} placeholder={valid.map((v) => v.name).join('、') || 'いつものの名前'}
+          <RoomInput value={templateName} onChangeText={setTemplateName} placeholder={valid.map((v) => v.name).join('、') || 'いつものの名前'}
             placeholderTextColor={colors.sub} accessibilityLabel="いつものの名前" maxLength={TEMPLATE_NAME_MAX} style={[s.text, s.box]} />
         )}
       </Card>
@@ -148,11 +149,9 @@ function Field({ label, children, style }: { label: string; children: React.Reac
 function NumField({ label, unit, value, onChange, a11y }: { label: string; unit: string; value: string; onChange: (t: string) => void; a11y: string }) {
   return (
     <Field label={label} style={{ flex: 1 }}>
-      <View style={[s.box, { flexDirection: 'row', alignItems: 'center', paddingRight: 8 }]}>
-        <Input value={value} onChangeText={onChange} keyboardType="decimal-pad" accessibilityLabel={a11y} placeholder="0" placeholderTextColor={colors.sub}
-          style={[s.num, { flex: 1, minWidth: 0, backgroundColor: 'transparent' }, RULED && { borderBottomWidth: 0 }]} />
-        <T size={11} color={colors.sub}>{unit}</T>
-      </View>
+      <RoomInput box={[s.box, { flexDirection: 'row', alignItems: 'center', paddingRight: 8 }]} after={<T size={11} color={colors.sub}>{unit}</T>}
+        value={value} onChangeText={onChange} keyboardType="decimal-pad" accessibilityLabel={a11y} placeholder="0" placeholderTextColor={colors.sub}
+        style={[s.num, { flex: 1, minWidth: 0, backgroundColor: 'transparent' }, RULED && { borderBottomWidth: 0 }]} />
     </Field>
   );
 }

@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import type { Settings } from '@/db/repositories/settings';
 import { DailyBody, movingAverage, weightOverview } from '@/lib/body';
-import { dateLabels, datePoints } from '@/lib/chart';
+import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
 import { addDays } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
 import { average, formatHM, formatSteps, sleepWeek, stepWeek } from '@/lib/health';
@@ -30,11 +30,17 @@ export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
   const avg = movingAverage(daily.filter((d) => d.weightKg != null && d.date <= today).map((d) => ({ date: d.date, value: d.weightKg! })))
     .filter((p) => p.date >= from);
   const goalLabel = goal == null ? null : `目標 ${fmt1(kgToUnit(goal, unit))} ${unit}`;
+  // グラフは押せるカードの中なので、読み上げの要約はカードの読み上げに入れる（中のグラフは別に読ませない）
+  const latest = recent[recent.length - 1];
+  const avgLast = avg[avg.length - 1];
+  const chartSummary = recent.length >= 2 && latest ? lineSummary('体重', '1か月', [
+    `今 ${fmt1(kgToUnit(latest.weightKg, unit))}${unit}`, avgLast && `7日の平均 ${fmt1(kgToUnit(avgLast.value, unit))}${unit}`,
+  ]) : null;
 
   return (
     <View style={{ marginTop: space.l, gap: space.m }}>
       <PressableScale accessibilityRole="button" scaleTo={0.98} onPress={() => router.push({ pathname: '/body-trend', params: { metric: 'weight' } })}
-        accessibilityLabel={['体重の推移', monthChange != null ? `1か月で ${formatSigned(kgToUnit(monthChange, unit))}${unit}` : null, goalLabel, '詳しく見る'].filter(Boolean).join('。')}>
+        accessibilityLabel={['体重の推移', monthChange != null ? `1か月で ${formatSigned(kgToUnit(monthChange, unit))}${unit}` : null, chartSummary, goalLabel, '詳しく見る'].filter(Boolean).join('。')}>
         {/* タブのすぐ下。クラシックはタブの下の罫と重ねないよう、上の罫を引かない */}
         <Card style={!isHud && { borderTopWidth: 0, paddingTop: 0 }}>
           <View style={s.head}>
@@ -54,6 +60,7 @@ export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
                 xLabels={dateLabels(from, today, 3)}
                 showYAxis={false}
                 height={140}
+                accessibilityLabel={null}
               />
             </>
           ) : (
@@ -175,7 +182,8 @@ function HeartCard({ days, today }: { days: HeartRateDay[]; today: string }) {
     >
       {rest.length >= 2 ? (
         <View style={{ marginTop: space.s }}>
-          <LineChart points={datePoints(rest, (d) => d.restingBpm!, from, today)} xLabels={[]} showYAxis={false} height={72} />
+          {/* 押せるカードの中。7日の平均はカードの読み上げにある */}
+          <LineChart points={datePoints(rest, (d) => d.restingBpm!, from, today)} xLabels={[]} showYAxis={false} height={72} accessibilityLabel={null} />
         </View>
       ) : (
         <T variant="bodyM" color={colors.sub} style={{ marginTop: space.s }}>

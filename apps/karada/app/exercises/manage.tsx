@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 import { Input } from '@/components/Input';
 import { LoadError } from '@/components/LoadError';
 import { Screen } from '@/components/Screen';
-import { T } from '@/components/Text';
+import { ErrorText, T } from '@/components/Text';
 import { Button, Card, ConfirmDialog, Header, ListRow, RULED, TAG } from '@/components/ui';
 import { HiddenDuplicateError } from '@/db/repositories/catalog';
 import { useBusy } from '@/hooks/busy';
@@ -112,7 +112,7 @@ export default function ManageScreen() {
                   autoFocus
                   style={[{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }, RULED]}
                 />
-                {renameError && <T size={12} color={colors.danger}>{renameError}</T>}
+                {renameError && <ErrorText size={12}>{renameError}</ErrorText>}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Button label="キャンセル" variant="secondary" small style={{ flex: 1 }} onPress={() => { setRenaming(null); setRenameError(null); }} />
                   <Button label={busy ? '保存しています…' : '名前を保存'} small style={{ flex: 1 }} onPress={renamePart} busy={busy} />
@@ -173,7 +173,7 @@ export default function ManageScreen() {
               autoFocus
               style={[{ height: 48, borderRadius: 10, backgroundColor: colors.input, color: colors.text, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 12 }, RULED]}
             />
-            {error && <T size={12} color={colors.danger}>{error}</T>}
+            {error && <ErrorText size={12}>{error}</ErrorText>}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button label="キャンセル" variant="secondary" small style={{ flex: 1 }} onPress={() => { setAdding(false); setPartName(''); setError(null); }} />
               <Button label={busy ? '追加しています…' : '追加する'} small style={{ flex: 1 }} onPress={addPart} busy={busy} />
