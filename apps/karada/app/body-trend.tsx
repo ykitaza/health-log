@@ -8,8 +8,8 @@ import { Screen } from '@/components/Screen';
 import { T } from '@/components/Text';
 import { Card, Chip, ChipRow, EmptyState, Header, SectionTitle, Segmented } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
-import { BODY_METRICS, BodyMetric, goalProgress, metricValue, movingAverage } from '@/lib/body';
-import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
+import { BODY_METRICS, BodyMetric, goalProgress, goalReachedShown, metricValue, movingAverage } from '@/lib/body';
+import { dateLabels, datePoints, lineSummary, periodRecords, sinceNote } from '@/lib/chart';
 import { formatJpDate, todayKey } from '@/lib/date';
 import { filterSince, Period, PERIOD_LABELS, periodStart } from '@/lib/training';
 import { fmt1, kgToUnit } from '@/lib/units';
@@ -40,7 +40,7 @@ export default function BodyTrendScreen() {
     .map((d) => ({ date: d.date, memo: d.memo, value: metricValue(d, metric, height) }))
     .filter((p): p is { date: string; memo: string; value: number } => p.value != null);
   const from = periodStart(today, period)!;
-  const inRange = filterSince(points, from);
+  const { items: inRange, since } = periodRecords(points, from, today);
   const last = inRange[inRange.length - 1];
   const change = inRange.length >= 2 ? inRange[inRange.length - 1].value - inRange[0].value : null;
   // 体重だけ：7日の平均の線（範囲より前の記録も入れて出す）と、目標までの残り（いちばん新しい記録から）
@@ -79,10 +79,11 @@ export default function BodyTrendScreen() {
               />
             )}
             <T variant="bodyS" color={colors.sub}>{formatJpDate(last.date)} 時点</T>
+            <T variant="bodyS" color={colors.sub} testID="trend-count">{inRange.length} 日の記録{sinceNote(since)}</T>
           </View>
           {progress && (
             <T variant="bodyM" color={colors.sub} testID="trend-goal">
-              {progress.direction === 'reached' ? '目標に届きました' : `目標まで あと ${fmt1(conv(progress.remaining))} ${unitLabel}`}
+              {goalReachedShown(progress, unit) ? '目標に届きました' : `目標まで あと ${fmt1(conv(progress.remaining))} ${unitLabel}`}
             </T>
           )}
           <Card style={{ marginTop: space.l }}>

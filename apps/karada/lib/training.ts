@@ -200,6 +200,16 @@ export function dailySummary(days: DailyByPart[]) {
   return { total: days.reduce((a, d) => a + d.total, 0), peak, activeDays: days.filter((d) => d.total > 0).length };
 }
 
+/**
+ * 筋トレの推移の「先週より +1.7t」の文字（t か k lb、小数1桁）。今週（月曜〜今日）と、先週の同じ曜日まで（ホームの LOAD の先週比と同じ基準）を比べる。
+ * 小数1桁で 0.0 になる差は「+0.0」（「−0.0」と出さない）
+ */
+export function weekDeltaText(thisWeekKg: number, lastWeekToDateKg: number, toUnit: (kg: number) => number): string {
+  const d = toUnit(thisWeekKg - lastWeekToDateKg) / 1000;
+  const shown = Math.abs(d).toFixed(1);
+  return `${d < 0 && shown !== '0.0' ? '−' : '+'}${shown}`;
+}
+
 /** 週ごとの総負荷量の見出しの数字：今週、先週、期間の週の平均 */
 export function weeklySummary(weeks: WeeklyByPart[]) {
   const thisWeek = weeks[weeks.length - 1].total;

@@ -32,6 +32,14 @@ export function formatHeartRate(h: { restingBpm: number | null; avgBpm: number |
 
 // 睡眠・心拍の推移の画面
 
+/**
+ * 睡眠の推移の、期間の平均の読み上げ（「1か月の平均 7時間」）。分に丸めてから時間と分に分ける
+ * （419.6 分を「6時間60分」と読まない。画面の数字 formatHM の「7:00」と同じ分）
+ */
+export function sleepAverageLabel(periodLabel: string, avgMin: number): string {
+  return `${periodLabel}の平均 ${formatMinutes(Math.round(avgMin))}`;
+}
+
 /** 分を「6:56」に（時間:分） */
 export function formatHM(min: number): string {
   const m = Math.round(min);

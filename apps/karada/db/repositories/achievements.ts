@@ -54,7 +54,11 @@ export function achievementRepository(db: Db, deps: Deps) {
       const { end } = weekOf(date);
       const [s, trained, mealDates, sleep] = await Promise.all([
         settings.get(), meals.trainingDays(from, end),
-        db.getAllAsync<{ date: string }>('SELECT DISTINCT date FROM meals WHERE deleted_at IS NULL AND date BETWEEN ? AND ?', [from, end]),
+        // 食事を記録した日は、週の達成（meals.summaries）と同じく、生きている品目のある食事の日だけ
+        db.getAllAsync<{ date: string }>(
+          `SELECT DISTINCT m.date FROM meals m WHERE m.deleted_at IS NULL AND m.date BETWEEN ? AND ?
+             AND EXISTS (SELECT 1 FROM meal_items i WHERE i.meal_id = m.id AND i.deleted_at IS NULL)`, [from, end],
+        ),
         health.sleepDays(from, end),
       ]);
       return goalStreak({ date, goals: weeklyGoalsOf(s), trainingDates: trained, mealDates: mealDates.map((r) => r.date), sleep });

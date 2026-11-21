@@ -187,6 +187,24 @@ export function pfcRatio(n: { protein_g: number | null; fat_g: number | null; ca
   return { p: (p / all) * 100, f: (f / all) * 100, c: (c / all) * 100 };
 }
 
+/**
+ * PFC の割合を、画面に出す整数の %（合計がちょうど 100）にする。それぞれを切り捨て、足りない分を小数の大きいものから 1 ずつ足す
+ * （33.4・33.3・33.3 を四捨五入すると 33・33・33 で 99% になるため）。小数が同じなら P・F・C の順
+ */
+export function pfcPercents(r: { p: number; f: number; c: number }): { p: number; f: number; c: number } {
+  const keys = ['p', 'f', 'c'] as const;
+  const v = { p: Math.max(0, r.p), f: Math.max(0, r.f), c: Math.max(0, r.c) };
+  const out = { p: Math.floor(v.p), f: Math.floor(v.f), c: Math.floor(v.c) };
+  let rest = 100 - out.p - out.f - out.c;
+  const order = [...keys].sort((a, b) => (v[b] - out[b]) - (v[a] - out[a]));
+  for (const k of order) {
+    if (rest <= 0) break;
+    out[k] += 1;
+    rest -= 1;
+  }
+  return out;
+}
+
 // --- 同期の状態から食事を読む ---
 
 /** 同期の状態の形（API の EntityState のうち、読むのに使うもの） */

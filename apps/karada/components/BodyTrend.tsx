@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { HeartRateDay, SleepDay, StepDay } from '@/db/repositories/health';
 import type { Settings } from '@/db/repositories/settings';
-import { DailyBody, movingAverage, weightOverview } from '@/lib/body';
+import { DailyBody, goalReachedShown, movingAverage, weightOverview } from '@/lib/body';
 import { dateLabels, datePoints, lineSummary } from '@/lib/chart';
 import { addDays } from '@/lib/date';
 import { formatSigned } from '@/lib/format';
@@ -76,7 +76,7 @@ export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
             <T variant="bodyM" color={colors.sub}>目標 {fmt1(kgToUnit(goal, unit))}{unit}</T>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 }}>
-            {progress.direction === 'reached' ? (
+            {goalReachedShown(progress, unit) ? (
               <T variant="titleM" size={18} color={colors.accent}>目標に届きました</T>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
@@ -86,7 +86,7 @@ export function BodyTrend({ daily, settings, sleep, heart, steps, today }: {
               </View>
             )}
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
-              {progress.weeks != null && <Badge label={`このペースで約${progress.weeks}週`} />}
+              {progress.weeks != null && !goalReachedShown(progress, unit) && <Badge label={`このペースで約${progress.weeks}週`} />}
               <T variant="bodyS" color={colors.sub} align="right">
                 {pace == null ? '直近28日の記録が2つ以上あるとペースが出ます' : `直近28日のペース ${formatSigned(kgToUnit(pace, unit))}${unit}／週`}
               </T>

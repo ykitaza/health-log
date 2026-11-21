@@ -27,7 +27,7 @@ import { BALANCE_RANGES, BalanceRange, partBalanceForRange, partBalanceRangeLabe
 import type { Phase } from '@/lib/phases';
 import {
   bestSet, big3PartialNote, big3Trend, DailyPoint, dailySummary, dailyVolumeByBodyPart, exerciseTrend, personalBests, totalVolume, TrainingSetRow, trendDays,
-  weeklySummary, weeklyVolumeByBodyPart,
+  weekDeltaText, weeklySummary, weeklyVolumeByBodyPart,
 } from '@/lib/training';
 import { fmt1, fmtInt, kgToUnit } from '@/lib/units';
 import { colors, isHud, partColor, space } from '@/theme';
@@ -297,7 +297,7 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
   const t = (kg: number) => kgToUnit(kg, unit) / 1000;
   const tUnit = unit === 'kg' ? 't' : 'k lb';
   const tSpoken = unit === 'kg' ? 'トン' : '千ポンド';
-  const { thisWeek, lastWeek, avg } = weeklySummary(weeks);
+  const { avg } = weeklySummary(weeks);
   const daily = dailySummary(days);
   const peakWeek = weeks.reduce<(typeof weeks)[number] | null>((a, w) => (w.total > 0 && (!a || w.total > a.total) ? w : a), null);
   const segments = (byPart: Record<string, number>) =>
@@ -345,7 +345,7 @@ function AllGraph({ data, today, unit, onPick, balanceRange, onBalanceRange, tar
         </View>
         {range === 'week' ? (
           <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>
-            週の平均 {t(avg).toFixed(1)}{tUnit} ・ 先週より {thisWeek >= lastWeek ? '+' : '−'}{Math.abs(t(thisWeek - lastWeek)).toFixed(1)}{tUnit}
+            週の平均 {t(avg).toFixed(1)}{tUnit} ・ 先週より {weekDeltaText(load.totalKg, load.lastWeekToDateKg, (kg) => kgToUnit(kg, unit))}{tUnit}
           </T>
         ) : (
           <T size={12} bold color={colors.accent} style={{ marginBottom: 10 }}>

@@ -1,4 +1,5 @@
 import { addDays, addMonths, DateKey, daysBetween, weekStart } from './date';
+import { fmt1, kgToUnit, WeightUnit } from './units';
 
 /** BMI ＝ 体重 ÷ 身長(m)² */
 export function bmi(weightKg: number | null, heightCm: number | null): number | null {
@@ -73,6 +74,14 @@ export function goalProgress(currentKg: number, goalKg: number, pacePerWeek: num
     weeks = Math.ceil(remaining / Math.abs(pacePerWeek));
   }
   return { remaining, direction: diff < 0 ? 'lose' : diff > 0 ? 'gain' : 'reached', weeks } as const;
+}
+
+/**
+ * 画面で「目標に届きました」とするか：ちょうど届いたか、残りが表示の単位の小数1桁で 0.0 になる（「あと 0.0 kg」と出さない）。
+ * goalProgress の direction・weeks はサーバー（body.py の goal_progress）と同じ数のまま、出し方だけここで決める
+ */
+export function goalReachedShown(p: { direction: 'lose' | 'gain' | 'reached'; remaining: number }, unit: WeightUnit): boolean {
+  return p.direction === 'reached' || fmt1(kgToUnit(p.remaining, unit)) === '0.0';
 }
 
 /** 体組成の1件（1日に複数あり得る）。source は手入力（manual）か Health Connect の取り込み（health_connect） */

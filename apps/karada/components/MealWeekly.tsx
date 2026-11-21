@@ -8,7 +8,7 @@ import { Badge, Card } from '@/components/ui';
 import { useFocusData } from '@/hooks/data';
 import { niceTicks } from '@/lib/chart';
 import { addDays, formatMonthDay, todayKey, weekday } from '@/lib/date';
-import { DaySummary, Gap, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
+import { DaySummary, Gap, pfcPercents, pfcRatio, weekDates, weekLastDayFor, weeklyReview } from '@/lib/meals';
 import { pageDirection, SwipeDirection } from '@/lib/swipe';
 import { fmt1, fmtInt } from '@/lib/units';
 import { colors, fonts, pfcPalette } from '@/theme';
@@ -27,6 +27,9 @@ export function MealWeekly() {
   const avg = review.average;
   const ratio = avg ? pfcRatio(avg) : null;
   const targetRatio = review.averageTarget ? pfcRatio(review.averageTarget) : null;
+  // 画面の整数の %（合計 100）
+  const shownPct = ratio ? pfcPercents(ratio) : null;
+  const targetPct = targetRatio ? pfcPercents(targetRatio) : null;
   const includesToday = weekDates(lastDay).includes(today);
   // 週を変えるときは、向きに合わせて中身を横へすべらせる（スワイプ・前後のボタン・日を選ぶ）
   const slide = usePageSlide();
@@ -67,7 +70,7 @@ export function MealWeekly() {
       <Card style={{ gap: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <T bold size={16}>PFC の割合（kcal）</T>
-          {targetRatio && <T size={12} color={colors.sub}>目標 P{Math.round(targetRatio.p)}・F{Math.round(targetRatio.f)}・C{Math.round(targetRatio.c)}%</T>}
+          {targetPct && <T size={12} color={colors.sub}>目標 P{targetPct.p}・F{targetPct.f}・C{targetPct.c}%</T>}
         </View>
         {ratio && avg ? (
           <>
@@ -81,7 +84,7 @@ export function MealWeekly() {
                 <View key={k} style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PFC_COLORS[k] }} />
-                    <T num bold size={18}>{letter} {Math.round(ratio[k])}%</T>
+                    <T num bold size={18}>{letter} {shownPct![k]}%</T>
                   </View>
                   <T size={11} color={colors.sub}>平均 {fmt1(g)}g／日</T>
                 </View>

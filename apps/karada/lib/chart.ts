@@ -15,6 +15,23 @@ export function lineSummary(title: string, span: string, parts: (string | null |
   return `${title}のグラフ。${span}${body ? `。${body}` : ''}`;
 }
 
+/**
+ * 推移の画面の、期間の記録（from〜to、両端を含む。古い順）と、その数・記録の始まり。
+ * since は、選んだ期間より記録が短いとき（期間より前に記録がなく、期間の最初の記録が期間の始まりより後）だけ、その最初の記録の日。
+ * 記録のない日は数えない（平均の母数は記録のある日の数）。期間を長くしても平均が変わらないのは、記録がその期間の分しかないとき
+ */
+export function periodRecords<T extends { date: DateKey }>(all: T[], from: DateKey, to: DateKey): { items: T[]; count: number; since: DateKey | null } {
+  const items = all.filter((d) => d.date >= from && d.date <= to);
+  const earlier = all.some((d) => d.date < from);
+  const first = items[0]?.date ?? null;
+  return { items, count: items.length, since: !earlier && first != null && first > from ? first : null };
+}
+
+/** 記録の始まりの添え書き（「（記録は 11/1 から）」）。since がなければ空 */
+export function sinceNote(since: DateKey | null): string {
+  return since == null ? '' : `（記録は ${formatShortDate(since)} から）`;
+}
+
 /** 横軸の目盛り（両端を含めて count 個） */
 export function dateLabels(from: DateKey, to: DateKey, count = 4) {
   const span = Math.max(1, daysBetween(from, to));

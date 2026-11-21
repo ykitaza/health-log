@@ -1,5 +1,5 @@
 // ホームの画面に出す言葉と、カードを出すかどうかの決まり（app/(tabs)/index.tsx と components/home.tsx が使う）
-import { goalProgress } from './body';
+import { goalProgress, goalReachedShown } from './body';
 import { addDays, DateKey, formatMonthDay, weekStart } from './date';
 import { weekOf } from './goals';
 import { SLOT_LABELS, Slot, slotAt } from './meals';
@@ -11,7 +11,7 @@ import { fmt1, kgToUnit, WeightUnit } from './units';
 export function goalLine(weightKg: number | null, goalKg: number | null, unit: WeightUnit): string | null {
   if (weightKg == null || goalKg == null) return null;
   const p = goalProgress(weightKg, goalKg, null);
-  return p.direction === 'reached' ? '目標に届きました' : `目標まで あと ${fmt1(kgToUnit(p.remaining, unit))} ${unit}`;
+  return goalReachedShown(p, unit) ? '目標に届きました' : `目標まで あと ${fmt1(kgToUnit(p.remaining, unit))} ${unit}`;
 }
 
 /** 設定の「今週の目標」の欄を開く道（settings?section=weekly-goals） */
