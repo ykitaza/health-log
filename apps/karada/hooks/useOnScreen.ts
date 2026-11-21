@@ -17,9 +17,11 @@ export const ScrollWatchProvider = ScrollWatchContext.Provider;
 
 /** Screen の ScrollView に付ける：スクロールの位置と見えている範囲を配る（props を ScrollView に渡し、watch を ScrollWatchProvider で配る） */
 export function useScrollWatch(scrollRef: RefObject<ScrollViewInstance | null>) {
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const [watch] = useState(() => {
     const w = createScrollWatch();
     w.scrollTo = (y, animated) => scrollRef.current?.scrollTo({ y, animated });
+    w.setScrollEnabled = setScrollEnabled;
     return w;
   });
   const measure = useCallback(() => {
@@ -35,8 +37,14 @@ export function useScrollWatch(scrollRef: RefObject<ScrollViewInstance | null>) 
     onScrollEndDrag: () => watch.notify(true),
     onMomentumScrollEnd: () => watch.notify(true),
     scrollEventThrottle: 16,
-  }), [measure, watch]);
+    scrollEnabled,
+  }), [measure, watch, scrollEnabled]);
   return { watch, props };
+}
+
+/** Screen のスクロールの位置と見えている範囲（スクロールの外では null）。長押しで持ち上げた食事を、画面の端で自動でスクロールするため */
+export function useScreenScroll(): ScrollWatch | null {
+  return useContext(ScrollWatchContext);
 }
 
 /**

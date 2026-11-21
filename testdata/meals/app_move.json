@@ -1,0 +1,82 @@
+{
+  "description": "アプリで夕食を記録して送ったあと、食事の画面で間食へ移して送る本文（apps/karada/db/__tests__/meals.test.ts が作る）。services/meals/tests/sync/test_app_move.py が change_id を UUID にして本物の API に送り、MCP の list_meals で間食に見えることを確かめる。",
+  "pushes": [
+    {
+      "device_id": "<device_id>",
+      "changes": [
+        {
+          "change_id": "<change_id>",
+          "entity_type": "meal",
+          "entity_id": "id-1",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "date": "2026-11-08",
+            "slot": "dinner",
+            "time": null,
+            "description": "",
+            "source": "text",
+            "basis": null
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "meal_item",
+          "entity_id": "id-2",
+          "parent_id": "id-1",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "name": "白米",
+            "amount": 200,
+            "unit": "g",
+            "kcal": 312,
+            "protein_g": 5,
+            "fat_g": 0.6,
+            "carbs_g": 74,
+            "confidence": "high",
+            "sort_order": 0
+          }
+        },
+        {
+          "change_id": "<change_id>",
+          "entity_type": "meal_item",
+          "entity_id": "id-3",
+          "parent_id": "id-1",
+          "op": "create",
+          "changed_at": "2026-11-08T03:00:00.000Z",
+          "origin": "app",
+          "fields": {
+            "name": "鶏むね肉",
+            "amount": 100,
+            "unit": "g",
+            "kcal": 108,
+            "protein_g": 22,
+            "fat_g": 1.5,
+            "carbs_g": 0,
+            "confidence": "high",
+            "sort_order": 1
+          }
+        }
+      ]
+    },
+    {
+      "device_id": "<device_id>",
+      "changes": [
+        {
+          "change_id": "<change_id>",
+          "entity_type": "meal",
+          "entity_id": "id-1",
+          "op": "update",
+          "changed_at": "2026-11-08T03:01:00.000Z",
+          "origin": "app",
+          "fields": {
+            "slot": "snack"
+          }
+        }
+      ]
+    }
+  ]
+}

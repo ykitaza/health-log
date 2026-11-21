@@ -56,6 +56,26 @@ describe('食事の記録・修正・削除・複製', () => {
     await expect(d.r.meals.record({ date: DAY, slot: 'lunch', source: 'text', items: many })).rejects.toThrow('品目は1回の食事に50件までです');
   });
 
+  test('同じ日の別の区分へ移す：食事の slot だけの update を積み、品目は積まない。元の区分を返す（元に戻す）', async () => {
+    const d = await device();
+    const id = await d.r.meals.record({ date: DAY, slot: 'dinner', source: 'text', items: [rice, chicken] });
+    const before = d.outbox().length;
+    d.deps.advance(60_000);
+    expect(await d.r.meals.move(id, 'snack')).toBe('dinner');
+    const moved = (await d.r.meals.getMeal(id))!;
+    expect([moved.date, moved.slot, moved.items.map((i) => i.name)]).toEqual([DAY, 'snack', ['白米', '鶏むね肉']]);
+    expect(outboxOf(d.outbox().slice(before))).toEqual([['meal', 'update', null, { slot: 'snack' }]]);
+    // 同じ区分へは何も書かない
+    const now = d.outbox().length;
+    expect(await d.r.meals.move(id, 'snack')).toBe('snack');
+    expect(d.outbox().length).toBe(now);
+    // 元に戻す
+    expect(await d.r.meals.move(id, 'dinner')).toBe('snack');
+    expect((await d.r.meals.getMeal(id))!.slot).toBe('dinner');
+    await d.r.meals.remove(id);
+    await expect(d.r.meals.move(id, 'lunch')).rejects.toThrow('食事が見つかりません');
+  });
+
   test('消すと、食事の delete だけを積み、一覧と合計から消える', async () => {
     const d = await device();
     const id = await d.r.meals.record({ date: DAY, slot: 'lunch', source: 'text', items: [rice] });
@@ -233,6 +253,37 @@ describe('app_push.json：アプリが送る食事の本文', () => {
       fs.writeFileSync(file, `${JSON.stringify({
         description: 'アプリで食事を記録・修正（量・品目の追加）・複製・削除し、いつもの・目標・日の種類を決めて送る本文（apps/karada/db/__tests__/meals.test.ts が作る）。'
           + 'services/meals/tests/sync/test_app_push.py が change_id を UUID にして本物の API に送り、MCP の食事のツールから見えることを確かめる。',
+        pushes,
+      }, null, 2)}\n`);
+    }
+    expect(pushes).toEqual(JSON.parse(fs.readFileSync(file, 'utf8')).pushes);
+  });
+});
+
+/**
+ * アプリで記録した食事を、同期のあとで別の区分へ移したときの本文（2回目の送信が、食事の slot だけの update）。
+ * services/meals/tests/sync/test_app_move.py が、これを本物の同期の API に送り、MCP の list_meals で新しい区分に見えることを確かめる。
+ * 作り直すとき：UPDATE_TESTDATA=1 npx jest db/__tests__/meals.test.ts
+ */
+describe('app_move.json：食事を別の区分へ移したときの本文', () => {
+  test('同じ本文になる', async () => {
+    const server = createFakeSyncServer({ clock: () => '2026-11-08T03:00:00.000Z' });
+    const d = await device(server, '2026-11-08T03:00:00.000Z');
+    const id = await d.r.meals.record({ date: DAY, slot: 'dinner', source: 'text', items: [rice, chicken] });
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+    d.deps.advance(60_000);
+    await d.r.meals.move(id, 'snack');
+    expect(await d.engine.run()).toMatchObject({ ok: true, rejected: 0 });
+    const pushes = server.requests.filter((q) => q.method === 'POST').map((q) => {
+      const body = q.body as { changes: { change_id: string }[] };
+      return { device_id: '<device_id>', changes: body.changes.map((c) => ({ ...c, change_id: '<change_id>' })) };
+    });
+    expect(pushes.map((p) => p.changes.length)).toEqual([3, 1]);
+    const file = path.join(__dirname, '..', '..', '..', '..', 'testdata', 'meals', 'app_move.json');
+    if (process.env.UPDATE_TESTDATA) {
+      fs.writeFileSync(file, `${JSON.stringify({
+        description: 'アプリで夕食を記録して送ったあと、食事の画面で間食へ移して送る本文（apps/karada/db/__tests__/meals.test.ts が作る）。'
+          + 'services/meals/tests/sync/test_app_move.py が change_id を UUID にして本物の API に送り、MCP の list_meals で間食に見えることを確かめる。',
         pushes,
       }, null, 2)}\n`);
     }
