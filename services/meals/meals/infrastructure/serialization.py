@@ -5,7 +5,7 @@ from datetime import date, time
 from meals.domain.meal import FoodItem, Meal
 from meals.domain.meal_template import MealTemplate
 from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from meals.domain.values import Confidence, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.values import Confidence, DietEstimate, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 
 
 def _nutrition_to_dict(n: Nutrition) -> dict:
@@ -19,6 +19,7 @@ def _item_to_dict(i: FoodItem) -> dict:
         "quantity": {"amount": i.quantity.amount, "unit": i.quantity.unit.value},
         "nutrition": _nutrition_to_dict(i.nutrition),
         "confidence": i.confidence.value,
+        "estimate": i.estimate.values(),
     }
 
 
@@ -29,6 +30,7 @@ def _item_from_dict(d: dict) -> FoodItem:
         quantity=Quantity(d["quantity"]["amount"], Unit(d["quantity"]["unit"])),
         nutrition=Nutrition(**d["nutrition"]),
         confidence=Confidence(d["confidence"]),
+        estimate=DietEstimate.of(d.get("estimate") or {}),  # 足す前に保存した品目には無い
     )
 
 

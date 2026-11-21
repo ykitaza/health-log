@@ -7,7 +7,7 @@ from pydantic import AfterValidator, BaseModel, Field
 
 from meals.application.commands import NewItem, NewMeal
 from meals.domain.meal import MAX_BASIS, MAX_ITEMS
-from meals.domain.values import Confidence, EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.values import Confidence, DietEstimate, EatenOn, MealSlot, Nutrition, Quantity, Source, Unit
 
 SlotName = Literal["breakfast", "lunch", "dinner", "snack"]
 
@@ -23,6 +23,7 @@ def _not_blank(text: str) -> str:
 Grams = Annotated[float, Field(ge=0, le=5000)]
 Kcal = Annotated[float, Field(ge=0, le=20000)]
 Amount = Annotated[float, Field(gt=0, le=100000)]
+Sv = Annotated[float, Field(ge=0, le=100)]
 ItemName = Annotated[str, Field(min_length=1, max_length=200), AfterValidator(_not_blank)]
 TemplateName = Annotated[str, Field(min_length=1, max_length=100), AfterValidator(_not_blank)]
 BodyWeightKg = Annotated[float, Field(gt=0, le=300)]
@@ -39,6 +40,25 @@ class ItemInput(BaseModel):
     carbs_g: Grams
     confidence: Literal["high", "medium", "low"] = Field(
         "medium", description="推定の確かさ。写真から量を推定したものは low か medium")
+    # 食事のスコアに使う推定。写真や言葉から推定して記録するときは、どの品目にも全部入れる（ないものは 0 か false）。
+    # SV の数え方と料理の例は食事バランスガイド（https://www.maff.go.jp/j/balance_guide/b_report/gaiyou.html、
+    # https://www.maff.go.jp/j/syokuiku/zissen_navi/balance/division.html）。純アルコールの式は厚生労働省の飲酒のガイドライン
+    # 省く（null）と「推定していない」になり、その日のスコアのその内訳は「記録なし」になる
+    sv_staple: Sv | None = Field(None, description=(
+        "食事バランスガイドの主食の「つ（SV）」。ごはん・パン・めん由来の炭水化物 約40g で1つ（ごはん中盛り1杯 ≒ 1.5つ）。ないなら 0"))
+    sv_side: Sv | None = Field(None, description=(
+        "副菜の「つ（SV）」。野菜・きのこ・いも・海藻が主材料の重さ 約70g で1つ（小鉢1皿 ≒ 1つ）。ないなら 0"))
+    sv_main: Sv | None = Field(None, description=(
+        "主菜の「つ（SV）」。肉・魚・卵・大豆由来のたんぱく質 約6g で1つ。ないなら 0"))
+    sv_dairy: Sv | None = Field(None, description=(
+        "牛乳・乳製品の「つ（SV）」。牛乳・乳製品由来のカルシウム 約100mg で1つ（牛乳コップ半分 ≒ 1つ）。ないなら 0"))
+    sv_fruit: Sv | None = Field(None, description="果物の「つ（SV）」。果物の重さ 約100g で1つ（みかん1個 ≒ 1つ）。ないなら 0")
+    fiber_g: Grams | None = Field(None, description="この量での食物繊維（g）。ないなら 0")
+    salt_g: Grams | None = Field(None, description="この量での食塩相当量（g）。汁・たれ・調味料を含める。ないなら 0")
+    alcohol_g: Grams | None = Field(None, description=(
+        "この量での純アルコール（g）＝ 量(ml) × 度数(%)/100 × 0.8。お酒でなければ 0"))
+    is_snack_or_sweet_drink: bool | None = Field(None, description=(
+        "菓子・嗜好飲料（お菓子、甘い飲み物、ジュース、菓子パンなど。お酒は含めず alcohol_g で数える）なら true、ちがえば false"))
 
     def to_command(self) -> NewItem:
         return NewItem(
@@ -46,6 +66,8 @@ class ItemInput(BaseModel):
             Quantity(self.amount, Unit(self.unit)),
             Nutrition(self.kcal, self.protein_g, self.fat_g, self.carbs_g),
             Confidence(self.confidence),
+            DietEstimate(self.sv_staple, self.sv_side, self.sv_main, self.sv_dairy, self.sv_fruit,
+                         self.fiber_g, self.salt_g, self.alcohol_g, self.is_snack_or_sweet_drink),
         )
 
 

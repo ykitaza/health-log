@@ -4,7 +4,8 @@
   アプリの dailyBodyValues と同じ）
 - 身長・目標体重・活動の量：アプリの設定（同期の setting。ID は height_cm・goal_weight_kg・activity_level）。
   読み方はアプリ（apps/karada/db/repositories/settings.ts）と同じで、数でない値や知らない活動の量は、ないものとする
-性別と生まれた年はアプリの端末の中だけにあり、ここでは読まない。
+性別と生まれた年は、今はアプリの端末の中だけにある（同期しない）。食事のスコアの性別で変わる目安（sex）だけは、
+アプリがいつか設定の sex（male か female）を同期したら読む。それまでは None で、スコアは男女の厳しいほうの目安を使う。
 
 今週の目標（レポートの材料。MCP の period_overview が返す）も、同じアプリの設定から読む（weekly_goals）。
 """
@@ -14,12 +15,13 @@ from datetime import date
 
 import anyio
 
-from meals.domain.auto_goal import Activity, BodyDay
+from meals.domain.auto_goal import Activity, BodyDay, Sex
 from meals.domain.ports import GoalSettings
 from meals.domain.values import EaterId
 from sync.engine import SyncEngine
 from training.application.queries import TrainingQueries
 
+SEX_SETTING = "sex"  # 食事のスコアに使う性別（アプリの設定。今のアプリは同期しない）
 SETTING_KEYS = {"height_cm": "height_cm", "goal_weight_kg": "goal_weight_kg", "activity": "activity_level"}
 # 今週の目標（アプリの設定の weeklyGoalTrainingDays・weeklyGoalMealDays・weeklyGoalSleepDays）。値は週の日数（0〜7 の整数。
 # 0 は「切」）。同期の ID は、ほかの設定と同じ snake_case を先に読み、なければアプリの設定の名前（camelCase）を読む
@@ -66,6 +68,12 @@ class SyncedBodyData:
             goal_weight_kg=_num(values.get(SETTING_KEYS["goal_weight_kg"])),
             activity=Activity(activity) if activity in {a.value for a in Activity} else None,
         )
+
+    async def sex(self, eater_id: EaterId) -> Sex | None:
+        """食事のスコアの性別。設定にない・male か female でなければ None（推測しない）。"""
+        values = await anyio.to_thread.run_sync(self._settings, eater_id.value)
+        value = values.get(SEX_SETTING)
+        return Sex(value) if value in {s.value for s in Sex} else None
 
     async def weekly_goals(self, eater_id: EaterId) -> dict[str, int | None]:
         """今週の目標（training_days・meal_days・sleep_days）。入っていない・読めない項目は None。"""

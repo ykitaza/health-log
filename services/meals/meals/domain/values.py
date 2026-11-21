@@ -46,6 +46,47 @@ class Nutrition:
         return Nutrition(self.kcal * factor, self.protein_g * factor, self.fat_g * factor, self.carbs_g * factor)
 
 
+# 食事のスコア（domain/meal_score.py）に使う推定の項目。数の項目は量に比例する（量を変えると同じ割合で変わる）
+ESTIMATE_AMOUNTS = ("sv_staple", "sv_side", "sv_main", "sv_dairy", "sv_fruit", "fiber_g", "salt_g", "alcohol_g")
+ESTIMATE_FIELDS = ESTIMATE_AMOUNTS + ("is_snack_or_sweet_drink",)
+
+
+@dataclass(frozen=True)
+class DietEstimate:
+    """品目の、食事のスコアに使う推定（AI が記録するときに付ける）。
+
+    None は「推定していない」（アプリで手入力した品目、この項目を足す前の記録など）。0・False は「ない」。
+    SV（つ）は食事バランスガイドの数え方（主食・副菜・主菜・牛乳と乳製品・果物）。
+    """
+
+    sv_staple: float | None = None  # 主食（ごはん・パン・めん）
+    sv_side: float | None = None  # 副菜（野菜・きのこ・いも・海藻）
+    sv_main: float | None = None  # 主菜（肉・魚・卵・大豆）
+    sv_dairy: float | None = None  # 牛乳・乳製品
+    sv_fruit: float | None = None  # 果物
+    fiber_g: float | None = None  # 食物繊維
+    salt_g: float | None = None  # 食塩相当量
+    alcohol_g: float | None = None  # 純アルコール
+    is_snack_or_sweet_drink: bool | None = None  # 菓子・嗜好飲料か
+
+    def __post_init__(self):
+        if any(v is not None and v < 0 for v in (getattr(self, k) for k in ESTIMATE_AMOUNTS)):
+            raise MealError("推定の値は0以上である必要があります")
+
+    def times(self, factor: float) -> "DietEstimate":
+        scaled = {k: None if (v := getattr(self, k)) is None else v * factor for k in ESTIMATE_AMOUNTS}
+        return DietEstimate(**scaled, is_snack_or_sweet_drink=self.is_snack_or_sweet_drink)
+
+    def values(self) -> dict:
+        """推定した項目だけ（None は含めない）。"""
+        return {k: v for k in ESTIMATE_FIELDS if (v := getattr(self, k)) is not None}
+
+    @classmethod
+    def of(cls, values: dict) -> "DietEstimate":
+        """保存した形（ない項目は推定していない）から作る。知らない項目は無視する。"""
+        return cls(**{k: values.get(k) for k in ESTIMATE_FIELDS})
+
+
 @dataclass(frozen=True)
 class NutritionGap:
     """栄養の差（残り、目標との差）。負の値もとる。目標がない項目は None。"""

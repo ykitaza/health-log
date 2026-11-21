@@ -3,19 +3,39 @@
 from dataclasses import dataclass
 from datetime import date
 
+from meals.domain.auto_goal import Sex
 from meals.domain.meal import Meal
+from meals.domain.meal_score import MealScore, meal_score
 from meals.domain.nutrition_goal import NutritionGoal, Target
 from meals.domain.values import DayType, Nutrition, NutritionGap
 
 
 @dataclass(frozen=True)
 class DailySummary:
-    """1日のまとめ。目標が未設定なら target と remaining は None。目標がない項目の残りも None。"""
+    """1日のまとめ。目標が未設定なら target と remaining は None。目標がない項目の残りも None。
+
+    sex は食事のスコアの性別で変わる目安に使う（アプリの設定。なければ None）。previous は前の日のまとめ（スコアの差に使う）。
+    """
 
     day: date
     day_type: DayType
     meals: tuple[Meal, ...]
     goal: NutritionGoal | None
+    sex: Sex | None = None
+    previous: "DailySummary | None" = None
+
+    @property
+    def score(self) -> MealScore | None:
+        """食事のスコア。食事の記録がない日は None。"""
+        return meal_score(self.meals, self.target, self.sex)
+
+    @property
+    def score_diff(self) -> int | None:
+        """前の日の点との差。どちらかの日に点がなければ None。"""
+        today = self.score.score if self.score else None
+        before = self.previous.score if self.previous else None
+        before = before.score if before else None
+        return None if today is None or before is None else today - before
 
     @property
     def total(self) -> Nutrition:

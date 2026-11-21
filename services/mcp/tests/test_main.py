@@ -260,7 +260,14 @@ def test_期間の材料を1回で読める_筋トレ_食事_体組成_睡眠_�
     meals = week["meals"]
     assert (meals["recorded_days"], meals["total_days"], len(meals["days"])) == (1, 7, 7)
     assert meals["days"][1] == {"date": "2026-11-03", "day_type": "training", "recorded": True, "kcal": 312,
-                                "protein_g": 5, "fat_g": 0.6, "carbs_g": 74, "target_kcal": 2800}
+                                "protein_g": 5, "fat_g": 0.6, "carbs_g": 74, "target_kcal": 2800,
+                                # 食事のスコア（手で計算）：エネルギー 312 は 2800 の −88.9%（±50% より外）→ 0。たんぱく質は目標なし、
+                                # バランスは推定なしで記録なし。脂質 0.6 × 9 ÷ 312 = 1.7%（20% から 18 ポイント）→ 0。点 0。
+                                # 伸ばしやすいのはエネルギーと脂質（どちらも +100 ÷ 2 = 50）で、並びの先のエネルギー
+                                "score": {"points": 0, "diff": None,
+                                          "parts": {"energy": 0, "protein": None, "balance": None, "moderation": 0},
+                                          "easiest": {"advice": "エネルギーをあと 2488 kcal", "gain": 50}}}
+    assert meals["days"][0]["score"] is None  # 記録がない日は点なし
     assert "goal" not in meals and "from" not in meals
     assert week["body"] == {
         "days_recorded": 2, "weight_days_recorded": 2, "body_fat_days_recorded": 1,
@@ -656,6 +663,34 @@ def test_今週の目標は0から7の整数だけを読む(server, value, expec
     app_change(engine, "setting", "weeklyGoalTrainingDays", {"value": "5"})  # snake_case を先に読む
     body = main.SyncedBodyData(engine, main.create_queries(engine))
     assert anyio.run(body.weekly_goals, EaterId("alice"))["training_days"] == expected
+
+
+@pytest.mark.parametrize("value, expected", [("male", "male"), ("female", "female"), ("other", None), ("", None),
+                                             (None, None)])
+def test_食事のスコアの性別は_設定の_sex_が_male_か_female_のときだけ読む(server, value, expected):
+    engine = server["engine"]
+    if value is not None:
+        app_change(engine, "setting", "sex", {"value": value})
+    body = main.SyncedBodyData(engine, main.create_queries(engine))
+    sex = anyio.run(body.sex, EaterId("alice"))
+    assert (sex.value if sex else None) == expected
+
+
+def test_食事のスコアは_設定の性別の目安で見る(server):
+    engine = server["engine"]
+    app_change(engine, "setting", "sex", {"value": "male"})
+    # 食塩 7g：男性の目安 7.5g 未満なので満点（性別がないときの 6.5g なら 1 − 0.5/6.5 で下がる）
+    meal = {**LUNCH, "items": [{**LUNCH["items"][0], "fat_g": 8.7, "salt_g": 7, "alcohol_g": 0,
+                                 "is_snack_or_sweet_drink": False}]}
+
+    async def body(client):
+        data(await client.call_tool("record_meal", {"meal": meal}))
+        return data(await client.call_tool("today_status", {}))
+
+    score = run(server, ALL_SCOPES, body)["score"]
+    assert score["basis"]["sex"] == "male" and "note" not in score["basis"]
+    salt = next(i for i in score["parts"][3]["items"] if i["key"] == "salt_g")
+    assert (salt["high"], salt["points"]) == (7.5, 100)
 
 
 def test_JWKS_が取れないときは_401_ではなく_503_を返す(server):

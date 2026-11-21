@@ -21,7 +21,7 @@ from meals.domain.errors import MealError
 from meals.domain.meal import FoodItem, Meal
 from meals.domain.meal_template import MealTemplate
 from meals.domain.nutrition_goal import DailyTarget, EatingStyle, NutritionGoal, Policy
-from meals.domain.values import Confidence, DayType, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
+from meals.domain.values import Confidence, DayType, DietEstimate, EatenOn, EaterId, MealSlot, Nutrition, Quantity, Source, Unit
 from meals.infrastructure.sync_entities import MEAL_ITEM_REQUIRED, MEAL_REQUIRED, day_key, template_id
 from sync.engine import SyncEngine
 from sync.model import Change, Doc, EntityState
@@ -40,16 +40,19 @@ def _unreadable(entity_type: str, eater: EaterId, entity_id: str, error: Excepti
 
 
 def _item_core(i: FoodItem) -> dict:
+    # 食事のスコアに使う推定（SV・食物繊維など）は、推定した項目だけ書く（推定していない項目に null を書くと、
+    # アプリや前の記録の値を消してしまうため。推定の根拠 basis と同じ）
     return {
         "name": i.name, "amount": i.quantity.amount, "unit": i.quantity.unit.value,
         "kcal": i.nutrition.kcal, "protein_g": i.nutrition.protein_g, "fat_g": i.nutrition.fat_g,
-        "carbs_g": i.nutrition.carbs_g, "confidence": i.confidence.value,
+        "carbs_g": i.nutrition.carbs_g, "confidence": i.confidence.value, **i.estimate.values(),
     }
 
 
 def _item_from(item_id: str, v: dict) -> FoodItem:
     return FoodItem(item_id, v["name"], Quantity(v["amount"], Unit(v["unit"])),
-                    Nutrition(v["kcal"], v["protein_g"], v["fat_g"], v["carbs_g"]), Confidence(v["confidence"]))
+                    Nutrition(v["kcal"], v["protein_g"], v["fat_g"], v["carbs_g"]), Confidence(v["confidence"]),
+                    DietEstimate.of(v))
 
 
 def meal_fields(m: Meal) -> dict:

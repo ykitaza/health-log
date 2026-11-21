@@ -31,6 +31,7 @@ Kcal = Annotated[float, Field(ge=0, le=20000)]
 Amount = Annotated[float, Field(gt=0, le=100000)]
 Unit = Literal["g", "ml", "個", "杯"]
 Confidence = Literal["high", "medium", "low"]
+Sv = Annotated[float, Field(ge=0, le=100)]  # 食事バランスガイドの「つ（SV）」
 
 
 def not_blank(text: str) -> str:
@@ -70,6 +71,17 @@ class _ItemCore(FieldsModel):
     fat_g: Grams = None
     carbs_g: Grams = None
     confidence: Confidence = None
+    # 食事のスコアに使う推定（MCP で AI が付ける。どれも省ける。null・省略は「推定していない」、0・false は「ない」）。
+    # 前の版のアプリは送らず、受け取っても捨てる
+    sv_staple: Sv | None = None  # 主食
+    sv_side: Sv | None = None  # 副菜
+    sv_main: Sv | None = None  # 主菜
+    sv_dairy: Sv | None = None  # 牛乳・乳製品
+    sv_fruit: Sv | None = None  # 果物
+    fiber_g: Grams | None = None  # 食物繊維
+    salt_g: Grams | None = None  # 食塩相当量
+    alcohol_g: Grams | None = None  # 純アルコール
+    is_snack_or_sweet_drink: bool | None = None  # 菓子・嗜好飲料か
 
 
 class MealItemFields(_ItemCore):
