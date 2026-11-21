@@ -80,7 +80,7 @@ export function AiCaptureButton({ prompt, small }: { prompt: () => ChatPrompt; s
   return (
     <>
       {small ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={AI_CAPTURE_LABEL} onPress={() => chat.open(prompt())} testID="ai-capture"
+        <Pressable accessibilityRole="button" accessibilityLabel={AI_CAPTURE_LABEL} onPress={() => chat.open(prompt())} testID="ai-capture" hitSlop={{ top: 4, bottom: 4 }}
           style={({ pressed }) => [s.small, pressed && { opacity: 0.7 }]}>
           <Icon name="chat" size={18} color={colors.accent} />
           <T variant="bodyS" color={colors.accent}>AI で拾う</T>

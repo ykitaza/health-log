@@ -4,7 +4,7 @@ import type { ListItem } from '@/db/repositories/words';
 import { PLACE_LABELS } from '@/lib/types';
 import { colors, space } from '@/theme';
 import { Icon } from './Icon';
-import { T } from './ui';
+import { NO_SPACING, T } from './ui';
 
 /** 「○ 未記入」（場面がまだない） */
 function Unwritten() {
@@ -47,7 +47,7 @@ export function WordRow({ e, sub, extra, onToHand, testID }: { e: ListItem; sub:
       testID={testID ?? 'word-row'}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m }}>
-        <T variant="word" style={{ flex: 1 }} numberOfLines={2}>{e.text}</T>
+        <T variant="word" style={[{ flex: 1 }, NO_SPACING]} numberOfLines={2}>{e.text}</T>
         <RowMarks e={e} />
       </View>
       {sub !== '' && <T variant="bodyS" color={colors.sub} numberOfLines={1}>{sub}</T>}

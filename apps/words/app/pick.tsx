@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Header, Notice, Screen, T } from '@/components/ui';
+import { Header, NO_SPACING, Notice, Screen, T } from '@/components/ui';
 import { RowMarks } from '@/components/WordRow';
 import { useData, useRepos } from '@/hooks/data';
 import { useNotifications } from '@/hooks/notifications';
@@ -31,7 +31,7 @@ export default function PickScreen() {
         <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`${e.text}を手札に入れる`} onPress={() => pick(e.id)}
           style={({ pressed }) => [{ paddingVertical: space.m, gap: 2 }, pressed && { opacity: 0.6 }]} testID="pick-row">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m }}>
-            <T variant="word" style={{ flex: 1 }}>{e.text}</T>
+            <T variant="word" style={[{ flex: 1 }, NO_SPACING]}>{e.text}</T>
             <RowMarks e={e} />
           </View>
           {rowSub(e) !== '' && <T variant="bodyS" color={colors.sub}>{rowSub(e)}</T>}

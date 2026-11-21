@@ -43,10 +43,10 @@ export function TagAdd({ kind, tags, onAdded }: { kind: TagKind; tags: Tag[]; on
         onChangeText={setName}
         onSubmitEditing={add}
         placeholder="新しいタグ"
-        placeholderTextColor={colors.faint}
+        placeholderTextColor={colors.sub}
         accessibilityLabel={label}
         maxLength={20}
-        style={{ flex: 1, fontFamily: fonts.sans, fontSize: 16, color: colors.ink, borderBottomWidth: 1, borderBottomColor: colors.accent, minHeight: 40 }}
+        style={{ flex: 1, fontFamily: fonts.sans, fontSize: 16, color: colors.ink, borderBottomWidth: 1, borderBottomColor: colors.accent, minHeight: 48 }}
         testID={`tag-input-${kind}`}
       />
       <Button label="足す" variant="text" small onPress={add} testID={`tag-save-${kind}`} />

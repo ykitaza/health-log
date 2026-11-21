@@ -83,7 +83,7 @@ export default function SourcesScreen() {
         <View style={{ gap: space.m, marginTop: space.m }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.m }}>
             <Icon name={SOURCE_ICONS[icon]} size={26} color={colors.accent} />
-            <TextInput autoFocus value={name} onChangeText={setName} placeholder="場所の名前" placeholderTextColor={colors.faint} maxLength={40}
+            <TextInput autoFocus value={name} onChangeText={setName} placeholder="場所の名前" placeholderTextColor={colors.sub} maxLength={40}
               accessibilityLabel="新しい場所の名前" onSubmitEditing={add} style={[s.input, { flex: 1, borderBottomColor: colors.accent }]} testID="source-new-name" />
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, paddingLeft: space.xxl }}>
