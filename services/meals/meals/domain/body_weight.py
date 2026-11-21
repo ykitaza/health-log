@@ -5,7 +5,7 @@ from meals.domain.errors import MealError
 from meals.domain.nutrition_goal import NutritionGoal, Policy
 from meals.domain.values import EaterId
 
-TREND_WINDOW_DAYS = 28  # 1週間あたりの変化は、直近4週間の記録から出す
+TREND_WINDOW_DAYS = 28  # 1週間あたりの変化は、直近4週間（今日を含めて28日）の記録から出す
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class GoalProgress:
     @property
     def weekly_change_kg(self) -> float | None:
         """直近4週間の、1週間あたりの体重の変化。1週間以上の間をあけた記録が2つないと出せない。"""
-        since = self.today - timedelta(days=TREND_WINDOW_DAYS)
+        since = self.today - timedelta(days=TREND_WINDOW_DAYS - 1)  # 今日を含めて28日（筋トレの weekly_pace・アプリと同じ）
         recent = [r for r in self.records if r.day >= since]
         if len(recent) < 2 or (recent[-1].day - recent[0].day).days < 7:
             return None

@@ -27,7 +27,14 @@ from training.domain.phase import Phase
 
 
 def r1(value: float | None) -> float | None:
-    return None if value is None else round(value, 1)
+    """小数第1位に丸める（.5 は上げる。アプリの Math.round(x * 10) / 10 と同じ。Python の round は偶数への丸めで、
+    458.25 が 458.2 になりアプリの 458.3 と食い違う）。"""
+    return None if value is None else round1(value)
+
+
+def r2(value: float | None) -> float | None:
+    """小数第2位に丸める（.5 は上げる。アプリの Math.round(x * 100) / 100 と同じ）。"""
+    return None if value is None else phase_rules.cents(value) / 100
 
 
 def exercise(e: Exercise, catalog: Catalog) -> dict:
@@ -166,7 +173,9 @@ def weekly(review: WeeklyTrainingReview, catalog: Catalog) -> dict:
         "training_days": sessions,
         "total_volume": r1(this_week.total),
         "by_body_part": this_parts,
-        "untrained_body_parts": [p["body_part"] for p in this_parts if p["volume"] == 0],
+        # セットの記録がない部位（負荷量ではなく記録で見る。プランクや、体重の記録がない自重の種目だけの部位は負荷量が 0 でも鍛えている）
+        "untrained_body_parts": [p.name for p in catalog.body_parts
+                                 if not p.hidden and p.id not in review.trained_part_ids],
         "last_week": {"from": last_week.week_start, "sessions": len(last_sessions),
                       "total_volume": r1(last_week.total), "by_body_part": parts(last_week)},
         "days_since_last_training": calculations.days_between(last_day, review.today) if last_day else None,
@@ -192,7 +201,7 @@ def body_progress(p: BodyProgress, start: str, end: str) -> dict:
         "from": start,
         "to": end,
         "latest": daily_body(p.latest) if p.latest else None,
-        "weekly_weight_change_kg": None if p.weekly_pace is None else round(p.weekly_pace, 2),
+        "weekly_weight_change_kg": r2(p.weekly_pace),
         "days": [daily_body(d) for d in p.days],
     }
 
@@ -221,6 +230,8 @@ def heart_rate_summary(s: HeartRateSummary, start: str, end: str) -> dict:
         "from": start,
         "to": end,
         "days_recorded": len(s.days),
+        # 安静時心拍の平均の母数（安静時心拍がある日だけ。days_recorded には安静時心拍のない日も入る）
+        "resting_days_recorded": len([d for d in s.days if d.resting_bpm is not None]),
         "average_resting_bpm": r1(s.average_resting_bpm),
         "days": [{"date": d.date, "resting_bpm": r1(d.resting_bpm), "avg_bpm": r1(d.avg_bpm), "min_bpm": r1(d.min_bpm),
                   "max_bpm": r1(d.max_bpm), "samples": d.samples} for d in s.days],
@@ -285,9 +296,12 @@ def period_body(p: BodyProgress) -> dict:
     days = [d for d in p.days if d.weight_kg is not None or d.body_fat_pct is not None]
     return {
         "days_recorded": len(days),
+        # 平均の母数（体重・体脂肪率それぞれ、記録がある日だけ）
+        "weight_days_recorded": len([d for d in days if d.weight_kg is not None]),
+        "body_fat_days_recorded": len([d for d in days if d.body_fat_pct is not None]),
         "average_weight_kg": r1(health.average([d.weight_kg for d in days if d.weight_kg is not None])),
         "average_body_fat_pct": r1(health.average([d.body_fat_pct for d in days if d.body_fat_pct is not None])),
-        "weekly_weight_change_kg": None if p.weekly_pace is None else round(p.weekly_pace, 2),
+        "weekly_weight_change_kg": r2(p.weekly_pace),
         "days": [{"date": d.date, "weight_kg": d.weight_kg, "body_fat_pct": d.body_fat_pct} for d in days],
     }
 

@@ -69,7 +69,8 @@ def register_overview_tools(
           （同じ長さで7日の倍数だけ前）、delta は差。7日までの期間は band（目安 10〜20 セット）と、足りない short・多い over、
           目安に近づいた toward・離れた away・同じ same の trend も（8日以上の期間には付かない）。アプリのカードと同じ数なので、数え直さずそのまま使う）
         - meals：日ごとの kcal・PFC と記録の有無、筋トレの日か、その日の目標 kcal、記録した日の平均と目標との差
-        - body：体重・体脂肪率の日ごとの値と期間の平均、end までの28日の体重の週あたりの変化
+        - body：体重・体脂肪率の日ごとの値と期間の平均（記録がある日の平均。母数は weight_days_recorded・body_fat_days_recorded）、
+          as_of（end と今日の早いほう）までの28日の体重の週あたりの変化
         - sleep：起きた日ごとの眠っていた時間と寝た・起きた時刻、平均。heart_rate：安静時心拍の日ごとの値と平均
         - steps：日ごとの歩数の合計と、記録がある日の平均（Health Connect の取り込み。記録がない日は含めない）
         - phase：フェーズ（本人がアプリで宣言した、増量 bulk・減量 cut・維持 maintain の期間と療養 rehab）。as_of（end と今日の早いほう）の時点の
@@ -135,7 +136,8 @@ def register_overview_tools(
                     "part_sets": training_views.part_sets(await training.part_sets(sub, s, e, today().isoformat())),
                 },
                 "meals": meals,
-                "body": training_views.period_body(await training.body_progress(sub, s, e)),
+                # 週あたりの変化は as_of（end と今日の早いほう）までの28日で出す（end が先の日だと、まだ来ていない日を窓に入れてしまう）
+                "body": training_views.period_body(await training.body_progress(sub, s, as_of)),
                 "sleep": training_views.period_sleep(await training.sleep_summary(sub, s, e)),
                 "heart_rate": training_views.period_heart_rate(await training.heart_rate_summary(sub, s, e)),
                 "steps": training_views.period_steps(await training.step_summary(sub, s, e)),

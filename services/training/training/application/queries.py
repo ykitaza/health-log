@@ -21,6 +21,8 @@ class WeeklyTrainingReview:
     by_body_part: list[calculations.WeeklyByPart]  # 古い順
     training_days: list[str]
     missing_bodyweight_sets: int = 0  # 体重の記録がないため、この週の総負荷量に入らなかった自重のセット
+    # この週（月曜〜today）にセットの記録がある部位の ID。負荷量が 0 のセット（プランク、体重の記録がない自重の種目）も含む
+    trained_part_ids: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -159,6 +161,7 @@ class TrainingQueries:
             calculations.weekly_volume_by_body_part(rows, today, weeks),
             [d for d in calculations.training_dates(rows) if d <= today],
             bodyweight.missing_bodyweight([r for r in rows if start <= r.date <= today]),
+            frozenset(r.body_part_id for r in rows if start <= r.date <= today),
         )
 
     async def period_training(self, subject: str, start: str, end: str) -> PeriodTraining:
